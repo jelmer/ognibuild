@@ -2,3 +2,4 @@ build
 *~
 ognibuild.egg-info
 dist
+__pycache__
