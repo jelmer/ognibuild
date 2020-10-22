@@ -20,4 +20,8 @@ setup(name="ognibuild",
           'Programming Language :: Python :: 3.6',
           'Programming Language :: Python :: Implementation :: CPython',
           'Operating System :: POSIX',
-      ])
+      ],
+      entry_points={
+        "console_scripts": [
+            "ogni=ognibuild.__main__:main"]
+      })
