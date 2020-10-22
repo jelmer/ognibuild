@@ -11,7 +11,7 @@ setup(name="ognibuild",
       maintainer_email="jelmer@jelmer.uk",
       license="GNU GPLv2 or later",
       url="https://jelmer.uk/code/ognibuild",
-      scripts=['ognibuild.py'],
+      packages=['ognibuild'],
       classifiers=[
           'Development Status :: 4 - Beta',
           'License :: OSI Approved :: '
