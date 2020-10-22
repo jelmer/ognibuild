@@ -225,17 +225,3 @@ def run_dist(session):
         run_with_build_fixer(session, ['make', 'dist'])
 
     raise NoBuildToolsFound()
-
-
-class PlainSession(object):
-    """Session ignoring user."""
-
-    def create_home(self):
-        pass
-
-    def check_call(self, args):
-        return subprocess.check_call(args)
-
-    def Popen(self, args, stdout=None, stderr=None, user=None, cwd=None):
-        return subprocess.Popen(
-            args, stdout=stdout, stderr=stderr, cwd=cwd)

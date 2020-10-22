@@ -21,7 +21,10 @@ import subprocess
 from typing import Optional, List, Dict
 
 
-class Session(object):
+from . import Session, SessionSetupFailure
+
+
+class SchrootSession(Session):
 
     _cwd: Optional[str]
     _location: Optional[str]
@@ -44,8 +47,12 @@ class Session(object):
             ['schroot', '-c', 'session:' + self.session_id, '-e'])
 
     def __enter__(self) -> 'Session':
-        self.session_id = subprocess.check_output(
-            ['schroot', '-c', self.chroot, '-b']).strip().decode()
+        try:
+            self.session_id = subprocess.check_output(
+                ['schroot', '-c', self.chroot, '-b']).strip().decode()
+        except subprocess.CalledProcessError:
+            # TODO(jelmer): Capture stderr and forward in SessionSetupFailure
+            raise SessionSetupFailure()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

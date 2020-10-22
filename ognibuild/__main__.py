@@ -17,7 +17,7 @@
 
 import os
 import sys
-from . import PlainSession, run_dist, NoBuildToolsFound, note
+from . import run_dist, NoBuildToolsFound, note
 
 
 def main():
@@ -27,15 +27,24 @@ def main():
     parser.add_argument(
         '--directory', '-d', type=str, help='Directory for project.',
         default='.')
+    parser.add_argument(
+        '--schroot', type=str, help='schroot to run in.')
     args = parser.parse_args()
-    session = PlainSession()
-    os.chdir(args.directory)
-    try:
-        if args.subcommand == 'dist':
-            run_dist(session)
-    except NoBuildToolsFound:
-        note('No build tools found.')
-        return 1
-    return 0
+    if args.schroot:
+        from .session.schroot import SchrootSession
+        session = SchrootSession(args.schroot)
+    else:
+        from .session.plain import PlainSession
+        session = PlainSession()
+    with session:
+        os.chdir(args.directory)
+        try:
+            if args.subcommand == 'dist':
+                run_dist(session)
+        except NoBuildToolsFound:
+            note('No build tools found.')
+            return 1
+        return 0
+
 
 sys.exit(main())
