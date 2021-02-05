@@ -1,0 +1,21 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+
+Files: *
+Copyright: Unknown
+License: GPL-2+
+Comment: No explicit license found, using license(s) from:
+ LICENSE
+
+Files: LICENSE build/* dist/ognibuild-0.0.1.tar.gz ognibuild/*
+Copyright: 1989-1991, Free Software Foundation, Inc
+           2019-2020, Jelmer Vernooij <jelmer@jelmer.uk>
+License: GPL-2+
+
+Files: debian/*
+Copyright: Unknown
+License: GPL-2+
+Comment: No explicit license found, using license(s) from:
+ LICENSE
+
+License: GPL-2+
+Comment: Add the corresponding license text here
