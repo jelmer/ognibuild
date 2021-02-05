@@ -1,4 +1,4 @@
-python-ognibuild (0.0.1~git20201031.4cbc8df-1) UNRELEASED; urgency=low
+python-ognibuild (0.0.1~git20201031.4cbc8df-1) unstable; urgency=low
 
   * Initial release. Closes: #981913
 
