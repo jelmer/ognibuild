@@ -33,7 +33,7 @@ from breezy.workingtree import WorkingTree
 
 from breezy.plugins.debian.repack_tarball import get_filetype
 
-from .fix_build import (
+from .debian.fix_build import (
     DependencyContext,
     resolve_error,
     APT_FIXERS,
