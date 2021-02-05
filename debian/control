@@ -5,3 +5,4 @@ Source: python-ognibuild
 
 Package: python3-python-ognibuild
 Architecture: all
+Description: Detect and run any build system
