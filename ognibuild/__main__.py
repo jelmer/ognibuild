@@ -17,13 +17,18 @@
 
 import os
 import sys
-from . import run_dist, NoBuildToolsFound, note
+from . import (
+    run_dist, run_build, run_clean, run_install, run_test, NoBuildToolsFound,
+    note
+    )
 
 
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('subcommand', type=str, choices=['dist'])
+    parser.add_argument(
+        'subcommand', type=str,
+        choices=['dist', 'build', 'clean', 'test', 'install'])
     parser.add_argument(
         '--directory', '-d', type=str, help='Directory for project.',
         default='.')
@@ -41,6 +46,14 @@ def main():
         try:
             if args.subcommand == 'dist':
                 run_dist(session)
+            if args.subcommand == 'build':
+                run_build(session)
+            if args.subcommand == 'clean':
+                run_clean(session)
+            if args.subcommand == 'install':
+                run_install(session)
+            if args.subcommand == 'test':
+                run_test(session)
         except NoBuildToolsFound:
             note('No build tools found.')
             return 1

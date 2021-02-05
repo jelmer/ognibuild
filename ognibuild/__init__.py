@@ -87,6 +87,22 @@ def run_with_build_fixer(session, args):
     session.check_call(args)
 
 
+def run_build(session):
+    raise NotImplementedError
+
+
+def run_clean(session):
+    raise NotImplementedError
+
+
+def run_test(session):
+    raise NotImplementedError
+
+
+def run_install(session):
+    raise NotImplementedError
+
+
 def run_dist(session):
     # TODO(jelmer): Check $PATH rather than hardcoding?
     if not os.path.exists('/usr/bin/git'):
