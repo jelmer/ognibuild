@@ -9,7 +9,7 @@ Vcs-Git: https://salsa.debian.org/jelmer/ognibuild.git
 Vcs-Browser: https://salsa.debian.org/jelmer/ognibuild
 Homepage: https://github.com/jelmer/ognibuild
 
-Package: python-ognibuild
+Package: ognibuild
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends}
 Description: Detect and run any build system
