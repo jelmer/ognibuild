@@ -22,6 +22,8 @@ import unittest
 
 def test_suite():
     names = [
+        'debian_build',
+        'debian_fix_build',
     ]
     module_names = ['ognibuild.tests.test_' + name for name in names]
     loader = unittest.TestLoader()

@@ -31,6 +31,9 @@ Ognibuild has a number of subcommands:
  * ``ogni install`` - install the package
  * ``ogni test`` - run the testsuite in the source directory
 
+It also includes a subcommand that can fix up the build dependencies
+for Debian packages, called deb-fix-build.
+
 License
 -------
 
