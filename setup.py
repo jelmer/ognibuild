@@ -27,7 +27,12 @@ setup(name="ognibuild",
             "deb-fix-build=ognibuild.debian.fix_build:main",
         ]
       },
-      install_requires=['breezy', 'buildlog-consultant', 'python_debian'],
+      install_requires=[
+          'breezy',
+          'buildlog-consultant',
+          'python_debian',
+          'debmutate',
+          ],
       tests_require=['python_debian', 'buildlog-consultant', 'breezy'],
       test_suite='ognibuild.tests.test_suite',
       )
