@@ -33,6 +33,7 @@ from breezy.workingtree import WorkingTree
 
 from breezy.plugins.debian.repack_tarball import get_filetype
 
+from .session import run_with_tee
 from .debian.fix_build import (
     DependencyContext,
     resolve_error,
@@ -91,18 +92,6 @@ def satisfy_build_deps(session: Session, tree):
         dep.strip().strip(',')
         for dep in deps]
     apt_satisfy(session, deps)
-
-
-def run_with_tee(session: Session, args: List[str], **kwargs):
-    p = session.Popen(
-        args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs)
-    contents = []
-    while p.poll() is None:
-        line = p.stdout.readline()
-        sys.stdout.buffer.write(line)
-        sys.stdout.buffer.flush()
-        contents.append(line.decode('utf-8', 'surrogateescape'))
-    return p.returncode, contents
 
 
 class SchrootDependencyContext(DependencyContext):

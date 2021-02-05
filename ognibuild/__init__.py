@@ -21,6 +21,7 @@ import stat
 import subprocess
 import sys
 from typing import List
+from .session import run_with_tee
 
 
 DEFAULT_PYTHON = 'python3'
@@ -57,18 +58,6 @@ def note(m):
 
 def warning(m):
     sys.stderr.write('WARNING: %s\n' % m)
-
-
-def run_with_tee(session, args: List[str], **kwargs):
-    p = session.Popen(
-        args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs)
-    contents = []
-    while p.poll() is None:
-        line = p.stdout.readline()
-        sys.stdout.buffer.write(line)
-        sys.stdout.buffer.flush()
-        contents.append(line.decode('utf-8', 'surrogateescape'))
-    return p.returncode, contents
 
 
 def run_apt(session, args: List[str]) -> None:

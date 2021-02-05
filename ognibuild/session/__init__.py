@@ -17,6 +17,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 from typing import Optional, List, Dict
+import sys
+import subprocess
 
 
 class Session(object):
@@ -64,3 +66,15 @@ class Session(object):
 
 class SessionSetupFailure(Exception):
     """Session failed to be set up."""
+
+
+def run_with_tee(session: Session, args: List[str], **kwargs):
+    p = session.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs)
+    contents = []
+    while p.poll() is None:
+        line = p.stdout.readline()
+        sys.stdout.buffer.write(line)
+        sys.stdout.buffer.flush()
+        contents.append(line.decode('utf-8', 'surrogateescape'))
+    return p.returncode, contents
