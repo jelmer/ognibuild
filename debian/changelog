@@ -1,7 +1,5 @@
 python-ognibuild (0.0.1~git20201031.4cbc8df-1) UNRELEASED; urgency=low
 
   * Initial release. Closes: #981913
-  * Set upstream metadata fields: Bug-Database, Bug-Submit, Repository,
-    Repository-Browse.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Fri, 05 Feb 2021 03:00:40 +0000
