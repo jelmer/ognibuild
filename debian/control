@@ -4,6 +4,7 @@ Build-Depends: debhelper-compat (= 12), dh-sequence-python3
 Source: python-ognibuild
 Priority: optional
 Section: python
+Maintainer: Jelmer Vernooĳ <jelmer@debian.org>
 
 Package: python3-python-ognibuild
 Architecture: all
