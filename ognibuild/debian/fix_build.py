@@ -57,7 +57,7 @@ from lintian_brush.changelog import (
     add_changelog_entry,
     )
 
-from lintian_brush.rules import (
+from debmutate._rules import (
     dh_invoke_add_with,
     update_rules,
     )
