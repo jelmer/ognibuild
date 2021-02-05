@@ -1,15 +1,15 @@
 Rules-Requires-Root: no
 Standards-Version: 4.5.1
 Build-Depends: debhelper-compat (= 12), dh-sequence-python3, python3-all, python3-setuptools
-Source: python-ognibuild
+Source: ognibuild
 Priority: optional
-Section: python
+Section: devel
 Maintainer: Jelmer Vernooĳ <jelmer@debian.org>
 Vcs-Git: https://salsa.debian.org/jelmer/ognibuild.git
 Vcs-Browser: https://salsa.debian.org/jelmer/ognibuild
 Homepage: https://github.com/jelmer/ognibuild
 
-Package: python3-python-ognibuild
+Package: python-ognibuild
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends}
 Description: Detect and run any build system
