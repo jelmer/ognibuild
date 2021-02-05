@@ -1,6 +1,6 @@
 Rules-Requires-Root: no
 Standards-Version: 4.5.1
-Build-Depends: debhelper-compat (= 12), dh-sequence-python3, python3-all
+Build-Depends: debhelper-compat (= 12), dh-sequence-python3, python3-all, python3-setuptools
 Source: python-ognibuild
 Priority: optional
 Section: python

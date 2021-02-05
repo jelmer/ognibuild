@@ -1,0 +1,3 @@
+Test-Command: python3 setup.py test
+Depends: @
+Restrictions: allow-stderr
