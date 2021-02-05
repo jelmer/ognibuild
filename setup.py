@@ -28,6 +28,6 @@ setup(name="ognibuild",
         ]
       },
       install_requires=['breezy', 'buildlog-consultant'],
-      test_requires=['python_debian', 'buildlog-consultant', 'breezy'],
+      tests_require=['python_debian', 'buildlog-consultant', 'breezy'],
       test_suite='ognibuild.tests.test_suite',
       )
