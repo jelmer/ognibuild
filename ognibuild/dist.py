@@ -33,29 +33,24 @@ from breezy.workingtree import WorkingTree
 
 from breezy.plugins.debian.repack_tarball import get_filetype
 
+from buildlog_consultant.sbuild import (
+    NoSpaceOnDevice,
+    )
+
 from . import DetailedFailure, shebang_binary
-from .apt import AptResolver, UnidentifiedError
+from .apt import AptManager, UnidentifiedError
+from .fix_build import run_with_build_fixer
 from .buildsystem import detect_buildsystems, NoBuildToolsFound
 from .session import run_with_tee, Session
 from .session.schroot import SchrootSession
-from .debian.fix_build import (
-    DependencyContext,
-    resolve_error,
-    APT_FIXERS,
-    )
-from buildlog_consultant.sbuild import (
-    find_build_failure_description,
-    Problem,
-    MissingPerlModule,
-    MissingCommand,
-    NoSpaceOnDevice,
-    )
+from .debian.fix_build import DependencyContext
 
 
 class DistNoTarball(Exception):
     """Dist operation did not create a tarball."""
 
 
+# TODO(jelmer): move this to debian/
 def satisfy_build_deps(session: Session, tree):
     source = Deb822(tree.get_file('debian/control'))
     deps = []
@@ -73,85 +68,12 @@ def satisfy_build_deps(session: Session, tree):
     deps = [
         dep.strip().strip(',')
         for dep in deps]
-    apt = AptResolver(session)
+    apt = AptManager(session)
     apt.satisfy(deps)
 
 
-class SchrootDependencyContext(DependencyContext):
-
-    def __init__(self, session):
-        self.session = session
-        self.apt = AptResolver(session)
-
-    def add_dependency(self, package, minimum_version=None):
-        # TODO(jelmer): Handle minimum_version
-        self.apt.install([package])
-        return True
-
-
-def fix_perl_module_from_cpan(error, context):
-    # TODO(jelmer): Specify -T to skip tests?
-    context.session.check_call(
-        ['cpan', '-i', error.module], user='root',
-        env={'PERL_MM_USE_DEFAULT': '1'})
-    return True
-
-
-NPM_COMMAND_PACKAGES = {
-    'del-cli': 'del-cli',
-    }
-
-
-def fix_npm_missing_command(error, context):
-    try:
-        package = NPM_COMMAND_PACKAGES[error.command]
-    except KeyError:
-        return False
-
-    context.session.check_call(['npm', '-g', 'install', package])
-    return True
-
-
-GENERIC_INSTALL_FIXERS: List[
-        Tuple[Type[Problem], Callable[[Problem, DependencyContext], bool]]] = [
-    (MissingPerlModule, fix_perl_module_from_cpan),
-    (MissingCommand, fix_npm_missing_command),
-]
-
-
-def run_with_build_fixer(session: Session, args: List[str]):
-    logging.info('Running %r', args)
-    fixed_errors = []
-    while True:
-        retcode, lines = run_with_tee(session, args)
-        if retcode == 0:
-            return
-        offset, line, error = find_build_failure_description(lines)
-        if error is None:
-            logging.warning('Build failed with unidentified error. Giving up.')
-            if line is not None:
-                raise UnidentifiedError(
-                    retcode, args, lines, secondary=(offset, line))
-            raise UnidentifiedError(retcode, args, lines)
-
-        logging.info('Identified error: %r', error)
-        if error in fixed_errors:
-            logging.warning(
-                'Failed to resolve error %r, it persisted. Giving up.',
-                error)
-            raise DetailedFailure(retcode, args, error)
-        if not resolve_error(
-                error, SchrootDependencyContext(session),
-                fixers=(APT_FIXERS + GENERIC_INSTALL_FIXERS)):
-            logging.warning(
-                'Failed to find resolution for error %r. Giving up.',
-                error)
-            raise DetailedFailure(retcode, args, error)
-        fixed_errors.append(error)
-
-
 def run_dist(session):
-    apt = AptResolver(session)
+    apt = AptManager(session)
     apt.install(['git'])
 
     # Some things want to write to the user's home directory,

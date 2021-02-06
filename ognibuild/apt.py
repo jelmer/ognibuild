@@ -55,7 +55,7 @@ def run_apt(session: Session, args: List[str]) -> None:
     raise UnidentifiedError(retcode, args, lines)
 
 
-class AptResolver(object):
+class AptManager(object):
 
     session: Session
 
