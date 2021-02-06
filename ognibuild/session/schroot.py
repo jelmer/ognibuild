@@ -15,6 +15,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+import logging
 import shlex
 import subprocess
 
@@ -120,8 +121,9 @@ class SchrootSession(Session):
     def create_home(self) -> None:
         """Create the user's home directory."""
         home = self.check_output(
-            ['sh', '-c', 'echo $HOME']).decode().rstrip('\n')
+            ['sh', '-c', 'echo $HOME'], cwd='/').decode().rstrip('\n')
         user = self.check_output(
-            ['sh', '-c', 'echo $LOGNAME']).decode().rstrip('\n')
-        self.check_call(['mkdir', '-p', home], user='root')
-        self.check_call(['chown', user, home], user='root')
+            ['sh', '-c', 'echo $LOGNAME'], cwd='/').decode().rstrip('\n')
+        logging.info('Creating directory %s', home)
+        self.check_call(['mkdir', '-p', home], cwd='/', user='root')
+        self.check_call(['chown', user, home], cwd='/', user='root')

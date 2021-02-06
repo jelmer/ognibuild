@@ -18,9 +18,10 @@
 import os
 import sys
 from . import (
-    run_dist, run_build, run_clean, run_install, run_test, NoBuildToolsFound,
+    run_build, run_clean, run_install, run_test, NoBuildToolsFound,
     note
     )
+from .dist import run_dist
 
 
 def main():

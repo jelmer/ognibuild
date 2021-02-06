@@ -20,7 +20,6 @@ import logging
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 from typing import Optional, List, Tuple, Callable, Type
@@ -33,45 +32,21 @@ from breezy.workingtree import WorkingTree
 
 from breezy.plugins.debian.repack_tarball import get_filetype
 
-from .session import run_with_tee
+from . import apt, DetailedFailure, shebang_binary
+from .session import run_with_tee, Session
+from .session.schroot import SchrootSession
 from .debian.fix_build import (
     DependencyContext,
     resolve_error,
     APT_FIXERS,
     )
 from buildlog_consultant.sbuild import (
-    find_apt_get_failure,
     find_build_failure_description,
     Problem,
     MissingPerlModule,
     MissingCommand,
     NoSpaceOnDevice,
     )
-from ognibuild import shebang_binary
-from ognibuild.session import Session
-from ognibuild.session.schroot import SchrootSession
-
-
-def run_apt(session: Session, args: List[str]) -> None:
-    args = ['apt', '-y'] + args
-    retcode, lines = run_with_tee(session, args, cwd='/', user='root')
-    if retcode == 0:
-        return
-    offset, line, error = find_apt_get_failure(lines)
-    if error is not None:
-        raise DetailedDistCommandFailed(retcode, args, error)
-    if line is not None:
-        raise UnidentifiedError(
-            retcode, args, lines, secondary=(offset, line))
-    raise UnidentifiedError(retcode, args, lines)
-
-
-def apt_install(session: Session, packages: List[str]) -> None:
-    run_apt(session, ['install'] + packages)
-
-
-def apt_satisfy(session: Session, deps: List[str]) -> None:
-    run_apt(session, ['satisfy'] + deps)
 
 
 def satisfy_build_deps(session: Session, tree):
@@ -91,7 +66,7 @@ def satisfy_build_deps(session: Session, tree):
     deps = [
         dep.strip().strip(',')
         for dep in deps]
-    apt_satisfy(session, deps)
+    apt.satisfy(session, deps)
 
 
 class SchrootDependencyContext(DependencyContext):
@@ -101,25 +76,8 @@ class SchrootDependencyContext(DependencyContext):
 
     def add_dependency(self, package, minimum_version=None):
         # TODO(jelmer): Handle minimum_version
-        apt_install(self.session, [package])
+        apt.install(self.session, [package])
         return True
-
-
-class DetailedDistCommandFailed(Exception):
-
-    def __init__(self, retcode, argv, error):
-        self.retcode = retcode
-        self.argv = argv
-        self.error = error
-
-
-class UnidentifiedError(Exception):
-
-    def __init__(self, retcode, argv, lines, secondary=None):
-        self.retcode = retcode
-        self.argv = argv
-        self.lines = lines
-        self.secondary = secondary
 
 
 def fix_perl_module_from_cpan(error, context):
@@ -163,23 +121,23 @@ def run_with_build_fixer(session: Session, args: List[str]):
         if error is None:
             logging.warning('Build failed with unidentified error. Giving up.')
             if line is not None:
-                raise UnidentifiedError(
+                raise apt.UnidentifiedError(
                     retcode, args, lines, secondary=(offset, line))
-            raise UnidentifiedError(retcode, args, lines)
+            raise apt.UnidentifiedError(retcode, args, lines)
 
         logging.info('Identified error: %r', error)
         if error in fixed_errors:
             logging.warning(
                 'Failed to resolve error %r, it persisted. Giving up.',
                 error)
-            raise DetailedDistCommandFailed(retcode, args, error)
+            raise DetailedFailure(retcode, args, error)
         if not resolve_error(
                 error, SchrootDependencyContext(session),
                 fixers=(APT_FIXERS + GENERIC_INSTALL_FIXERS)):
             logging.warning(
                 'Failed to find resolution for error %r. Giving up.',
                 error)
-            raise DetailedDistCommandFailed(retcode, args, error)
+            raise DetailedFailure(retcode, args, error)
         fixed_errors.append(error)
 
 
@@ -187,15 +145,15 @@ class NoBuildToolsFound(Exception):
     """No supported build tools were found."""
 
 
-def run_dist_in_chroot(session):
-    apt_install(session, ['git'])
+def run_dist(session):
+    apt.install(session, ['git'])
 
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
     if os.path.exists('package.xml'):
-        apt_install(session, ['php-pear', 'php-horde-core'])
+        apt.install(session, ['php-pear', 'php-horde-core'])
         logging.info('Found package.xml, assuming pear package.')
         session.check_call(['pear', 'package'])
         return
@@ -208,14 +166,14 @@ def run_dist_in_chroot(session):
             logging.info(
                 'Found pyproject.toml with poetry section, '
                 'assuming poetry project.')
-            apt_install(session, ['python3-venv', 'python3-pip'])
+            apt.install(session, ['python3-venv', 'python3-pip'])
             session.check_call(['pip3', 'install', 'poetry'], user='root')
             session.check_call(['poetry', 'build', '-f', 'sdist'])
             return
 
     if os.path.exists('setup.py'):
         logging.info('Found setup.py, assuming python project.')
-        apt_install(session, ['python3', 'python3-pip'])
+        apt.install(session, ['python3', 'python3-pip'])
         with open('setup.py', 'r') as f:
             setup_py_contents = f.read()
         try:
@@ -225,11 +183,11 @@ def run_dist_in_chroot(session):
             setup_cfg_contents = ''
         if 'setuptools' in setup_py_contents:
             logging.info('Reference to setuptools found, installing.')
-            apt_install(session, ['python3-setuptools'])
+            apt.install(session, ['python3-setuptools'])
         if ('setuptools_scm' in setup_py_contents or
                 'setuptools_scm' in setup_cfg_contents):
             logging.info('Reference to setuptools-scm found, installing.')
-            apt_install(
+            apt.install(
                 session, ['python3-setuptools-scm', 'git', 'mercurial'])
 
         # TODO(jelmer): Install setup_requires
@@ -237,29 +195,29 @@ def run_dist_in_chroot(session):
         interpreter = shebang_binary('setup.py')
         if interpreter is not None:
             if interpreter == 'python3':
-                apt_install(session, ['python3'])
+                apt.install(session, ['python3'])
             elif interpreter == 'python2':
-                apt_install(session, ['python2'])
+                apt.install(session, ['python2'])
             elif interpreter == 'python':
-                apt_install(session, ['python'])
+                apt.install(session, ['python'])
             else:
-                raise ValueError('Unknown interpreter %s' % interpreter)
-            apt_install(session, ['python2', 'python3'])
+                raise ValueError('Unknown interpreter %r' % interpreter)
+            apt.install(session, ['python2', 'python3'])
             run_with_build_fixer(session, ['./setup.py', 'sdist'])
         else:
             # Just assume it's Python 3
-            apt_install(session, ['python3'])
+            apt.install(session, ['python3'])
             run_with_build_fixer(session, ['python3', './setup.py', 'sdist'])
         return
 
     if os.path.exists('setup.cfg'):
         logging.info('Found setup.cfg, assuming python project.')
-        apt_install(session, ['python3-pep517', 'python3-pip'])
+        apt.install(session, ['python3-pep517', 'python3-pip'])
         session.check_call(['python3', '-m', 'pep517.build', '-s', '.'])
         return
 
     if os.path.exists('dist.ini') and not os.path.exists('Makefile.PL'):
-        apt_install(session, ['libdist-inkt-perl'])
+        apt.install(session, ['libdist-inkt-perl'])
         with open('dist.ini', 'rb') as f:
             for line in f:
                 if not line.startswith(b';;'):
@@ -281,30 +239,30 @@ def run_dist_in_chroot(session):
                     return
         # Default to invoking Dist::Zilla
         logging.info('Found dist.ini, assuming dist-zilla.')
-        apt_install(session, ['libdist-zilla-perl'])
+        apt.install(session, ['libdist-zilla-perl'])
         run_with_build_fixer(session, ['dzil', 'build', '--in', '..'])
         return
 
     if os.path.exists('package.json'):
-        apt_install(session, ['npm'])
+        apt.install(session, ['npm'])
         run_with_build_fixer(session, ['npm', 'pack'])
         return
 
     gemfiles = [name for name in os.listdir('.') if name.endswith('.gem')]
     if gemfiles:
-        apt_install(session, ['gem2deb'])
+        apt.install(session, ['gem2deb'])
         if len(gemfiles) > 1:
             logging.warning('More than one gemfile. Trying the first?')
         run_with_build_fixer(session, ['gem2tgz', gemfiles[0]])
         return
 
     if os.path.exists('waf'):
-        apt_install(session, ['python3'])
+        apt.install(session, ['python3'])
         run_with_build_fixer(session, ['./waf', 'dist'])
         return
 
     if os.path.exists('Makefile.PL') and not os.path.exists('Makefile'):
-        apt_install(session, ['perl'])
+        apt.install(session, ['perl'])
         run_with_build_fixer(session, ['perl', 'Makefile.PL'])
 
     if not os.path.exists('Makefile') and not os.path.exists('configure'):
@@ -313,7 +271,7 @@ def run_dist_in_chroot(session):
                 run_with_build_fixer(session, ['/bin/sh', './autogen.sh'])
             try:
                 run_with_build_fixer(session, ['./autogen.sh'])
-            except UnidentifiedError as e:
+            except apt.UnidentifiedError as e:
                 if ("Gnulib not yet bootstrapped; "
                         "run ./bootstrap instead.\n" in e.lines):
                     run_with_build_fixer(session, ["./bootstrap"])
@@ -322,7 +280,7 @@ def run_dist_in_chroot(session):
                     raise
 
         elif os.path.exists('configure.ac') or os.path.exists('configure.in'):
-            apt_install(session, [
+            apt.install(session, [
                 'autoconf', 'automake', 'gettext', 'libtool', 'gnu-standards'])
             run_with_build_fixer(session, ['autoreconf', '-i'])
 
@@ -330,10 +288,10 @@ def run_dist_in_chroot(session):
         session.check_call(['./configure'])
 
     if os.path.exists('Makefile'):
-        apt_install(session, ['make'])
+        apt.install(session, ['make'])
         try:
             run_with_build_fixer(session, ['make', 'dist'])
-        except UnidentifiedError as e:
+        except apt.UnidentifiedError as e:
             if "make: *** No rule to make target 'dist'.  Stop.\n" in e.lines:
                 pass
             elif ("make[1]: *** No rule to make target 'dist'. Stop.\n"
@@ -376,7 +334,7 @@ def export_vcs_tree(tree, directory):
         export(tree, directory, 'dir', None)
     except OSError as e:
         if e.errno == errno.ENOSPC:
-            raise DetailedDistCommandFailed(
+            raise DetailedFailure(
                 1, ['export'], NoSpaceOnDevice())
         raise
 
@@ -391,7 +349,7 @@ def dupe_vcs_tree(tree, directory):
             revision_id=tree.get_revision_id())
     except OSError as e:
         if e.errno == errno.ENOSPC:
-            raise DetailedDistCommandFailed(
+            raise DetailedFailure(
                 1, ['sprout'], NoSpaceOnDevice())
         raise
     # Copy parent location - some scripts need this
@@ -417,7 +375,7 @@ def create_dist_schroot(
             directory = tempfile.mkdtemp(dir=build_dir)
         except OSError as e:
             if e.errno == errno.ENOSPC:
-                raise DetailedDistCommandFailed(
+                raise DetailedFailure(
                     1, ['mkdtemp'], NoSpaceOnDevice())
         reldir = '/' + os.path.relpath(directory, session.location)
 
@@ -433,7 +391,7 @@ def create_dist_schroot(
         os.chdir(export_directory)
         try:
             session.chdir(os.path.join(reldir, subdir))
-            run_dist_in_chroot(session)
+            run_dist(session)
         except NoBuildToolsFound:
             logging.info(
                 'No build tools found, falling back to simple export.')

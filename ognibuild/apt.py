@@ -17,6 +17,16 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 
+from typing import List
+
+from buildlog_consultant.sbuild import (
+    find_apt_get_failure,
+    )
+
+from . import DetailedFailure
+from .session import Session, run_with_tee
+
+
 class UnidentifiedError(Exception):
 
     def __init__(self, retcode, argv, lines, secondary=None):
@@ -24,3 +34,28 @@ class UnidentifiedError(Exception):
         self.argv = argv
         self.lines = lines
         self.secondary = secondary
+
+
+def run_apt(session: Session, args: List[str]) -> None:
+    """Run apt."""
+    args = ['apt', '-y'] + args
+    retcode, lines = run_with_tee(session, args, cwd='/', user='root')
+    if retcode == 0:
+        return
+    offset, line, error = find_apt_get_failure(lines)
+    if error is not None:
+        raise DetailedFailure(retcode, args, error)
+    if line is not None:
+        raise UnidentifiedError(
+            retcode, args, lines, secondary=(offset, line))
+    while lines and lines[-1] == '':
+        lines.pop(-1)
+    raise UnidentifiedError(retcode, args, lines)
+
+
+def install(session: Session, packages: List[str]) -> None:
+    run_apt(session, ['install'] + packages)
+
+
+def satisfy(session: Session, deps: List[str]) -> None:
+    run_apt(session, ['satisfy'] + deps)
