@@ -26,8 +26,6 @@ from typing import Optional, List, Tuple, Callable, Type
 
 from debian.deb822 import Deb822
 
-from breezy.errors import NotBranchError
-from breezy.export import export
 from breezy.tree import Tree
 from breezy.workingtree import WorkingTree
 
@@ -44,6 +42,7 @@ from .buildsystem import detect_buildsystems, NoBuildToolsFound
 from .session import run_with_tee, Session
 from .session.schroot import SchrootSession
 from .debian.fix_build import DependencyContext
+from .vcs import dupe_vcs_tree, export_vcs_tree
 
 
 class DistNoTarball(Exception):
@@ -258,43 +257,6 @@ def run_dist(session):
             return
 
     raise NoBuildToolsFound()
-
-
-def export_vcs_tree(tree, directory):
-    try:
-        export(tree, directory, 'dir', None)
-    except OSError as e:
-        if e.errno == errno.ENOSPC:
-            raise DetailedFailure(
-                1, ['export'], NoSpaceOnDevice())
-        raise
-
-
-def dupe_vcs_tree(tree, directory):
-    with tree.lock_read():
-        if isinstance(tree, WorkingTree):
-            tree = tree.basis_tree()
-    try:
-        result = tree._repository.controldir.sprout(
-            directory, create_tree_if_local=True,
-            revision_id=tree.get_revision_id())
-    except OSError as e:
-        if e.errno == errno.ENOSPC:
-            raise DetailedFailure(
-                1, ['sprout'], NoSpaceOnDevice())
-        raise
-    if not result.has_workingtree():
-        raise AssertionError
-    # Copy parent location - some scripts need this
-    if isinstance(tree, WorkingTree):
-        parent = tree.branch.get_parent()
-    else:
-        try:
-            parent = tree._repository.controldir.open_branch().get_parent()
-        except NotBranchError:
-            parent = None
-    if parent:
-        result.open_branch().set_parent(parent)
 
 
 class DistCatcher(object):
