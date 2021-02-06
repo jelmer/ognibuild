@@ -419,7 +419,7 @@ def create_dist_schroot(
         tree: Tree, target_dir: str,
         chroot: str, packaging_tree: Optional[Tree] = None,
         include_controldir: bool = True,
-        subdir: Optional[str] = None) -> Optional[str]:
+        subdir: Optional[str] = None) -> str:
     if subdir is None:
         subdir = 'package'
     with SchrootSession(chroot) as session:
@@ -447,10 +447,6 @@ def create_dist_schroot(
             try:
                 session.chdir(os.path.join(reldir, subdir))
                 run_dist(session)
-            except NoBuildToolsFound:
-                logging.info(
-                    'No build tools found, falling back to simple export.')
-                return None
             finally:
                 os.chdir(oldcwd)
 
@@ -495,11 +491,15 @@ if __name__ == '__main__':
         packaging_tree = None
         subdir = None
 
-    ret = create_dist_schroot(
-        tree, subdir=subdir, target_dir=os.path.abspath(args.target_directory),
-        packaging_tree=packaging_tree,
-        chroot=args.chroot)
-    if ret:
-        sys.exit(0)
+    try:
+        ret = create_dist_schroot(
+            tree, subdir=subdir,
+            target_dir=os.path.abspath(args.target_directory),
+            packaging_tree=packaging_tree,
+            chroot=args.chroot)
+    except NoBuildToolsFound:
+        logging.info('No build tools found, falling back to simple export.')
+        export(tree, 'dist.tar.gz', 'tgz', None)
     else:
-        sys.exit(1)
+        print('Created %s' % ret)
+    sys.exit(0)

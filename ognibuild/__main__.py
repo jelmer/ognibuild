@@ -18,9 +18,9 @@
 import os
 import sys
 from . import (
-    run_build, run_clean, run_install, run_test, NoBuildToolsFound,
-    note
-    )
+    run_build, run_clean, run_install, run_test,
+    note)
+from .buildsystem import NoBuildToolsFound
 from .dist import run_dist
 
 
