@@ -26,6 +26,7 @@ from typing import Optional, List, Tuple, Callable, Type
 
 from debian.deb822 import Deb822
 
+from breezy.errors import NotBranchError
 from breezy.export import export
 from breezy.tree import Tree
 from breezy.workingtree import WorkingTree
@@ -33,7 +34,7 @@ from breezy.workingtree import WorkingTree
 from breezy.plugins.debian.repack_tarball import get_filetype
 
 from . import apt, DetailedFailure, shebang_binary
-from .buildsystem import detect_buildsystems
+from .buildsystem import detect_buildsystems, NoBuildToolsFound
 from .session import run_with_tee, Session
 from .session.schroot import SchrootSession
 from .debian.fix_build import (
@@ -48,6 +49,10 @@ from buildlog_consultant.sbuild import (
     MissingCommand,
     NoSpaceOnDevice,
     )
+
+
+class DistNoTarball(Exception):
+    """Dist operation did not create a tarball."""
 
 
 def satisfy_build_deps(session: Session, tree):
@@ -353,9 +358,16 @@ def dupe_vcs_tree(tree, directory):
             raise DetailedFailure(
                 1, ['sprout'], NoSpaceOnDevice())
         raise
+    if not result.has_workingtree():
+        raise AssertionError
     # Copy parent location - some scripts need this
-    base_branch = tree._repository.controldir.open_branch()
-    parent = base_branch.get_parent()
+    if isinstance(tree, WorkingTree):
+        parent = tree.branch.get_parent()
+    else:
+        try:
+            parent = tree._repository.controldir.open_branch()
+        except NotBranchError:
+            parent = None
     if parent:
         result.open_branch().set_parent(parent)
 
@@ -429,12 +441,12 @@ def create_dist_schroot(
             return fn
 
         logging.info('No tarball created :(')
-        return None
+        raise DistNoTarball()
 
 
 if __name__ == '__main__':
     import argparse
-    import breezy.bzr
+    import breezy.bzr  # noqa: F401
     import breezy.git  # noqa: F401
 
     parser = argparse.ArgumentParser()
@@ -451,6 +463,9 @@ if __name__ == '__main__':
         '--target-directory', type=str, default='..',
         help='Target directory')
     args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO)
+
     tree = WorkingTree.open(args.directory)
     if args.packaging_directory:
         packaging_tree = WorkingTree.open(args.packaging_directory)
