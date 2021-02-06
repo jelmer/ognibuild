@@ -365,11 +365,54 @@ def dupe_vcs_tree(tree, directory):
         parent = tree.branch.get_parent()
     else:
         try:
-            parent = tree._repository.controldir.open_branch()
+            parent = tree._repository.controldir.open_branch().get_parent()
         except NotBranchError:
             parent = None
     if parent:
         result.open_branch().set_parent(parent)
+
+
+class DistCatcher(object):
+
+    def __init__(self, directory):
+        self.export_directory = directory
+        self.files = []
+        self.existing_files = None
+
+    def __enter__(self):
+        self.existing_files = os.listdir(self.export_directory)
+        return self
+
+    def find_files(self):
+        new_files = os.listdir(self.export_directory)
+        diff_files = set(new_files) - set(self.existing_files)
+        diff = set([n for n in diff_files if get_filetype(n) is not None])
+        if len(diff) == 1:
+            fn = diff.pop()
+            logging.info('Found tarball %s in package directory.', fn)
+            self.files.append(os.path.join(self.export_directory, fn))
+            return fn
+        if 'dist' in diff_files:
+            for entry in os.scandir(
+                    os.path.join(self.export_directory, 'dist')):
+                if get_filetype(entry.name) is not None:
+                    logging.info(
+                        'Found tarball %s in dist directory.', entry.name)
+                    self.files.append(entry.path)
+                    return entry.name
+            logging.info('No tarballs found in dist directory.')
+
+        parent_directory = os.path.dirname(self.export_directory)
+        diff = set(os.listdir(parent_directory)) - set([subdir])
+        if len(diff) == 1:
+            fn = diff.pop()
+            logging.info('Found tarball %s in parent directory.', fn)
+            self.files.append(os.path.join(parent_directory, fn))
+            return fn
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.find_files()
+        return False
 
 
 def create_dist_schroot(
@@ -398,47 +441,22 @@ def create_dist_schroot(
         else:
             dupe_vcs_tree(tree, export_directory)
 
-        existing_files = os.listdir(export_directory)
+        with DistCatcher(export_directory) as dc:
+            oldcwd = os.getcwd()
+            os.chdir(export_directory)
+            try:
+                session.chdir(os.path.join(reldir, subdir))
+                run_dist(session)
+            except NoBuildToolsFound:
+                logging.info(
+                    'No build tools found, falling back to simple export.')
+                return None
+            finally:
+                os.chdir(oldcwd)
 
-        oldcwd = os.getcwd()
-        os.chdir(export_directory)
-        try:
-            session.chdir(os.path.join(reldir, subdir))
-            run_dist(session)
-        except NoBuildToolsFound:
-            logging.info(
-                'No build tools found, falling back to simple export.')
-            return None
-        finally:
-            os.chdir(oldcwd)
-
-        new_files = os.listdir(export_directory)
-        diff_files = set(new_files) - set(existing_files)
-        diff = set([n for n in diff_files if get_filetype(n) is not None])
-        if len(diff) == 1:
-            fn = diff.pop()
-            logging.info('Found tarball %s in package directory.', fn)
-            shutil.copy(
-                os.path.join(export_directory, fn),
-                target_dir)
-            return fn
-        if 'dist' in diff_files:
-            for entry in os.scandir(os.path.join(export_directory, 'dist')):
-                if get_filetype(entry.name) is not None:
-                    logging.info(
-                        'Found tarball %s in dist directory.', entry.name)
-                    shutil.copy(entry.path, target_dir)
-                    return entry.name
-            logging.info('No tarballs found in dist directory.')
-
-        diff = set(os.listdir(directory)) - set([subdir])
-        if len(diff) == 1:
-            fn = diff.pop()
-            logging.info('Found tarball %s in parent directory.', fn)
-            shutil.copy(
-                os.path.join(directory, fn),
-                target_dir)
-            return fn
+        for path in dc.files:
+            shutil.copy(path, target_dir)
+            return os.path.join(target_dir, os.path.basename(path))
 
         logging.info('No tarball created :(')
         raise DistNoTarball()
