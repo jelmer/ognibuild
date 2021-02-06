@@ -24,10 +24,6 @@ import sys
 DEFAULT_PYTHON = 'python3'
 
 
-class NoBuildToolsFound(Exception):
-    """No supported build tools were found."""
-
-
 class DetailedFailure(Exception):
 
     def __init__(self, retcode, argv, error):

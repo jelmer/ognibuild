@@ -33,6 +33,7 @@ from breezy.workingtree import WorkingTree
 from breezy.plugins.debian.repack_tarball import get_filetype
 
 from . import apt, DetailedFailure, shebang_binary
+from .buildsystem import detect_buildsystems
 from .session import run_with_tee, Session
 from .session.schroot import SchrootSession
 from .debian.fix_build import (
@@ -141,16 +142,16 @@ def run_with_build_fixer(session: Session, args: List[str]):
         fixed_errors.append(error)
 
 
-class NoBuildToolsFound(Exception):
-    """No supported build tools were found."""
-
-
 def run_dist(session):
     apt.install(session, ['git'])
 
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
+
+    for buildsystem in detect_buildsystems(session):
+        buildsystem.dist()
+        return
 
     if os.path.exists('package.xml'):
         apt.install(session, ['php-pear', 'php-horde-core'])
