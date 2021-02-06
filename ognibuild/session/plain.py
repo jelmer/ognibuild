@@ -24,6 +24,8 @@ import subprocess
 class PlainSession(Session):
     """Session ignoring user."""
 
+    location = '/'
+
     def create_home(self):
         pass
 

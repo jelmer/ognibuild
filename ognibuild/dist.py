@@ -33,7 +33,8 @@ from breezy.workingtree import WorkingTree
 
 from breezy.plugins.debian.repack_tarball import get_filetype
 
-from . import apt, DetailedFailure, shebang_binary
+from . import DetailedFailure, shebang_binary
+from .apt import AptResolver, UnidentifiedError
 from .buildsystem import detect_buildsystems, NoBuildToolsFound
 from .session import run_with_tee, Session
 from .session.schroot import SchrootSession
@@ -72,17 +73,19 @@ def satisfy_build_deps(session: Session, tree):
     deps = [
         dep.strip().strip(',')
         for dep in deps]
-    apt.satisfy(session, deps)
+    apt = AptResolver(session)
+    apt.satisfy(deps)
 
 
 class SchrootDependencyContext(DependencyContext):
 
     def __init__(self, session):
         self.session = session
+        self.apt = AptResolver(session)
 
     def add_dependency(self, package, minimum_version=None):
         # TODO(jelmer): Handle minimum_version
-        apt.install(self.session, [package])
+        self.apt.install([package])
         return True
 
 
@@ -127,9 +130,9 @@ def run_with_build_fixer(session: Session, args: List[str]):
         if error is None:
             logging.warning('Build failed with unidentified error. Giving up.')
             if line is not None:
-                raise apt.UnidentifiedError(
+                raise UnidentifiedError(
                     retcode, args, lines, secondary=(offset, line))
-            raise apt.UnidentifiedError(retcode, args, lines)
+            raise UnidentifiedError(retcode, args, lines)
 
         logging.info('Identified error: %r', error)
         if error in fixed_errors:
@@ -148,7 +151,8 @@ def run_with_build_fixer(session: Session, args: List[str]):
 
 
 def run_dist(session):
-    apt.install(session, ['git'])
+    apt = AptResolver(session)
+    apt.install(['git'])
 
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
@@ -159,7 +163,7 @@ def run_dist(session):
         return
 
     if os.path.exists('package.xml'):
-        apt.install(session, ['php-pear', 'php-horde-core'])
+        apt.install(['php-pear', 'php-horde-core'])
         logging.info('Found package.xml, assuming pear package.')
         session.check_call(['pear', 'package'])
         return
@@ -172,14 +176,14 @@ def run_dist(session):
             logging.info(
                 'Found pyproject.toml with poetry section, '
                 'assuming poetry project.')
-            apt.install(session, ['python3-venv', 'python3-pip'])
+            apt.install(['python3-venv', 'python3-pip'])
             session.check_call(['pip3', 'install', 'poetry'], user='root')
             session.check_call(['poetry', 'build', '-f', 'sdist'])
             return
 
     if os.path.exists('setup.py'):
         logging.info('Found setup.py, assuming python project.')
-        apt.install(session, ['python3', 'python3-pip'])
+        apt.install(['python3', 'python3-pip'])
         with open('setup.py', 'r') as f:
             setup_py_contents = f.read()
         try:
@@ -189,41 +193,40 @@ def run_dist(session):
             setup_cfg_contents = ''
         if 'setuptools' in setup_py_contents:
             logging.info('Reference to setuptools found, installing.')
-            apt.install(session, ['python3-setuptools'])
+            apt.install(['python3-setuptools'])
         if ('setuptools_scm' in setup_py_contents or
                 'setuptools_scm' in setup_cfg_contents):
             logging.info('Reference to setuptools-scm found, installing.')
-            apt.install(
-                session, ['python3-setuptools-scm', 'git', 'mercurial'])
+            apt.install(['python3-setuptools-scm', 'git', 'mercurial'])
 
         # TODO(jelmer): Install setup_requires
 
         interpreter = shebang_binary('setup.py')
         if interpreter is not None:
             if interpreter == 'python3':
-                apt.install(session, ['python3'])
+                apt.install(['python3'])
             elif interpreter == 'python2':
-                apt.install(session, ['python2'])
+                apt.install(['python2'])
             elif interpreter == 'python':
-                apt.install(session, ['python'])
+                apt.install(['python'])
             else:
                 raise ValueError('Unknown interpreter %r' % interpreter)
-            apt.install(session, ['python2', 'python3'])
+            apt.install(['python2', 'python3'])
             run_with_build_fixer(session, ['./setup.py', 'sdist'])
         else:
             # Just assume it's Python 3
-            apt.install(session, ['python3'])
+            apt.install(['python3'])
             run_with_build_fixer(session, ['python3', './setup.py', 'sdist'])
         return
 
     if os.path.exists('setup.cfg'):
         logging.info('Found setup.cfg, assuming python project.')
-        apt.install(session, ['python3-pep517', 'python3-pip'])
+        apt.install(['python3-pep517', 'python3-pip'])
         session.check_call(['python3', '-m', 'pep517.build', '-s', '.'])
         return
 
     if os.path.exists('dist.ini') and not os.path.exists('Makefile.PL'):
-        apt.install(session, ['libdist-inkt-perl'])
+        apt.install(['libdist-inkt-perl'])
         with open('dist.ini', 'rb') as f:
             for line in f:
                 if not line.startswith(b';;'):
@@ -245,30 +248,30 @@ def run_dist(session):
                     return
         # Default to invoking Dist::Zilla
         logging.info('Found dist.ini, assuming dist-zilla.')
-        apt.install(session, ['libdist-zilla-perl'])
+        apt.install(['libdist-zilla-perl'])
         run_with_build_fixer(session, ['dzil', 'build', '--in', '..'])
         return
 
     if os.path.exists('package.json'):
-        apt.install(session, ['npm'])
+        apt.install(['npm'])
         run_with_build_fixer(session, ['npm', 'pack'])
         return
 
     gemfiles = [name for name in os.listdir('.') if name.endswith('.gem')]
     if gemfiles:
-        apt.install(session, ['gem2deb'])
+        apt.install(['gem2deb'])
         if len(gemfiles) > 1:
             logging.warning('More than one gemfile. Trying the first?')
         run_with_build_fixer(session, ['gem2tgz', gemfiles[0]])
         return
 
     if os.path.exists('waf'):
-        apt.install(session, ['python3'])
+        apt.install(['python3'])
         run_with_build_fixer(session, ['./waf', 'dist'])
         return
 
     if os.path.exists('Makefile.PL') and not os.path.exists('Makefile'):
-        apt.install(session, ['perl'])
+        apt.install(['perl'])
         run_with_build_fixer(session, ['perl', 'Makefile.PL'])
 
     if not os.path.exists('Makefile') and not os.path.exists('configure'):
@@ -277,7 +280,7 @@ def run_dist(session):
                 run_with_build_fixer(session, ['/bin/sh', './autogen.sh'])
             try:
                 run_with_build_fixer(session, ['./autogen.sh'])
-            except apt.UnidentifiedError as e:
+            except UnidentifiedError as e:
                 if ("Gnulib not yet bootstrapped; "
                         "run ./bootstrap instead.\n" in e.lines):
                     run_with_build_fixer(session, ["./bootstrap"])
@@ -286,7 +289,7 @@ def run_dist(session):
                     raise
 
         elif os.path.exists('configure.ac') or os.path.exists('configure.in'):
-            apt.install(session, [
+            apt.install([
                 'autoconf', 'automake', 'gettext', 'libtool', 'gnu-standards'])
             run_with_build_fixer(session, ['autoreconf', '-i'])
 
@@ -294,10 +297,10 @@ def run_dist(session):
         session.check_call(['./configure'])
 
     if os.path.exists('Makefile'):
-        apt.install(session, ['make'])
+        apt.install(['make'])
         try:
             run_with_build_fixer(session, ['make', 'dist'])
-        except apt.UnidentifiedError as e:
+        except UnidentifiedError as e:
             if "make: *** No rule to make target 'dist'.  Stop.\n" in e.lines:
                 pass
             elif ("make[1]: *** No rule to make target 'dist'. Stop.\n"

@@ -19,6 +19,8 @@
 
 from typing import List
 
+import apt_pkg
+import os
 from buildlog_consultant.sbuild import (
     find_apt_get_failure,
     )
@@ -53,9 +55,29 @@ def run_apt(session: Session, args: List[str]) -> None:
     raise UnidentifiedError(retcode, args, lines)
 
 
-def install(session: Session, packages: List[str]) -> None:
-    run_apt(session, ['install'] + packages)
+class AptResolver(object):
 
+    session: Session
 
-def satisfy(session: Session, deps: List[str]) -> None:
-    run_apt(session, ['satisfy'] + deps)
+    def __init__(self, session):
+        self.session = session
+
+    def missing(self, packages):
+        root = getattr(self.session, 'location', '/')
+        status_path = os.path.join(root, 'var/lib/dpkg/status')
+        missing = set(packages)
+        with apt_pkg.TagFile(status_path) as tagf:
+            while tagf and missing:
+                tagf.step()
+                if tagf.section['Package'] in missing:
+                    if tagf.section['Status'] == 'install ok installed':
+                        missing.remove(tagf.section['Package'])
+        return list(missing)
+
+    def install(self, packages: List[str]) -> None:
+        packages = self.missing(packages)
+        if packages:
+            run_apt(self.session, ['install'] + packages)
+
+    def satisfy(self, deps: List[str]) -> None:
+        run_apt(self.session, ['satisfy'] + deps)

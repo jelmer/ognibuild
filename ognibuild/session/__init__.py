@@ -34,7 +34,7 @@ class Session(object):
 
     @property
     def location(self) -> str:
-        raise NotImplementedError(self.location)
+        raise NotImplementedError
 
     def check_call(
             self,
