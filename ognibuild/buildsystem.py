@@ -18,6 +18,10 @@
 
 
 import logging
+import os
+
+from .apt import AptManager
+from .fix_build import run_with_build_fixer
 
 
 class NoBuildToolsFound(Exception):
@@ -33,7 +37,49 @@ class BuildSystem(object):
     def dist(self):
         raise NotImplementedError(self.dist)
 
+    def test(self):
+        raise NotImplementedError(self.test)
+
+    def build(self):
+        raise NotImplementedError(self.build)
+
+    def clean(self):
+        raise NotImplementedError(self.clean)
+
+    def install(self):
+        raise NotImplementedError(self.install)
+
+
+class Pear(BuildSystem):
+
+    def dist(self):
+        apt = AptManager(self.session)
+        apt.install(['php-pear'])
+        run_with_build_fixer(self.session, ['pear', 'package'])
+
+    def test(self):
+        apt = AptManager(self.session)
+        apt.install(['php-pear'])
+        run_with_build_fixer(self.session, ['pear', 'run-tests'])
+
+    def build(self):
+        apt = AptManager(self.session)
+        apt.install(['php-pear'])
+        run_with_build_fixer(self.session, ['pear', 'build'])
+
+    def clean(self):
+        apt = AptManager(self.session)
+        apt.install(['php-pear'])
+        # TODO
+
+    def install(self):
+        apt = AptManager(self.session)
+        apt.install(['php-pear'])
+        run_with_build_fixer(self.session, ['pear', 'install'])
+
 
 def detect_buildsystems(session):
     """Detect build systems."""
-    return []
+    if os.path.exists('package.xml'):
+        logging.info('Found package.xml, assuming pear package.')
+        yield Pear(session)

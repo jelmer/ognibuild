@@ -17,11 +17,13 @@
 
 import os
 import sys
-from . import (
-    run_build, run_clean, run_install, run_test,
-    note)
+from . import note
 from .buildsystem import NoBuildToolsFound
+from .build import run_build
+from .clean import run_clean
 from .dist import run_dist
+from .install import run_install
+from .test import run_test
 
 
 def main():

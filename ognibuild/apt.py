@@ -67,8 +67,10 @@ class AptManager(object):
         status_path = os.path.join(root, 'var/lib/dpkg/status')
         missing = set(packages)
         with apt_pkg.TagFile(status_path) as tagf:
-            while tagf and missing:
+            while missing:
                 tagf.step()
+                if not tagf.section:
+                    break
                 if tagf.section['Package'] in missing:
                     if tagf.section['Status'] == 'install ok installed':
                         missing.remove(tagf.section['Package'])
