@@ -22,7 +22,7 @@ import re
 import shutil
 import sys
 import tempfile
-from typing import Optional, List, Tuple, Callable, Type
+from typing import Optional, List, Tuple
 
 from debian.deb822 import Deb822
 
@@ -39,9 +39,8 @@ from . import DetailedFailure, shebang_binary
 from .apt import AptManager, UnidentifiedError
 from .fix_build import run_with_build_fixer
 from .buildsystem import detect_buildsystems, NoBuildToolsFound
-from .session import run_with_tee, Session
+from .session import Session
 from .session.schroot import SchrootSession
-from .debian.fix_build import DependencyContext
 from .vcs import dupe_vcs_tree, export_vcs_tree
 
 
@@ -58,7 +57,7 @@ def satisfy_build_deps(session: Session, tree):
             deps.append(source[name].strip().strip(','))
         except KeyError:
             pass
-    for name in ['Build-Conflicts', 'Build-Conflicts-Indeo',
+    for name in ['Build-Conflicts', 'Build-Conflicts-Indep',
                  'Build-Conflicts-Arch']:
         try:
             deps.append('Conflicts: ' + source[name])
@@ -81,63 +80,6 @@ def run_dist(session):
 
     for buildsystem in detect_buildsystems(session):
         buildsystem.dist()
-        return
-
-    if os.path.exists('package.xml'):
-        apt.install(['php-pear', 'php-horde-core'])
-        logging.info('Found package.xml, assuming pear package.')
-        session.check_call(['pear', 'package'])
-        return
-
-    if os.path.exists('pyproject.toml'):
-        import toml
-        with open('pyproject.toml', 'r') as pf:
-            pyproject = toml.load(pf)
-        if 'poetry' in pyproject.get('tool', []):
-            logging.info(
-                'Found pyproject.toml with poetry section, '
-                'assuming poetry project.')
-            apt.install(['python3-venv', 'python3-pip'])
-            session.check_call(['pip3', 'install', 'poetry'], user='root')
-            session.check_call(['poetry', 'build', '-f', 'sdist'])
-            return
-
-    if os.path.exists('setup.py'):
-        logging.info('Found setup.py, assuming python project.')
-        apt.install(['python3', 'python3-pip'])
-        with open('setup.py', 'r') as f:
-            setup_py_contents = f.read()
-        try:
-            with open('setup.cfg', 'r') as f:
-                setup_cfg_contents = f.read()
-        except FileNotFoundError:
-            setup_cfg_contents = ''
-        if 'setuptools' in setup_py_contents:
-            logging.info('Reference to setuptools found, installing.')
-            apt.install(['python3-setuptools'])
-        if ('setuptools_scm' in setup_py_contents or
-                'setuptools_scm' in setup_cfg_contents):
-            logging.info('Reference to setuptools-scm found, installing.')
-            apt.install(['python3-setuptools-scm', 'git', 'mercurial'])
-
-        # TODO(jelmer): Install setup_requires
-
-        interpreter = shebang_binary('setup.py')
-        if interpreter is not None:
-            if interpreter == 'python3':
-                apt.install(['python3'])
-            elif interpreter == 'python2':
-                apt.install(['python2'])
-            elif interpreter == 'python':
-                apt.install(['python'])
-            else:
-                raise ValueError('Unknown interpreter %r' % interpreter)
-            apt.install(['python2', 'python3'])
-            run_with_build_fixer(session, ['./setup.py', 'sdist'])
-        else:
-            # Just assume it's Python 3
-            apt.install(['python3'])
-            run_with_build_fixer(session, ['python3', './setup.py', 'sdist'])
         return
 
     if os.path.exists('setup.cfg'):

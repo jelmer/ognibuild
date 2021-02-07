@@ -37,6 +37,9 @@ def main():
         default='.')
     parser.add_argument(
         '--schroot', type=str, help='schroot to run in.')
+    parser.add_argument(
+        '--resolve', choices=['explain', 'apt', 'native'],
+        help='What to do about missing dependencies')
     args = parser.parse_args()
     if args.schroot:
         from .session.schroot import SchrootSession
