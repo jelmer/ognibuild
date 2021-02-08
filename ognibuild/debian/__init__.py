@@ -17,8 +17,8 @@
 
 from debian.deb822 import Deb822
 
-from .apt import AptManager
-from .session import Session
+from ..apt import AptManager
+from ..session import Session
 
 
 # TODO(jelmer): move this to debian/

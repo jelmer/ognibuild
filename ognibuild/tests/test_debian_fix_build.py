@@ -19,7 +19,7 @@ import re
 
 from debian.deb822 import Deb822
 
-from buildlog_consultant.sbuild import (
+from buildlog_consultant.common import (
     MissingCommand,
     MissingGoPackage,
     MissingPerlModule,

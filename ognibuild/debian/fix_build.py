@@ -68,8 +68,8 @@ from silver_platter.debian import (
 
 from breezy.plugins.debian.util import get_build_architecture
 from .build import attempt_build
-from buildlog_consultant.sbuild import (
-    Problem,
+from buildlog_consultant import Problem
+from buildlog_consultant.common import (
     MissingConfigStatusInput,
     MissingPythonModule,
     MissingPythonDistribution,
@@ -99,12 +99,16 @@ from buildlog_consultant.sbuild import (
     MissingXfceDependency,
     MissingHaskellDependencies,
     NeedPgBuildExtUpdateControl,
-    SbuildFailure,
     DhAddonLoadFailure,
-    AptFetchFailure,
     MissingMavenArtifacts,
     GnomeCommonMissing,
     MissingGnomeCommonDependency,
+    )
+from buildlog_consultant.apt import (
+    AptFetchFailure,
+    )
+from buildlog_consultant.sbuild import (
+    SbuildFailure,
     )
 
 

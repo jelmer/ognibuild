@@ -30,7 +30,20 @@ from breezy.workingtree import WorkingTree
 
 from breezy.plugins.debian.repack_tarball import get_filetype
 
-from buildlog_consultant.sbuild import (
+from . import apt, DetailedFailure, shebang_binary
+from .buildsystem import detect_buildsystems, NoBuildToolsFound
+from .session import run_with_tee, Session
+from .session.schroot import SchrootSession
+from .debian.fix_build import (
+    DependencyContext,
+    resolve_error,
+    APT_FIXERS,
+    )
+from buildlog_consultant.common import (
+    find_build_failure_description,
+    Problem,
+    MissingPerlModule,
+    MissingCommand,
     NoSpaceOnDevice,
     )
 
