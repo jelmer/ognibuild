@@ -54,35 +54,34 @@ class BuildSystem(object):
 
 class Pear(BuildSystem):
 
-    def dist(self):
+    def setup(self):
         apt = AptManager(self.session)
         apt.install(['php-pear'])
+
+    def dist(self):
+        self.setup()
         run_with_build_fixer(self.session, ['pear', 'package'])
 
     def test(self):
-        apt = AptManager(self.session)
-        apt.install(['php-pear'])
+        self.setup()
         run_with_build_fixer(self.session, ['pear', 'run-tests'])
 
     def build(self):
-        apt = AptManager(self.session)
-        apt.install(['php-pear'])
+        self.setup()
         run_with_build_fixer(self.session, ['pear', 'build'])
 
     def clean(self):
-        apt = AptManager(self.session)
-        apt.install(['php-pear'])
+        self.setup()
         # TODO
 
     def install(self):
-        apt = AptManager(self.session)
-        apt.install(['php-pear'])
+        self.setup()
         run_with_build_fixer(self.session, ['pear', 'install'])
 
 
 class SetupPy(BuildSystem):
 
-    def prereqs(self):
+    def setup(self):
         apt = AptManager(self.session)
         apt.install(['python3', 'python3-pip'])
         with open('setup.py', 'r') as f:
@@ -103,19 +102,19 @@ class SetupPy(BuildSystem):
         # TODO(jelmer): Install setup_requires
 
     def test(self):
-        self.prereqs()
+        self.setup()
         self._run_setup(['test'])
 
     def dist(self):
-        self.prereqs()
+        self.setup()
         self._run_setup(['sdist'])
 
     def clean(self):
-        self.prereqs()
+        self.setup()
         self._run_setup(['clean'])
 
     def install(self):
-        self.prereqs()
+        self.setup()
         self._run_setup(['install'])
 
     def _run_setup(self, args):
@@ -163,33 +162,44 @@ class PyProject(BuildSystem):
 
 class SetupCfg(BuildSystem):
 
-    def dist(self):
+    def setup(self):
         apt = AptManager(self.session)
         apt.install(['python3-pep517', 'python3-pip'])
+
+    def dist(self):
         self.session.check_call(['python3', '-m', 'pep517.build', '-s', '.'])
 
 
 class NpmPackage(BuildSystem):
 
-    def dist(self):
+    def setup(self):
         apt = AptManager(self.session)
         apt.install(['npm'])
+
+    def dist(self):
+        self.setup()
         run_with_build_fixer(self.session, ['npm', 'pack'])
 
 
 class Waf(BuildSystem):
 
-    def dist(self):
+    def setup(self):
         apt = AptManager(self.session)
         apt.install(['python3'])
+
+    def dist(self):
+        self.setup()
         run_with_build_fixer(self.session, ['./waf', 'dist'])
 
 
 class Gem(BuildSystem):
 
-    def dist(self):
+    def setup(self):
         apt = AptManager(self.session)
         apt.install(['gem2deb'])
+
+    def dist(self):
+        self.setup()
         gemfiles = [name for name in os.listdir('.') if name.endswith('.gem')]
         if len(gemfiles) > 1:
             logging.warning('More than one gemfile. Trying the first?')
@@ -198,9 +208,13 @@ class Gem(BuildSystem):
 
 class DistInkt(BuildSystem):
 
-    def dist(self):
+    def setup(self):
         apt = AptManager(self.session)
         apt.install(['libdist-inkt-perl'])
+
+    def dist(self):
+        self.setup()
+        apt = AptManager(self.session)
         with open('dist.ini', 'rb') as f:
             for line in f:
                 if not line.startswith(b';;'):
