@@ -51,23 +51,3 @@ def note(m):
 
 def warning(m):
     sys.stderr.write('WARNING: %s\n' % m)
-
-
-def run_with_build_fixer(session, args):
-    session.check_call(args)
-
-
-def run_build(session):
-    raise NotImplementedError
-
-
-def run_clean(session):
-    raise NotImplementedError
-
-
-def run_test(session):
-    raise NotImplementedError
-
-
-def run_install(session):
-    raise NotImplementedError
