@@ -18,12 +18,28 @@
 import logging
 import os
 import sys
+from . import UpstreamPackage
 from .buildsystem import NoBuildToolsFound
 from .build import run_build
 from .clean import run_clean
 from .dist import run_dist
 from .install import run_install
+from .resolver import (
+    AptResolver,
+    ExplainResolver,
+    AutoResolver,
+    NativeResolver,
+    MissingDependencies,
+    )
 from .test import run_test
+
+
+def install_declared_requirements(resolver, requirements, subcommand):
+    missing = []
+    for req in requirements:
+        # TODO(jelmer): Look at stage
+        missing.append(UpstreamPackage(req.package.family, req.package.name))
+    resolver.install(missing)
 
 
 def main():
@@ -41,6 +57,10 @@ def main():
         '--resolve', choices=['explain', 'apt', 'native'],
         default='apt',
         help='What to do about missing dependencies')
+    parser.add_argument(
+        '--ignore-declared-dependencies',
+        action='store_true',
+        help='Ignore declared dependencies, follow build errors only')
     args = parser.parse_args()
     if args.schroot:
         from .session.schroot import SchrootSession
@@ -52,16 +72,25 @@ def main():
         session = PlainSession()
     with session:
         if args.resolve == 'apt':
-            from .resolver import AptResolver
             resolver = AptResolver.from_session(session)
         elif args.resolve == 'explain':
-            from .resolver import ExplainResolver
             resolver = ExplainResolver.from_session(session)
         elif args.resolve == 'native':
-            from .resolver import NativeResolver
             resolver = NativeResolver.from_session(session)
+        elif args.resolver == 'auto':
+            resolver = AutoResolver.from_session(session)
         os.chdir(args.directory)
         try:
+            if not args.ignore_declared_dependencies:
+                from upstream_ontologist.guess import get_upstream_info
+                buildsystem, requirements, metadata = get_upstream_info(
+                    path=args.directory,
+                    trust_package=True,
+                    net_access=True,
+                    consult_external_directory=True,
+                    check=True)
+                install_declared_requirements(
+                    resolver, requirements, args.subcommand)
             if args.subcommand == 'dist':
                 run_dist(session=session, resolver=resolver)
             if args.subcommand == 'build':
@@ -75,6 +104,15 @@ def main():
         except NoBuildToolsFound:
             logging.info("No build tools found.")
             return 1
+        except MissingDependencies as e:
+            for req in e.requirements:
+                note('Missing dependency (%s:%s)' % (
+                     req.family, req.name))
+                for resolver in [
+                        AptResolver.from_session(session),
+                        NativeResolver.from_session(session)]:
+                    note('  %s' % (resolver.explain([req]), ))
+            return 2
         return 0
 
 

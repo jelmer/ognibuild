@@ -16,6 +16,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 
+class MissingDependencies(Exception):
+
+    def __init__(self, reqs):
+        self.requirements = reqs
+
+
 class Resolver(object):
 
     def install(self, requirements):
@@ -36,17 +42,31 @@ class AptResolver(Resolver):
         return cls(AptManager(session))
 
     def install(self, requirements):
-        self.apt.install(list(self.resolve(requirements)))
+        missing = []
+        for req in requirements:
+            pps = list(self._possible_paths(req))
+            if (not pps or
+                    not any(self.apt.session.exists(p) for p in pps)):
+                missing.append(req)
+        if missing:
+            self.apt.install(list(self.resolve(missing)))
 
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
+
+    def _possible_paths(self, req):
+        if req.family == 'binary':
+            yield '/usr/bin/%s' % req.name
+        else:
+            return
 
     def resolve(self, requirements):
         for req in requirements:
             if req.family == 'python3':
                 yield 'python3-%s' % req.name
             else:
-                yield self.apt.find_file('/usr/bin/%s' % req.name)
+                path = list(self._possible_paths(req))
+                raise NotImplementedError
 
 
 class NativeResolver(Resolver):
@@ -66,6 +86,21 @@ class NativeResolver(Resolver):
 
 
 class ExplainResolver(Resolver):
+
+    def __init__(self, session):
+        self.session = session
+
+    @classmethod
+    def from_session(cls, session):
+        return cls(session)
+
+    def install(self, requirements):
+        raise MissingDependencies(requirements)
+
+
+class AutoResolver(Resolver):
+    """Automatically find out the most appropriate way to instal dependencies.
+    """
 
     def __init__(self, session):
         self.session = session
