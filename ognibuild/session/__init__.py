@@ -63,6 +63,13 @@ class Session(object):
         """Create the user's home directory."""
         raise NotImplementedError(self.create_home)
 
+    def exists(self, path: str) -> bool:
+        """Check whether a path exists in the chroot."""
+        raise NotImplementedError(self.exists)
+
+    def scandir(self, path: str):
+        raise NotImplementedError(self.scandir)
+
 
 class SessionSetupFailure(Exception):
     """Session failed to be set up."""

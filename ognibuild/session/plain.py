@@ -18,6 +18,7 @@
 
 from . import Session
 
+import os
 import subprocess
 
 
@@ -35,3 +36,9 @@ class PlainSession(Session):
     def Popen(self, args, stdout=None, stderr=None, user=None, cwd=None):
         return subprocess.Popen(
             args, stdout=stdout, stderr=stderr, cwd=cwd)
+
+    def exists(self, path):
+        return os.path.exists(path)
+
+    def scandir(self, path):
+        return os.scandir(path)

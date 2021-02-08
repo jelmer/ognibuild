@@ -19,7 +19,6 @@
 
 import logging
 import re
-import os
 
 from . import shebang_binary
 from .apt import AptManager, UnidentifiedError
@@ -200,7 +199,8 @@ class Gem(BuildSystem):
 
     def dist(self):
         self.setup()
-        gemfiles = [name for name in os.listdir('.') if name.endswith('.gem')]
+        gemfiles = [entry.name for entry in self.session.scandir('.')
+                    if entry.name.endswith('.gem')]
         if len(gemfiles) > 1:
             logging.warning('More than one gemfile. Trying the first?')
         run_with_build_fixer(self.session, ['gem2tgz', gemfiles[0]])
@@ -244,12 +244,12 @@ class Make(BuildSystem):
 
     def setup(self):
         apt = AptManager(self.session)
-        if os.path.exists('Makefile.PL') and not os.path.exists('Makefile'):
+        if self.session.exists('Makefile.PL') and not self.session.exists('Makefile'):
             apt.install(['perl'])
             run_with_build_fixer(self.session, ['perl', 'Makefile.PL'])
 
-        if not os.path.exists('Makefile') and not os.path.exists('configure'):
-            if os.path.exists('autogen.sh'):
+        if not self.session.exists('Makefile') and not self.session.exists('configure'):
+            if self.session.exists('autogen.sh'):
                 if shebang_binary('autogen.sh') is None:
                     run_with_build_fixer(
                         self.session, ['/bin/sh', './autogen.sh'])
@@ -264,14 +264,14 @@ class Make(BuildSystem):
                     else:
                         raise
 
-            elif (os.path.exists('configure.ac') or
-                    os.path.exists('configure.in')):
+            elif (self.session.exists('configure.ac') or
+                    self.session.exists('configure.in')):
                 apt.install([
                     'autoconf', 'automake', 'gettext', 'libtool',
                     'gnu-standards'])
                 run_with_build_fixer(self.session, ['autoreconf', '-i'])
 
-        if not os.path.exists('Makefile') and os.path.exists('configure'):
+        if not self.session.exists('Makefile') and self.session.exists('configure'):
             self.session.check_call(['./configure'])
 
     def dist(self):
@@ -319,38 +319,40 @@ class Make(BuildSystem):
 
 def detect_buildsystems(session):
     """Detect build systems."""
-    if os.path.exists('package.xml'):
+    if session.exists('package.xml'):
         logging.info('Found package.xml, assuming pear package.')
         yield Pear(session)
 
-    if os.path.exists('setup.py'):
+    if session.exists('setup.py'):
         logging.info('Found setup.py, assuming python project.')
         yield SetupPy(session)
 
-    if os.path.exists('pyproject.toml'):
+    if session.exists('pyproject.toml'):
         logging.info('Found pyproject.toml, assuming python project.')
         yield PyProject(session)
 
-    if os.path.exists('setup.cfg'):
+    if session.exists('setup.cfg'):
         logging.info('Found setup.cfg, assuming python project.')
         yield SetupCfg(session)
 
-    if os.path.exists('package.json'):
+    if session.exists('package.json'):
         logging.info('Found package.json, assuming node package.')
         yield NpmPackage(session)
 
-    if os.path.exists('waf'):
+    if session.exists('waf'):
         logging.info('Found waf, assuming waf package.')
         yield Waf(session)
 
-    gemfiles = [name for name in os.listdir('.') if name.endswith('.gem')]
+    gemfiles = [
+        entry.name for entry in session.scandir('.')
+        if entry.name.endswith('.gem')]
     if gemfiles:
         yield Gem(session)
 
-    if os.path.exists('dist.ini') and not os.path.exists('Makefile.PL'):
+    if session.exists('dist.ini') and not session.exists('Makefile.PL'):
         yield DistInkt(session)
 
-    if any([os.path.exists(p) for p in [
+    if any([session.exists(p) for p in [
             'Makefile', 'Makefile.PL', 'autogen.sh', 'configure.ac',
             'configure.in']]):
         yield Make(session)

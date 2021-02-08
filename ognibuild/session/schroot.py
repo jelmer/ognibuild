@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import logging
+import os
 import shlex
 import subprocess
 
@@ -127,3 +128,16 @@ class SchrootSession(Session):
         logging.info('Creating directory %s', home)
         self.check_call(['mkdir', '-p', home], cwd='/', user='root')
         self.check_call(['chown', user, home], cwd='/', user='root')
+
+    def _fullpath(self, path: str) -> str:
+        return os.path.join(
+            self.location,
+            os.path.join(self._cwd, path).lstrip('/'))
+
+    def exists(self, path: str) -> bool:
+        fullpath = self._fullpath(path)
+        return os.path.exists(fullpath)
+
+    def scandir(self, path: str):
+        fullpath = self._fullpath(path)
+        return os.scandir(fullpath)
