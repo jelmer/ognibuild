@@ -18,7 +18,7 @@
 import logging
 from typing import List, Tuple, Callable, Type
 
-from buildlog_consultant.sbuild import (
+from buildlog_consultant.common import (
     find_build_failure_description,
     Problem,
     MissingPerlModule,
