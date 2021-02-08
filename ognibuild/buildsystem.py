@@ -20,8 +20,8 @@
 import logging
 import re
 
-from . import shebang_binary
-from .apt import AptManager, UnidentifiedError
+from . import shebang_binary, UpstreamPackage
+from .apt import UnidentifiedError
 from .fix_build import run_with_build_fixer
 
 
@@ -35,105 +35,106 @@ class BuildSystem(object):
     def __init__(self, session):
         self.session = session
 
-    def dist(self):
+    def dist(self, resolver):
         raise NotImplementedError(self.dist)
 
-    def test(self):
+    def test(self, resolver):
         raise NotImplementedError(self.test)
 
-    def build(self):
+    def build(self, resolver):
         raise NotImplementedError(self.build)
 
-    def clean(self):
+    def clean(self, resolver):
         raise NotImplementedError(self.clean)
 
-    def install(self):
+    def install(self, resolver):
         raise NotImplementedError(self.install)
 
 
 class Pear(BuildSystem):
-    def setup(self):
-        apt = AptManager(self.session)
-        apt.install(["php-pear"])
 
-    def dist(self):
-        self.setup()
-        run_with_build_fixer(self.session, ["pear", "package"])
+    def setup(self, resolver):
+        resolver.install([UpstreamPackage('binary', 'pear')])
 
-    def test(self):
+    def dist(self, resolver):
+        self.setup(resolver)
+        run_with_build_fixer(self.session, ['pear', 'package'])
+
+    def test(self, resolver):
         self.setup()
         run_with_build_fixer(self.session, ["pear", "run-tests"])
 
-    def build(self):
-        self.setup()
-        run_with_build_fixer(self.session, ["pear", "build"])
+    def build(self, resolver):
+        self.setup(resolver)
+        run_with_build_fixer(self.session, ['pear', 'build'])
 
-    def clean(self):
-        self.setup()
+    def clean(self, resolver):
+        self.setup(resolver)
         # TODO
 
-    def install(self):
-        self.setup()
-        run_with_build_fixer(self.session, ["pear", "install"])
+    def install(self, resolver):
+        self.setup(resolver)
+        run_with_build_fixer(self.session, ['pear', 'install'])
 
 
 class SetupPy(BuildSystem):
-    def setup(self):
-        apt = AptManager(self.session)
-        apt.install(["python3", "python3-pip"])
-        with open("setup.py", "r") as f:
+
+    def setup(self, resolver):
+        resolver.install([
+            UpstreamPackage('python3', 'pip'),
+            UpstreamPackage('binary', 'python3'),
+            ])
+        with open('setup.py', 'r') as f:
             setup_py_contents = f.read()
         try:
             with open("setup.cfg", "r") as f:
                 setup_cfg_contents = f.read()
         except FileNotFoundError:
-            setup_cfg_contents = ""
-        if "setuptools" in setup_py_contents:
-            logging.info("Reference to setuptools found, installing.")
-            apt.install(["python3-setuptools"])
-        if (
-            "setuptools_scm" in setup_py_contents
-            or "setuptools_scm" in setup_cfg_contents
-        ):
-            logging.info("Reference to setuptools-scm found, installing.")
-            apt.install(["python3-setuptools-scm", "git", "mercurial"])
+            setup_cfg_contents = ''
+        if 'setuptools' in setup_py_contents:
+            logging.info('Reference to setuptools found, installing.')
+            resolver.install([UpstreamPackage('python3', 'setuptools')])
+        if ('setuptools_scm' in setup_py_contents or
+                'setuptools_scm' in setup_cfg_contents):
+            logging.info('Reference to setuptools-scm found, installing.')
+            resolver.install([
+                UpstreamPackage('python3', 'setuptools-scm'),
+                UpstreamPackage('binary', 'git'),
+                UpstreamPackage('binary', 'mercurial'),
+                ])
 
         # TODO(jelmer): Install setup_requires
 
-    def test(self):
-        self.setup()
-        self._run_setup(["test"])
+    def test(self, resolver):
+        self.setup(resolver)
+        self._run_setup(resolver, ['test'])
 
-    def dist(self):
-        self.setup()
-        self._run_setup(["sdist"])
+    def dist(self, resolver):
+        self.setup(resolver)
+        self._run_setup(resolver, ['sdist'])
 
-    def clean(self):
-        self.setup()
-        self._run_setup(["clean"])
+    def clean(self, resolver):
+        self.setup(resolver)
+        self._run_setup(resolver, ['clean'])
 
-    def install(self):
-        self.setup()
-        self._run_setup(["install"])
+    def install(self, resolver):
+        self.setup(resolver)
+        self._run_setup(resolver, ['install'])
 
-    def _run_setup(self, args):
-        apt = AptManager(self.session)
-        interpreter = shebang_binary("setup.py")
+    def _run_setup(self, resolver, args):
+        interpreter = shebang_binary('setup.py')
         if interpreter is not None:
-            if interpreter == "python3":
-                apt.install(["python3"])
-            elif interpreter == "python2":
-                apt.install(["python2"])
-            elif interpreter == "python":
-                apt.install(["python"])
+            if interpreter in ('python3', 'python2', 'python'):
+                resolver.install([UpstreamPackage('binary', interpreter)])
             else:
-                raise ValueError("Unknown interpreter %r" % interpreter)
-            apt.install(["python2", "python3"])
-            run_with_build_fixer(self.session, ["./setup.py"] + args)
+                raise ValueError('Unknown interpreter %r' % interpreter)
+            run_with_build_fixer(
+                self.session, ['./setup.py'] + args)
         else:
             # Just assume it's Python 3
-            apt.install(["python3"])
-            run_with_build_fixer(self.session, ["python3", "./setup.py"] + args)
+            resolver.install([UpstreamPackage('binary', 'python3')])
+            run_with_build_fixer(
+                self.session, ['python3', './setup.py'] + args)
 
 
 class PyProject(BuildSystem):
@@ -143,75 +144,79 @@ class PyProject(BuildSystem):
         with open("pyproject.toml", "r") as pf:
             return toml.load(pf)
 
-    def dist(self):
-        apt = AptManager(self.session)
+    def dist(self, resolver):
         pyproject = self.load_toml()
         if "poetry" in pyproject.get("tool", []):
             logging.info(
-                "Found pyproject.toml with poetry section, " "assuming poetry project."
-            )
-            apt.install(["python3-venv", "python3-pip"])
-            self.session.check_call(["pip3", "install", "poetry"], user="root")
-            self.session.check_call(["poetry", "build", "-f", "sdist"])
+                'Found pyproject.toml with poetry section, '
+                'assuming poetry project.')
+            resolver.install([
+                UpstreamPackage('python3', 'venv'),
+                UpstreamPackage('python3', 'pip'),
+                ])
+            self.session.check_call(['pip3', 'install', 'poetry'], user='root')
+            self.session.check_call(['poetry', 'build', '-f', 'sdist'])
             return
         raise AssertionError("no supported section in pyproject.toml")
 
 
 class SetupCfg(BuildSystem):
-    def setup(self):
-        apt = AptManager(self.session)
-        apt.install(["python3-pep517", "python3-pip"])
 
-    def dist(self):
-        self.session.check_call(["python3", "-m", "pep517.build", "-s", "."])
+    def setup(self, resolver):
+        resolver.install([
+            UpstreamPackage('python3', 'pep517'),
+            UpstreamPackage('python3', 'pip'),
+            ])
+
+    def dist(self, resolver):
+        self.setup(resolver)
+        self.session.check_call(['python3', '-m', 'pep517.build', '-s', '.'])
 
 
 class NpmPackage(BuildSystem):
-    def setup(self):
-        apt = AptManager(self.session)
-        apt.install(["npm"])
 
-    def dist(self):
-        self.setup()
-        run_with_build_fixer(self.session, ["npm", "pack"])
+    def setup(self, resolver):
+        resolver.install([UpstreamPackage('binary', 'npm')])
+
+    def dist(self, resolver):
+        self.setup(resolver)
+        run_with_build_fixer(self.session, ['npm', 'pack'])
 
 
 class Waf(BuildSystem):
-    def setup(self):
-        apt = AptManager(self.session)
-        apt.install(["python3"])
 
-    def dist(self):
-        self.setup()
-        run_with_build_fixer(self.session, ["./waf", "dist"])
+    def setup(self, resolver):
+        resolver.install([UpstreamPackage('binary', 'python3')])
+
+    def dist(self, resolver):
+        self.setup(resolver)
+        run_with_build_fixer(self.session, ['./waf', 'dist'])
 
 
 class Gem(BuildSystem):
-    def setup(self):
-        apt = AptManager(self.session)
-        apt.install(["gem2deb"])
 
-    def dist(self):
-        self.setup()
-        gemfiles = [
-            entry.name
-            for entry in self.session.scandir(".")
-            if entry.name.endswith(".gem")
-        ]
+    def setup(self, resolver):
+        resolver.install([UpstreamPackage('binary', 'gem2deb')])
+
+    def dist(self, resolver):
+        self.setup(resolver)
+        gemfiles = [entry.name for entry in self.session.scandir('.')
+                    if entry.name.endswith('.gem')]
         if len(gemfiles) > 1:
             logging.warning("More than one gemfile. Trying the first?")
         run_with_build_fixer(self.session, ["gem2tgz", gemfiles[0]])
 
 
 class DistInkt(BuildSystem):
-    def setup(self):
-        apt = AptManager(self.session)
-        apt.install(["libdist-inkt-perl"])
 
-    def dist(self):
-        self.setup()
-        apt = AptManager(self.session)
-        with open("dist.ini", "rb") as f:
+    def setup(self, resolver):
+        resolver.install([
+            UpstreamPackage('perl', 'Dist::Inkt'),
+            ])
+
+    def dist(self, resolver):
+        self.setup(resolver)
+        with open('dist.ini', 'rb') as f:
             for line in f:
                 if not line.startswith(b";;"):
                     continue
@@ -230,22 +235,23 @@ class DistInkt(BuildSystem):
                     run_with_build_fixer(self.session, ["distinkt-dist"])
                     return
         # Default to invoking Dist::Zilla
-        logging.info("Found dist.ini, assuming dist-zilla.")
-        apt.install(["libdist-zilla-perl"])
-        run_with_build_fixer(self.session, ["dzil", "build", "--in", ".."])
+        logging.info('Found dist.ini, assuming dist-zilla.')
+        resolver.install([UpstreamPackage('perl', 'Dist::Zilla')])
+        run_with_build_fixer(self.session, ['dzil', 'build', '--in', '..'])
 
 
 class Make(BuildSystem):
-    def setup(self):
-        apt = AptManager(self.session)
-        if self.session.exists("Makefile.PL") and not self.session.exists("Makefile"):
-            apt.install(["perl"])
-            run_with_build_fixer(self.session, ["perl", "Makefile.PL"])
 
-        if not self.session.exists("Makefile") and not self.session.exists("configure"):
-            if self.session.exists("autogen.sh"):
-                if shebang_binary("autogen.sh") is None:
-                    run_with_build_fixer(self.session, ["/bin/sh", "./autogen.sh"])
+    def setup(self, resolver):
+        if self.session.exists('Makefile.PL') and not self.session.exists('Makefile'):
+            resolver.install([UpstreamPackage('binary', 'perl')])
+            run_with_build_fixer(self.session, ['perl', 'Makefile.PL'])
+
+        if not self.session.exists('Makefile') and not self.session.exists('configure'):
+            if self.session.exists('autogen.sh'):
+                if shebang_binary('autogen.sh') is None:
+                    run_with_build_fixer(
+                        self.session, ['/bin/sh', './autogen.sh'])
                 try:
                     run_with_build_fixer(self.session, ["./autogen.sh"])
                 except UnidentifiedError as e:
@@ -269,10 +275,9 @@ class Make(BuildSystem):
         if not self.session.exists("Makefile") and self.session.exists("configure"):
             self.session.check_call(["./configure"])
 
-    def dist(self):
-        self.setup()
-        apt = AptManager(self.session)
-        apt.install(["make"])
+    def dist(self, resolver):
+        self.setup(resolver)
+        resolver.install([UpstreamPackage('binary', 'make')])
         try:
             run_with_build_fixer(self.session, ["make", "dist"])
         except UnidentifiedError as e:

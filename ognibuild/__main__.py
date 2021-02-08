@@ -38,10 +38,9 @@ def main():
     )
     parser.add_argument("--schroot", type=str, help="schroot to run in.")
     parser.add_argument(
-        "--resolve",
-        choices=["explain", "apt", "native"],
-        help="What to do about missing dependencies",
-    )
+        '--resolve', choices=['explain', 'apt', 'native'],
+        default='apt',
+        help='What to do about missing dependencies')
     args = parser.parse_args()
     if args.schroot:
         from .session.schroot import SchrootSession
@@ -52,18 +51,27 @@ def main():
 
         session = PlainSession()
     with session:
+        if args.resolve == 'apt':
+            from .resolver import AptResolver
+            resolver = AptResolver.from_session(session)
+        elif args.resolve == 'explain':
+            from .resolver import ExplainResolver
+            resolver = ExplainResolver.from_session(session)
+        elif args.resolve == 'native':
+            from .resolver import NativeResolver
+            resolver = NativeResolver.from_session(session)
         os.chdir(args.directory)
         try:
-            if args.subcommand == "dist":
-                run_dist(session)
-            if args.subcommand == "build":
-                run_build(session)
-            if args.subcommand == "clean":
-                run_clean(session)
-            if args.subcommand == "install":
-                run_install(session)
-            if args.subcommand == "test":
-                run_test(session)
+            if args.subcommand == 'dist':
+                run_dist(session=session, resolver=resolver)
+            if args.subcommand == 'build':
+                run_build(session, resolver=resolver)
+            if args.subcommand == 'clean':
+                run_clean(session, resolver=resolver)
+            if args.subcommand == 'install':
+                run_install(session, resolver=resolver)
+            if args.subcommand == 'test':
+                run_test(session, resolver=resolver)
         except NoBuildToolsFound:
             logging.info("No build tools found.")
             return 1

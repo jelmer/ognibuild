@@ -62,13 +62,13 @@ class DistNoTarball(Exception):
     """Dist operation did not create a tarball."""
 
 
-def run_dist(session):
+def run_dist(session, resolver):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
     for buildsystem in detect_buildsystems(session):
-        buildsystem.dist()
+        buildsystem.dist(resolver)
         return
 
     raise NoBuildToolsFound()
