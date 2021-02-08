@@ -18,11 +18,10 @@
 import errno
 import logging
 import os
-import re
 import shutil
 import sys
 import tempfile
-from typing import Optional, List, Tuple
+from typing import Optional
 
 from debian.deb822 import Deb822
 
@@ -35,11 +34,8 @@ from buildlog_consultant.sbuild import (
     NoSpaceOnDevice,
     )
 
-from . import DetailedFailure, shebang_binary
-from .apt import AptManager, UnidentifiedError
-from .fix_build import run_with_build_fixer
+from . import DetailedFailure
 from .buildsystem import detect_buildsystems, NoBuildToolsFound
-from .session import Session
 from .session.schroot import SchrootSession
 from .vcs import dupe_vcs_tree, export_vcs_tree
 
@@ -48,32 +44,7 @@ class DistNoTarball(Exception):
     """Dist operation did not create a tarball."""
 
 
-# TODO(jelmer): move this to debian/
-def satisfy_build_deps(session: Session, tree):
-    source = Deb822(tree.get_file('debian/control'))
-    deps = []
-    for name in ['Build-Depends', 'Build-Depends-Indep', 'Build-Depends-Arch']:
-        try:
-            deps.append(source[name].strip().strip(','))
-        except KeyError:
-            pass
-    for name in ['Build-Conflicts', 'Build-Conflicts-Indep',
-                 'Build-Conflicts-Arch']:
-        try:
-            deps.append('Conflicts: ' + source[name])
-        except KeyError:
-            pass
-    deps = [
-        dep.strip().strip(',')
-        for dep in deps]
-    apt = AptManager(session)
-    apt.satisfy(deps)
-
-
 def run_dist(session):
-    apt = AptManager(session)
-    apt.install(['git'])
-
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
@@ -137,6 +108,7 @@ def create_dist_schroot(
         subdir = 'package'
     with SchrootSession(chroot) as session:
         if packaging_tree is not None:
+            from .debian import satisfy_build_deps
             satisfy_build_deps(session, packaging_tree)
         build_dir = os.path.join(session.location, 'build')
 
@@ -175,6 +147,7 @@ if __name__ == '__main__':
     import argparse
     import breezy.bzr  # noqa: F401
     import breezy.git  # noqa: F401
+    from breezy.export import export
 
     parser = argparse.ArgumentParser()
     parser.add_argument(

@@ -15,14 +15,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from .apt import AptManager
 from .buildsystem import detect_buildsystems, NoBuildToolsFound
 
 
 def run_build(session):
-    apt = AptManager(session)
-    apt.install(['git'])
-
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
