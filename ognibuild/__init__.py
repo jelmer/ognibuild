@@ -42,3 +42,17 @@ def shebang_binary(p):
         if args[0] in (b"/usr/bin/env", b"env"):
             return os.path.basename(args[1].decode()).strip()
         return os.path.basename(args[0].decode()).strip()
+
+
+class UpstreamRequirement(object):
+
+    def __init__(self, family, name):
+        self.family = family
+        self.name = name
+
+
+class UpstreamOutput(object):
+
+    def __init__(self, family, name):
+        self.family = family
+        self.name = name

@@ -15,16 +15,16 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from .buildsystem import detect_buildsystems, NoBuildToolsFound
+from .buildsystem import NoBuildToolsFound
 
 
-def run_install(session, resolver):
+def run_install(session, buildsystems, resolver):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
-    for buildsystem in detect_buildsystems(session):
-        buildsystem.install(resolver)
+    for buildsystem in buildsystems:
+        buildsystem.install(session, resolver)
         return
 
     raise NoBuildToolsFound()

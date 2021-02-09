@@ -34,12 +34,29 @@ from .resolver import (
 from .test import run_test
 
 
-def install_declared_requirements(resolver, requirements, subcommand):
+def get_necessary_declared_requirements(resolver, requirements, stages):
     missing = []
-    for req in requirements:
-        # TODO(jelmer): Look at stage
-        missing.append(UpstreamPackage(req.package.family, req.package.name))
+    for stage, req in requirements:
+        if stage in stages:
+            missing.append(req)
+    return missing
+
+
+def install_necessary_declared_requirements(resolver, buildsystem, stages):
+    missing = []
+    missing.extend(get_necessary_declared_requirements(
+        resolver, buildsystem.get_declared_dependencies(),
+        stages))
     resolver.install(missing)
+
+
+STAGE_MAP = {
+    'dist': [],
+    'install': ['build'],
+    'test': ['test', 'dev'],
+    'build': ['build'],
+    'clean': []
+}
 
 
 def main():
@@ -81,26 +98,23 @@ def main():
             resolver = AutoResolver.from_session(session)
         os.chdir(args.directory)
         try:
+            bss = list(detect_buildsystems(args.directory))
             if not args.ignore_declared_dependencies:
-                from upstream_ontologist.guess import get_upstream_info
-                buildsystem, requirements, metadata = get_upstream_info(
-                    path=args.directory,
-                    trust_package=True,
-                    net_access=True,
-                    consult_external_directory=True,
-                    check=True)
-                install_declared_requirements(
-                    resolver, requirements, args.subcommand)
+                stages = STAGE_MAP[args.subcommand]
+                if stages:
+                    for bs in bss:
+                        install_necessary_declared_requirements(
+                            resolver, bs, stages)
             if args.subcommand == 'dist':
-                run_dist(session=session, resolver=resolver)
+                run_dist(session=session, buildsystems=bss, resolver=resolver)
             if args.subcommand == 'build':
-                run_build(session, resolver=resolver)
+                run_build(session, buildsystems=bss, resolver=resolver)
             if args.subcommand == 'clean':
-                run_clean(session, resolver=resolver)
+                run_clean(session, buildsystems=bss, resolver=resolver)
             if args.subcommand == 'install':
-                run_install(session, resolver=resolver)
+                run_install(session, buildsystems=bss, resolver=resolver)
             if args.subcommand == 'test':
-                run_test(session, resolver=resolver)
+                run_test(session, buildsystems=bss, resolver=resolver)
         except NoBuildToolsFound:
             logging.info("No build tools found.")
             return 1

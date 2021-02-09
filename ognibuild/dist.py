@@ -34,7 +34,7 @@ from buildlog_consultant.common import (
 
 
 from . import DetailedFailure
-from .buildsystem import detect_buildsystems, NoBuildToolsFound
+from .buildsystem import NoBuildToolsFound
 from .session.schroot import SchrootSession
 from .vcs import dupe_vcs_tree, export_vcs_tree
 
@@ -62,13 +62,13 @@ class DistNoTarball(Exception):
     """Dist operation did not create a tarball."""
 
 
-def run_dist(session, resolver):
+def run_dist(session, buildsystems, resolver):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
-    for buildsystem in detect_buildsystems(session):
-        buildsystem.dist(resolver)
+    for buildsystem in buildsystems:
+        buildsystem.dist(session, resolver)
         return
 
     raise NoBuildToolsFound()
@@ -115,13 +115,12 @@ class DistCatcher(object):
 
 
 def create_dist_schroot(
-    tree: Tree,
-    target_dir: str,
-    chroot: str,
-    packaging_tree: Optional[Tree] = None,
-    include_controldir: bool = True,
-    subdir: Optional[str] = None,
-) -> str:
+        tree: Tree, target_dir: str,
+        chroot: str, packaging_tree: Optional[Tree] = None,
+        include_controldir: bool = True,
+        subdir: Optional[str] = None) -> str:
+    from .buildsystem import detect_buildsystems
+    from .apt import AptResolver
     if subdir is None:
         subdir = "package"
     with SchrootSession(chroot) as session:
@@ -144,12 +143,15 @@ def create_dist_schroot(
         else:
             dupe_vcs_tree(tree, export_directory)
 
+        buildsystems = list(detect_buildsystems(export_directory))
+        resolver = AptResolver.from_session(session)
+
         with DistCatcher(export_directory) as dc:
             oldcwd = os.getcwd()
             os.chdir(export_directory)
             try:
                 session.chdir(os.path.join(reldir, subdir))
-                run_dist(session)
+                run_dist(session, buildsystems, resolver)
             finally:
                 os.chdir(oldcwd)
 
