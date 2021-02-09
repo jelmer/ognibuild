@@ -45,14 +45,12 @@ def shebang_binary(p):
 
 
 class UpstreamRequirement(object):
-
     def __init__(self, family, name):
         self.family = family
         self.name = name
 
 
 class UpstreamOutput(object):
-
     def __init__(self, family, name):
         self.family = family
         self.name = name

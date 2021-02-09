@@ -30,7 +30,7 @@ from debian.deb822 import (
     Deb822,
     PkgRelation,
     Release,
-    )
+)
 from debian.changelog import Version
 
 from breezy.commit import PointlessCommit
@@ -113,6 +113,7 @@ from buildlog_consultant.sbuild import (
     SbuildFailure,
 )
 
+
 DEFAULT_MAX_ITERATIONS = 10
 
 
@@ -124,18 +125,21 @@ class CircularDependency(Exception):
 
 
 class DependencyContext(object):
-
-    def __init__(self, tree: MutableTree,
-                 subpath: str = '', committer: Optional[str] = None,
-                 update_changelog: bool = True):
+    def __init__(
+        self,
+        tree: MutableTree,
+        subpath: str = "",
+        committer: Optional[str] = None,
+        update_changelog: bool = True,
+    ):
         self.tree = tree
         self.subpath = subpath
         self.committer = committer
         self.update_changelog = update_changelog
 
     def add_dependency(
-            self, package: str,
-            minimum_version: Optional[Version] = None) -> bool:
+        self, package: str, minimum_version: Optional[Version] = None
+    ) -> bool:
         raise NotImplementedError(self.add_dependency)
 
 
@@ -273,9 +277,13 @@ def add_test_dependency(
     )
 
 
-def commit_debian_changes(tree: MutableTree, subpath: str,
-                          summary: str, committer: Optional[str] = None,
-                          update_changelog: bool = True) -> bool:
+def commit_debian_changes(
+    tree: MutableTree,
+    subpath: str,
+    summary: str,
+    committer: Optional[str] = None,
+    update_changelog: bool = True,
+) -> bool:
     with tree.lock_write():
         try:
             if update_changelog:

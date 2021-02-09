@@ -115,12 +115,16 @@ class DistCatcher(object):
 
 
 def create_dist_schroot(
-        tree: Tree, target_dir: str,
-        chroot: str, packaging_tree: Optional[Tree] = None,
-        include_controldir: bool = True,
-        subdir: Optional[str] = None) -> str:
+    tree: Tree,
+    target_dir: str,
+    chroot: str,
+    packaging_tree: Optional[Tree] = None,
+    include_controldir: bool = True,
+    subdir: Optional[str] = None,
+) -> str:
     from .buildsystem import detect_buildsystems
     from .resolver import AptResolver
+
     if subdir is None:
         subdir = "package"
     with SchrootSession(chroot) as session:

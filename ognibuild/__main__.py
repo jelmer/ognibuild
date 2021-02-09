@@ -18,7 +18,8 @@
 import logging
 import os
 import sys
-from . import UpstreamPackage
+from . import note, UpstreamPackage
+from .apt import UnidentifiedError
 from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .build import run_build
 from .clean import run_clean
@@ -30,7 +31,7 @@ from .resolver import (
     AutoResolver,
     NativeResolver,
     MissingDependencies,
-    )
+)
 from .test import run_test
 
 
@@ -44,18 +45,20 @@ def get_necessary_declared_requirements(resolver, requirements, stages):
 
 def install_necessary_declared_requirements(resolver, buildsystem, stages):
     missing = []
-    missing.extend(get_necessary_declared_requirements(
-        resolver, buildsystem.get_declared_dependencies(),
-        stages))
+    missing.extend(
+        get_necessary_declared_requirements(
+            resolver, buildsystem.get_declared_dependencies(), stages
+        )
+    )
     resolver.install(missing)
 
 
 STAGE_MAP = {
-    'dist': [],
-    'install': ['build'],
-    'test': ['test', 'dev'],
-    'build': ['build'],
-    'clean': []
+    "dist": [],
+    "install": ["build"],
+    "test": ["test", "dev"],
+    "build": ["build"],
+    "clean": [],
 }
 
 
@@ -71,13 +74,16 @@ def main():
     )
     parser.add_argument("--schroot", type=str, help="schroot to run in.")
     parser.add_argument(
-        '--resolve', choices=['explain', 'apt', 'native'],
-        default='apt',
-        help='What to do about missing dependencies')
+        "--resolve",
+        choices=["explain", "apt", "native"],
+        default="apt",
+        help="What to do about missing dependencies",
+    )
     parser.add_argument(
-        '--ignore-declared-dependencies',
-        action='store_true',
-        help='Ignore declared dependencies, follow build errors only')
+        "--ignore-declared-dependencies",
+        action="store_true",
+        help="Ignore declared dependencies, follow build errors only",
+    )
     args = parser.parse_args()
     if args.schroot:
         from .session.schroot import SchrootSession
@@ -88,13 +94,13 @@ def main():
 
         session = PlainSession()
     with session:
-        if args.resolve == 'apt':
+        if args.resolve == "apt":
             resolver = AptResolver.from_session(session)
-        elif args.resolve == 'explain':
+        elif args.resolve == "explain":
             resolver = ExplainResolver.from_session(session)
-        elif args.resolve == 'native':
+        elif args.resolve == "native":
             resolver = NativeResolver.from_session(session)
-        elif args.resolver == 'auto':
+        elif args.resolver == "auto":
             resolver = AutoResolver.from_session(session)
         os.chdir(args.directory)
         try:
@@ -103,29 +109,30 @@ def main():
                 stages = STAGE_MAP[args.subcommand]
                 if stages:
                     for bs in bss:
-                        install_necessary_declared_requirements(
-                            resolver, bs, stages)
-            if args.subcommand == 'dist':
+                        install_necessary_declared_requirements(resolver, bs, stages)
+            if args.subcommand == "dist":
                 run_dist(session=session, buildsystems=bss, resolver=resolver)
-            if args.subcommand == 'build':
+            if args.subcommand == "build":
                 run_build(session, buildsystems=bss, resolver=resolver)
-            if args.subcommand == 'clean':
+            if args.subcommand == "clean":
                 run_clean(session, buildsystems=bss, resolver=resolver)
-            if args.subcommand == 'install':
+            if args.subcommand == "install":
                 run_install(session, buildsystems=bss, resolver=resolver)
-            if args.subcommand == 'test':
+            if args.subcommand == "test":
                 run_test(session, buildsystems=bss, resolver=resolver)
+        except UnidentifiedError:
+            return 1
         except NoBuildToolsFound:
             logging.info("No build tools found.")
             return 1
         except MissingDependencies as e:
             for req in e.requirements:
-                note('Missing dependency (%s:%s)' % (
-                     req.family, req.name))
+                note("Missing dependency (%s:%s)" % (req.family, req.name))
                 for resolver in [
-                        AptResolver.from_session(session),
-                        NativeResolver.from_session(session)]:
-                    note('  %s' % (resolver.explain([req]), ))
+                    AptResolver.from_session(session),
+                    NativeResolver.from_session(session),
+                ]:
+                    note("  %s" % (resolver.explain([req]),))
             return 2
         return 0
 
