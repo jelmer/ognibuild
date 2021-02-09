@@ -65,7 +65,7 @@ class AptResolver(Resolver):
             if req.family == 'python3':
                 yield 'python3-%s' % req.name
             else:
-                path = list(self._possible_paths(req))
+                list(self._possible_paths(req))
                 raise NotImplementedError
 
 

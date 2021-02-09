@@ -120,7 +120,7 @@ def create_dist_schroot(
         include_controldir: bool = True,
         subdir: Optional[str] = None) -> str:
     from .buildsystem import detect_buildsystems
-    from .apt import AptResolver
+    from .resolver import AptResolver
     if subdir is None:
         subdir = "package"
     with SchrootSession(chroot) as session:

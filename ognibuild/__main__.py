@@ -19,7 +19,7 @@ import logging
 import os
 import sys
 from . import UpstreamPackage
-from .buildsystem import NoBuildToolsFound
+from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .build import run_build
 from .clean import run_clean
 from .dist import run_dist

@@ -24,15 +24,17 @@ import os
 import re
 import subprocess
 import sys
-from typing import Iterator, List, Callable, Type, Tuple, Set
+from typing import Iterator, List, Callable, Type, Tuple, Set, Optional
 
 from debian.deb822 import (
     Deb822,
     PkgRelation,
     Release,
-)
+    )
+from debian.changelog import Version
 
 from breezy.commit import PointlessCommit
+from breezy.mutabletree import MutableTree
 from breezy.tree import Tree
 from debmutate.control import (
     ensure_some_version,
@@ -122,13 +124,18 @@ class CircularDependency(Exception):
 
 
 class DependencyContext(object):
-    def __init__(self, tree, subpath="", committer=None, update_changelog=True):
+
+    def __init__(self, tree: MutableTree,
+                 subpath: str = '', committer: Optional[str] = None,
+                 update_changelog: bool = True):
         self.tree = tree
         self.subpath = subpath
         self.committer = committer
         self.update_changelog = update_changelog
 
-    def add_dependency(self, package, minimum_version=None):
+    def add_dependency(
+            self, package: str,
+            minimum_version: Optional[Version] = None) -> bool:
         raise NotImplementedError(self.add_dependency)
 
 
@@ -266,9 +273,9 @@ def add_test_dependency(
     )
 
 
-def commit_debian_changes(
-    tree, subpath, summary, committer=None, update_changelog=True
-):
+def commit_debian_changes(tree: MutableTree, subpath: str,
+                          summary: str, committer: Optional[str] = None,
+                          update_changelog: bool = True) -> bool:
     with tree.lock_write():
         try:
             if update_changelog:

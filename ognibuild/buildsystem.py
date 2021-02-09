@@ -413,7 +413,7 @@ class Cargo(BuildSystem):
     name = 'cargo'
 
     def __init__(self, path):
-        from toml.decoder import load, TomlDecodeError
+        from toml.decoder import load
         with open(path, 'r') as f:
             self.cargo = load(f)
 
@@ -505,7 +505,6 @@ def detect_buildsystems(path):
                 cabal_filenames)
 
     if os.path.exists(os.path.join(path, '.travis.yml')):
-        import yaml
         import ruamel.yaml.reader
         with open('.travis.yml', 'rb') as f:
             try:
