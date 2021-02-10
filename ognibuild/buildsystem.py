@@ -479,7 +479,7 @@ class Cabal(BuildSystem):
         self.path = path
 
 
-def detect_buildsystems(path, trust_package=False):
+def detect_buildsystems(path, trust_package=False):  # noqa: C901
     """Detect build systems."""
     if os.path.exists(os.path.join(path, "package.xml")):
         logging.info("Found package.xml, assuming pear package.")

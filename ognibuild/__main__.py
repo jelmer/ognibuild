@@ -62,7 +62,7 @@ STAGE_MAP = {
 }
 
 
-def main():
+def main():  # noqa: C901
     import argparse
 
     parser = argparse.ArgumentParser()
