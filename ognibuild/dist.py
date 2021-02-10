@@ -75,6 +75,7 @@ def run_dist(session, buildsystems, resolver):
 
 
 class DistCatcher(object):
+
     def __init__(self, directory):
         self.export_directory = directory
         self.files = []
