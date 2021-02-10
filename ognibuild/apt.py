@@ -19,7 +19,6 @@
 
 from typing import List
 
-import apt_pkg
 import os
 from buildlog_consultant.apt import (
     find_apt_get_failure,
@@ -64,6 +63,7 @@ class AptManager(object):
         root = getattr(self.session, "location", "/")
         status_path = os.path.join(root, "var/lib/dpkg/status")
         missing = set(packages)
+        import apt_pkg
         with apt_pkg.TagFile(status_path) as tagf:
             while missing:
                 tagf.step()
