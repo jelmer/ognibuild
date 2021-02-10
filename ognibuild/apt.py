@@ -21,7 +21,7 @@ from typing import List
 
 import apt_pkg
 import os
-from buildlog_consultant.sbuild import (
+from buildlog_consultant.apt import (
     find_apt_get_failure,
     )
 

@@ -66,7 +66,6 @@ from silver_platter.debian import (
     DEFAULT_BUILDER,
     )
 
-from breezy.plugins.debian.util import get_build_architecture
 from .build import attempt_build
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (

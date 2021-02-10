@@ -16,9 +16,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import datetime
-from ..debian.build import add_dummy_changelog_entry
+from ..debian.build import add_dummy_changelog_entry, get_build_architecture
 
-from breezy.tests import TestCaseWithTransport
+from breezy.tests import TestCaseWithTransport, TestCase
 
 
 class AddDummyChangelogEntryTests(TestCaseWithTransport):
@@ -105,4 +105,12 @@ janitor (0.1-1jan+some1) UNRELEASED; urgency=medium
   * Initial release. (Closes: #XXXXXX)
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 04 Apr 2020 14:12:13 +0000
-""", 'debian/changelog')
+""",
+            "debian/changelog",
+        )
+
+
+class BuildArchitectureTests(TestCase):
+
+    def test_is_str(self):
+        self.assertIsInstance(get_build_architecture(), str)

@@ -28,17 +28,8 @@ from debian.deb822 import Deb822
 from breezy.tree import Tree
 from breezy.workingtree import WorkingTree
 
-from breezy.plugins.debian.repack_tarball import get_filetype
-
-from . import apt, DetailedFailure, shebang_binary
+from . import DetailedFailure
 from .buildsystem import detect_buildsystems, NoBuildToolsFound
-from .session import run_with_tee, Session
-from .session.schroot import SchrootSession
-from .debian.fix_build import (
-    DependencyContext,
-    resolve_error,
-    APT_FIXERS,
-    )
 from buildlog_consultant.common import (
     find_build_failure_description,
     Problem,
@@ -47,10 +38,27 @@ from buildlog_consultant.common import (
     NoSpaceOnDevice,
     )
 
-from . import DetailedFailure
-from .buildsystem import detect_buildsystems, NoBuildToolsFound
 from .session.schroot import SchrootSession
 from .vcs import dupe_vcs_tree, export_vcs_tree
+
+
+SUPPORTED_DIST_EXTENSIONS = [
+    ".tar.gz",
+    ".tgz",
+    ".tar.bz2",
+    ".tar.xz",
+    ".tar.lzma",
+    ".tbz2",
+    ".tar",
+    ".zip",
+    ]
+
+
+def is_dist_file(fn):
+    for ext in SUPPORTED_DIST_EXTENSIONS:
+        if fn.endswith(ext):
+            return True
+    return False
 
 
 class DistNoTarball(Exception):
@@ -83,18 +91,16 @@ class DistCatcher(object):
     def find_files(self):
         new_files = os.listdir(self.export_directory)
         diff_files = set(new_files) - set(self.existing_files)
-        diff = set([n for n in diff_files if get_filetype(n) is not None])
+        diff = set([n for n in diff_files if is_dist_file(n)])
         if len(diff) == 1:
             fn = diff.pop()
             logging.info('Found tarball %s in package directory.', fn)
             self.files.append(os.path.join(self.export_directory, fn))
             return fn
-        if 'dist' in diff_files:
-            for entry in os.scandir(
-                    os.path.join(self.export_directory, 'dist')):
-                if get_filetype(entry.name) is not None:
-                    logging.info(
-                        'Found tarball %s in dist directory.', entry.name)
+        if "dist" in diff_files:
+            for entry in os.scandir(os.path.join(self.export_directory, "dist")):
+                if is_dist_file(entry.name):
+                    logging.info("Found tarball %s in dist directory.", entry.name)
                     self.files.append(entry.path)
                     return entry.name
             logging.info('No tarballs found in dist directory.')

@@ -34,10 +34,6 @@ from debian.changelog import Changelog
 from debmutate.changelog import get_maintainer, format_datetime
 
 from breezy import osutils
-from breezy.plugins.debian.util import (
-    changes_filename,
-    get_build_architecture,
-    )
 from breezy.mutabletree import MutableTree
 from silver_platter.debian import (
     BuildFailedError,
@@ -55,6 +51,22 @@ class MissingChangesFile(Exception):
 
     def __init__(self, filename):
         self.filename = filename
+
+
+def changes_filename(package, version, arch):
+    non_epoch_version = version.upstream_version
+    if version.debian_version is not None:
+        non_epoch_version += "-%s" % version.debian_version
+    return "%s_%s_%s.changes" % (package, non_epoch_version, arch)
+
+
+def get_build_architecture():
+    try:
+        return subprocess.check_output(
+            ['dpkg-architecture', '-qDEB_BUILD_ARCH']).strip().decode()
+    except subprocess.CalledProcessError as e:
+        raise Exception(
+            "Could not find the build architecture: %s" % e)
 
 
 def add_dummy_changelog_entry(
