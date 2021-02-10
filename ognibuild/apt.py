@@ -23,14 +23,13 @@ import apt_pkg
 import os
 from buildlog_consultant.apt import (
     find_apt_get_failure,
-    )
+)
 
 from . import DetailedFailure
 from .session import Session, run_with_tee
 
 
 class UnidentifiedError(Exception):
-
     def __init__(self, retcode, argv, lines, secondary=None):
         self.retcode = retcode
         self.argv = argv
@@ -40,17 +39,16 @@ class UnidentifiedError(Exception):
 
 def run_apt(session: Session, args: List[str]) -> None:
     """Run apt."""
-    args = ['apt', '-y'] + args
-    retcode, lines = run_with_tee(session, args, cwd='/', user='root')
+    args = ["apt", "-y"] + args
+    retcode, lines = run_with_tee(session, args, cwd="/", user="root")
     if retcode == 0:
         return
     offset, line, error = find_apt_get_failure(lines)
     if error is not None:
         raise DetailedFailure(retcode, args, error)
     if line is not None:
-        raise UnidentifiedError(
-            retcode, args, lines, secondary=(offset, line))
-    while lines and lines[-1] == '':
+        raise UnidentifiedError(retcode, args, lines, secondary=(offset, line))
+    while lines and lines[-1] == "":
         lines.pop(-1)
     raise UnidentifiedError(retcode, args, lines)
 
@@ -63,23 +61,23 @@ class AptManager(object):
         self.session = session
 
     def missing(self, packages):
-        root = getattr(self.session, 'location', '/')
-        status_path = os.path.join(root, 'var/lib/dpkg/status')
+        root = getattr(self.session, "location", "/")
+        status_path = os.path.join(root, "var/lib/dpkg/status")
         missing = set(packages)
         with apt_pkg.TagFile(status_path) as tagf:
             while missing:
                 tagf.step()
                 if not tagf.section:
                     break
-                if tagf.section['Package'] in missing:
-                    if tagf.section['Status'] == 'install ok installed':
-                        missing.remove(tagf.section['Package'])
+                if tagf.section["Package"] in missing:
+                    if tagf.section["Status"] == "install ok installed":
+                        missing.remove(tagf.section["Package"])
         return list(missing)
 
     def install(self, packages: List[str]) -> None:
         packages = self.missing(packages)
         if packages:
-            run_apt(self.session, ['install'] + packages)
+            run_apt(self.session, ["install"] + packages)
 
     def satisfy(self, deps: List[str]) -> None:
-        run_apt(self.session, ['satisfy'] + deps)
+        run_apt(self.session, ["satisfy"] + deps)

@@ -22,8 +22,7 @@ import subprocess
 
 
 class Session(object):
-
-    def __enter__(self) -> 'Session':
+    def __enter__(self) -> "Session":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -37,26 +36,31 @@ class Session(object):
         raise NotImplementedError
 
     def check_call(
-            self,
-            argv: List[str], cwd: Optional[str] = None,
-            user: Optional[str] = None,
-            env: Optional[Dict[str, str]] = None):
+        self,
+        argv: List[str],
+        cwd: Optional[str] = None,
+        user: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+    ):
         raise NotImplementedError(self.check_call)
 
     def check_output(
-            self,
-            argv: List[str], cwd: Optional[str] = None,
-            user: Optional[str] = None,
-            env: Optional[Dict[str, str]] = None) -> bytes:
+        self,
+        argv: List[str],
+        cwd: Optional[str] = None,
+        user: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+    ) -> bytes:
         raise NotImplementedError(self.check_output)
 
-    def Popen(self, argv, cwd: Optional[str] = None,
-              user: Optional[str] = None, **kwargs):
+    def Popen(
+        self, argv, cwd: Optional[str] = None, user: Optional[str] = None, **kwargs
+    ):
         raise NotImplementedError(self.Popen)
 
     def call(
-            self, argv: List[str], cwd: Optional[str] = None,
-            user: Optional[str] = None):
+        self, argv: List[str], cwd: Optional[str] = None, user: Optional[str] = None
+    ):
         raise NotImplementedError(self.call)
 
     def create_home(self) -> None:
@@ -76,12 +80,11 @@ class SessionSetupFailure(Exception):
 
 
 def run_with_tee(session: Session, args: List[str], **kwargs):
-    p = session.Popen(
-        args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs)
+    p = session.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs)
     contents = []
     while p.poll() is None:
         line = p.stdout.readline()
         sys.stdout.buffer.write(line)
         sys.stdout.buffer.flush()
-        contents.append(line.decode('utf-8', 'surrogateescape'))
+        contents.append(line.decode("utf-8", "surrogateescape"))
     return p.returncode, contents

@@ -31,12 +31,8 @@ from breezy.workingtree import WorkingTree
 from . import DetailedFailure
 from .buildsystem import detect_buildsystems, NoBuildToolsFound
 from buildlog_consultant.common import (
-    find_build_failure_description,
-    Problem,
-    MissingPerlModule,
-    MissingCommand,
     NoSpaceOnDevice,
-    )
+)
 
 from .session.schroot import SchrootSession
 from .vcs import dupe_vcs_tree, export_vcs_tree
@@ -51,7 +47,7 @@ SUPPORTED_DIST_EXTENSIONS = [
     ".tbz2",
     ".tar",
     ".zip",
-    ]
+]
 
 
 def is_dist_file(fn):
@@ -78,7 +74,6 @@ def run_dist(session):
 
 
 class DistCatcher(object):
-
     def __init__(self, directory):
         self.export_directory = directory
         self.files = []
@@ -94,7 +89,7 @@ class DistCatcher(object):
         diff = set([n for n in diff_files if is_dist_file(n)])
         if len(diff) == 1:
             fn = diff.pop()
-            logging.info('Found tarball %s in package directory.', fn)
+            logging.info("Found tarball %s in package directory.", fn)
             self.files.append(os.path.join(self.export_directory, fn))
             return fn
         if "dist" in diff_files:
@@ -103,13 +98,13 @@ class DistCatcher(object):
                     logging.info("Found tarball %s in dist directory.", entry.name)
                     self.files.append(entry.path)
                     return entry.name
-            logging.info('No tarballs found in dist directory.')
+            logging.info("No tarballs found in dist directory.")
 
         parent_directory = os.path.dirname(self.export_directory)
         diff = set(os.listdir(parent_directory)) - set([subdir])
         if len(diff) == 1:
             fn = diff.pop()
-            logging.info('Found tarball %s in parent directory.', fn)
+            logging.info("Found tarball %s in parent directory.", fn)
             self.files.append(os.path.join(parent_directory, fn))
             return fn
 
@@ -119,25 +114,28 @@ class DistCatcher(object):
 
 
 def create_dist_schroot(
-        tree: Tree, target_dir: str,
-        chroot: str, packaging_tree: Optional[Tree] = None,
-        include_controldir: bool = True,
-        subdir: Optional[str] = None) -> str:
+    tree: Tree,
+    target_dir: str,
+    chroot: str,
+    packaging_tree: Optional[Tree] = None,
+    include_controldir: bool = True,
+    subdir: Optional[str] = None,
+) -> str:
     if subdir is None:
-        subdir = 'package'
+        subdir = "package"
     with SchrootSession(chroot) as session:
         if packaging_tree is not None:
             from .debian import satisfy_build_deps
+
             satisfy_build_deps(session, packaging_tree)
-        build_dir = os.path.join(session.location, 'build')
+        build_dir = os.path.join(session.location, "build")
 
         try:
             directory = tempfile.mkdtemp(dir=build_dir)
         except OSError as e:
             if e.errno == errno.ENOSPC:
-                raise DetailedFailure(
-                    1, ['mkdtemp'], NoSpaceOnDevice())
-        reldir = '/' + os.path.relpath(directory, session.location)
+                raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
+        reldir = "/" + os.path.relpath(directory, session.location)
 
         export_directory = os.path.join(directory, subdir)
         if not include_controldir:
@@ -158,11 +156,11 @@ def create_dist_schroot(
             shutil.copy(path, target_dir)
             return os.path.join(target_dir, os.path.basename(path))
 
-        logging.info('No tarball created :(')
+        logging.info("No tarball created :(")
         raise DistNoTarball()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
     import breezy.bzr  # noqa: F401
     import breezy.git  # noqa: F401
@@ -170,17 +168,24 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--chroot', default='unstable-amd64-sbuild', type=str,
-        help='Name of chroot to use')
+        "--chroot",
+        default="unstable-amd64-sbuild",
+        type=str,
+        help="Name of chroot to use",
+    )
     parser.add_argument(
-        'directory', default='.', type=str, nargs='?',
-        help='Directory with upstream source.')
+        "directory",
+        default=".",
+        type=str,
+        nargs="?",
+        help="Directory with upstream source.",
+    )
     parser.add_argument(
-        '--packaging-directory', type=str,
-        help='Path to packaging directory.')
+        "--packaging-directory", type=str, help="Path to packaging directory."
+    )
     parser.add_argument(
-        '--target-directory', type=str, default='..',
-        help='Target directory')
+        "--target-directory", type=str, default="..", help="Target directory"
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -189,8 +194,8 @@ if __name__ == '__main__':
     if args.packaging_directory:
         packaging_tree = WorkingTree.open(args.packaging_directory)
         with packaging_tree.lock_read():
-            source = Deb822(packaging_tree.get_file('debian/control'))
-        package = source['Source']
+            source = Deb822(packaging_tree.get_file("debian/control"))
+        package = source["Source"]
         subdir = package
     else:
         packaging_tree = None
@@ -198,13 +203,15 @@ if __name__ == '__main__':
 
     try:
         ret = create_dist_schroot(
-            tree, subdir=subdir,
+            tree,
+            subdir=subdir,
             target_dir=os.path.abspath(args.target_directory),
             packaging_tree=packaging_tree,
-            chroot=args.chroot)
+            chroot=args.chroot,
+        )
     except NoBuildToolsFound:
-        logging.info('No build tools found, falling back to simple export.')
-        export(tree, 'dist.tar.gz', 'tgz', None)
+        logging.info("No build tools found, falling back to simple export.")
+        export(tree, "dist.tar.gz", "tgz", None)
     else:
-        print('Created %s' % ret)
+        print("Created %s" % ret)
     sys.exit(0)

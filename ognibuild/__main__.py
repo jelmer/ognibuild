@@ -28,40 +28,44 @@ from .test import run_test
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        'subcommand', type=str,
-        choices=['dist', 'build', 'clean', 'test', 'install'])
+        "subcommand", type=str, choices=["dist", "build", "clean", "test", "install"]
+    )
     parser.add_argument(
-        '--directory', '-d', type=str, help='Directory for project.',
-        default='.')
+        "--directory", "-d", type=str, help="Directory for project.", default="."
+    )
+    parser.add_argument("--schroot", type=str, help="schroot to run in.")
     parser.add_argument(
-        '--schroot', type=str, help='schroot to run in.')
-    parser.add_argument(
-        '--resolve', choices=['explain', 'apt', 'native'],
-        help='What to do about missing dependencies')
+        "--resolve",
+        choices=["explain", "apt", "native"],
+        help="What to do about missing dependencies",
+    )
     args = parser.parse_args()
     if args.schroot:
         from .session.schroot import SchrootSession
+
         session = SchrootSession(args.schroot)
     else:
         from .session.plain import PlainSession
+
         session = PlainSession()
     with session:
         os.chdir(args.directory)
         try:
-            if args.subcommand == 'dist':
+            if args.subcommand == "dist":
                 run_dist(session)
-            if args.subcommand == 'build':
+            if args.subcommand == "build":
                 run_build(session)
-            if args.subcommand == 'clean':
+            if args.subcommand == "clean":
                 run_clean(session)
-            if args.subcommand == 'install':
+            if args.subcommand == "install":
                 run_install(session)
-            if args.subcommand == 'test':
+            if args.subcommand == "test":
                 run_test(session)
         except NoBuildToolsFound:
-            note('No build tools found.')
+            note("No build tools found.")
             return 1
         return 0
 

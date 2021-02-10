@@ -21,11 +21,10 @@ import stat
 import sys
 
 
-DEFAULT_PYTHON = 'python3'
+DEFAULT_PYTHON = "python3"
 
 
 class DetailedFailure(Exception):
-
     def __init__(self, retcode, argv, error):
         self.retcode = retcode
         self.argv = argv
@@ -35,19 +34,19 @@ class DetailedFailure(Exception):
 def shebang_binary(p):
     if not (os.stat(p).st_mode & stat.S_IEXEC):
         return None
-    with open(p, 'rb') as f:
+    with open(p, "rb") as f:
         firstline = f.readline()
-        if not firstline.startswith(b'#!'):
+        if not firstline.startswith(b"#!"):
             return None
-        args = firstline[2:].split(b' ')
-        if args[0] in (b'/usr/bin/env', b'env'):
+        args = firstline[2:].split(b" ")
+        if args[0] in (b"/usr/bin/env", b"env"):
             return os.path.basename(args[1].decode()).strip()
         return os.path.basename(args[0].decode()).strip()
 
 
 def note(m):
-    sys.stdout.write('%s\n' % m)
+    sys.stdout.write("%s\n" % m)
 
 
 def warning(m):
-    sys.stderr.write('WARNING: %s\n' % m)
+    sys.stderr.write("WARNING: %s\n" % m)

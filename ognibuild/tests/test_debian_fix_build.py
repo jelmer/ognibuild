@@ -28,23 +28,27 @@ from buildlog_consultant.common import (
     MissingRubyFile,
     MissingRubyGem,
     MissingValaPackage,
-    )
+)
 from ..debian import fix_build
 from ..debian.fix_build import (
     resolve_error,
     VERSIONED_PACKAGE_FIXERS,
     APT_FIXERS,
     BuildDependencyContext,
-    )
+)
 from breezy.tests import TestCaseWithTransport
 
 
 class ResolveErrorTests(TestCaseWithTransport):
-
     def setUp(self):
         super(ResolveErrorTests, self).setUp()
-        self.tree = self.make_branch_and_tree('.')
-        self.build_tree_contents([('debian/', ), ('debian/control', """\
+        self.tree = self.make_branch_and_tree(".")
+        self.build_tree_contents(
+            [
+                ("debian/",),
+                (
+                    "debian/control",
+                    """\
 Source: blah
 Build-Depends: libc6
 
@@ -52,16 +56,23 @@ Package: python-blah
 Depends: ${python3:Depends}
 Description: A python package
  Foo
-"""), ('debian/changelog', """\
+""",
+                ),
+                (
+                    "debian/changelog",
+                    """\
 blah (0.1) UNRELEASED; urgency=medium
 
   * Initial release. (Closes: #XXXXXX)
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 04 Apr 2020 14:12:13 +0000
-""")])
-        self.tree.add(['debian', 'debian/control', 'debian/changelog'])
-        self.tree.commit('Initial commit')
-        self.overrideAttr(fix_build, 'search_apt_file', self._search_apt_file)
+""",
+                ),
+            ]
+        )
+        self.tree.add(["debian", "debian/control", "debian/changelog"])
+        self.tree.commit("Initial commit")
+        self.overrideAttr(fix_build, "search_apt_file", self._search_apt_file)
         self._apt_files = {}
 
     def _search_apt_file(self, path, regex=False):
@@ -73,129 +84,130 @@ blah (0.1) UNRELEASED; urgency=medium
                 if path == p:
                     yield pkg
 
-    def resolve(self, error, context=('build', )):
+    def resolve(self, error, context=("build",)):
         context = BuildDependencyContext(
-            self.tree, subpath='', committer='Janitor <janitor@jelmer.uk>',
-            update_changelog=True)
-        return resolve_error(
-            error, context, VERSIONED_PACKAGE_FIXERS + APT_FIXERS)
+            self.tree,
+            subpath="",
+            committer="Janitor <janitor@jelmer.uk>",
+            update_changelog=True,
+        )
+        return resolve_error(error, context, VERSIONED_PACKAGE_FIXERS + APT_FIXERS)
 
     def get_build_deps(self):
-        with open(self.tree.abspath('debian/control'), 'r') as f:
-            return next(Deb822.iter_paragraphs(f)).get('Build-Depends', '')
+        with open(self.tree.abspath("debian/control"), "r") as f:
+            return next(Deb822.iter_paragraphs(f)).get("Build-Depends", "")
 
     def test_missing_command_unknown(self):
         self._apt_files = {}
-        self.assertFalse(self.resolve(
-            MissingCommand('acommandthatdoesnotexist')))
+        self.assertFalse(self.resolve(MissingCommand("acommandthatdoesnotexist")))
 
     def test_missing_command_brz(self):
         self._apt_files = {
-            '/usr/bin/b': 'bash',
-            '/usr/bin/brz': 'brz',
-            '/usr/bin/brzier': 'bash',
-            }
-        self.assertTrue(self.resolve(MissingCommand('brz')))
-        self.assertEqual('libc6, brz', self.get_build_deps())
-        rev = self.tree.branch.repository.get_revision(
-            self.tree.branch.last_revision())
-        self.assertEqual(
-            'Add missing build dependency on brz.\n',
-            rev.message)
-        self.assertFalse(self.resolve(MissingCommand('brz')))
-        self.assertEqual('libc6, brz', self.get_build_deps())
+            "/usr/bin/b": "bash",
+            "/usr/bin/brz": "brz",
+            "/usr/bin/brzier": "bash",
+        }
+        self.assertTrue(self.resolve(MissingCommand("brz")))
+        self.assertEqual("libc6, brz", self.get_build_deps())
+        rev = self.tree.branch.repository.get_revision(self.tree.branch.last_revision())
+        self.assertEqual("Add missing build dependency on brz.\n", rev.message)
+        self.assertFalse(self.resolve(MissingCommand("brz")))
+        self.assertEqual("libc6, brz", self.get_build_deps())
 
     def test_missing_command_ps(self):
         self._apt_files = {
-            '/bin/ps': 'procps',
-            '/usr/bin/pscal': 'xcal',
+            "/bin/ps": "procps",
+            "/usr/bin/pscal": "xcal",
         }
-        self.assertTrue(self.resolve(MissingCommand('ps')))
-        self.assertEqual('libc6, procps', self.get_build_deps())
+        self.assertTrue(self.resolve(MissingCommand("ps")))
+        self.assertEqual("libc6, procps", self.get_build_deps())
 
     def test_missing_ruby_file(self):
         self._apt_files = {
-            '/usr/lib/ruby/vendor_ruby/rake/testtask.rb': 'rake',
-            }
-        self.assertTrue(self.resolve(MissingRubyFile('rake/testtask')))
-        self.assertEqual('libc6, rake', self.get_build_deps())
+            "/usr/lib/ruby/vendor_ruby/rake/testtask.rb": "rake",
+        }
+        self.assertTrue(self.resolve(MissingRubyFile("rake/testtask")))
+        self.assertEqual("libc6, rake", self.get_build_deps())
 
     def test_missing_ruby_file_from_gem(self):
         self._apt_files = {
-            '/usr/share/rubygems-integration/all/gems/activesupport-'
-            '5.2.3/lib/active_support/core_ext/string/strip.rb':
-            'ruby-activesupport'}
-        self.assertTrue(self.resolve(
-            MissingRubyFile('active_support/core_ext/string/strip')))
-        self.assertEqual('libc6, ruby-activesupport', self.get_build_deps())
+            "/usr/share/rubygems-integration/all/gems/activesupport-"
+            "5.2.3/lib/active_support/core_ext/string/strip.rb": "ruby-activesupport"
+        }
+        self.assertTrue(
+            self.resolve(MissingRubyFile("active_support/core_ext/string/strip"))
+        )
+        self.assertEqual("libc6, ruby-activesupport", self.get_build_deps())
 
     def test_missing_ruby_gem(self):
         self._apt_files = {
-            '/usr/share/rubygems-integration/all/specifications/'
-            'bio-1.5.2.gemspec': 'ruby-bio',
-            '/usr/share/rubygems-integration/all/specifications/'
-            'bio-2.0.2.gemspec': 'ruby-bio',
-            }
-        self.assertTrue(self.resolve(MissingRubyGem('bio', None)))
-        self.assertEqual('libc6, ruby-bio', self.get_build_deps())
-        self.assertTrue(self.resolve(MissingRubyGem('bio', '2.0.3')))
-        self.assertEqual('libc6, ruby-bio (>= 2.0.3)', self.get_build_deps())
+            "/usr/share/rubygems-integration/all/specifications/"
+            "bio-1.5.2.gemspec": "ruby-bio",
+            "/usr/share/rubygems-integration/all/specifications/"
+            "bio-2.0.2.gemspec": "ruby-bio",
+        }
+        self.assertTrue(self.resolve(MissingRubyGem("bio", None)))
+        self.assertEqual("libc6, ruby-bio", self.get_build_deps())
+        self.assertTrue(self.resolve(MissingRubyGem("bio", "2.0.3")))
+        self.assertEqual("libc6, ruby-bio (>= 2.0.3)", self.get_build_deps())
 
     def test_missing_perl_module(self):
-        self._apt_files = {
-            '/usr/share/perl5/App/cpanminus/fatscript.pm': 'cpanminus'}
-        self.assertTrue(self.resolve(MissingPerlModule(
-            'App/cpanminus/fatscript.pm', 'App::cpanminus::fatscript', [
-                '/<<PKGBUILDDIR>>/blib/lib',
-                '/<<PKGBUILDDIR>>/blib/arch',
-                '/etc/perl',
-                '/usr/local/lib/x86_64-linux-gnu/perl/5.30.0',
-                '/usr/local/share/perl/5.30.0',
-                '/usr/lib/x86_64-linux-gnu/perl5/5.30',
-                '/usr/share/perl5',
-                '/usr/lib/x86_64-linux-gnu/perl/5.30',
-                '/usr/share/perl/5.30',
-                '/usr/local/lib/site_perl',
-                '/usr/lib/x86_64-linux-gnu/perl-base',
-                '.'])))
-        self.assertEqual('libc6, cpanminus', self.get_build_deps())
+        self._apt_files = {"/usr/share/perl5/App/cpanminus/fatscript.pm": "cpanminus"}
+        self.assertTrue(
+            self.resolve(
+                MissingPerlModule(
+                    "App/cpanminus/fatscript.pm",
+                    "App::cpanminus::fatscript",
+                    [
+                        "/<<PKGBUILDDIR>>/blib/lib",
+                        "/<<PKGBUILDDIR>>/blib/arch",
+                        "/etc/perl",
+                        "/usr/local/lib/x86_64-linux-gnu/perl/5.30.0",
+                        "/usr/local/share/perl/5.30.0",
+                        "/usr/lib/x86_64-linux-gnu/perl5/5.30",
+                        "/usr/share/perl5",
+                        "/usr/lib/x86_64-linux-gnu/perl/5.30",
+                        "/usr/share/perl/5.30",
+                        "/usr/local/lib/site_perl",
+                        "/usr/lib/x86_64-linux-gnu/perl-base",
+                        ".",
+                    ],
+                )
+            )
+        )
+        self.assertEqual("libc6, cpanminus", self.get_build_deps())
 
     def test_missing_pkg_config(self):
         self._apt_files = {
-            '/usr/lib/x86_64-linux-gnu/pkgconfig/xcb-xfixes.pc':
-            'libxcb-xfixes0-dev'}
-        self.assertTrue(self.resolve(MissingPkgConfig('xcb-xfixes')))
-        self.assertEqual('libc6, libxcb-xfixes0-dev', self.get_build_deps())
+            "/usr/lib/x86_64-linux-gnu/pkgconfig/xcb-xfixes.pc": "libxcb-xfixes0-dev"
+        }
+        self.assertTrue(self.resolve(MissingPkgConfig("xcb-xfixes")))
+        self.assertEqual("libc6, libxcb-xfixes0-dev", self.get_build_deps())
 
     def test_missing_pkg_config_versioned(self):
         self._apt_files = {
-            '/usr/lib/x86_64-linux-gnu/pkgconfig/xcb-xfixes.pc':
-            'libxcb-xfixes0-dev'}
-        self.assertTrue(self.resolve(MissingPkgConfig('xcb-xfixes', '1.0')))
-        self.assertEqual(
-            'libc6, libxcb-xfixes0-dev (>= 1.0)', self.get_build_deps())
+            "/usr/lib/x86_64-linux-gnu/pkgconfig/xcb-xfixes.pc": "libxcb-xfixes0-dev"
+        }
+        self.assertTrue(self.resolve(MissingPkgConfig("xcb-xfixes", "1.0")))
+        self.assertEqual("libc6, libxcb-xfixes0-dev (>= 1.0)", self.get_build_deps())
 
     def test_missing_python_module(self):
-        self._apt_files = {
-            '/usr/lib/python3/dist-packages/m2r.py': 'python3-m2r'
-            }
-        self.assertTrue(self.resolve(MissingPythonModule('m2r')))
-        self.assertEqual('libc6, python3-m2r', self.get_build_deps())
+        self._apt_files = {"/usr/lib/python3/dist-packages/m2r.py": "python3-m2r"}
+        self.assertTrue(self.resolve(MissingPythonModule("m2r")))
+        self.assertEqual("libc6, python3-m2r", self.get_build_deps())
 
     def test_missing_go_package(self):
         self._apt_files = {
-            '/usr/share/gocode/src/github.com/chzyer/readline/utils_test.go':
-                'golang-github-chzyer-readline-dev',
-            }
-        self.assertTrue(self.resolve(
-            MissingGoPackage('github.com/chzyer/readline')))
+            "/usr/share/gocode/src/github.com/chzyer/readline/utils_test.go": "golang-github-chzyer-readline-dev",
+        }
+        self.assertTrue(self.resolve(MissingGoPackage("github.com/chzyer/readline")))
         self.assertEqual(
-            'libc6, golang-github-chzyer-readline-dev',
-            self.get_build_deps())
+            "libc6, golang-github-chzyer-readline-dev", self.get_build_deps()
+        )
 
     def test_missing_vala_package(self):
         self._apt_files = {
-            '/usr/share/vala-0.48/vapi/posix.vapi': 'valac-0.48-vapi',
-            }
-        self.assertTrue(self.resolve(MissingValaPackage('posix')))
-        self.assertEqual('libc6, valac-0.48-vapi', self.get_build_deps())
+            "/usr/share/vala-0.48/vapi/posix.vapi": "valac-0.48-vapi",
+        }
+        self.assertTrue(self.resolve(MissingValaPackage("posix")))
+        self.assertEqual("libc6, valac-0.48-vapi", self.get_build_deps())

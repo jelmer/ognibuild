@@ -34,24 +34,30 @@ class SchrootSession(Session):
 
     def __init__(self, chroot: str):
         if not isinstance(chroot, str):
-            raise TypeError('not a valid chroot: %r' % chroot)
+            raise TypeError("not a valid chroot: %r" % chroot)
         self.chroot = chroot
         self._location = None
         self._cwd = None
 
     def _get_location(self) -> str:
-        return subprocess.check_output(
-            ['schroot', '--location', '-c', 'session:' + self.session_id
-             ]).strip().decode()
+        return (
+            subprocess.check_output(
+                ["schroot", "--location", "-c", "session:" + self.session_id]
+            )
+            .strip()
+            .decode()
+        )
 
     def _end_session(self) -> None:
-        subprocess.check_output(
-            ['schroot', '-c', 'session:' + self.session_id, '-e'])
+        subprocess.check_output(["schroot", "-c", "session:" + self.session_id, "-e"])
 
-    def __enter__(self) -> 'Session':
+    def __enter__(self) -> "Session":
         try:
-            self.session_id = subprocess.check_output(
-                ['schroot', '-c', self.chroot, '-b']).strip().decode()
+            self.session_id = (
+                subprocess.check_output(["schroot", "-c", self.chroot, "-b"])
+                .strip()
+                .decode()
+            )
         except subprocess.CalledProcessError:
             # TODO(jelmer): Capture stderr and forward in SessionSetupFailure
             raise SessionSetupFailure()
@@ -70,69 +76,84 @@ class SchrootSession(Session):
             self._location = self._get_location()
         return self._location
 
-    def _run_argv(self, argv: List[str], cwd: Optional[str] = None,
-                  user: Optional[str] = None,
-                  env: Optional[Dict[str, str]] = None):
-        base_argv = ['schroot', '-r', '-c', 'session:' + self.session_id]
+    def _run_argv(
+        self,
+        argv: List[str],
+        cwd: Optional[str] = None,
+        user: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+    ):
+        base_argv = ["schroot", "-r", "-c", "session:" + self.session_id]
         if cwd is None:
             cwd = self._cwd
         if cwd is not None:
-            base_argv.extend(['-d', cwd])
+            base_argv.extend(["-d", cwd])
         if user is not None:
-            base_argv.extend(['-u', user])
+            base_argv.extend(["-u", user])
         if env:
             argv = [
-                'sh', '-c',
-                ' '.join(
-                    ['%s=%s ' % (key, shlex.quote(value))
-                     for (key, value) in env.items()] +
-                    [shlex.quote(arg) for arg in argv])]
-        return base_argv + ['--'] + argv
+                "sh",
+                "-c",
+                " ".join(
+                    [
+                        "%s=%s " % (key, shlex.quote(value))
+                        for (key, value) in env.items()
+                    ]
+                    + [shlex.quote(arg) for arg in argv]
+                ),
+            ]
+        return base_argv + ["--"] + argv
 
     def check_call(
-            self,
-            argv: List[str], cwd: Optional[str] = None,
-            user: Optional[str] = None,
-            env: Optional[Dict[str, str]] = None):
+        self,
+        argv: List[str],
+        cwd: Optional[str] = None,
+        user: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+    ):
         try:
             subprocess.check_call(self._run_argv(argv, cwd, user, env=env))
         except subprocess.CalledProcessError as e:
             raise subprocess.CalledProcessError(e.returncode, argv)
 
     def check_output(
-            self,
-            argv: List[str], cwd: Optional[str] = None,
-            user: Optional[str] = None,
-            env: Optional[Dict[str, str]] = None) -> bytes:
+        self,
+        argv: List[str],
+        cwd: Optional[str] = None,
+        user: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+    ) -> bytes:
         try:
-            return subprocess.check_output(
-                self._run_argv(argv, cwd, user, env=env))
+            return subprocess.check_output(self._run_argv(argv, cwd, user, env=env))
         except subprocess.CalledProcessError as e:
             raise subprocess.CalledProcessError(e.returncode, argv)
 
-    def Popen(self, argv, cwd: Optional[str] = None,
-              user: Optional[str] = None, **kwargs):
+    def Popen(
+        self, argv, cwd: Optional[str] = None, user: Optional[str] = None, **kwargs
+    ):
         return subprocess.Popen(self._run_argv(argv, cwd, user), **kwargs)
 
     def call(
-            self, argv: List[str], cwd: Optional[str] = None,
-            user: Optional[str] = None):
+        self, argv: List[str], cwd: Optional[str] = None, user: Optional[str] = None
+    ):
         return subprocess.call(self._run_argv(argv, cwd, user))
 
     def create_home(self) -> None:
         """Create the user's home directory."""
-        home = self.check_output(
-            ['sh', '-c', 'echo $HOME'], cwd='/').decode().rstrip('\n')
-        user = self.check_output(
-            ['sh', '-c', 'echo $LOGNAME'], cwd='/').decode().rstrip('\n')
-        logging.info('Creating directory %s', home)
-        self.check_call(['mkdir', '-p', home], cwd='/', user='root')
-        self.check_call(['chown', user, home], cwd='/', user='root')
+        home = (
+            self.check_output(["sh", "-c", "echo $HOME"], cwd="/").decode().rstrip("\n")
+        )
+        user = (
+            self.check_output(["sh", "-c", "echo $LOGNAME"], cwd="/")
+            .decode()
+            .rstrip("\n")
+        )
+        logging.info("Creating directory %s", home)
+        self.check_call(["mkdir", "-p", home], cwd="/", user="root")
+        self.check_call(["chown", user, home], cwd="/", user="root")
 
     def _fullpath(self, path: str) -> str:
-        return os.path.join(
-            self.location,
-            os.path.join(self._cwd, path).lstrip('/'))
+        return os.path.join(self.location, os.path.join(self._cwd, path).lstrip("/"))
 
     def exists(self, path: str) -> bool:
         fullpath = self._fullpath(path)

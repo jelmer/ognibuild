@@ -23,21 +23,18 @@ from ..session import Session
 
 # TODO(jelmer): move this to debian/
 def satisfy_build_deps(session: Session, tree):
-    source = Deb822(tree.get_file('debian/control'))
+    source = Deb822(tree.get_file("debian/control"))
     deps = []
-    for name in ['Build-Depends', 'Build-Depends-Indep', 'Build-Depends-Arch']:
+    for name in ["Build-Depends", "Build-Depends-Indep", "Build-Depends-Arch"]:
         try:
-            deps.append(source[name].strip().strip(','))
+            deps.append(source[name].strip().strip(","))
         except KeyError:
             pass
-    for name in ['Build-Conflicts', 'Build-Conflicts-Indep',
-                 'Build-Conflicts-Arch']:
+    for name in ["Build-Conflicts", "Build-Conflicts-Indep", "Build-Conflicts-Arch"]:
         try:
-            deps.append('Conflicts: ' + source[name])
+            deps.append("Conflicts: " + source[name])
         except KeyError:
             pass
-    deps = [
-        dep.strip().strip(',')
-        for dep in deps]
+    deps = [dep.strip().strip(",") for dep in deps]
     apt = AptManager(session)
     apt.satisfy(deps)

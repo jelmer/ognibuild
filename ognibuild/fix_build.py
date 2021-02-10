@@ -23,7 +23,7 @@ from buildlog_consultant.common import (
     Problem,
     MissingPerlModule,
     MissingCommand,
-    )
+)
 
 from . import DetailedFailure
 from .apt import UnidentifiedError, AptManager
@@ -31,12 +31,11 @@ from .debian.fix_build import (
     DependencyContext,
     resolve_error,
     APT_FIXERS,
-    )
+)
 from .session import Session, run_with_tee
 
 
 class SchrootDependencyContext(DependencyContext):
-
     def __init__(self, session):
         self.session = session
         self.apt = AptManager(session)
@@ -50,14 +49,14 @@ class SchrootDependencyContext(DependencyContext):
 def fix_perl_module_from_cpan(error, context):
     # TODO(jelmer): Specify -T to skip tests?
     context.session.check_call(
-        ['cpan', '-i', error.module], user='root',
-        env={'PERL_MM_USE_DEFAULT': '1'})
+        ["cpan", "-i", error.module], user="root", env={"PERL_MM_USE_DEFAULT": "1"}
+    )
     return True
 
 
 NPM_COMMAND_PACKAGES = {
-    'del-cli': 'del-cli',
-    }
+    "del-cli": "del-cli",
+}
 
 
 def fix_npm_missing_command(error, context):
@@ -66,19 +65,20 @@ def fix_npm_missing_command(error, context):
     except KeyError:
         return False
 
-    context.session.check_call(['npm', '-g', 'install', package])
+    context.session.check_call(["npm", "-g", "install", package])
     return True
 
 
 GENERIC_INSTALL_FIXERS: List[
-        Tuple[Type[Problem], Callable[[Problem, DependencyContext], bool]]] = [
+    Tuple[Type[Problem], Callable[[Problem, DependencyContext], bool]]
+] = [
     (MissingPerlModule, fix_perl_module_from_cpan),
     (MissingCommand, fix_npm_missing_command),
 ]
 
 
 def run_with_build_fixer(session: Session, args: List[str]):
-    logging.info('Running %r', args)
+    logging.info("Running %r", args)
     fixed_errors = []
     while True:
         retcode, lines = run_with_tee(session, args)
@@ -86,23 +86,22 @@ def run_with_build_fixer(session: Session, args: List[str]):
             return
         offset, line, error = find_build_failure_description(lines)
         if error is None:
-            logging.warning('Build failed with unidentified error. Giving up.')
+            logging.warning("Build failed with unidentified error. Giving up.")
             if line is not None:
-                raise UnidentifiedError(
-                    retcode, args, lines, secondary=(offset, line))
+                raise UnidentifiedError(retcode, args, lines, secondary=(offset, line))
             raise UnidentifiedError(retcode, args, lines)
 
-        logging.info('Identified error: %r', error)
+        logging.info("Identified error: %r", error)
         if error in fixed_errors:
             logging.warning(
-                'Failed to resolve error %r, it persisted. Giving up.',
-                error)
+                "Failed to resolve error %r, it persisted. Giving up.", error
+            )
             raise DetailedFailure(retcode, args, error)
         if not resolve_error(
-                error, SchrootDependencyContext(session),
-                fixers=(APT_FIXERS + GENERIC_INSTALL_FIXERS)):
-            logging.warning(
-                'Failed to find resolution for error %r. Giving up.',
-                error)
+            error,
+            SchrootDependencyContext(session),
+            fixers=(APT_FIXERS + GENERIC_INSTALL_FIXERS),
+        ):
+            logging.warning("Failed to find resolution for error %r. Giving up.", error)
             raise DetailedFailure(retcode, args, error)
         fixed_errors.append(error)

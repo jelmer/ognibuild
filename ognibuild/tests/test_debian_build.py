@@ -22,22 +22,35 @@ from breezy.tests import TestCaseWithTransport, TestCase
 
 
 class AddDummyChangelogEntryTests(TestCaseWithTransport):
-
     def test_simple(self):
-        tree = self.make_branch_and_tree('.')
-        self.build_tree_contents([('debian/', ), ('debian/changelog', """\
+        tree = self.make_branch_and_tree(".")
+        self.build_tree_contents(
+            [
+                ("debian/",),
+                (
+                    "debian/changelog",
+                    """\
 janitor (0.1-1) UNRELEASED; urgency=medium
 
   * Initial release. (Closes: #XXXXXX)
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 04 Apr 2020 14:12:13 +0000
-""")])
-        tree.add(['debian', 'debian/changelog'])
+""",
+                ),
+            ]
+        )
+        tree.add(["debian", "debian/changelog"])
         add_dummy_changelog_entry(
-            tree, '', 'jan+some', 'some-fixes', 'Dummy build.',
+            tree,
+            "",
+            "jan+some",
+            "some-fixes",
+            "Dummy build.",
             timestamp=datetime.datetime(2020, 9, 5, 12, 35, 4, 899654),
-            maintainer=("Jelmer Vernooĳ", "jelmer@debian.org"))
-        self.assertFileEqual("""\
+            maintainer=("Jelmer Vernooĳ", "jelmer@debian.org"),
+        )
+        self.assertFileEqual(
+            """\
 janitor (0.1-1jan+some1) some-fixes; urgency=low
 
   * Dummy build.
@@ -49,23 +62,39 @@ janitor (0.1-1) UNRELEASED; urgency=medium
   * Initial release. (Closes: #XXXXXX)
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 04 Apr 2020 14:12:13 +0000
-""", 'debian/changelog')
+""",
+            "debian/changelog",
+        )
 
     def test_native(self):
-        tree = self.make_branch_and_tree('.')
-        self.build_tree_contents([('debian/', ), ('debian/changelog', """\
+        tree = self.make_branch_and_tree(".")
+        self.build_tree_contents(
+            [
+                ("debian/",),
+                (
+                    "debian/changelog",
+                    """\
 janitor (0.1) UNRELEASED; urgency=medium
 
   * Initial release. (Closes: #XXXXXX)
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 04 Apr 2020 14:12:13 +0000
-""")])
-        tree.add(['debian', 'debian/changelog'])
+""",
+                ),
+            ]
+        )
+        tree.add(["debian", "debian/changelog"])
         add_dummy_changelog_entry(
-            tree, '', 'jan+some', 'some-fixes', 'Dummy build.',
+            tree,
+            "",
+            "jan+some",
+            "some-fixes",
+            "Dummy build.",
             timestamp=datetime.datetime(2020, 9, 5, 12, 35, 4, 899654),
-            maintainer=("Jelmer Vernooĳ", "jelmer@debian.org"))
-        self.assertFileEqual("""\
+            maintainer=("Jelmer Vernooĳ", "jelmer@debian.org"),
+        )
+        self.assertFileEqual(
+            """\
 janitor (0.1jan+some1) some-fixes; urgency=low
 
   * Dummy build.
@@ -77,23 +106,39 @@ janitor (0.1) UNRELEASED; urgency=medium
   * Initial release. (Closes: #XXXXXX)
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 04 Apr 2020 14:12:13 +0000
-""", 'debian/changelog')
+""",
+            "debian/changelog",
+        )
 
     def test_exists(self):
-        tree = self.make_branch_and_tree('.')
-        self.build_tree_contents([('debian/', ), ('debian/changelog', """\
+        tree = self.make_branch_and_tree(".")
+        self.build_tree_contents(
+            [
+                ("debian/",),
+                (
+                    "debian/changelog",
+                    """\
 janitor (0.1-1jan+some1) UNRELEASED; urgency=medium
 
   * Initial release. (Closes: #XXXXXX)
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 04 Apr 2020 14:12:13 +0000
-""")])
-        tree.add(['debian', 'debian/changelog'])
+""",
+                ),
+            ]
+        )
+        tree.add(["debian", "debian/changelog"])
         add_dummy_changelog_entry(
-            tree, '', 'jan+some', 'some-fixes', 'Dummy build.',
+            tree,
+            "",
+            "jan+some",
+            "some-fixes",
+            "Dummy build.",
             timestamp=datetime.datetime(2020, 9, 5, 12, 35, 4, 899654),
-            maintainer=("Jelmer Vernooĳ", "jelmer@debian.org"))
-        self.assertFileEqual("""\
+            maintainer=("Jelmer Vernooĳ", "jelmer@debian.org"),
+        )
+        self.assertFileEqual(
+            """\
 janitor (0.1-1jan+some2) some-fixes; urgency=low
 
   * Dummy build.
@@ -111,6 +156,5 @@ janitor (0.1-1jan+some1) UNRELEASED; urgency=medium
 
 
 class BuildArchitectureTests(TestCase):
-
     def test_is_str(self):
         self.assertIsInstance(get_build_architecture(), str)

@@ -23,18 +23,17 @@ from breezy.workingtree import WorkingTree
 
 from buildlog_consultant.sbuild import (
     NoSpaceOnDevice,
-    )
+)
 
 from . import DetailedFailure
 
 
 def export_vcs_tree(tree, directory):
     try:
-        export(tree, directory, 'dir', None)
+        export(tree, directory, "dir", None)
     except OSError as e:
         if e.errno == errno.ENOSPC:
-            raise DetailedFailure(
-                1, ['export'], NoSpaceOnDevice())
+            raise DetailedFailure(1, ["export"], NoSpaceOnDevice())
         raise
 
 
@@ -44,12 +43,11 @@ def dupe_vcs_tree(tree, directory):
             tree = tree.basis_tree()
     try:
         result = tree._repository.controldir.sprout(
-            directory, create_tree_if_local=True,
-            revision_id=tree.get_revision_id())
+            directory, create_tree_if_local=True, revision_id=tree.get_revision_id()
+        )
     except OSError as e:
         if e.errno == errno.ENOSPC:
-            raise DetailedFailure(
-                1, ['sprout'], NoSpaceOnDevice())
+            raise DetailedFailure(1, ["sprout"], NoSpaceOnDevice())
         raise
     if not result.has_workingtree():
         raise AssertionError
