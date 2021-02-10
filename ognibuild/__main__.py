@@ -18,7 +18,6 @@
 import logging
 import os
 import sys
-from . import note, UpstreamPackage
 from .apt import UnidentifiedError
 from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .build import run_build
@@ -127,12 +126,12 @@ def main():  # noqa: C901
             return 1
         except MissingDependencies as e:
             for req in e.requirements:
-                note("Missing dependency (%s:%s)" % (req.family, req.name))
+                logging.info("Missing dependency (%s:%s)", (req.family, req.name))
                 for resolver in [
                     AptResolver.from_session(session),
                     NativeResolver.from_session(session),
                 ]:
-                    note("  %s" % (resolver.explain([req]),))
+                    logging.info("  %s", resolver.explain([req]))
             return 2
         return 0
 

@@ -21,10 +21,8 @@ import stat
 import sys
 
 
-DEFAULT_PYTHON = "python3"
-
-
 class DetailedFailure(Exception):
+
     def __init__(self, retcode, argv, error):
         self.retcode = retcode
         self.argv = argv
@@ -45,12 +43,14 @@ def shebang_binary(p):
 
 
 class UpstreamRequirement(object):
+
     def __init__(self, family, name):
         self.family = family
         self.name = name
 
 
 class UpstreamOutput(object):
+
     def __init__(self, family, name):
         self.family = family
         self.name = name
