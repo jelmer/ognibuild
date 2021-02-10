@@ -153,6 +153,8 @@ class SchrootSession(Session):
         self.check_call(["chown", user, home], cwd="/", user="root")
 
     def _fullpath(self, path: str) -> str:
+        if self._cwd is None:
+            raise ValueError('no cwd set')
         return os.path.join(self.location, os.path.join(self._cwd, path).lstrip("/"))
 
     def exists(self, path: str) -> bool:
