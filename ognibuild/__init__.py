@@ -18,7 +18,6 @@
 
 import os
 import stat
-import sys
 
 
 class DetailedFailure(Exception):
@@ -44,9 +43,11 @@ def shebang_binary(p):
 
 class UpstreamRequirement(object):
 
-    def __init__(self, family, name):
+    # Name of the family of requirements - e.g. "python-package"
+    family: str
+
+    def __init__(self, family):
         self.family = family
-        self.name = name
 
 
 class UpstreamOutput(object):

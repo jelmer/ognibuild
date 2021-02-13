@@ -22,7 +22,14 @@ import os
 import re
 import warnings
 
-from . import shebang_binary, UpstreamRequirement, UpstreamOutput
+from . import shebang_binary, UpstreamOutput
+from .requirements import (
+    BinaryRequirement,
+    PythonPackageRequirement,
+    PerlModuleRequirement,
+    NodePackageRequirement,
+    CargoCrateRequirement,
+    )
 from .apt import UnidentifiedError
 from .fix_build import run_with_build_fixer
 
@@ -66,7 +73,7 @@ class Pear(BuildSystem):
         self.path = path
 
     def setup(self, resolver):
-        resolver.install([UpstreamRequirement("binary", "pear")])
+        resolver.install([BinaryRequirement("pear")])
 
     def dist(self, session, resolver):
         self.setup(resolver)
@@ -94,18 +101,13 @@ class SetupPy(BuildSystem):
     name = "setup.py"
 
     def __init__(self, path):
+        self.path = path
         from distutils.core import run_setup
-
         self.result = run_setup(os.path.abspath(path), stop_after="init")
 
     def setup(self, resolver):
-        resolver.install(
-            [
-                UpstreamRequirement("python3", "pip"),
-                UpstreamRequirement("binary", "python3"),
-            ]
-        )
-        with open("setup.py", "r") as f:
+        resolver.install([PythonPackageRequirement('pip')])
+        with open(self.path, "r") as f:
             setup_py_contents = f.read()
         try:
             with open("setup.cfg", "r") as f:
@@ -114,7 +116,7 @@ class SetupPy(BuildSystem):
             setup_cfg_contents = ""
         if "setuptools" in setup_py_contents:
             logging.info("Reference to setuptools found, installing.")
-            resolver.install([UpstreamRequirement("python3", "setuptools")])
+            resolver.install([PythonPackageRequirement("setuptools")])
         if (
             "setuptools_scm" in setup_py_contents
             or "setuptools_scm" in setup_cfg_contents
@@ -122,9 +124,9 @@ class SetupPy(BuildSystem):
             logging.info("Reference to setuptools-scm found, installing.")
             resolver.install(
                 [
-                    UpstreamRequirement("python3", "setuptools-scm"),
-                    UpstreamRequirement("binary", "git"),
-                    UpstreamRequirement("binary", "mercurial"),
+                    PythonPackageRequirement("setuptools-scm"),
+                    BinaryRequirement("git"),
+                    BinaryRequirement("mercurial"),
                 ]
             )
 
@@ -150,24 +152,24 @@ class SetupPy(BuildSystem):
         interpreter = shebang_binary("setup.py")
         if interpreter is not None:
             if interpreter in ("python3", "python2", "python"):
-                resolver.install([UpstreamRequirement("binary", interpreter)])
+                resolver.install([BinaryRequirement(interpreter)])
             else:
                 raise ValueError("Unknown interpreter %r" % interpreter)
             run_with_build_fixer(session, ["./setup.py"] + args)
         else:
             # Just assume it's Python 3
-            resolver.install([UpstreamRequirement("binary", "python3")])
+            resolver.install([BinaryRequirement("python3")])
             run_with_build_fixer(session, ["python3", "./setup.py"] + args)
 
     def get_declared_dependencies(self):
         for require in self.result.get_requires():
-            yield "build", UpstreamRequirement("python3", require)
+            yield "build", PythonPackageRequirement(require)
         if self.result.install_requires:
             for require in self.result.install_requires:
-                yield "install", UpstreamRequirement("python3", require)
+                yield "install", PythonPackageRequirement(require)
         if self.result.tests_require:
             for require in self.result.tests_require:
-                yield "test", UpstreamRequirement("python3", require)
+                yield "test", PythonPackageRequirement(require)
 
     def get_declared_outputs(self):
         for script in self.result.scripts or []:
@@ -200,8 +202,8 @@ class PyProject(BuildSystem):
             )
             resolver.install(
                 [
-                    UpstreamRequirement("python3", "venv"),
-                    UpstreamRequirement("python3", "pip"),
+                    PythonPackageRequirement("venv"),
+                    PythonPackageRequirement("pip"),
                 ]
             )
             session.check_call(["pip3", "install", "poetry"], user="root")
@@ -220,8 +222,8 @@ class SetupCfg(BuildSystem):
     def setup(self, resolver):
         resolver.install(
             [
-                UpstreamRequirement("python3", "pep517"),
-                UpstreamRequirement("python3", "pip"),
+                PythonPackageRequirement("pep517"),
+                PythonPackageRequirement("pip"),
             ]
         )
 
@@ -244,10 +246,10 @@ class Npm(BuildSystem):
         if "devDependencies" in self.package:
             for name, unused_version in self.package["devDependencies"].items():
                 # TODO(jelmer): Look at version
-                yield "dev", UpstreamRequirement("npm", name)
+                yield "dev", NodePackageRequirement(name)
 
     def setup(self, resolver):
-        resolver.install([UpstreamRequirement("binary", "npm")])
+        resolver.install([BinaryRequirement("npm")])
 
     def dist(self, session, resolver):
         self.setup(resolver)
@@ -262,7 +264,7 @@ class Waf(BuildSystem):
         self.path = path
 
     def setup(self, resolver):
-        resolver.install([UpstreamRequirement("binary", "python3")])
+        resolver.install([BinaryRequirement("python3")])
 
     def dist(self, session, resolver):
         self.setup(resolver)
@@ -277,7 +279,7 @@ class Gem(BuildSystem):
         self.path = path
 
     def setup(self, resolver):
-        resolver.install([UpstreamRequirement("binary", "gem2deb")])
+        resolver.install([BinaryRequirement("gem2deb")])
 
     def dist(self, session, resolver):
         self.setup(resolver)
@@ -314,18 +316,18 @@ class DistInkt(BuildSystem):
     def setup(self, resolver):
         resolver.install(
             [
-                UpstreamRequirement("perl", "Dist::Inkt"),
+                PerlModuleRequirement("Dist::Inkt"),
             ]
         )
 
     def dist(self, session, resolver):
         self.setup(resolver)
         if self.name == "dist-inkt":
-            resolver.install([UpstreamRequirement("perl-module", self.dist_inkt_class)])
+            resolver.install([PerlModuleRequirement(self.dist_inkt_class)])
             run_with_build_fixer(session, ["distinkt-dist"])
         else:
             # Default to invoking Dist::Zilla
-            resolver.install([UpstreamRequirement("perl", "Dist::Zilla")])
+            resolver.install([PerlModuleRequirement("Dist::Zilla")])
             run_with_build_fixer(session, ["dzil", "build", "--in", ".."])
 
 
@@ -335,7 +337,7 @@ class Make(BuildSystem):
 
     def setup(self, session, resolver):
         if session.exists("Makefile.PL") and not session.exists("Makefile"):
-            resolver.install([UpstreamRequirement("binary", "perl")])
+            resolver.install([BinaryRequirement("perl")])
             run_with_build_fixer(session, ["perl", "Makefile.PL"])
 
         if not session.exists("Makefile") and not session.exists("configure"):
@@ -357,10 +359,10 @@ class Make(BuildSystem):
             elif session.exists("configure.ac") or session.exists("configure.in"):
                 resolver.install(
                     [
-                        UpstreamRequirement("binary", "autoconf"),
-                        UpstreamRequirement("binary", "automake"),
-                        UpstreamRequirement("binary", "gettextize"),
-                        UpstreamRequirement("binary", "libtoolize"),
+                        BinaryRequirement("autoconf"),
+                        BinaryRequirement("automake"),
+                        BinaryRequirement("gettextize"),
+                        BinaryRequirement("libtoolize"),
                     ]
                 )
                 run_with_build_fixer(session, ["autoreconf", "-i"])
@@ -370,7 +372,7 @@ class Make(BuildSystem):
 
     def dist(self, session, resolver):
         self.setup(session, resolver)
-        resolver.install([UpstreamRequirement("binary", "make")])
+        resolver.install([BinaryRequirement("make")])
         try:
             run_with_build_fixer(session, ["make", "dist"])
         except UnidentifiedError as e:
@@ -437,7 +439,7 @@ class Make(BuildSystem):
                     warnings.warn("Unable to parse META.yml: %s" % e)
                     return
                 for require in data.get("requires", []):
-                    yield "build", UpstreamRequirement("perl", require)
+                    yield "build", PerlModuleRequirement(require)
 
 
 class Cargo(BuildSystem):
@@ -454,7 +456,7 @@ class Cargo(BuildSystem):
         if "dependencies" in self.cargo:
             for name, details in self.cargo["dependencies"].items():
                 # TODO(jelmer): Look at details['features'], details['version']
-                yield "build", UpstreamRequirement("cargo-crate", name)
+                yield "build", CargoCrateRequirement(name)
 
 
 class Golang(BuildSystem):

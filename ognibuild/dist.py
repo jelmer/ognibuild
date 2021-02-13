@@ -124,7 +124,7 @@ def create_dist_schroot(
     subdir: Optional[str] = None,
 ) -> str:
     from .buildsystem import detect_buildsystems
-    from .resolver import AptResolver
+    from .resolver.apt import AptResolver
 
     if subdir is None:
         subdir = "package"

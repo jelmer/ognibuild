@@ -25,12 +25,12 @@ from .clean import run_clean
 from .dist import run_dist
 from .install import run_install
 from .resolver import (
-    AptResolver,
     ExplainResolver,
     AutoResolver,
     NativeResolver,
     MissingDependencies,
 )
+from .resolver.apt import AptResolver
 from .test import run_test
 
 
@@ -84,6 +84,7 @@ def main():  # noqa: C901
         help="Ignore declared dependencies, follow build errors only",
     )
     args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO)
     if args.schroot:
         from .session.schroot import SchrootSession
 

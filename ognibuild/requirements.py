@@ -1,0 +1,64 @@
+#!/usr/bin/python
+# Copyright (C) 2019-2020 Jelmer Vernooij <jelmer@jelmer.uk>
+# encoding: utf-8
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+from . import UpstreamRequirement
+
+
+class PythonPackageRequirement(UpstreamRequirement):
+
+    package: str
+
+    def __init__(self, package):
+        super(PythonPackageRequirement, self).__init__('python-package')
+        self.package = package
+
+
+class BinaryRequirement(UpstreamRequirement):
+
+    binary_name: str
+
+    def __init__(self, binary_name):
+        super(BinaryRequirement, self).__init__('binary')
+        self.binary_name = binary_name
+
+
+class PerlModuleRequirement(UpstreamRequirement):
+
+    module: str
+
+    def __init__(self, module):
+        super(PerlModuleRequirement, self).__init__('perl-module')
+        self.module = module
+
+
+class NodePackageRequirement(UpstreamRequirement):
+
+    package: str
+
+    def __init__(self, package):
+        super(NodePackageRequirement, self).__init__('npm-package')
+        self.package = package
+
+
+class CargoCrateRequirement(UpstreamRequirement):
+
+    crate: str
+
+    def __init__(self, crate):
+        super(CargoCrateRequirement, self).__init__('cargo-crate')
+        self.crate = crate

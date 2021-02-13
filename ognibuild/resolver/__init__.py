@@ -17,53 +17,18 @@
 
 
 class MissingDependencies(Exception):
+
     def __init__(self, reqs):
         self.requirements = reqs
 
 
 class Resolver(object):
+
     def install(self, requirements):
         raise NotImplementedError(self.install)
 
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
-
-
-class AptResolver(Resolver):
-    def __init__(self, apt):
-        self.apt = apt
-
-    @classmethod
-    def from_session(cls, session):
-        from .apt import AptManager
-
-        return cls(AptManager(session))
-
-    def install(self, requirements):
-        missing = []
-        for req in requirements:
-            pps = list(self._possible_paths(req))
-            if not pps or not any(self.apt.session.exists(p) for p in pps):
-                missing.append(req)
-        if missing:
-            self.apt.install(list(self.resolve(missing)))
-
-    def explain(self, requirements):
-        raise NotImplementedError(self.explain)
-
-    def _possible_paths(self, req):
-        if req.family == "binary":
-            yield "/usr/bin/%s" % req.name
-        else:
-            return
-
-    def resolve(self, requirements):
-        for req in requirements:
-            if req.family == "python3":
-                yield "python3-%s" % req.name
-            else:
-                list(self._possible_paths(req))
-                raise NotImplementedError
 
 
 class NativeResolver(Resolver):
@@ -94,7 +59,8 @@ class ExplainResolver(Resolver):
 
 
 class AutoResolver(Resolver):
-    """Automatically find out the most appropriate way to instal dependencies."""
+    """Automatically find out the most appropriate way to install dependencies.
+    """
 
     def __init__(self, session):
         self.session = session

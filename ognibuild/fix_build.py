@@ -22,6 +22,7 @@ from buildlog_consultant.common import (
     find_build_failure_description,
     Problem,
     MissingPerlModule,
+    MissingPythonDistribution,
     MissingCommand,
 )
 
@@ -69,10 +70,16 @@ def fix_npm_missing_command(error, context):
     return True
 
 
+def fix_python_package_from_pip(error, context):
+    context.session.check_call(["pip", "install", error.distribution])
+    return True
+
+
 GENERIC_INSTALL_FIXERS: List[
     Tuple[Type[Problem], Callable[[Problem, DependencyContext], bool]]
 ] = [
     (MissingPerlModule, fix_perl_module_from_cpan),
+    (MissingPythonDistribution, fix_python_package_from_pip),
     (MissingCommand, fix_npm_missing_command),
 ]
 
@@ -84,11 +91,12 @@ def run_with_build_fixer(session: Session, args: List[str]):
         retcode, lines = run_with_tee(session, args)
         if retcode == 0:
             return
-        offset, line, error = find_build_failure_description(lines)
+        match, error = find_build_failure_description(lines)
         if error is None:
             logging.warning("Build failed with unidentified error. Giving up.")
-            if line is not None:
-                raise UnidentifiedError(retcode, args, lines, secondary=(offset, line))
+            if match is not None:
+                raise UnidentifiedError(
+                    retcode, args, lines, secondary=(match.lineno, match.line))
             raise UnidentifiedError(retcode, args, lines)
 
         logging.info("Identified error: %r", error)

@@ -21,15 +21,13 @@ __all__ = [
 
 import logging
 import os
-import re
 import subprocess
 import sys
-from typing import Iterator, List, Callable, Type, Tuple, Set, Optional
+from typing import List, Callable, Type, Tuple, Set, Optional
 
 from debian.deb822 import (
     Deb822,
     PkgRelation,
-    Release,
 )
 from debian.changelog import Version
 
@@ -113,6 +111,11 @@ from buildlog_consultant.sbuild import (
     SbuildFailure,
 )
 
+from ..apt import AptManager, LocalAptManager
+from ..resolver.apt import AptResolver
+from ..requirements import BinaryRequirement
+from .build import attempt_build
+
 
 DEFAULT_MAX_ITERATIONS = 10
 
@@ -128,14 +131,20 @@ class DependencyContext(object):
     def __init__(
         self,
         tree: MutableTree,
+        apt: AptManager,
         subpath: str = "",
         committer: Optional[str] = None,
         update_changelog: bool = True,
     ):
         self.tree = tree
+        self.apt = apt
+        self.resolver = AptResolver(apt)
         self.subpath = subpath
         self.committer = committer
         self.update_changelog = update_changelog
+
+    def resolve_apt(self, req):
+        return self.resolver.resolve(req)
 
     def add_dependency(
         self, package: str, minimum_version: Optional[Version] = None
@@ -157,11 +166,11 @@ class BuildDependencyContext(DependencyContext):
 
 class AutopkgtestDependencyContext(DependencyContext):
     def __init__(
-        self, testname, tree, subpath="", committer=None, update_changelog=True
+        self, testname, tree, apt, subpath="", committer=None, update_changelog=True
     ):
         self.testname = testname
         super(AutopkgtestDependencyContext, self).__init__(
-            tree, subpath, committer, update_changelog
+            tree, apt, subpath, committer, update_changelog
         )
 
     def add_dependency(self, package, minimum_version=None):
@@ -301,27 +310,7 @@ def commit_debian_changes(
             return True
 
 
-def get_package_for_paths(paths, regex=False):
-    from .apt import search_apt_file
-    candidates = set()
-    for path in paths:
-        candidates.update(search_apt_file(path, regex=regex))
-        if candidates:
-            break
-    if len(candidates) == 0:
-        logging.warning("No packages found that contain %r", paths)
-        return None
-    if len(candidates) > 1:
-        logging.warning(
-            "More than 1 packages found that contain %r: %r", path, candidates
-        )
-        # Euhr. Pick the one with the shortest name?
-        return sorted(candidates, key=len)[0]
-    else:
-        return candidates.pop()
-
-
-def get_package_for_python_module(module, python_version):
+def get_package_for_python_module(apt, module, python_version):
     if python_version == "python3":
         paths = [
             os.path.join(
@@ -374,7 +363,7 @@ def get_package_for_python_module(module, python_version):
         ]
     else:
         raise AssertionError("unknown python version %r" % python_version)
-    return get_package_for_paths(paths, regex=True)
+    return apt.get_package_for_paths(paths, regex=True)
 
 
 def targeted_python_versions(tree: Tree) -> Set[str]:
@@ -394,23 +383,8 @@ def targeted_python_versions(tree: Tree) -> Set[str]:
     return targeted
 
 
-apt_cache = None
-
-
-def package_exists(package):
-    global apt_cache
-    if apt_cache is None:
-        import apt_pkg
-
-        apt_cache = apt_pkg.Cache()
-    for p in apt_cache.packages:
-        if p.name == package:
-            return True
-    return False
-
-
 def fix_missing_javascript_runtime(error, context):
-    package = get_package_for_paths(["/usr/bin/node", "/usr/bin/duk"], regex=False)
+    package = context.apt.get_package_for_paths(["/usr/bin/node", "/usr/bin/duk"], regex=False)
     if package is None:
         return False
     return context.add_dependency(package)
@@ -420,30 +394,30 @@ def fix_missing_python_distribution(error, context):  # noqa: C901
     targeted = targeted_python_versions(context.tree)
     default = not targeted
 
-    pypy_pkg = get_package_for_paths(
+    pypy_pkg = context.apt.get_package_for_paths(
         ["/usr/lib/pypy/dist-packages/%s-.*.egg-info" % error.distribution], regex=True
     )
     if pypy_pkg is None:
         pypy_pkg = "pypy-%s" % error.distribution
-        if not package_exists(pypy_pkg):
+        if not context.apt.package_exists(pypy_pkg):
             pypy_pkg = None
 
-    py2_pkg = get_package_for_paths(
+    py2_pkg = context.apt.get_package_for_paths(
         ["/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info" % error.distribution],
         regex=True,
     )
     if py2_pkg is None:
         py2_pkg = "python-%s" % error.distribution
-        if not package_exists(py2_pkg):
+        if not context.apt.package_exists(py2_pkg):
             py2_pkg = None
 
-    py3_pkg = get_package_for_paths(
+    py3_pkg = context.apt.get_package_for_paths(
         ["/usr/lib/python3/dist-packages/%s-.*.egg-info" % error.distribution],
         regex=True,
     )
     if py3_pkg is None:
         py3_pkg = "python3-%s" % error.distribution
-        if not package_exists(py3_pkg):
+        if not context.apt.package_exists(py3_pkg):
             py3_pkg = None
 
     extra_build_deps = []
@@ -488,9 +462,9 @@ def fix_missing_python_module(error, context):
         targeted = set()
     default = not targeted
 
-    pypy_pkg = get_package_for_python_module(error.module, "pypy")
-    py2_pkg = get_package_for_python_module(error.module, "python2")
-    py3_pkg = get_package_for_python_module(error.module, "python3")
+    pypy_pkg = get_package_for_python_module(context.apt, error.module, "pypy")
+    py2_pkg = get_package_for_python_module(context.apt, error.module, "python2")
+    py3_pkg = get_package_for_python_module(context.apt, error.module, "python3")
 
     extra_build_deps = []
     if error.python_version == 2:
@@ -528,7 +502,7 @@ def fix_missing_python_module(error, context):
 
 
 def fix_missing_go_package(error, context):
-    package = get_package_for_paths(
+    package = context.apt.get_package_for_paths(
         [os.path.join("/usr/share/gocode/src", error.package, ".*")], regex=True
     )
     if package is None:
@@ -537,11 +511,11 @@ def fix_missing_go_package(error, context):
 
 
 def fix_missing_c_header(error, context):
-    package = get_package_for_paths(
+    package = context.apt.get_package_for_paths(
         [os.path.join("/usr/include", error.header)], regex=False
     )
     if package is None:
-        package = get_package_for_paths(
+        package = context.apt.get_package_for_paths(
             [os.path.join("/usr/include", ".*", error.header)], regex=True
         )
     if package is None:
@@ -550,11 +524,11 @@ def fix_missing_c_header(error, context):
 
 
 def fix_missing_pkg_config(error, context):
-    package = get_package_for_paths(
+    package = context.apt.get_package_for_paths(
         [os.path.join("/usr/lib/pkgconfig", error.module + ".pc")]
     )
     if package is None:
-        package = get_package_for_paths(
+        package = context.apt.get_package_for_paths(
             [os.path.join("/usr/lib", ".*", "pkgconfig", error.module + ".pc")],
             regex=True,
         )
@@ -564,21 +538,12 @@ def fix_missing_pkg_config(error, context):
 
 
 def fix_missing_command(error, context):
-    if os.path.isabs(error.command):
-        paths = [error.command]
-    else:
-        paths = [
-            os.path.join(dirname, error.command) for dirname in ["/usr/bin", "/bin"]
-        ]
-    package = get_package_for_paths(paths)
-    if package is None:
-        logging.info("No packages found that contain %r", paths)
-        return False
+    package = context.resolve_apt(BinaryRequirement(error.command))
     return context.add_dependency(package)
 
 
 def fix_missing_file(error, context):
-    package = get_package_for_paths([error.path])
+    package = context.apt.get_package_for_paths([error.path])
     if package is None:
         return False
     return context.add_dependency(package)
@@ -590,7 +555,7 @@ def fix_missing_sprockets_file(error, context):
     else:
         logging.warning("unable to handle content type %s", error.content_type)
         return False
-    package = get_package_for_paths([path], regex=True)
+    package = context.apt.get_package_for_paths([path], regex=True)
     if package is None:
         return False
     return context.add_dependency(package)
@@ -619,7 +584,7 @@ def fix_missing_perl_file(error, context):
             paths = [error.filename]
     else:
         paths = [os.path.join(inc, error.filename) for inc in error.inc]
-    package = get_package_for_paths(paths, regex=False)
+    package = context.apt.get_package_for_paths(paths, regex=False)
     if package is None:
         if getattr(error, "module", None):
             logging.warning(
@@ -635,17 +600,17 @@ def fix_missing_perl_file(error, context):
     return context.add_dependency(package)
 
 
-def get_package_for_node_package(node_package):
+def get_package_for_node_package(apt, node_package):
     paths = [
         "/usr/share/nodejs/.*/node_modules/%s/package.json" % node_package,
         "/usr/lib/nodejs/%s/package.json" % node_package,
         "/usr/share/nodejs/%s/package.json" % node_package,
     ]
-    return get_package_for_paths(paths, regex=True)
+    return apt.get_package_for_paths(paths, regex=True)
 
 
 def fix_missing_node_module(error, context):
-    package = get_package_for_node_package(error.module)
+    package = get_package_for_node_package(context.apt, error.module)
     if package is None:
         logging.warning("no node package found for %s.", error.module)
         return False
@@ -654,7 +619,7 @@ def fix_missing_node_module(error, context):
 
 def fix_missing_dh_addon(error, context):
     paths = [os.path.join("/usr/share/perl5", error.path)]
-    package = get_package_for_paths(paths)
+    package = context.apt.get_package_for_paths(paths)
     if package is None:
         logging.warning("no package for debhelper addon %s", error.name)
         return False
@@ -667,7 +632,7 @@ def retry_apt_failure(error, context):
 
 def fix_missing_php_class(error, context):
     path = "/usr/share/php/%s.php" % error.php_class.replace("\\", "/")
-    package = get_package_for_paths([path])
+    package = context.apt.get_package_for_paths([path])
     if package is None:
         logging.warning("no package for PHP class %s", error.php_class)
         return False
@@ -676,7 +641,7 @@ def fix_missing_php_class(error, context):
 
 def fix_missing_jdk_file(error, context):
     path = error.jdk_path + ".*/" + error.filename
-    package = get_package_for_paths([path], regex=True)
+    package = context.apt.get_package_for_paths([path], regex=True)
     if package is None:
         logging.warning(
             "no package found for %s (JDK: %s) - regex %s",
@@ -690,7 +655,7 @@ def fix_missing_jdk_file(error, context):
 
 def fix_missing_vala_package(error, context):
     path = "/usr/share/vala-[0-9.]+/vapi/%s.vapi" % error.package
-    package = get_package_for_paths([path], regex=True)
+    package = context.apt.get_package_for_paths([path], regex=True)
     if package is None:
         logging.warning("no file found for package %s - regex %s", error.package, path)
         return False
@@ -710,7 +675,7 @@ def fix_missing_xml_entity(error, context):
     else:
         return False
 
-    package = get_package_for_paths([search_path], regex=False)
+    package = context.apt.get_package_for_paths([search_path], regex=False)
     if package is None:
         return False
     return context.add_dependency(package)
@@ -723,7 +688,7 @@ def fix_missing_library(error, context):
         os.path.join("/usr/lib/lib%s.a$" % error.library),
         os.path.join("/usr/lib/.*/lib%s.a$" % error.library),
     ]
-    package = get_package_for_paths(paths, regex=True)
+    package = context.apt.get_package_for_paths(paths, regex=True)
     if package is None:
         logging.warning("no package for library %s", error.library)
         return False
@@ -737,7 +702,7 @@ def fix_missing_ruby_gem(error, context):
             "specifications/%s-.*\\.gemspec" % error.gem
         )
     ]
-    package = get_package_for_paths(paths, regex=True)
+    package = context.apt.get_package_for_paths(paths, regex=True)
     if package is None:
         logging.warning("no package for gem %s", error.gem)
         return False
@@ -746,7 +711,7 @@ def fix_missing_ruby_gem(error, context):
 
 def fix_missing_ruby_file(error, context):
     paths = [os.path.join("/usr/lib/ruby/vendor_ruby/%s.rb" % error.filename)]
-    package = get_package_for_paths(paths)
+    package = context.apt.get_package_for_paths(paths)
     if package is not None:
         return context.add_dependency(package)
     paths = [
@@ -755,7 +720,7 @@ def fix_missing_ruby_file(error, context):
             "lib/%s.rb" % error.filename
         )
     ]
-    package = get_package_for_paths(paths, regex=True)
+    package = context.apt.get_package_for_paths(paths, regex=True)
     if package is not None:
         return context.add_dependency(package)
 
@@ -765,7 +730,7 @@ def fix_missing_ruby_file(error, context):
 
 def fix_missing_r_package(error, context):
     paths = [os.path.join("/usr/lib/R/site-library/.*/R/%s$" % error.package)]
-    package = get_package_for_paths(paths, regex=True)
+    package = context.apt.get_package_for_paths(paths, regex=True)
     if package is None:
         logging.warning("no package for R package %s", error.package)
         return False
@@ -781,7 +746,7 @@ def fix_missing_java_class(error, context):
         logging.warning("unable to find classpath for %s", error.classname)
         return False
     logging.info("Classpath for %s: %r", error.classname, classpath)
-    package = get_package_for_paths(classpath)
+    package = context.apt.get_package_for_paths(classpath)
     if package is None:
         logging.warning("no package for files in %r", classpath)
         return False
@@ -849,7 +814,7 @@ def fix_missing_maven_artifacts(error, context):
             "%s-%s.%s" % (artifact_id, version, kind),
         )
     ]
-    package = get_package_for_paths(paths, regex=regex)
+    package = context.apt.get_package_for_paths(paths, regex=regex)
     if package is None:
         logging.warning("no package for artifact %s", artifact)
         return False
@@ -862,7 +827,7 @@ def install_gnome_common(error, context):
 
 def install_gnome_common_dep(error, context):
     if error.package == "glib-gettext":
-        package = get_package_for_paths(["/usr/bin/glib-gettextize"])
+        package = context.apt.get_package_for_paths(["/usr/bin/glib-gettextize"])
     else:
         package = None
     if package is None:
@@ -875,7 +840,7 @@ def install_gnome_common_dep(error, context):
 
 def install_xfce_dep(error, context):
     if error.package == "gtk-doc":
-        package = get_package_for_paths(["/usr/bin/gtkdocize"])
+        package = context.apt.get_package_for_paths(["/usr/bin/gtkdocize"])
     else:
         package = None
     if package is None:
@@ -947,7 +912,7 @@ def fix_missing_autoconf_macro(error, context):
     except KeyError:
         logging.info("No local m4 file found defining %s", error.macro)
         return False
-    package = get_package_for_paths([path])
+    package = context.apt.get_package_for_paths([path])
     if package is None:
         logging.warning("no package for macro file %s", path)
         return False
@@ -960,7 +925,7 @@ def fix_missing_c_sharp_compiler(error, context):
 
 def fix_missing_haskell_dependencies(error, context):
     path = "/var/lib/ghc/package.conf.d/%s-.*.conf" % error.deps[0][0]
-    package = get_package_for_paths([path], regex=True)
+    package = context.apt.get_package_for_paths([path], regex=True)
     if package is None:
         logging.warning("no package for macro file %s", path)
         return False
@@ -1033,6 +998,7 @@ def resolve_error(error, context, fixers):
 
 def build_incrementally(
     local_tree,
+    apt,
     suffix,
     build_suite,
     output_directory,
@@ -1074,6 +1040,7 @@ def build_incrementally(
             if e.context[0] == "build":
                 context = BuildDependencyContext(
                     local_tree,
+                    apt,
                     subpath=subpath,
                     committer=committer,
                     update_changelog=update_changelog,
@@ -1082,6 +1049,7 @@ def build_incrementally(
                 context = AutopkgtestDependencyContext(
                     e.context[1],
                     local_tree,
+                    apt,
                     subpath=subpath,
                     committer=committer,
                     update_changelog=update_changelog,
@@ -1154,9 +1122,12 @@ def main(argv=None):
     args = parser.parse_args()
     from breezy.workingtree import WorkingTree
 
+    apt = LocalAptManager()
+
     tree = WorkingTree.open(".")
     build_incrementally(
         tree,
+        apt,
         args.suffix,
         args.suite,
         args.output_directory,
