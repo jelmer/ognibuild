@@ -62,11 +62,6 @@ from debmutate._rules import (
     update_rules,
 )
 
-from .build import (
-    attempt_build,
-    get_build_architecture,
-    DEFAULT_BUILDER,
-    )
 from breezy.plugins.debian.changelog import debcommit
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
@@ -114,7 +109,7 @@ from buildlog_consultant.sbuild import (
 from ..apt import AptManager, LocalAptManager
 from ..resolver.apt import AptResolver
 from ..requirements import BinaryRequirement
-from .build import attempt_build
+from .build import attempt_build, DEFAULT_BUILDER
 
 
 DEFAULT_MAX_ITERATIONS = 10
