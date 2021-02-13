@@ -35,15 +35,14 @@ from debmutate.changelog import get_maintainer, format_datetime
 
 from breezy import osutils
 from breezy.mutabletree import MutableTree
-from silver_platter.debian import (
-    BuildFailedError,
-    DEFAULT_BUILDER,
-)
+from breezy.plugins.debian.builder import BuildFailedError
 
 from buildlog_consultant.sbuild import (
     worker_failure_from_sbuild_log,
     SbuildFailure,
 )
+
+DEFAULT_BUILDER = "sbuild --no-clean-source"
 
 
 class MissingChangesFile(Exception):
