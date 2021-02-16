@@ -23,7 +23,7 @@ jobs:
         python -m pip install --upgrade pip flake8 cython \
             git+https://salsa.debian.org/python-debian-team/python-debian \
             git+https://salsa.debian.org/jelmer/lintian-brush \
-            brz
+            breezy
         python setup.py develop
         mkdir -p ~/.config/breezy/plugins
         brz branch lp:brz-debian ~/.config/breezy/plugins/debian
