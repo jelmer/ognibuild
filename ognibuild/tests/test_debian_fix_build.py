@@ -107,6 +107,8 @@ blah (0.1) UNRELEASED; urgency=medium
             "/usr/bin/brz": "brz",
             "/usr/bin/brzier": "bash",
         }
+        self.overrideEnv('DEBEMAIL', 'jelmer@debian.org')
+        self.overrideEnv('DEBFULLNAME', 'Jelmer Vernooĳ')
         self.assertTrue(self.resolve(MissingCommand("brz")))
         self.assertEqual("libc6, brz", self.get_build_deps())
         rev = self.tree.branch.repository.get_revision(self.tree.branch.last_revision())
