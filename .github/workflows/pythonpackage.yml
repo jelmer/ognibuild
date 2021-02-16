@@ -20,7 +20,8 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip flake8 cython
+        python -m pip install --upgrade pip flake8 cython \
+            git+https://salsa.debian.org/python-debian-team/python-debian
         python setup.py develop
     - name: Style checks
       run: |
