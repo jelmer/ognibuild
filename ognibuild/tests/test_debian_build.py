@@ -156,5 +156,11 @@ janitor (0.1-1jan+some1) UNRELEASED; urgency=medium
 
 
 class BuildArchitectureTests(TestCase):
+
+    def setUp(self):
+        super(BuildArchitectureTests, self).setUp()
+        if not os.path.exists('/usr/bin/dpkg-architecture'):
+            self.skipTest('not a debian system')
+
     def test_is_str(self):
         self.assertIsInstance(get_build_architecture(), str)
