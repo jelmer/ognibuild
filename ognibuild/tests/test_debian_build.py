@@ -16,6 +16,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import datetime
+import os
+
 from ..debian.build import add_dummy_changelog_entry, get_build_architecture
 
 from breezy.tests import TestCaseWithTransport, TestCase
