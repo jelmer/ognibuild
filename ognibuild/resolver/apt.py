@@ -22,7 +22,6 @@ from ..apt import AptManager
 from . import Resolver
 from ..requirements import (
     BinaryRequirement,
-    PythonPackageRequirement,
     )
 
 
