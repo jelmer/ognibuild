@@ -28,12 +28,13 @@ from debian.deb822 import Deb822
 from breezy.tree import Tree
 from breezy.workingtree import WorkingTree
 
-from . import DetailedFailure
-from .buildsystem import detect_buildsystems, NoBuildToolsFound
 from buildlog_consultant.common import (
     NoSpaceOnDevice,
 )
 
+
+from . import DetailedFailure
+from .buildsystem import detect_buildsystems, NoBuildToolsFound
 from .session.schroot import SchrootSession
 from .vcs import dupe_vcs_tree, export_vcs_tree
 
@@ -47,7 +48,7 @@ SUPPORTED_DIST_EXTENSIONS = [
     ".tbz2",
     ".tar",
     ".zip",
-]
+    ]
 
 
 def is_dist_file(fn):

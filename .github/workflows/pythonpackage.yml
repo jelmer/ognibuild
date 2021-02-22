@@ -20,12 +20,8 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip flake8 cython \
-            git+https://salsa.debian.org/python-debian-team/python-debian \
-            "git+https://salsa.debian.org/debian/distro-info#subdirectory=python&egg=distro-info" \
-            git+https://salsa.debian.org/jelmer/lintian-brush \
-            breezy \
-            testtools
+        python -m pip install --upgrade pip flake8 cython
+        python -m pip install git+https://github.com/jelmer/buildlog-consultant
         python setup.py develop
         mkdir -p ~/.config/breezy/plugins
         brz branch lp:brz-debian ~/.config/breezy/plugins/debian
