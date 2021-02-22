@@ -42,8 +42,6 @@ from buildlog_consultant.sbuild import (
     SbuildFailure,
 )
 
-DEFAULT_BUILDER = "sbuild --no-clean-source"
-
 
 DEFAULT_BUILDER = "sbuild --no-clean-source"
 
