@@ -15,9 +15,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+import logging
 import os
 import sys
-from . import note
 from .buildsystem import NoBuildToolsFound
 from .build import run_build
 from .clean import run_clean
@@ -65,7 +65,7 @@ def main():
             if args.subcommand == "test":
                 run_test(session)
         except NoBuildToolsFound:
-            note("No build tools found.")
+            logging.info("No build tools found.")
             return 1
         return 0
 

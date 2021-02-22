@@ -42,11 +42,3 @@ def shebang_binary(p):
         if args[0] in (b"/usr/bin/env", b"env"):
             return os.path.basename(args[1].decode()).strip()
         return os.path.basename(args[0].decode()).strip()
-
-
-def note(m):
-    sys.stdout.write("%s\n" % m)
-
-
-def warning(m):
-    sys.stderr.write("WARNING: %s\n" % m)
