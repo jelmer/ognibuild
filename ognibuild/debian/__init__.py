@@ -17,7 +17,6 @@
 
 from debian.deb822 import Deb822
 
-from ..apt import AptManager
 from ..session import Session
 
 
@@ -36,5 +35,6 @@ def satisfy_build_deps(session: Session, tree):
         except KeyError:
             pass
     deps = [dep.strip().strip(",") for dep in deps]
+    from .apt import AptManager
     apt = AptManager(session)
     apt.satisfy(deps)

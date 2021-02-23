@@ -30,7 +30,7 @@ from buildlog_consultant.common import (
     MissingRubyGem,
     MissingValaPackage,
 )
-from ..debian import fix_build
+from ..debian import apt
 from ..debian.fix_build import (
     resolve_error,
     VERSIONED_PACKAGE_FIXERS,
@@ -75,7 +75,7 @@ blah (0.1) UNRELEASED; urgency=medium
         )
         self.tree.add(["debian", "debian/control", "debian/changelog"])
         self.tree.commit("Initial commit")
-        self.overrideAttr(fix_build, "search_apt_file", self._search_apt_file)
+        self.overrideAttr(apt, "search_apt_file", self._search_apt_file)
         self._apt_files = {}
 
     def _search_apt_file(self, path, regex=False):
