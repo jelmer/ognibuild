@@ -106,6 +106,7 @@ from buildlog_consultant.sbuild import (
 )
 
 from .apt import AptManager, LocalAptManager
+from ..fix_build import BuildFixer, SimpleBuildFixer
 from ..resolver.apt import (
     AptResolver,
     NoAptPackage,
@@ -640,26 +641,25 @@ def fix_missing_makefile_pl(error, context):
     return False
 
 
-VERSIONED_PACKAGE_FIXERS: List[
-    Tuple[Type[Problem], Callable[[Problem, DependencyContext], bool]]
-] = [
-    (NeedPgBuildExtUpdateControl, run_pgbuildext_updatecontrol),
-    (MissingConfigure, fix_missing_configure),
-    (MissingAutomakeInput, fix_missing_automake_input),
+VERSIONED_PACKAGE_FIXERS: List[BuildFixer] = [
+    SimpleBuildFixer(
+        NeedPgBuildExtUpdateControl, run_pgbuildext_updatecontrol),
+    SimpleBuildFixer(MissingConfigure, fix_missing_configure),
+    SimpleBuildFixer(MissingAutomakeInput, fix_missing_automake_input),
 ]
 
 
-APT_FIXERS: List[Tuple[Type[Problem], Callable[[Problem, DependencyContext], bool]]] = [
-    (MissingPythonModule, fix_missing_python_module),
-    (MissingPythonDistribution, fix_missing_python_distribution),
-    (AptFetchFailure, retry_apt_failure),
-    (MissingPerlFile, fix_missing_makefile_pl),
-    (Problem, fix_missing_requirement),
+APT_FIXERS: List[BuildFixer] = [
+    SimpleBuildFixer(MissingPythonModule, fix_missing_python_module),
+    SimpleBuildFixer(MissingPythonDistribution, fix_missing_python_distribution),
+    SimpleBuildFixer(AptFetchFailure, retry_apt_failure),
+    SimpleBuildFixer(MissingPerlFile, fix_missing_makefile_pl),
+    SimpleBuildFixer(Problem, fix_missing_requirement),
 ]
 
 
-GENERIC_FIXERS: List[Tuple[Type[Problem], Callable[[Problem, DependencyContext], bool]]] = [
-    (MissingConfigStatusInput, fix_missing_config_status_input),
+GENERIC_FIXERS: List[BuildFixer] = [
+    SimpleBuildFixer(MissingConfigStatusInput, fix_missing_config_status_input),
 ]
 
 

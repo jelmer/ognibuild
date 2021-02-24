@@ -16,7 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import logging
-from typing import List, Tuple, Callable, Type
+from typing import List, Tuple, Callable, Type, Optional
 
 from buildlog_consultant.common import (
     find_build_failure_description,
@@ -34,6 +34,34 @@ from .debian.fix_build import (
     APT_FIXERS,
 )
 from .session import Session, run_with_tee
+
+
+class BuildFixer(object):
+    """Build fixer."""
+
+    def can_fix(self, problem):
+        raise NotImplementedError(self.can_fix)
+
+    def _fix(self, problem, context):
+        raise NotImplementedError(self._fix)
+
+    def fix(self, problem, context):
+        if not self.can_fix(problem):
+            return None
+        return self._fix(problem, context)
+
+
+class SimpleBuildFixer(BuildFixer):
+
+    def __init__(self, problem_cls, fn):
+        self._problem_cls = problem_cls
+        self._fn = fn
+
+    def can_fix(self, problem):
+        return isinstance(problem, self._problem_cls)
+
+    def _fix(self, problem, context):
+        return self._fn(problem, context)
 
 
 class SchrootDependencyContext(DependencyContext):
@@ -75,16 +103,19 @@ def fix_python_package_from_pip(error, context):
     return True
 
 
-GENERIC_INSTALL_FIXERS: List[
-    Tuple[Type[Problem], Callable[[Problem, DependencyContext], bool]]
-] = [
-    (MissingPerlModule, fix_perl_module_from_cpan),
-    (MissingPythonDistribution, fix_python_package_from_pip),
-    (MissingCommand, fix_npm_missing_command),
+GENERIC_INSTALL_FIXERS: List[BuildFixer] = [
+    SimpleBuildFixer(MissingPerlModule, fix_perl_module_from_cpan),
+    SimpleBuildFixer(MissingPythonDistribution, fix_python_package_from_pip),
+    SimpleBuildFixer(MissingCommand, fix_npm_missing_command),
 ]
 
 
-def run_with_build_fixer(session: Session, args: List[str]):
+def run_with_build_fixer(
+        session: Session, args: List[str],
+        fixers: Optional[List[BuildFixer]] = None):
+    if fixers is None:
+        from .debian.fix_build import APT_FIXERS
+        fixers = GENERIC_INSTALL_FIXERS + APT_FIXERS
     logging.info("Running %r", args)
     fixed_errors = []
     while True:
@@ -108,7 +139,7 @@ def run_with_build_fixer(session: Session, args: List[str]):
         if not resolve_error(
             error,
             SchrootDependencyContext(session),
-            fixers=(APT_FIXERS + GENERIC_INSTALL_FIXERS),
+            fixers=fixers,
         ):
             logging.warning("Failed to find resolution for error %r. Giving up.", error)
             raise DetailedFailure(retcode, args, error)
