@@ -21,7 +21,6 @@ __all__ = [
 
 import logging
 import os
-import subprocess
 import sys
 from typing import List, Callable, Type, Tuple, Set, Optional
 
@@ -106,9 +105,35 @@ from buildlog_consultant.sbuild import (
     SbuildFailure,
 )
 
-from ..apt import AptManager, LocalAptManager
-from ..resolver.apt import AptResolver
-from ..requirements import BinaryRequirement
+from .apt import AptManager, LocalAptManager
+from ..resolver.apt import (
+    AptResolver,
+    NoAptPackage,
+    get_package_for_python_module,
+    )
+from ..requirements import (
+    BinaryRequirement,
+    PathRequirement,
+    PkgConfigRequirement,
+    CHeaderRequirement,
+    JavaScriptRuntimeRequirement,
+    ValaPackageRequirement,
+    RubyGemRequirement,
+    GoPackageRequirement,
+    DhAddonRequirement,
+    PhpClassRequirement,
+    RPackageRequirement,
+    NodePackageRequirement,
+    LibraryRequirement,
+    RubyFileRequirement,
+    XmlEntityRequirement,
+    SprocketsFileRequirement,
+    JavaClassRequirement,
+    HaskellPackageRequirement,
+    MavenArtifactRequirement,
+    GnomeCommonRequirement,
+    JDKFileRequirement,
+    )
 from .build import attempt_build, DEFAULT_BUILDER
 
 
@@ -148,7 +173,7 @@ class DependencyContext(object):
 
 
 class BuildDependencyContext(DependencyContext):
-    def add_dependency(self, package, minimum_version=None):
+    def add_dependency(self, package: str, minimum_version: Optional[Version] = None):
         return add_build_dependency(
             self.tree,
             package,
@@ -181,12 +206,12 @@ class AutopkgtestDependencyContext(DependencyContext):
 
 
 def add_build_dependency(
-    tree,
-    package,
-    minimum_version=None,
-    committer=None,
-    subpath="",
-    update_changelog=True,
+    tree: Tree,
+    package: str,
+    minimum_version: Optional[Version] = None,
+    committer: Optional[str] = None,
+    subpath: str = "",
+    update_changelog: bool = True,
 ):
     if not isinstance(package, str):
         raise TypeError(package)
@@ -305,62 +330,6 @@ def commit_debian_changes(
             return True
 
 
-def get_package_for_python_module(apt, module, python_version):
-    if python_version == "python3":
-        paths = [
-            os.path.join(
-                "/usr/lib/python3/dist-packages",
-                module.replace(".", "/"),
-                "__init__.py",
-            ),
-            os.path.join(
-                "/usr/lib/python3/dist-packages", module.replace(".", "/") + ".py"
-            ),
-            os.path.join(
-                "/usr/lib/python3\\.[0-9]+/lib-dynload",
-                module.replace(".", "/") + "\\.cpython-.*\\.so",
-            ),
-            os.path.join(
-                "/usr/lib/python3\\.[0-9]+/", module.replace(".", "/") + ".py"
-            ),
-            os.path.join(
-                "/usr/lib/python3\\.[0-9]+/", module.replace(".", "/"), "__init__.py"
-            ),
-        ]
-    elif python_version == "python2":
-        paths = [
-            os.path.join(
-                "/usr/lib/python2\\.[0-9]/dist-packages",
-                module.replace(".", "/"),
-                "__init__.py",
-            ),
-            os.path.join(
-                "/usr/lib/python2\\.[0-9]/dist-packages",
-                module.replace(".", "/") + ".py",
-            ),
-            os.path.join(
-                "/usr/lib/python2.\\.[0-9]/lib-dynload",
-                module.replace(".", "/") + ".so",
-            ),
-        ]
-    elif python_version == "pypy":
-        paths = [
-            os.path.join(
-                "/usr/lib/pypy/dist-packages", module.replace(".", "/"), "__init__.py"
-            ),
-            os.path.join(
-                "/usr/lib/pypy/dist-packages", module.replace(".", "/") + ".py"
-            ),
-            os.path.join(
-                "/usr/lib/pypy/dist-packages",
-                module.replace(".", "/") + "\\.pypy-.*\\.so",
-            ),
-        ]
-    else:
-        raise AssertionError("unknown python version %r" % python_version)
-    return apt.get_package_for_paths(paths, regex=True)
-
-
 def targeted_python_versions(tree: Tree) -> Set[str]:
     with tree.get_file("debian/control") as f:
         control = Deb822(f)
@@ -376,13 +345,6 @@ def targeted_python_versions(tree: Tree) -> Set[str]:
     if any(x.startswith("python3-") for x in all_build_deps):
         targeted.add("cpython3")
     return targeted
-
-
-def fix_missing_javascript_runtime(error, context):
-    package = context.apt.get_package_for_paths(["/usr/bin/node", "/usr/bin/duk"], regex=False)
-    if package is None:
-        return False
-    return context.add_dependency(package)
 
 
 def fix_missing_python_distribution(error, context):  # noqa: C901
@@ -496,62 +458,60 @@ def fix_missing_python_module(error, context):
     return True
 
 
-def fix_missing_go_package(error, context):
-    package = context.apt.get_package_for_paths(
-        [os.path.join("/usr/share/gocode/src", error.package, ".*")], regex=True
-    )
-    if package is None:
-        return False
-    return context.add_dependency(package)
-
-
-def fix_missing_c_header(error, context):
-    package = context.apt.get_package_for_paths(
-        [os.path.join("/usr/include", error.header)], regex=False
-    )
-    if package is None:
-        package = context.apt.get_package_for_paths(
-            [os.path.join("/usr/include", ".*", error.header)], regex=True
-        )
-    if package is None:
-        return False
-    return context.add_dependency(package)
-
-
-def fix_missing_pkg_config(error, context):
-    package = context.apt.get_package_for_paths(
-        [os.path.join("/usr/lib/pkgconfig", error.module + ".pc")]
-    )
-    if package is None:
-        package = context.apt.get_package_for_paths(
-            [os.path.join("/usr/lib", ".*", "pkgconfig", error.module + ".pc")],
-            regex=True,
-        )
-    if package is None:
-        return False
-    return context.add_dependency(package, minimum_version=error.minimum_version)
-
-
-def fix_missing_command(error, context):
-    package = context.resolve_apt(BinaryRequirement(error.command))
-    return context.add_dependency(package)
-
-
-def fix_missing_file(error, context):
-    package = context.apt.get_package_for_paths([error.path])
-    if package is None:
-        return False
-    return context.add_dependency(package)
-
-
-def fix_missing_sprockets_file(error, context):
-    if error.content_type == "application/javascript":
-        path = "/usr/share/.*/app/assets/javascripts/%s.js$" % error.name
+def fix_missing_requirement(error, context):
+    if isinstance(error, MissingFile):
+        req = PathRequirement(error.path)
+    elif isinstance(error, MissingCommand):
+        req = BinaryRequirement(error.command)
+    elif isinstance(error, MissingPkgConfig):
+        req = PkgConfigRequirement(
+            error.module, error.minimum_version)
+    elif isinstance(error, MissingCHeader):
+        req = CHeaderRequirement(error.header)
+    elif isinstance(error, MissingJavaScriptRuntime):
+        req = JavaScriptRuntimeRequirement()
+    elif isinstance(error, MissingRubyGem):
+        req = RubyGemRequirement(error.gem, error.version)
+    elif isinstance(error, MissingValaPackage):
+        req = ValaPackageRequirement(error.package)
+    elif isinstance(error, MissingGoPackage):
+        req = GoPackageRequirement(error.package)
+    elif isinstance(error, DhAddonLoadFailure):
+        req = DhAddonRequirement(error.path)
+    elif isinstance(error, MissingPhpClass):
+        req = PhpClassRequirement(error.php_class)
+    elif isinstance(error, MissingRPackage):
+        req = RPackageRequirement(error.package, error.minimum_version)
+    elif isinstance(error, MissingNodeModule):
+        req = NodePackageRequirement(error.module)
+    elif isinstance(error, MissingLibrary):
+        req = LibraryRequirement(error.library)
+    elif isinstance(error, MissingRubyFile):
+        req = RubyFileRequirement(error.filename)
+    elif isinstance(error, MissingXmlEntity):
+        req = XmlEntityRequirement(error.url)
+    elif isinstance(error, MissingSprocketsFile):
+        req = SprocketsFileRequirement(error.content_type, error.name)
+    elif isinstance(error, MissingJavaClass):
+        req = JavaClassRequirement(error.classname)
+    elif isinstance(error, MissingHaskellDependencies):
+        # TODO(jelmer): Create multiple HaskellPackageRequirement objects?
+        req = HaskellPackageRequirement(error.package)
+    elif isinstance(error, MissingMavenArtifacts):
+        # TODO(jelmer): Create multiple MavenArtifactRequirement objects?
+        req = MavenArtifactRequirement(error.artifacts)
+    elif isinstance(error, MissingCSharpCompiler):
+        req = BinaryRequirement('msc')
+    elif isinstance(error, GnomeCommonMissing):
+        req = GnomeCommonRequirement()
+    elif isinstance(error, MissingJDKFile):
+        req = JDKFileRequirement(error.jdk_path, error.filename)
     else:
-        logging.warning("unable to handle content type %s", error.content_type)
-        return False
-    package = context.apt.get_package_for_paths([path], regex=True)
-    if package is None:
+        return None
+
+    try:
+        package = context.resolve_apt(req)
+    except NoAptPackage:
         return False
     return context.add_dependency(package)
 
@@ -595,157 +555,8 @@ def fix_missing_perl_file(error, context):
     return context.add_dependency(package)
 
 
-def get_package_for_node_package(apt, node_package):
-    paths = [
-        "/usr/share/nodejs/.*/node_modules/%s/package.json" % node_package,
-        "/usr/lib/nodejs/%s/package.json" % node_package,
-        "/usr/share/nodejs/%s/package.json" % node_package,
-    ]
-    return apt.get_package_for_paths(paths, regex=True)
-
-
-def fix_missing_node_module(error, context):
-    package = get_package_for_node_package(context.apt, error.module)
-    if package is None:
-        logging.warning("no node package found for %s.", error.module)
-        return False
-    return context.add_dependency(package)
-
-
-def fix_missing_dh_addon(error, context):
-    paths = [os.path.join("/usr/share/perl5", error.path)]
-    package = context.apt.get_package_for_paths(paths)
-    if package is None:
-        logging.warning("no package for debhelper addon %s", error.name)
-        return False
-    return context.add_dependency(package)
-
-
 def retry_apt_failure(error, context):
     return True
-
-
-def fix_missing_php_class(error, context):
-    path = "/usr/share/php/%s.php" % error.php_class.replace("\\", "/")
-    package = context.apt.get_package_for_paths([path])
-    if package is None:
-        logging.warning("no package for PHP class %s", error.php_class)
-        return False
-    return context.add_dependency(package)
-
-
-def fix_missing_jdk_file(error, context):
-    path = error.jdk_path + ".*/" + error.filename
-    package = context.apt.get_package_for_paths([path], regex=True)
-    if package is None:
-        logging.warning(
-            "no package found for %s (JDK: %s) - regex %s",
-            error.filename,
-            error.jdk_path,
-            path,
-        )
-        return False
-    return context.add_dependency(package)
-
-
-def fix_missing_vala_package(error, context):
-    path = "/usr/share/vala-[0-9.]+/vapi/%s.vapi" % error.package
-    package = context.apt.get_package_for_paths([path], regex=True)
-    if package is None:
-        logging.warning("no file found for package %s - regex %s", error.package, path)
-        return False
-    return context.add_dependency(package)
-
-
-def fix_missing_xml_entity(error, context):
-    # Ideally we should be using the XML catalog for this, but hardcoding
-    # a few URLs will do for now..
-    URL_MAP = {
-        "http://www.oasis-open.org/docbook/xml/": "/usr/share/xml/docbook/schema/dtd/"
-    }
-    for url, path in URL_MAP.items():
-        if error.url.startswith(url):
-            search_path = os.path.join(path, error.url[len(url) :])
-            break
-    else:
-        return False
-
-    package = context.apt.get_package_for_paths([search_path], regex=False)
-    if package is None:
-        return False
-    return context.add_dependency(package)
-
-
-def fix_missing_library(error, context):
-    paths = [
-        os.path.join("/usr/lib/lib%s.so$" % error.library),
-        os.path.join("/usr/lib/.*/lib%s.so$" % error.library),
-        os.path.join("/usr/lib/lib%s.a$" % error.library),
-        os.path.join("/usr/lib/.*/lib%s.a$" % error.library),
-    ]
-    package = context.apt.get_package_for_paths(paths, regex=True)
-    if package is None:
-        logging.warning("no package for library %s", error.library)
-        return False
-    return context.add_dependency(package)
-
-
-def fix_missing_ruby_gem(error, context):
-    paths = [
-        os.path.join(
-            "/usr/share/rubygems-integration/all/"
-            "specifications/%s-.*\\.gemspec" % error.gem
-        )
-    ]
-    package = context.apt.get_package_for_paths(paths, regex=True)
-    if package is None:
-        logging.warning("no package for gem %s", error.gem)
-        return False
-    return context.add_dependency(package, minimum_version=error.version)
-
-
-def fix_missing_ruby_file(error, context):
-    paths = [os.path.join("/usr/lib/ruby/vendor_ruby/%s.rb" % error.filename)]
-    package = context.apt.get_package_for_paths(paths)
-    if package is not None:
-        return context.add_dependency(package)
-    paths = [
-        os.path.join(
-            r"/usr/share/rubygems-integration/all/gems/([^/]+)/"
-            "lib/%s.rb" % error.filename
-        )
-    ]
-    package = context.apt.get_package_for_paths(paths, regex=True)
-    if package is not None:
-        return context.add_dependency(package)
-
-    logging.warning("no package for ruby file %s", error.filename)
-    return False
-
-
-def fix_missing_r_package(error, context):
-    paths = [os.path.join("/usr/lib/R/site-library/.*/R/%s$" % error.package)]
-    package = context.apt.get_package_for_paths(paths, regex=True)
-    if package is None:
-        logging.warning("no package for R package %s", error.package)
-        return False
-    return context.add_dependency(package, minimum_version=error.minimum_version)
-
-
-def fix_missing_java_class(error, context):
-    # Unfortunately this only finds classes in jars installed on the host
-    # system :(
-    output = subprocess.check_output(["java-propose-classpath", "-c" + error.classname])
-    classpath = [p for p in output.decode().strip(":").strip().split(":") if p]
-    if not classpath:
-        logging.warning("unable to find classpath for %s", error.classname)
-        return False
-    logging.info("Classpath for %s: %r", error.classname, classpath)
-    package = context.apt.get_package_for_paths(classpath)
-    if package is None:
-        logging.warning("no package for files in %r", classpath)
-        return False
-    return context.add_dependency(package)
 
 
 def enable_dh_autoreconf(context):
@@ -768,9 +579,8 @@ def enable_dh_autoreconf(context):
 
 
 def fix_missing_configure(error, context):
-    if not context.tree.has_filename("configure.ac") and not context.tree.has_filename(
-        "configure.in"
-    ):
+    if (not context.tree.has_filename("configure.ac") and
+            not context.tree.has_filename("configure.in")):
         return False
 
     return enable_dh_autoreconf(context)
@@ -781,43 +591,6 @@ def fix_missing_automake_input(error, context):
     # try to set 'export AUTOMAKE = automake --foreign' in debian/rules.
     # https://salsa.debian.org/jelmer/debian-janitor/issues/88
     return enable_dh_autoreconf(context)
-
-
-def fix_missing_maven_artifacts(error, context):
-    artifact = error.artifacts[0]
-    parts = artifact.split(":")
-    if len(parts) == 4:
-        (group_id, artifact_id, kind, version) = parts
-        regex = False
-    elif len(parts) == 3:
-        (group_id, artifact_id, version) = parts
-        kind = "jar"
-        regex = False
-    elif len(parts) == 2:
-        version = ".*"
-        (group_id, artifact_id) = parts
-        kind = "jar"
-        regex = True
-    else:
-        raise AssertionError("invalid number of parts to artifact %s" % artifact)
-    paths = [
-        os.path.join(
-            "/usr/share/maven-repo",
-            group_id.replace(".", "/"),
-            artifact_id,
-            version,
-            "%s-%s.%s" % (artifact_id, version, kind),
-        )
-    ]
-    package = context.apt.get_package_for_paths(paths, regex=regex)
-    if package is None:
-        logging.warning("no package for artifact %s", artifact)
-        return False
-    return context.add_dependency(package)
-
-
-def install_gnome_common(error, context):
-    return context.add_dependency("gnome-common")
 
 
 def install_gnome_common_dep(error, context):
@@ -914,19 +687,6 @@ def fix_missing_autoconf_macro(error, context):
     return context.add_dependency(package)
 
 
-def fix_missing_c_sharp_compiler(error, context):
-    return context.add_dependency("mono-mcs")
-
-
-def fix_missing_haskell_dependencies(error, context):
-    path = "/var/lib/ghc/package.conf.d/%s-.*.conf" % error.deps[0][0]
-    package = context.apt.get_package_for_paths([path], regex=True)
-    if package is None:
-        logging.warning("no package for macro file %s", path)
-        return False
-    return context.add_dependency(package)
-
-
 VERSIONED_PACKAGE_FIXERS: List[
     Tuple[Type[Problem], Callable[[Problem, DependencyContext], bool]]
 ] = [
@@ -939,35 +699,14 @@ VERSIONED_PACKAGE_FIXERS: List[
 APT_FIXERS: List[Tuple[Type[Problem], Callable[[Problem, DependencyContext], bool]]] = [
     (MissingPythonModule, fix_missing_python_module),
     (MissingPythonDistribution, fix_missing_python_distribution),
-    (MissingCHeader, fix_missing_c_header),
-    (MissingPkgConfig, fix_missing_pkg_config),
-    (MissingCommand, fix_missing_command),
-    (MissingFile, fix_missing_file),
-    (MissingSprocketsFile, fix_missing_sprockets_file),
-    (MissingGoPackage, fix_missing_go_package),
     (MissingPerlFile, fix_missing_perl_file),
     (MissingPerlModule, fix_missing_perl_file),
-    (MissingXmlEntity, fix_missing_xml_entity),
-    (MissingNodeModule, fix_missing_node_module),
-    (MissingRubyGem, fix_missing_ruby_gem),
-    (MissingRPackage, fix_missing_r_package),
-    (MissingLibrary, fix_missing_library),
-    (MissingJavaClass, fix_missing_java_class),
-    (DhAddonLoadFailure, fix_missing_dh_addon),
-    (MissingPhpClass, fix_missing_php_class),
     (AptFetchFailure, retry_apt_failure),
-    (MissingMavenArtifacts, fix_missing_maven_artifacts),
-    (GnomeCommonMissing, install_gnome_common),
     (MissingGnomeCommonDependency, install_gnome_common_dep),
     (MissingXfceDependency, install_xfce_dep),
     (MissingConfigStatusInput, fix_missing_config_status_input),
-    (MissingJDKFile, fix_missing_jdk_file),
-    (MissingRubyFile, fix_missing_ruby_file),
-    (MissingJavaScriptRuntime, fix_missing_javascript_runtime),
     (MissingAutoconfMacro, fix_missing_autoconf_macro),
-    (MissingValaPackage, fix_missing_vala_package),
-    (MissingCSharpCompiler, fix_missing_c_sharp_compiler),
-    (MissingHaskellDependencies, fix_missing_haskell_dependencies),
+    (Problem, fix_missing_requirement),
 ]
 
 

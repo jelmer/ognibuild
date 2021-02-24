@@ -29,8 +29,6 @@ from debian.deb822 import Release
 from .. import DetailedFailure
 from ..session import Session, run_with_tee
 
-from .build import get_build_architecture
-
 
 class UnidentifiedError(Exception):
 
@@ -64,6 +62,12 @@ class AptManager(object):
     def __init__(self, session):
         self.session = session
 
+    def package_exists(self, package: str) -> bool:
+        raise NotImplementedError(self.package_exists)
+
+    def get_package_for_paths(self, paths, regex=False):
+        raise NotImplementedError(self.get_package_for_paths)
+
     def missing(self, packages):
         root = getattr(self.session, "location", "/")
         status_path = os.path.join(root, "var/lib/dpkg/status")
@@ -80,6 +84,7 @@ class AptManager(object):
         return list(missing)
 
     def install(self, packages: List[str]) -> None:
+        logging.info('Installing using apt: %r', packages)
         packages = self.missing(packages)
         if packages:
             run_apt(self.session, ["install"] + packages)
@@ -88,8 +93,30 @@ class AptManager(object):
         run_apt(self.session, ["satisfy"] + deps)
 
 
+class LocalAptManager(AptManager):
+
+    def __init__(self):
+        from ..session.plain import PlainSession
+        self.session = PlainSession()
+        self._apt_cache = None
+
+    def package_exists(self, package):
+        if self._apt_cache is None:
+            import apt_pkg
+
+            self._apt_cache = apt_pkg.Cache()
+        for p in self._apt_cache.packages:
+            if p.name == package:
+                return True
+        return False
+
+    def get_package_for_paths(self, paths, regex=False):
+        # TODO(jelmer): Make sure we use whatever is configured in self.session
+        return get_package_for_paths(paths, regex=regex)
+
+
 class FileSearcher(object):
-    def search_files(self, path, regex=False):
+    def search_files(self, path: str, regex: bool = False) -> Iterator[str]:
         raise NotImplementedError(self.search_files)
 
 
@@ -98,9 +125,6 @@ class ContentsFileNotFound(Exception):
 
 
 class AptContentsFileSearcher(FileSearcher):
-
-    _user_agent = 'ognibuild/0.1'
-
     def __init__(self):
         self._db = {}
 
@@ -137,6 +161,7 @@ class AptContentsFileSearcher(FileSearcher):
 
     @classmethod
     def from_repositories(cls, sources):
+        from .debian.build import get_build_architecture
         # TODO(jelmer): Verify signatures, etc.
         urls = []
         arches = [get_build_architecture(), "all"]
@@ -159,11 +184,11 @@ class AptContentsFileSearcher(FileSearcher):
                     urls.append("%s/%s/%s" % (base_url, name, entry["name"]))
         return cls.from_urls(urls)
 
-    @classmethod
-    def _get(cls, url):
+    @staticmethod
+    def _get(url):
         from urllib.request import urlopen, Request
 
-        request = Request(url, headers={"User-Agent": cls._user_agent})
+        request = Request(url, headers={"User-Agent": "Debian Janitor"})
         return urlopen(request)
 
     def load_url(self, url):
@@ -192,7 +217,7 @@ class GeneratedFileSearcher(FileSearcher):
     def __init__(self, db):
         self._db = db
 
-    def search_files(self, path, regex=False):
+    def search_files(self, path: str, regex: bool = False) -> Iterator[str]:
         for p, pkg in sorted(self._db.items()):
             if regex:
                 if re.match(path, p):
@@ -215,7 +240,7 @@ GENERATED_FILE_SEARCHER = GeneratedFileSearcher(
 _apt_file_searcher = None
 
 
-def search_apt_file(path: str, regex: bool = False) -> Iterator[FileSearcher]:
+def search_apt_file(path: str, regex: bool = False) -> Iterator[str]:
     global _apt_file_searcher
     if _apt_file_searcher is None:
         # TODO(jelmer): cache file
@@ -223,3 +248,22 @@ def search_apt_file(path: str, regex: bool = False) -> Iterator[FileSearcher]:
     if _apt_file_searcher:
         yield from _apt_file_searcher.search_files(path, regex=regex)
     yield from GENERATED_FILE_SEARCHER.search_files(path, regex=regex)
+
+
+def get_package_for_paths(paths: List[str], regex: bool = False) -> Optional[str]:
+    candidates: Set[str] = set()
+    for path in paths:
+        candidates.update(search_apt_file(path, regex=regex))
+        if candidates:
+            break
+    if len(candidates) == 0:
+        logging.warning("No packages found that contain %r", paths)
+        return None
+    if len(candidates) > 1:
+        logging.warning(
+            "More than 1 packages found that contain %r: %r", path, candidates
+        )
+        # Euhr. Pick the one with the shortest name?
+        return sorted(candidates, key=len)[0]
+    else:
+        return candidates.pop()
