@@ -44,6 +44,9 @@ from ..requirements import (
     MavenArtifactRequirement,
     GnomeCommonRequirement,
     JDKFileRequirement,
+    PerlModuleRequirement,
+    PerlFileRequirement,
+    AutoconfMacroRequirement,
     )
 
 
@@ -308,6 +311,48 @@ def resolve_jdk_file_req(apt_mgr, req):
     return apt_mgr.get_package_for_paths([path], regex=True)
 
 
+def resolve_perl_module_req(apt_mgr, req):
+    DEFAULT_PERL_PATHS = ["/usr/share/perl5"]
+
+    if req.inc is None:
+        if req.filename is None:
+            paths = [posixpath.join(inc, req.relfilename)
+                     for inc in DEFAULT_PERL_PATHS]
+        elif not posixpath.isabs(req.filename):
+            return False
+        else:
+            paths = [req.filename]
+    else:
+        paths = [posixpath.join(inc, req.filename) for inc in req.inc]
+    return apt_mgr.get_package_for_paths(paths, regex=False)
+
+
+def resolve_perl_file_req(apt_mgr, req):
+    return apt_mgr.get_package_for_paths([req.filename], regex=False)
+
+
+def _find_aclocal_fun(macro):
+    # TODO(jelmer): Use the API for codesearch.debian.net instead?
+    defun_prefix = b"AC_DEFUN([%s]," % macro.encode("ascii")
+    for entry in os.scandir("/usr/share/aclocal"):
+        if not entry.is_file():
+            continue
+        with open(entry.path, "rb") as f:
+            for line in f:
+                if line.startswith(defun_prefix):
+                    return entry.path
+    raise KeyError
+
+
+def resolve_autoconf_macro_req(apt_mgr, req):
+    try:
+        path = _find_aclocal_fun(req.macro)
+    except KeyError:
+        logging.info("No local m4 file found defining %s", req.macro)
+        return None
+    return apt_mgr.get_package_for_paths([path])
+
+
 APT_REQUIREMENT_RESOLVERS = [
     (BinaryRequirement, resolve_binary_req),
     (PkgConfigRequirement, resolve_pkg_config_req),
@@ -330,6 +375,9 @@ APT_REQUIREMENT_RESOLVERS = [
     (MavenArtifactRequirement, resolve_maven_artifact_req),
     (GnomeCommonRequirement, resolve_gnome_common_req),
     (JDKFileRequirement, resolve_jdk_file_req),
+    (PerlModuleRequirement, resolve_perl_module_req),
+    (PerlFileRequirement, resolve_perl_file_req),
+    (AutoconfMacroRequirement, resolve_autoconf_macro_req),
 ]
 
 

@@ -133,6 +133,9 @@ from ..requirements import (
     MavenArtifactRequirement,
     GnomeCommonRequirement,
     JDKFileRequirement,
+    PerlModuleRequirement,
+    PerlFileRequirement,
+    AutoconfMacroRequirement,
     )
 from .build import attempt_build, DEFAULT_BUILDER
 
@@ -506,6 +509,31 @@ def fix_missing_requirement(error, context):
         req = GnomeCommonRequirement()
     elif isinstance(error, MissingJDKFile):
         req = JDKFileRequirement(error.jdk_path, error.filename)
+    elif isinstance(error, MissingGnomeCommonDependency):
+        if error.package == "glib-gettext":
+            req = BinaryRequirement('glib-gettextize')
+        else:
+            logging.warning(
+                "No known command for gnome-common dependency %s",
+                error.package)
+            return None
+    elif isinstance(error, MissingXfceDependency):
+        if error.package == "gtk-doc":
+            req = BinaryRequirement("gtkdocize")
+        else:
+            logging.warning(
+                "No known command for xfce dependency %s",
+                error.package)
+            return None
+    elif isinstance(error, MissingPerlModule):
+        req = PerlModuleRequirement(
+            module=error.module,
+            filename=error.filename,
+            inc=error.inc)
+    elif isinstance(error, MissingPerlFile):
+        req = PerlFileRequirement(filename=error.filename)
+    elif isinstance(error, MissingAutoconfMacro):
+        req = AutoconfMacroRequirement(error.macro)
     else:
         return None
 
@@ -517,42 +545,6 @@ def fix_missing_requirement(error, context):
 
 
 DEFAULT_PERL_PATHS = ["/usr/share/perl5"]
-
-
-def fix_missing_perl_file(error, context):
-
-    if (
-        error.filename == "Makefile.PL"
-        and not context.tree.has_filename("Makefile.PL")
-        and context.tree.has_filename("dist.ini")
-    ):
-        # TODO(jelmer): add dist-zilla add-on to debhelper
-        raise NotImplementedError
-
-    if error.inc is None:
-        if error.filename is None:
-            filename = error.module.replace("::", "/") + ".pm"
-            paths = [os.path.join(inc, filename) for inc in DEFAULT_PERL_PATHS]
-        elif not os.path.isabs(error.filename):
-            return False
-        else:
-            paths = [error.filename]
-    else:
-        paths = [os.path.join(inc, error.filename) for inc in error.inc]
-    package = context.apt.get_package_for_paths(paths, regex=False)
-    if package is None:
-        if getattr(error, "module", None):
-            logging.warning(
-                "no perl package found for %s (%r).", error.module, error.filename
-            )
-        else:
-            logging.warning(
-                "perl file %s not found (paths searched for: %r).",
-                error.filename,
-                paths,
-            )
-        return False
-    return context.add_dependency(package)
 
 
 def retry_apt_failure(error, context):
@@ -593,30 +585,6 @@ def fix_missing_automake_input(error, context):
     return enable_dh_autoreconf(context)
 
 
-def install_gnome_common_dep(error, context):
-    if error.package == "glib-gettext":
-        package = context.apt.get_package_for_paths(["/usr/bin/glib-gettextize"])
-    else:
-        package = None
-    if package is None:
-        logging.warning("No debian package for package %s", error.package)
-        return False
-    return context.add_dependency(
-        package=package, minimum_version=error.minimum_version
-    )
-
-
-def install_xfce_dep(error, context):
-    if error.package == "gtk-doc":
-        package = context.apt.get_package_for_paths(["/usr/bin/gtkdocize"])
-    else:
-        package = None
-    if package is None:
-        logging.warning("No debian package for package %s", error.package)
-        return False
-    return context.add_dependency(package=package)
-
-
 def fix_missing_config_status_input(error, context):
     autogen_path = "autogen.sh"
     rules_path = "debian/rules"
@@ -648,19 +616,6 @@ def fix_missing_config_status_input(error, context):
     return True
 
 
-def _find_aclocal_fun(macro):
-    # TODO(jelmer): Use the API for codesearch.debian.net instead?
-    defun_prefix = b"AC_DEFUN([%s]," % macro.encode("ascii")
-    for entry in os.scandir("/usr/share/aclocal"):
-        if not entry.is_file():
-            continue
-        with open(entry.path, "rb") as f:
-            for line in f:
-                if line.startswith(defun_prefix):
-                    return entry.path
-    raise KeyError
-
-
 def run_pgbuildext_updatecontrol(error, context):
     logging.info("Running 'pg_buildext updatecontrol'")
     # TODO(jelmer): run in the schroot
@@ -674,17 +629,15 @@ def run_pgbuildext_updatecontrol(error, context):
     )
 
 
-def fix_missing_autoconf_macro(error, context):
-    try:
-        path = _find_aclocal_fun(error.macro)
-    except KeyError:
-        logging.info("No local m4 file found defining %s", error.macro)
-        return False
-    package = context.apt.get_package_for_paths([path])
-    if package is None:
-        logging.warning("no package for macro file %s", path)
-        return False
-    return context.add_dependency(package)
+def fix_missing_makefile_pl(error, context):
+    if (
+        error.filename == "Makefile.PL"
+        and not context.tree.has_filename("Makefile.PL")
+        and context.tree.has_filename("dist.ini")
+    ):
+        # TODO(jelmer): add dist-zilla add-on to debhelper
+        raise NotImplementedError
+    return False
 
 
 VERSIONED_PACKAGE_FIXERS: List[
@@ -699,14 +652,14 @@ VERSIONED_PACKAGE_FIXERS: List[
 APT_FIXERS: List[Tuple[Type[Problem], Callable[[Problem, DependencyContext], bool]]] = [
     (MissingPythonModule, fix_missing_python_module),
     (MissingPythonDistribution, fix_missing_python_distribution),
-    (MissingPerlFile, fix_missing_perl_file),
-    (MissingPerlModule, fix_missing_perl_file),
     (AptFetchFailure, retry_apt_failure),
-    (MissingGnomeCommonDependency, install_gnome_common_dep),
-    (MissingXfceDependency, install_xfce_dep),
-    (MissingConfigStatusInput, fix_missing_config_status_input),
-    (MissingAutoconfMacro, fix_missing_autoconf_macro),
+    (MissingPerlFile, fix_missing_makefile_pl),
     (Problem, fix_missing_requirement),
+]
+
+
+GENERIC_FIXERS: List[Tuple[Type[Problem], Callable[[Problem, DependencyContext], bool]]] = [
+    (MissingConfigStatusInput, fix_missing_config_status_input),
 ]
 
 
@@ -793,7 +746,7 @@ def build_incrementally(
                 raise
             try:
                 if not resolve_error(
-                    e.error, context, VERSIONED_PACKAGE_FIXERS + APT_FIXERS
+                    e.error, context, VERSIONED_PACKAGE_FIXERS + APT_FIXERS + GENERIC_FIXERS
                 ):
                     logging.warning("Failed to resolve error %r. Giving up.", e.error)
                     raise

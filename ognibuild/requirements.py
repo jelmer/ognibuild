@@ -43,10 +43,17 @@ class BinaryRequirement(UpstreamRequirement):
 class PerlModuleRequirement(UpstreamRequirement):
 
     module: str
+    filename: Optional[str]
+    inc: Optional[List[str]]
 
-    def __init__(self, module):
+    def __init__(self, module, filename=None, inc=None):
         super(PerlModuleRequirement, self).__init__('perl-module')
         self.module = module
+        self.filename = filename
+        self.inc = inc
+
+    def relfilename(self):
+        return self.module.replace("::", "/") + ".pm"
 
 
 class NodePackageRequirement(UpstreamRequirement):
@@ -244,3 +251,21 @@ class JDKFileRequirement(UpstreamRequirement):
     @property
     def path(self):
         return posixpath.join(self.jdk_path, self.filename)
+
+
+class PerlFileRequirement(UpstreamRequirement):
+
+    filename: str
+
+    def __init__(self, filename: str):
+        super(PerlFileRequirement, self).__init__('perl-file')
+        self.filename = filename
+
+
+class AutoconfMacroRequirement(UpstreamRequirement):
+
+    macro: str
+
+    def __init__(self, macro: str):
+        super(AutoconfMacroRequirement, self).__init__('autoconf-macro')
+        self.macro = macro
