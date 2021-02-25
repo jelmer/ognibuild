@@ -381,6 +381,16 @@ APT_REQUIREMENT_RESOLVERS = [
 ]
 
 
+def resolve_requirement_apt(apt_mgr, req: UpstreamRequirement):
+    for rr_class, rr_fn in APT_REQUIREMENT_RESOLVERS:
+        if isinstance(req, rr_class):
+            deb_req = rr_fn(apt_mgr, req)
+            if deb_req is None:
+                raise NoAptPackage()
+            return deb_req
+    raise NotImplementedError(type(req))
+
+
 class AptResolver(Resolver):
 
     def __init__(self, apt):
@@ -401,17 +411,10 @@ class AptResolver(Resolver):
                 if not pps or not any(self.apt.session.exists(p) for p in pps):
                     missing.append(req)
         if missing:
-            self.apt.install(list(self.resolve(missing)))
+            self.apt.install([self.resolve(m) for m in missing])
 
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
 
     def resolve(self, req: UpstreamRequirement):
-        for rr_class, rr_fn in APT_REQUIREMENT_RESOLVERS:
-            if isinstance(req, rr_class):
-                deb_req = rr_fn(self.apt, req)
-                if deb_req is None:
-                    raise NoAptPackage()
-                return deb_req
-        else:
-            raise NotImplementedError
+        return resolve_requirement_apt(self.apt, req)

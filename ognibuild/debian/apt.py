@@ -26,17 +26,8 @@ from buildlog_consultant.apt import (
 )
 from debian.deb822 import Release
 
-from .. import DetailedFailure
+from .. import DetailedFailure, UnidentifiedError
 from ..session import Session, run_with_tee
-
-
-class UnidentifiedError(Exception):
-
-    def __init__(self, retcode, argv, lines, secondary=None):
-        self.retcode = retcode
-        self.argv = argv
-        self.lines = lines
-        self.secondary = secondary
 
 
 def run_apt(session: Session, args: List[str]) -> None:

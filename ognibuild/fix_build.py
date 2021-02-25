@@ -25,14 +25,10 @@ from buildlog_consultant.common import (
     MissingPythonDistribution,
     MissingCommand,
 )
+from breezy.mutabletree import MutableTree
 
-from . import DetailedFailure
-from .apt import UnidentifiedError, AptManager
-from .debian.fix_build import (
-    DependencyContext,
-    resolve_error,
-    APT_FIXERS,
-)
+from . import DetailedFailure, UnidentifiedError
+from .debian.apt import AptManager
 from .session import Session, run_with_tee
 
 
@@ -62,6 +58,28 @@ class SimpleBuildFixer(BuildFixer):
 
     def _fix(self, problem, context):
         return self._fn(problem, context)
+
+
+class DependencyContext(object):
+    def __init__(
+        self,
+        tree: MutableTree,
+        apt: AptManager,
+        subpath: str = "",
+        committer: Optional[str] = None,
+        update_changelog: bool = True,
+    ):
+        self.tree = tree
+        self.apt = apt
+        self.resolver = AptResolver(apt)
+        self.subpath = subpath
+        self.committer = committer
+        self.update_changelog = update_changelog
+
+    def add_dependency(
+        self, package: str, minimum_version: Optional['Version'] = None
+    ) -> bool:
+        raise NotImplementedError(self.add_dependency)
 
 
 class SchrootDependencyContext(DependencyContext):
@@ -144,3 +162,19 @@ def run_with_build_fixer(
             logging.warning("Failed to find resolution for error %r. Giving up.", error)
             raise DetailedFailure(retcode, args, error)
         fixed_errors.append(error)
+
+
+def resolve_error(error, context, fixers):
+    relevant_fixers = []
+    for error_cls, fixer in fixers:
+        if isinstance(error, error_cls):
+            relevant_fixers.append(fixer)
+    if not relevant_fixers:
+        logging.warning("No fixer found for %r", error)
+        return False
+    for fixer in relevant_fixers:
+        logging.info("Attempting to use fixer %r to address %r", fixer, error)
+        made_changes = fixer(error, context)
+        if made_changes:
+            return True
+    return False

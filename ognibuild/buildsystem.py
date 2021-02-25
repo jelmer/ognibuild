@@ -22,7 +22,7 @@ import os
 import re
 import warnings
 
-from . import shebang_binary, UpstreamOutput
+from . import shebang_binary, UpstreamOutput, UnidentifiedError
 from .requirements import (
     BinaryRequirement,
     PythonPackageRequirement,
@@ -30,7 +30,6 @@ from .requirements import (
     NodePackageRequirement,
     CargoCrateRequirement,
     )
-from .apt import UnidentifiedError
 from .fix_build import run_with_build_fixer
 
 
@@ -135,6 +134,10 @@ class SetupPy(BuildSystem):
     def test(self, session, resolver):
         self.setup(resolver)
         self._run_setup(session, resolver, ["test"])
+
+    def build(self, session, resolver):
+        self.setup(resolver)
+        self._run_setup(session, resolver, ["build"])
 
     def dist(self, session, resolver):
         self.setup(resolver)
@@ -369,6 +372,11 @@ class Make(BuildSystem):
 
         if not session.exists("Makefile") and session.exists("configure"):
             session.check_call(["./configure"])
+
+    def build(self, session, resolver):
+        self.setup(session, resolver)
+        resolver.install([BinaryRequirement("make")])
+        run_with_build_fixer(session, ["make", "all"])
 
     def dist(self, session, resolver):
         self.setup(session, resolver)

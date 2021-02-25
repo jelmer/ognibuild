@@ -22,7 +22,7 @@ __all__ = [
 import logging
 import os
 import sys
-from typing import List, Callable, Type, Tuple, Set, Optional
+from typing import List, Set, Optional
 
 from debian.deb822 import (
     Deb822,
@@ -105,10 +105,9 @@ from buildlog_consultant.sbuild import (
     SbuildFailure,
 )
 
-from .apt import AptManager, LocalAptManager
-from ..fix_build import BuildFixer, SimpleBuildFixer
+from .apt import LocalAptManager
+from ..fix_build import BuildFixer, SimpleBuildFixer, resolve_error, DependencyContext
 from ..resolver.apt import (
-    AptResolver,
     NoAptPackage,
     get_package_for_python_module,
     )
@@ -149,31 +148,6 @@ class CircularDependency(Exception):
 
     def __init__(self, package):
         self.package = package
-
-
-class DependencyContext(object):
-    def __init__(
-        self,
-        tree: MutableTree,
-        apt: AptManager,
-        subpath: str = "",
-        committer: Optional[str] = None,
-        update_changelog: bool = True,
-    ):
-        self.tree = tree
-        self.apt = apt
-        self.resolver = AptResolver(apt)
-        self.subpath = subpath
-        self.committer = committer
-        self.update_changelog = update_changelog
-
-    def resolve_apt(self, req):
-        return self.resolver.resolve(req)
-
-    def add_dependency(
-        self, package: str, minimum_version: Optional[Version] = None
-    ) -> bool:
-        raise NotImplementedError(self.add_dependency)
 
 
 class BuildDependencyContext(DependencyContext):
@@ -462,90 +436,95 @@ def fix_missing_python_module(error, context):
     return True
 
 
-def fix_missing_requirement(error, context):
-    if isinstance(error, MissingFile):
-        req = PathRequirement(error.path)
-    elif isinstance(error, MissingCommand):
-        req = BinaryRequirement(error.command)
-    elif isinstance(error, MissingPkgConfig):
-        req = PkgConfigRequirement(
-            error.module, error.minimum_version)
-    elif isinstance(error, MissingCHeader):
-        req = CHeaderRequirement(error.header)
-    elif isinstance(error, MissingJavaScriptRuntime):
-        req = JavaScriptRuntimeRequirement()
-    elif isinstance(error, MissingRubyGem):
-        req = RubyGemRequirement(error.gem, error.version)
-    elif isinstance(error, MissingValaPackage):
-        req = ValaPackageRequirement(error.package)
-    elif isinstance(error, MissingGoPackage):
-        req = GoPackageRequirement(error.package)
-    elif isinstance(error, DhAddonLoadFailure):
-        req = DhAddonRequirement(error.path)
-    elif isinstance(error, MissingPhpClass):
-        req = PhpClassRequirement(error.php_class)
-    elif isinstance(error, MissingRPackage):
-        req = RPackageRequirement(error.package, error.minimum_version)
-    elif isinstance(error, MissingNodeModule):
-        req = NodePackageRequirement(error.module)
-    elif isinstance(error, MissingLibrary):
-        req = LibraryRequirement(error.library)
-    elif isinstance(error, MissingRubyFile):
-        req = RubyFileRequirement(error.filename)
-    elif isinstance(error, MissingXmlEntity):
-        req = XmlEntityRequirement(error.url)
-    elif isinstance(error, MissingSprocketsFile):
-        req = SprocketsFileRequirement(error.content_type, error.name)
-    elif isinstance(error, MissingJavaClass):
-        req = JavaClassRequirement(error.classname)
-    elif isinstance(error, MissingHaskellDependencies):
+def problem_to_upstream_requirement(problem, context):
+    if isinstance(problem, MissingFile):
+        return PathRequirement(problem.path)
+    elif isinstance(problem, MissingCommand):
+        return BinaryRequirement(problem.command)
+    elif isinstance(problem, MissingPkgConfig):
+        return PkgConfigRequirement(
+            problem.module, problem.minimum_version)
+    elif isinstance(problem, MissingCHeader):
+        return CHeaderRequirement(problem.header)
+    elif isinstance(problem, MissingJavaScriptRuntime):
+        return JavaScriptRuntimeRequirement()
+    elif isinstance(problem, MissingRubyGem):
+        return RubyGemRequirement(problem.gem, problem.version)
+    elif isinstance(problem, MissingValaPackage):
+        return ValaPackageRequirement(problem.package)
+    elif isinstance(problem, MissingGoPackage):
+        return GoPackageRequirement(problem.package)
+    elif isinstance(problem, DhAddonLoadFailure):
+        return DhAddonRequirement(problem.path)
+    elif isinstance(problem, MissingPhpClass):
+        return PhpClassRequirement(problem.php_class)
+    elif isinstance(problem, MissingRPackage):
+        return RPackageRequirement(problem.package, problem.minimum_version)
+    elif isinstance(problem, MissingNodeModule):
+        return NodePackageRequirement(problem.module)
+    elif isinstance(problem, MissingLibrary):
+        return LibraryRequirement(problem.library)
+    elif isinstance(problem, MissingRubyFile):
+        return RubyFileRequirement(problem.filename)
+    elif isinstance(problem, MissingXmlEntity):
+        return XmlEntityRequirement(problem.url)
+    elif isinstance(problem, MissingSprocketsFile):
+        return SprocketsFileRequirement(problem.content_type, problem.name)
+    elif isinstance(problem, MissingJavaClass):
+        return JavaClassRequirement(problem.classname)
+    elif isinstance(problem, MissingHaskellDependencies):
         # TODO(jelmer): Create multiple HaskellPackageRequirement objects?
-        req = HaskellPackageRequirement(error.package)
-    elif isinstance(error, MissingMavenArtifacts):
+        return HaskellPackageRequirement(problem.package)
+    elif isinstance(problem, MissingMavenArtifacts):
         # TODO(jelmer): Create multiple MavenArtifactRequirement objects?
-        req = MavenArtifactRequirement(error.artifacts)
-    elif isinstance(error, MissingCSharpCompiler):
-        req = BinaryRequirement('msc')
-    elif isinstance(error, GnomeCommonMissing):
-        req = GnomeCommonRequirement()
-    elif isinstance(error, MissingJDKFile):
-        req = JDKFileRequirement(error.jdk_path, error.filename)
-    elif isinstance(error, MissingGnomeCommonDependency):
-        if error.package == "glib-gettext":
-            req = BinaryRequirement('glib-gettextize')
+        return MavenArtifactRequirement(problem.artifacts)
+    elif isinstance(problem, MissingCSharpCompiler):
+        return BinaryRequirement('msc')
+    elif isinstance(problem, GnomeCommonMissing):
+        return GnomeCommonRequirement()
+    elif isinstance(problem, MissingJDKFile):
+        return JDKFileRequirement(problem.jdk_path, problem.filename)
+    elif isinstance(problem, MissingGnomeCommonDependency):
+        if problem.package == "glib-gettext":
+            return BinaryRequirement('glib-gettextize')
         else:
             logging.warning(
                 "No known command for gnome-common dependency %s",
-                error.package)
+                problem.package)
             return None
-    elif isinstance(error, MissingXfceDependency):
-        if error.package == "gtk-doc":
-            req = BinaryRequirement("gtkdocize")
+    elif isinstance(problem, MissingXfceDependency):
+        if problem.package == "gtk-doc":
+            return BinaryRequirement("gtkdocize")
         else:
             logging.warning(
                 "No known command for xfce dependency %s",
-                error.package)
+                problem.package)
             return None
-    elif isinstance(error, MissingPerlModule):
-        req = PerlModuleRequirement(
-            module=error.module,
-            filename=error.filename,
-            inc=error.inc)
-    elif isinstance(error, MissingPerlFile):
-        req = PerlFileRequirement(filename=error.filename)
-    elif isinstance(error, MissingAutoconfMacro):
-        req = AutoconfMacroRequirement(error.macro)
+    elif isinstance(problem, MissingPerlModule):
+        return PerlModuleRequirement(
+            module=problem.module,
+            filename=problem.filename,
+            inc=problem.inc)
+    elif isinstance(problem, MissingPerlFile):
+        return PerlFileRequirement(filename=problem.filename)
+    elif isinstance(problem, MissingAutoconfMacro):
+        return AutoconfMacroRequirement(problem.macro)
     else:
         return None
 
-    try:
-        package = context.resolve_apt(req)
-    except NoAptPackage:
-        return False
-    return context.add_dependency(package)
 
+class UpstreamRequirementFixer(BuildFixer):
 
-DEFAULT_PERL_PATHS = ["/usr/share/perl5"]
+    def fix_missing_requirement(self, error, context):
+        req = problem_to_upstream_requirement(error)
+        if req is None:
+            return False
+
+        try:
+            package = context.resolver.resolve(req)
+        except NoAptPackage:
+            return False
+        return context.add_dependency(package)
 
 
 def retry_apt_failure(error, context):
@@ -646,6 +625,7 @@ VERSIONED_PACKAGE_FIXERS: List[BuildFixer] = [
         NeedPgBuildExtUpdateControl, run_pgbuildext_updatecontrol),
     SimpleBuildFixer(MissingConfigure, fix_missing_configure),
     SimpleBuildFixer(MissingAutomakeInput, fix_missing_automake_input),
+    SimpleBuildFixer(MissingConfigStatusInput, fix_missing_config_status_input),
 ]
 
 
@@ -653,34 +633,13 @@ APT_FIXERS: List[BuildFixer] = [
     SimpleBuildFixer(MissingPythonModule, fix_missing_python_module),
     SimpleBuildFixer(MissingPythonDistribution, fix_missing_python_distribution),
     SimpleBuildFixer(AptFetchFailure, retry_apt_failure),
-    SimpleBuildFixer(MissingPerlFile, fix_missing_makefile_pl),
-    SimpleBuildFixer(Problem, fix_missing_requirement),
+    UpstreamRequirementFixer(),
 ]
 
 
 GENERIC_FIXERS: List[BuildFixer] = [
-    SimpleBuildFixer(MissingConfigStatusInput, fix_missing_config_status_input),
+    SimpleBuildFixer(MissingPerlFile, fix_missing_makefile_pl),
 ]
-
-
-def resolve_error(error, context, fixers):
-    relevant_fixers = []
-    for error_cls, fixer in fixers:
-        if isinstance(error, error_cls):
-            relevant_fixers.append(fixer)
-    if not relevant_fixers:
-        logging.warning("No fixer found for %r", error)
-        return False
-    for fixer in relevant_fixers:
-        logging.info("Attempting to use fixer %r to address %r", fixer, error)
-        try:
-            made_changes = fixer(error, context)
-        except GeneratedFile:
-            logging.warning("Control file is generated, unable to edit.")
-            return False
-        if made_changes:
-            return True
-    return False
 
 
 def build_incrementally(
@@ -714,17 +673,17 @@ def build_incrementally(
             if e.error is None:
                 logging.warning("Build failed with unidentified error. Giving up.")
                 raise
-            if e.context is None:
+            if e.phase is None:
                 logging.info("No relevant context, not making any changes.")
                 raise
-            if (e.error, e.context) in fixed_errors:
+            if (e.error, e.phase) in fixed_errors:
                 logging.warning("Error was still not fixed on second try. Giving up.")
                 raise
             if max_iterations is not None and len(fixed_errors) > max_iterations:
                 logging.warning("Last fix did not address the issue. Giving up.")
                 raise
             reset_tree(local_tree, local_tree.basis_tree(), subpath=subpath)
-            if e.context[0] == "build":
+            if e.phase[0] == "build":
                 context = BuildDependencyContext(
                     local_tree,
                     apt,
@@ -732,9 +691,9 @@ def build_incrementally(
                     committer=committer,
                     update_changelog=update_changelog,
                 )
-            elif e.context[0] == "autopkgtest":
+            elif e.phase[0] == "autopkgtest":
                 context = AutopkgtestDependencyContext(
-                    e.context[1],
+                    e.phase[1],
                     local_tree,
                     apt,
                     subpath=subpath,
@@ -742,7 +701,7 @@ def build_incrementally(
                     update_changelog=update_changelog,
                 )
             else:
-                logging.warning("unable to install for context %r", e.context)
+                logging.warning("unable to install for context %r", e.phase)
                 raise
             try:
                 if not resolve_error(
@@ -750,13 +709,18 @@ def build_incrementally(
                 ):
                     logging.warning("Failed to resolve error %r. Giving up.", e.error)
                     raise
+            except GeneratedFile:
+                logging.warning(
+                    "Control file is generated, unable to edit to "
+                    "resolver error %r.", e.error)
+                raise e
             except CircularDependency:
                 logging.warning(
                     "Unable to fix %r; it would introduce a circular " "dependency.",
                     e.error,
                 )
                 raise e
-            fixed_errors.append((e.error, e.context))
+            fixed_errors.append((e.error, e.phase))
             if os.path.exists(os.path.join(output_directory, "build.log")):
                 i = 1
                 while os.path.exists(
@@ -772,7 +736,7 @@ def build_incrementally(
 def main(argv=None):
     import argparse
 
-    parser = argparse.ArgumentParser("janitor.fix_build")
+    parser = argparse.ArgumentParser("ognibuild.debian.fix_build")
     parser.add_argument(
         "--suffix", type=str, help="Suffix to use for test builds.", default="fixbuild1"
     )

@@ -28,6 +28,15 @@ class DetailedFailure(Exception):
         self.error = error
 
 
+class UnidentifiedError(Exception):
+
+    def __init__(self, retcode, argv, lines, secondary=None):
+        self.retcode = retcode
+        self.argv = argv
+        self.lines = lines
+        self.secondary = secondary
+
+
 def shebang_binary(p):
     if not (os.stat(p).st_mode & stat.S_IEXEC):
         return None
@@ -48,6 +57,9 @@ class UpstreamRequirement(object):
 
     def __init__(self, family):
         self.family = family
+
+    def possible_paths(self):
+        raise NotImplementedError
 
 
 class UpstreamOutput(object):
