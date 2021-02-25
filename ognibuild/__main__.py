@@ -83,8 +83,15 @@ def main():  # noqa: C901
         action="store_true",
         help="Ignore declared dependencies, follow build errors only",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Be verbose")
     args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO)
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
     if args.schroot:
         from .session.schroot import SchrootSession
 

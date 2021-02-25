@@ -46,18 +46,43 @@ def run_apt(session: Session, args: List[str]) -> None:
     raise UnidentifiedError(retcode, args, lines)
 
 
+class FileSearcher(object):
+    def search_files(self, path: str, regex: bool = False) -> Iterator[str]:
+        raise NotImplementedError(self.search_files)
+
+
 class AptManager(object):
 
     session: Session
+    _searchers: Optional[List[FileSearcher]]
 
     def __init__(self, session):
         self.session = session
+        self._apt_cache = None
+        self._searchers = None
 
-    def package_exists(self, package: str) -> bool:
-        raise NotImplementedError(self.package_exists)
+    def searchers(self):
+        if self._searchers is None:
+            self._searchers = [
+                RemoteAptContentsFileSearcher.from_session(self.session),
+                GENERATED_FILE_SEARCHER]
+        return self._searchers
+
+    def package_exists(self, package):
+        if self._apt_cache is None:
+            import apt_pkg
+
+            # TODO(jelmer): Load from self.session
+            self._apt_cache = apt_pkg.Cache()
+        for p in self._apt_cache.packages:
+            if p.name == package:
+                return True
+        return False
 
     def get_package_for_paths(self, paths, regex=False):
-        raise NotImplementedError(self.get_package_for_paths)
+        logging.debug('Searching for packages containing %r', paths)
+        # TODO(jelmer): Make sure we use whatever is configured in self.session
+        return get_package_for_paths(paths, self.searchers(), regex=regex)
 
     def missing(self, packages):
         root = getattr(self.session, "location", "/")
@@ -84,45 +109,22 @@ class AptManager(object):
         run_apt(self.session, ["satisfy"] + deps)
 
 
-class LocalAptManager(AptManager):
-
-    def __init__(self):
-        from ..session.plain import PlainSession
-        self.session = PlainSession()
-        self._apt_cache = None
-
-    def package_exists(self, package):
-        if self._apt_cache is None:
-            import apt_pkg
-
-            self._apt_cache = apt_pkg.Cache()
-        for p in self._apt_cache.packages:
-            if p.name == package:
-                return True
-        return False
-
-    def get_package_for_paths(self, paths, regex=False):
-        # TODO(jelmer): Make sure we use whatever is configured in self.session
-        return get_package_for_paths(paths, regex=regex)
-
-
-class FileSearcher(object):
-    def search_files(self, path: str, regex: bool = False) -> Iterator[str]:
-        raise NotImplementedError(self.search_files)
-
-
 class ContentsFileNotFound(Exception):
     """The contents file was not found."""
 
 
-class AptContentsFileSearcher(FileSearcher):
+class RemoteAptContentsFileSearcher(FileSearcher):
     def __init__(self):
         self._db = {}
 
     @classmethod
-    def from_env(cls):
-        sources = os.environ["REPOSITORIES"].split(":")
-        return cls.from_repositories(sources)
+    def from_session(cls, session):
+        logging.info('Loading apt contents information')
+        # TODO(jelmer): what about sources.list.d?
+        with open(os.path.join(session.location, 'etc/apt/sources.list'), 'r') as f:
+            return cls.from_repositories(
+                f.readlines(),
+                cache_dir=os.path.join(session.location, 'var/lib/apt/lists'))
 
     def __setitem__(self, path, package):
         self._db[path] = package
@@ -144,36 +146,75 @@ class AptContentsFileSearcher(FileSearcher):
             self[decoded_path] = package.decode("utf-8")
 
     @classmethod
-    def from_urls(cls, urls):
+    def _load_cache_file(cls, url, cache_dir):
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        p = os.path.join(
+            cache_dir,
+            parsed.hostname + parsed.path.replace('/', '_') + '.lz4')
+        logging.debug('Loading cached contents file %s', p)
+        if not os.path.exists(p):
+            return None
+        import lz4.frame
+        return lz4.frame.open(p, mode='rb')
+
+    @classmethod
+    def from_urls(cls, urls, cache_dir=None):
         self = cls()
-        for url in urls:
-            self.load_url(url)
+        for url, mandatory in urls:
+            f = cls._load_cache_file(url, cache_dir)
+            if f is not None:
+                self.load_file(f)
+            elif not mandatory and self._db:
+                logging.debug(
+                    'Not attempting to fetch optional contents file %s', url)
+            else:
+                logging.debug('Fetching contents file %s', url)
+                try:
+                    self.load_url(url)
+                except ContentsFileNotFound:
+                    if mandatory:
+                        raise
+                    logging.debug(
+                        'Unable to fetch optional contents file %s', url)
         return self
 
     @classmethod
-    def from_repositories(cls, sources):
-        from .debian.build import get_build_architecture
+    def from_repositories(cls, sources, cache_dir=None):
+        # TODO(jelmer): Use aptsources.sourceslist.SourcesList
+        from .build import get_build_architecture
         # TODO(jelmer): Verify signatures, etc.
         urls = []
-        arches = [get_build_architecture(), "all"]
+        arches = [(get_build_architecture(), True), ("all", False)]
         for source in sources:
+            if not source.strip():
+                continue
+            if source.strip().startswith('#'):
+                continue
             parts = source.split(" ")
+            if parts[0] == "deb-src":
+                continue
             if parts[0] != "deb":
                 logging.warning("Invalid line in sources: %r", source)
                 continue
-            base_url = parts[1]
-            name = parts[2]
-            components = parts[3:]
-            response = cls._get("%s/%s/Release" % (base_url, name))
-            r = Release(response)
-            desired_files = set()
-            for component in components:
-                for arch in arches:
-                    desired_files.add("%s/Contents-%s" % (component, arch))
-            for entry in r["MD5Sum"]:
-                if entry["name"] in desired_files:
-                    urls.append("%s/%s/%s" % (base_url, name, entry["name"]))
-        return cls.from_urls(urls)
+            base_url = parts[1].strip().rstrip("/")
+            name = parts[2].strip()
+            components = [c.strip() for c in parts[3:]]
+            if components:
+                dists_url = base_url + "/dists"
+            else:
+                dists_url = base_url
+            if components:
+                for component in components:
+                    for arch, mandatory in arches:
+                        urls.append(
+                            ("%s/%s/%s/Contents-%s" % (
+                                dists_url, name, component, arch), mandatory))
+            else:
+                for arch, mandatory in arches:
+                    urls.append(
+                        ("%s/%s/Contents-%s" % (dists_url, name.rstrip('/'), arch), mandatory))
+        return cls.from_urls(urls, cache_dir=cache_dir)
 
     @staticmethod
     def _get(url):
@@ -182,19 +223,27 @@ class AptContentsFileSearcher(FileSearcher):
         request = Request(url, headers={"User-Agent": "Debian Janitor"})
         return urlopen(request)
 
-    def load_url(self, url):
+    def load_url(self, url, allow_cache=True):
         from urllib.error import HTTPError
 
-        try:
-            response = self._get(url)
-        except HTTPError as e:
-            if e.status == 404:
-                raise ContentsFileNotFound(url)
-            raise
-        if url.endswith(".gz"):
+        for ext in ['.xz', '.gz', '']:
+            try:
+                response = self._get(url + ext)
+            except HTTPError as e:
+                if e.status == 404:
+                   continue
+                raise
+            break
+        else:
+            raise ContentsFileNotFound(url)
+        if ext == '.gz':
             import gzip
 
             f = gzip.GzipFile(fileobj=response)
+        elif ext == '.xz':
+            import lzma
+            from io import BytesIO
+            f = BytesIO(lzma.decompress(response.read()))
         elif response.headers.get_content_type() == "text/plain":
             f = response
         else:
@@ -228,23 +277,12 @@ GENERATED_FILE_SEARCHER = GeneratedFileSearcher(
 )
 
 
-_apt_file_searcher = None
-
-
-def search_apt_file(path: str, regex: bool = False) -> Iterator[str]:
-    global _apt_file_searcher
-    if _apt_file_searcher is None:
-        # TODO(jelmer): cache file
-        _apt_file_searcher = AptContentsFileSearcher.from_env()
-    if _apt_file_searcher:
-        yield from _apt_file_searcher.search_files(path, regex=regex)
-    yield from GENERATED_FILE_SEARCHER.search_files(path, regex=regex)
-
-
-def get_package_for_paths(paths: List[str], regex: bool = False) -> Optional[str]:
+def get_package_for_paths(
+        paths: List[str], searchers: List[FileSearcher], regex: bool = False) -> Optional[str]:
     candidates: Set[str] = set()
     for path in paths:
-        candidates.update(search_apt_file(path, regex=regex))
+        for searcher in searchers:
+            candidates.update(searcher.search_files(path, regex=regex))
         if candidates:
             break
     if len(candidates) == 0:

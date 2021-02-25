@@ -48,11 +48,30 @@ from ..requirements import (
     PerlModuleRequirement,
     PerlFileRequirement,
     AutoconfMacroRequirement,
+    PythonModuleRequirement,
+    PythonPackageRequirement,
     )
 
 
 class NoAptPackage(Exception):
     """No apt package."""
+
+
+def get_package_for_python_package(apt_mgr, package, python_version):
+    if python_version == "pypy":
+        return apt_mgr.get_package_for_paths(
+            ["/usr/lib/pypy/dist-packages/%s-.*.egg-info/PKG-INFO" % package],
+            regex=True)
+    elif python_version == "cpython2":
+        return apt_mgr.get_package_for_paths(
+            ["/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info/PKG-INFO" % package],
+            regex=True)
+    elif python_version == "cpython3":
+        return apt_mgr.get_package_for_paths(
+            ["/usr/lib/python3/dist-packages/%s-.*.egg-info/PKG-INFO" % package],
+            regex=True)
+    else:
+        raise NotImplementedError
 
 
 def get_package_for_python_module(apt_mgr, module, python_version):
@@ -354,6 +373,24 @@ def resolve_autoconf_macro_req(apt_mgr, req):
     return apt_mgr.get_package_for_paths([path])
 
 
+def resolve_python_module_req(apt_mgr, req):
+    if req.python_version == 2:
+        return get_package_for_python_module(apt_mgr, req.module, "cpython2")
+    elif req.python_version in (None, 3):
+        return get_package_for_python_module(apt_mgr, req.module, "cpython3")
+    else:
+        return None
+
+
+def resolve_python_package_req(apt_mgr, req):
+    if req.python_version == 2:
+        return get_package_for_python_package(apt_mgr, req.package, "cpython2")
+    elif req.python_version in (None, 3):
+        return get_package_for_python_package(apt_mgr, req.package, "cpython3")
+    else:
+        return None
+
+
 APT_REQUIREMENT_RESOLVERS = [
     (BinaryRequirement, resolve_binary_req),
     (PkgConfigRequirement, resolve_pkg_config_req),
@@ -379,6 +416,8 @@ APT_REQUIREMENT_RESOLVERS = [
     (PerlModuleRequirement, resolve_perl_module_req),
     (PerlFileRequirement, resolve_perl_file_req),
     (AutoconfMacroRequirement, resolve_autoconf_macro_req),
+    (PythonModuleRequirement, resolve_python_module_req),
+    (PythonPackageRequirement, resolve_python_package_req),
 ]
 
 
@@ -387,7 +426,7 @@ def resolve_requirement_apt(apt_mgr, req: UpstreamRequirement):
         if isinstance(req, rr_class):
             deb_req = rr_fn(apt_mgr, req)
             if deb_req is None:
-                raise NoAptPackage()
+                raise NoAptPackage(req)
             return deb_req
     raise NotImplementedError(type(req))
 
@@ -401,16 +440,18 @@ class AptResolver(Resolver):
     def from_session(cls, session):
         return cls(AptManager(session))
 
+    def met(self, requirement):
+        pps = list(requirement.possible_paths())
+        return any(self.apt.session.exists(p) for p in pps)
+
     def install(self, requirements):
         missing = []
         for req in requirements:
             try:
-                pps = list(req.possible_paths())
+                if not self.met(req):
+                    missing.append(req)
             except NotImplementedError:
                 missing.append(req)
-            else:
-                if not pps or not any(self.apt.session.exists(p) for p in pps):
-                    missing.append(req)
         if missing:
             self.apt.install([self.resolve(m) for m in missing])
 

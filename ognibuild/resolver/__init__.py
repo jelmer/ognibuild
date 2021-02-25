@@ -30,6 +30,9 @@ class Resolver(object):
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
 
+    def met(self, requirement):
+        raise NotImplementedError(self.met)
+
 
 class NativeResolver(Resolver):
     def __init__(self, session):
