@@ -136,6 +136,8 @@ from ..requirements import (
     PerlModuleRequirement,
     PerlFileRequirement,
     AutoconfMacroRequirement,
+    PythonModuleRequirement,
+    PythonPackageRequirement,
     )
 from .build import attempt_build, DEFAULT_BUILDER
 
@@ -509,6 +511,16 @@ def problem_to_upstream_requirement(problem, context):
         return PerlFileRequirement(filename=problem.filename)
     elif isinstance(problem, MissingAutoconfMacro):
         return AutoconfMacroRequirement(problem.macro)
+    elif isinstance(problem, MissingPythonModule):
+        return PythonModuleRequirement(
+            problem.module,
+            python_version=problem.python_version,
+            minimum_version=problem.minimum_version)
+    elif isinstance(problem, MissingPythonDistribution):
+        return PythonPackageRequirement(
+            problem.module,
+            python_version=problem.python_version,
+            minimum_version=problem.minimum_version)
     else:
         return None
 

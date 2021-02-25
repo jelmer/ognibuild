@@ -26,9 +26,11 @@ class PythonPackageRequirement(UpstreamRequirement):
 
     package: str
 
-    def __init__(self, package):
+    def __init__(self, package, python_version=None, minimum_version=None):
         super(PythonPackageRequirement, self).__init__('python-package')
         self.package = package
+        self.python_version = python_version
+        self.minimum_version = minimum_version
 
 
 class BinaryRequirement(UpstreamRequirement):
@@ -269,3 +271,15 @@ class AutoconfMacroRequirement(UpstreamRequirement):
     def __init__(self, macro: str):
         super(AutoconfMacroRequirement, self).__init__('autoconf-macro')
         self.macro = macro
+
+
+class PythonModuleRequirement(UpstreamRequirement):
+
+    module: str
+    python_version: Optional[str]
+    minimum_version: Optional[str]
+
+    def __init__(self, module, python_version=None, minimum_version=None):
+        super(PythonModuleRequirement, self).__init__('python-module')
+        self.python_version = python_version
+        self.minimum_version = minimum_version

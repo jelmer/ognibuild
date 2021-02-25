@@ -71,6 +71,7 @@ class DependencyContext(object):
     ):
         self.tree = tree
         self.apt = apt
+        from .resolver.apt import AptResolver
         self.resolver = AptResolver(apt)
         self.subpath = subpath
         self.committer = committer
