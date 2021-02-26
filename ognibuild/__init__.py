@@ -58,8 +58,8 @@ class UpstreamRequirement(object):
     def __init__(self, family):
         self.family = family
 
-    def possible_paths(self):
-        raise NotImplementedError
+    def met(self, session):
+        raise NotImplementedError(self)
 
 
 class UpstreamOutput(object):

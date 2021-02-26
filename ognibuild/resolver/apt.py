@@ -57,7 +57,7 @@ class NoAptPackage(Exception):
     """No apt package."""
 
 
-def get_package_for_python_package(apt_mgr, package, python_version):
+def get_package_for_python_package(apt_mgr, package, python_version, minimum_version=None):
     if python_version == "pypy":
         return apt_mgr.get_package_for_paths(
             ["/usr/lib/pypy/dist-packages/%s-.*.egg-info/PKG-INFO" % package],
@@ -375,18 +375,18 @@ def resolve_autoconf_macro_req(apt_mgr, req):
 
 def resolve_python_module_req(apt_mgr, req):
     if req.python_version == 2:
-        return get_package_for_python_module(apt_mgr, req.module, "cpython2")
+        return get_package_for_python_module(apt_mgr, req.module, "cpython2", req.minimum_version)
     elif req.python_version in (None, 3):
-        return get_package_for_python_module(apt_mgr, req.module, "cpython3")
+        return get_package_for_python_module(apt_mgr, req.module, "cpython3", req.minimum_version)
     else:
         return None
 
 
 def resolve_python_package_req(apt_mgr, req):
     if req.python_version == 2:
-        return get_package_for_python_package(apt_mgr, req.package, "cpython2")
+        return get_package_for_python_package(apt_mgr, req.package, "cpython2", req.minimum_version)
     elif req.python_version in (None, 3):
-        return get_package_for_python_package(apt_mgr, req.package, "cpython3")
+        return get_package_for_python_package(apt_mgr, req.package, "cpython3", req.minimum_version)
     else:
         return None
 
@@ -421,6 +421,13 @@ APT_REQUIREMENT_RESOLVERS = [
 ]
 
 
+class AptRequirement(object):
+
+    def __init__(self, package, minimum_version=None):
+        self.package = package
+        self.minimum_version = minimum_version
+
+
 def resolve_requirement_apt(apt_mgr, req: UpstreamRequirement):
     for rr_class, rr_fn in APT_REQUIREMENT_RESOLVERS:
         if isinstance(req, rr_class):
@@ -440,15 +447,11 @@ class AptResolver(Resolver):
     def from_session(cls, session):
         return cls(AptManager(session))
 
-    def met(self, requirement):
-        pps = list(requirement.possible_paths())
-        return any(self.apt.session.exists(p) for p in pps)
-
     def install(self, requirements):
         missing = []
         for req in requirements:
             try:
-                if not self.met(req):
+                if not req.met(self.apt.session):
                     missing.append(req)
             except NotImplementedError:
                 missing.append(req)

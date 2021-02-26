@@ -31,7 +31,7 @@ from buildlog_consultant.common import (
     MissingValaPackage,
 )
 from ..debian import apt
-from ..debian.apt import LocalAptManager
+from ..debian.apt import AptManager
 from ..debian.fix_build import (
     resolve_error,
     VERSIONED_PACKAGE_FIXERS,
@@ -89,7 +89,8 @@ blah (0.1) UNRELEASED; urgency=medium
                     yield pkg
 
     def resolve(self, error, context=("build",)):
-        apt = LocalAptManager()
+        from ..session.plain import PlainSession
+        apt = AptManager(PlainSession())
         context = BuildDependencyContext(
             self.tree,
             apt,

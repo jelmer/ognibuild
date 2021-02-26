@@ -437,7 +437,7 @@ def fix_missing_python_module(error, context):
     return True
 
 
-def problem_to_upstream_requirement(problem, context):
+def problem_to_upstream_requirement(problem):
     if isinstance(problem, MissingFile):
         return PathRequirement(problem.path)
     elif isinstance(problem, MissingCommand):
@@ -526,7 +526,11 @@ def problem_to_upstream_requirement(problem, context):
 
 class UpstreamRequirementFixer(BuildFixer):
 
-    def fix_missing_requirement(self, error, context):
+    def can_fix(self, error):
+        req = problem_to_upstream_requirement(error)
+        return req is not None
+
+    def fix(self, error, context):
         req = problem_to_upstream_requirement(error)
         if req is None:
             return False

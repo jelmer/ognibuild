@@ -33,9 +33,12 @@ class PythonPackageRequirement(UpstreamRequirement):
         self.minimum_version = minimum_version
 
     def __repr__(self):
-        return "%s(%r, %r, %r)" % (
+        return "%s(%r, python_version=%r, minimum_version=%r)" % (
             type(self).__name__, self.package, self.python_version,
             self.minimum_version)
+
+    def __str__(self):
+        return "python package: %s" % self.package
 
 
 class BinaryRequirement(UpstreamRequirement):

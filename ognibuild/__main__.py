@@ -20,10 +20,6 @@ import os
 import sys
 from . import UnidentifiedError
 from .buildsystem import NoBuildToolsFound, detect_buildsystems
-from .build import run_build
-from .clean import run_clean
-from .dist import run_dist
-from .install import run_install
 from .resolver import (
     ExplainResolver,
     AutoResolver,
@@ -31,7 +27,6 @@ from .resolver import (
     MissingDependencies,
 )
 from .resolver.apt import AptResolver
-from .test import run_test
 
 
 def get_necessary_declared_requirements(resolver, requirements, stages):
@@ -54,6 +49,7 @@ def install_necessary_declared_requirements(resolver, buildsystem, stages):
 
 STAGE_MAP = {
     "dist": [],
+    "info": [],
     "install": ["build"],
     "test": ["test", "dev"],
     "build": ["build"],
@@ -65,9 +61,6 @@ def main():  # noqa: C901
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "subcommand", type=str, choices=["dist", "build", "clean", "test", "install"]
-    )
     parser.add_argument(
         "--directory", "-d", type=str, help="Directory for project.", default="."
     )
@@ -87,6 +80,16 @@ def main():  # noqa: C901
         "--verbose",
         action="store_true",
         help="Be verbose")
+    subparsers = parser.add_subparsers(dest='subcommand')
+    subparsers.add_parser('dist')
+    subparsers.add_parser('build')
+    subparsers.add_parser('clean')
+    subparsers.add_parser('test')
+    subparsers.add_parser('info')
+    install_parser = subparsers.add_parser('install')
+    install_parser.add_argument(
+        '--user', action='store_true', help='Install in local-user directories.')
+
     args = parser.parse_args()
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG)
@@ -112,21 +115,32 @@ def main():  # noqa: C901
         os.chdir(args.directory)
         try:
             bss = list(detect_buildsystems(args.directory))
+            logging.info('Detected buildsystems: %r', bss)
             if not args.ignore_declared_dependencies:
                 stages = STAGE_MAP[args.subcommand]
                 if stages:
                     for bs in bss:
                         install_necessary_declared_requirements(resolver, bs, stages)
             if args.subcommand == "dist":
+                from .dist import run_dist
                 run_dist(session=session, buildsystems=bss, resolver=resolver)
             if args.subcommand == "build":
+                from .build import run_build
                 run_build(session, buildsystems=bss, resolver=resolver)
             if args.subcommand == "clean":
+                from .clean import run_clean
                 run_clean(session, buildsystems=bss, resolver=resolver)
             if args.subcommand == "install":
-                run_install(session, buildsystems=bss, resolver=resolver)
+                from .install import run_install
+                run_install(
+                    session, buildsystems=bss, resolver=resolver,
+                    user=args.user)
             if args.subcommand == "test":
+                from .test import run_test
                 run_test(session, buildsystems=bss, resolver=resolver)
+            if args.subcommand == "info":
+                from .info import run_info
+                run_info(session, buildsystems=bss, resolver=resolver)
         except UnidentifiedError:
             return 1
         except NoBuildToolsFound:

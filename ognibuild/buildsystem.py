@@ -20,6 +20,7 @@
 import logging
 import os
 import re
+from typing import Optional
 import warnings
 
 from . import shebang_binary, UpstreamOutput, UnidentifiedError
@@ -35,6 +36,14 @@ from .fix_build import run_with_build_fixer
 
 class NoBuildToolsFound(Exception):
     """No supported build tools were found."""
+
+
+class InstallTarget(object):
+
+    # Whether to prefer user-specific installation
+    user: Optional[bool]
+
+    # TODO(jelmer): Add information about target directory, layout, etc.
 
 
 class BuildSystem(object):
@@ -54,7 +63,7 @@ class BuildSystem(object):
     def clean(self, session, resolver):
         raise NotImplementedError(self.clean)
 
-    def install(self, session, resolver):
+    def install(self, session, resolver, install_target):
         raise NotImplementedError(self.install)
 
     def get_declared_dependencies(self):
@@ -84,15 +93,15 @@ class Pear(BuildSystem):
 
     def build(self, session, resolver):
         self.setup(resolver)
-        run_with_build_fixer(session, ["pear", "build"])
+        run_with_build_fixer(session, ["pear", "build", self.path])
 
     def clean(self, session, resolver):
         self.setup(resolver)
         # TODO
 
-    def install(self, session, resolver):
+    def install(self, session, resolver, install_target):
         self.setup(resolver)
-        run_with_build_fixer(session, ["pear", "install"])
+        run_with_build_fixer(session, ["pear", "install", self.path])
 
 
 class SetupPy(BuildSystem):
@@ -103,6 +112,9 @@ class SetupPy(BuildSystem):
         self.path = path
         from distutils.core import run_setup
         self.result = run_setup(os.path.abspath(path), stop_after="init")
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
 
     def setup(self, resolver):
         resolver.install([PythonPackageRequirement('pip')])
@@ -147,9 +159,12 @@ class SetupPy(BuildSystem):
         self.setup(resolver)
         self._run_setup(session, resolver, ["clean"])
 
-    def install(self, session, resolver):
+    def install(self, session, resolver, install_target):
         self.setup(resolver)
-        self._run_setup(session, resolver, ["install"])
+        extra_args = []
+        if install_target.user:
+            extra_args.append('--user')
+        self._run_setup(session, resolver, ["install"] + extra_args)
 
     def _run_setup(self, session, resolver, args):
         interpreter = shebang_binary("setup.py")
@@ -338,7 +353,12 @@ class Make(BuildSystem):
 
     name = "make"
 
+    def __repr__(self):
+        return "%s()" % type(self).__name__
+
     def setup(self, session, resolver):
+        resolver.install([BinaryRequirement("make")])
+
         if session.exists("Makefile.PL") and not session.exists("Makefile"):
             resolver.install([BinaryRequirement("perl")])
             run_with_build_fixer(session, ["perl", "Makefile.PL"])
@@ -375,12 +395,14 @@ class Make(BuildSystem):
 
     def build(self, session, resolver):
         self.setup(session, resolver)
-        resolver.install([BinaryRequirement("make")])
         run_with_build_fixer(session, ["make", "all"])
+
+    def install(self, session, resolver, install_target):
+        self.setup(session, resolver)
+        run_with_build_fixer(session, ["make", "install"])
 
     def dist(self, session, resolver):
         self.setup(session, resolver)
-        resolver.install([BinaryRequirement("make")])
         try:
             run_with_build_fixer(session, ["make", "dist"])
         except UnidentifiedError as e:

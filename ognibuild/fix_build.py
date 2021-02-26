@@ -167,15 +167,15 @@ def run_with_build_fixer(
 
 def resolve_error(error, context, fixers):
     relevant_fixers = []
-    for error_cls, fixer in fixers:
-        if isinstance(error, error_cls):
+    for fixer in fixers:
+        if fixer.can_fix(error):
             relevant_fixers.append(fixer)
     if not relevant_fixers:
         logging.warning("No fixer found for %r", error)
         return False
     for fixer in relevant_fixers:
         logging.info("Attempting to use fixer %r to address %r", fixer, error)
-        made_changes = fixer(error, context)
+        made_changes = fixer.fix(error, context)
         if made_changes:
             return True
     return False
