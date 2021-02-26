@@ -182,17 +182,19 @@ class SetupPy(BuildSystem):
     def get_declared_dependencies(self):
         for require in self.result.get_requires():
             yield "build", PythonPackageRequirement(require)
-        if self.result.install_requires:
+        # Not present for distutils-only packages
+        if getattr(self.result, 'install_requires', []):
             for require in self.result.install_requires:
                 yield "install", PythonPackageRequirement(require)
-        if self.result.tests_require:
+        # Not present for distutils-only packages
+        if getattr(self.result, 'tests_require', []):
             for require in self.result.tests_require:
                 yield "test", PythonPackageRequirement(require)
 
     def get_declared_outputs(self):
         for script in self.result.scripts or []:
             yield UpstreamOutput("binary", os.path.basename(script))
-        entry_points = self.result.entry_points or {}
+        entry_points = getattr(self.result, 'entry_points', None) or {}
         for script in entry_points.get("console_scripts", []):
             yield UpstreamOutput("binary", script.split("=")[0])
         for package in self.result.packages or []:

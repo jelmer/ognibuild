@@ -34,19 +34,108 @@ class Resolver(object):
         raise NotImplementedError(self.met)
 
 
-class NativeResolver(Resolver):
+class CPANResolver(object):
+
     def __init__(self, session):
         self.session = session
 
-    @classmethod
-    def from_session(cls, session):
-        return cls(session)
-
     def install(self, requirements):
-        raise NotImplementedError(self.install)
+        from ..requirements import PerlModuleRequirement
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, PerlModuleRequirement):
+                missing.append(requirement)
+                continue
+            # TODO(jelmer): Specify -T to skip tests?
+            self.session.check_call(
+                ["cpan", "-i", requirement.module],
+                user="root", env={"PERL_MM_USE_DEFAULT": "1"}
+            )
+        if missing:
+            raise MissingDependencies(missing)
 
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
+
+    def met(self, requirement):
+        raise NotImplementedError(self.met)
+
+
+class PypiResolver(object):
+
+    def __init__(self, session):
+        self.session = session
+
+    def install(self, requirements):
+        from ..requirements import PythonPackageRequirement
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, PythonPackageRequirement):
+                missing.append(requirement)
+                continue
+            self.session.check_call(["pip", "install", requirement.package])
+        if missing:
+            raise MissingDependencies(missing)
+
+    def explain(self, requirements):
+        raise NotImplementedError(self.explain)
+
+    def met(self, requirement):
+        raise NotImplementedError(self.met)
+
+
+NPM_COMMAND_PACKAGES = {
+    "del-cli": "del-cli",
+}
+
+
+class NpmResolver(object):
+
+    def __init__(self, session):
+        self.session = session
+
+    def install(self, requirements):
+        from ..requirements import NodePackageRequirement
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, NodePackageRequirement):
+                missing.append(requirement)
+                continue
+            try:
+                package = NPM_COMMAND_PACKAGES[requirement.command]
+            except KeyError:
+                missing.append(requirement)
+                continue
+            self.session.check_call(["npm", "-g", "install", package])
+        if missing:
+            raise MissingDependencies(missing)
+
+    def explain(self, requirements):
+        raise NotImplementedError(self.explain)
+
+    def met(self, requirement):
+        raise NotImplementedError(self.met)
+
+
+class StackedResolver(Resolver):
+    def __init__(self, subs):
+        self.subs = subs
+
+    def install(self, requirements):
+        for sub in self.subs:
+            try:
+                sub.install(requirements)
+            except MissingDependencies as e:
+                requirements = e.requirements
+            else:
+                return
+
+
+def native_resolvers(session):
+    return StackedResolver([
+        CPANResolver(session),
+        PypiResolver(session),
+        NpmResolver(session)])
 
 
 class ExplainResolver(Resolver):

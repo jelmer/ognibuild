@@ -47,19 +47,6 @@ class BuildFixer(object):
         return self._fix(problem, context)
 
 
-class SimpleBuildFixer(BuildFixer):
-
-    def __init__(self, problem_cls, fn):
-        self._problem_cls = problem_cls
-        self._fn = fn
-
-    def can_fix(self, problem):
-        return isinstance(problem, self._problem_cls)
-
-    def _fix(self, problem, context):
-        return self._fn(problem, context)
-
-
 class DependencyContext(object):
     def __init__(
         self,
@@ -71,8 +58,6 @@ class DependencyContext(object):
     ):
         self.tree = tree
         self.apt = apt
-        from .resolver.apt import AptResolver
-        self.resolver = AptResolver(apt)
         self.subpath = subpath
         self.committer = committer
         self.update_changelog = update_changelog
@@ -94,47 +79,23 @@ class SchrootDependencyContext(DependencyContext):
         return True
 
 
-def fix_perl_module_from_cpan(error, context):
-    # TODO(jelmer): Specify -T to skip tests?
-    context.session.check_call(
-        ["cpan", "-i", error.module], user="root", env={"PERL_MM_USE_DEFAULT": "1"}
-    )
-    return True
-
-
-NPM_COMMAND_PACKAGES = {
-    "del-cli": "del-cli",
-}
-
-
-def fix_npm_missing_command(error, context):
-    try:
-        package = NPM_COMMAND_PACKAGES[error.command]
-    except KeyError:
-        return False
-
-    context.session.check_call(["npm", "-g", "install", package])
-    return True
-
-
-def fix_python_package_from_pip(error, context):
-    context.session.check_call(["pip", "install", error.distribution])
-    return True
-
-
-GENERIC_INSTALL_FIXERS: List[BuildFixer] = [
-    SimpleBuildFixer(MissingPerlModule, fix_perl_module_from_cpan),
-    SimpleBuildFixer(MissingPythonDistribution, fix_python_package_from_pip),
-    SimpleBuildFixer(MissingCommand, fix_npm_missing_command),
-]
+def generic_install_fixers(session):
+    from .buildlog import UpstreamRequirementFixer
+    from .resolver import CPANResolver, PypiResolver, NpmResolver
+    return [
+        UpstreamRequirementFixer(CPANResolver(session)),
+        UpstreamRequirementFixer(PypiResolver(session)),
+        UpstreamRequirementFixer(NpmResolver(session)),
+        ]
 
 
 def run_with_build_fixer(
         session: Session, args: List[str],
         fixers: Optional[List[BuildFixer]] = None):
     if fixers is None:
-        from .debian.fix_build import APT_FIXERS
-        fixers = GENERIC_INSTALL_FIXERS + APT_FIXERS
+        from .debian.fix_build import apt_fixers
+        from .resolver.apt import AptResolver
+        fixers = generic_install_fixers(session) + apt_fixers(AptResolver.from_session(session))
     logging.info("Running %r", args)
     fixed_errors = []
     while True:

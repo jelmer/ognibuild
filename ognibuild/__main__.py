@@ -23,7 +23,7 @@ from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .resolver import (
     ExplainResolver,
     AutoResolver,
-    NativeResolver,
+    native_resolvers,
     MissingDependencies,
 )
 from .resolver.apt import AptResolver
@@ -91,6 +91,9 @@ def main():  # noqa: C901
         '--user', action='store_true', help='Install in local-user directories.')
 
     args = parser.parse_args()
+    if not args.subcommand:
+        parser.print_usage()
+        return 1
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG)
     else:
@@ -109,7 +112,7 @@ def main():  # noqa: C901
         elif args.resolve == "explain":
             resolver = ExplainResolver.from_session(session)
         elif args.resolve == "native":
-            resolver = NativeResolver.from_session(session)
+            resolver = native_resolvers(session)
         elif args.resolver == "auto":
             resolver = AutoResolver.from_session(session)
         os.chdir(args.directory)
@@ -149,10 +152,10 @@ def main():  # noqa: C901
         except MissingDependencies as e:
             for req in e.requirements:
                 logging.info("Missing dependency (%s:%s)",
-                             req.family, req.name)
+                             req.family, req.package)
                 for resolver in [
                     AptResolver.from_session(session),
-                    NativeResolver.from_session(session),
+                    native_resolvers(session),
                 ]:
                     logging.info("  %s", resolver.explain([req]))
             return 2

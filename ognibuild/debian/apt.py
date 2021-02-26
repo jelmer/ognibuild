@@ -70,14 +70,9 @@ class AptManager(object):
 
     def package_exists(self, package):
         if self._apt_cache is None:
-            import apt_pkg
-
-            # TODO(jelmer): Load from self.session
-            self._apt_cache = apt_pkg.Cache()
-        for p in self._apt_cache.packages:
-            if p.name == package:
-                return True
-        return False
+            import apt
+            self._apt_cache = apt.Cache(rootdir=self.session.location)
+        return package in self._apt_cache
 
     def get_package_for_paths(self, paths, regex=False):
         logging.debug('Searching for packages containing %r', paths)
@@ -121,10 +116,12 @@ class RemoteAptContentsFileSearcher(FileSearcher):
     def from_session(cls, session):
         logging.info('Loading apt contents information')
         # TODO(jelmer): what about sources.list.d?
-        with open(os.path.join(session.location, 'etc/apt/sources.list'), 'r') as f:
-            return cls.from_repositories(
-                f.readlines(),
-                cache_dir=os.path.join(session.location, 'var/lib/apt/lists'))
+        from aptsources.sourceslist import SourcesList
+        sl = SourcesList()
+        sl.load(os.path.join(session.location, 'etc/apt/sources.list'))
+        return cls.from_sources_list(
+            sl,
+            cache_dir=os.path.join(session.location, 'var/lib/apt/lists'))
 
     def __setitem__(self, path, package):
         self._db[path] = package
@@ -174,32 +171,31 @@ class RemoteAptContentsFileSearcher(FileSearcher):
                     self.load_url(url)
                 except ContentsFileNotFound:
                     if mandatory:
-                        raise
-                    logging.debug(
-                        'Unable to fetch optional contents file %s', url)
+                        logging.warning(
+                            'Unable to fetch contents file %s', url)
+                    else:
+                        logging.debug(
+                            'Unable to fetch optional contents file %s', url)
         return self
 
     @classmethod
-    def from_repositories(cls, sources, cache_dir=None):
+    def from_sources_list(cls, sl, cache_dir=None):
         # TODO(jelmer): Use aptsources.sourceslist.SourcesList
         from .build import get_build_architecture
         # TODO(jelmer): Verify signatures, etc.
         urls = []
         arches = [(get_build_architecture(), True), ("all", False)]
-        for source in sources:
-            if not source.strip():
+        for source in sl.list:
+            if source.invalid or source.disabled:
                 continue
-            if source.strip().startswith('#'):
+            if source.type == 'deb-src':
                 continue
-            parts = source.split(" ")
-            if parts[0] == "deb-src":
-                continue
-            if parts[0] != "deb":
+            if source.type != 'deb':
                 logging.warning("Invalid line in sources: %r", source)
                 continue
-            base_url = parts[1].strip().rstrip("/")
-            name = parts[2].strip()
-            components = [c.strip() for c in parts[3:]]
+            base_url = source.uri.rstrip('/')
+            name = source.dist.rstrip('/')
+            components = source.comps
             if components:
                 dists_url = base_url + "/dists"
             else:
