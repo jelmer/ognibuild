@@ -38,11 +38,17 @@ def get_necessary_declared_requirements(resolver, requirements, stages):
 
 def install_necessary_declared_requirements(resolver, buildsystem, stages):
     missing = []
-    missing.extend(
-        get_necessary_declared_requirements(
-            resolver, buildsystem.get_declared_dependencies(), stages
+    try:
+        declared_reqs = buildsystem.get_declared_dependencies()
+    except NotImplementedError:
+        logging.warning(
+            'Unable to determine declared dependencies from %s', buildsystem)
+    else:
+        missing.extend(
+            get_necessary_declared_requirements(
+                resolver, declared_reqs, stages
+            )
         )
-    )
     resolver.install(missing)
 
 

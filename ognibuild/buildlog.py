@@ -124,11 +124,10 @@ def problem_to_upstream_requirement(problem):
     elif isinstance(problem, MissingJavaClass):
         return JavaClassRequirement(problem.classname)
     elif isinstance(problem, MissingHaskellDependencies):
-        # TODO(jelmer): Create multiple HaskellPackageRequirement objects?
-        return HaskellPackageRequirement(problem.package)
+        return [HaskellPackageRequirement(dep) for dep in problem.deps]
     elif isinstance(problem, MissingMavenArtifacts):
-        # TODO(jelmer): Create multiple MavenArtifactRequirement objects?
-        return MavenArtifactRequirement(problem.artifacts)
+        return [MavenArtifactRequirement(artifact)
+                for artifact in problem.artifacts]
     elif isinstance(problem, MissingCSharpCompiler):
         return BinaryRequirement('msc')
     elif isinstance(problem, GnomeCommonMissing):
@@ -179,16 +178,29 @@ class UpstreamRequirementFixer(BuildFixer):
     def __init__(self, resolver):
         self.resolver = resolver
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.resolver)
+
+    def __str__(self):
+        return "upstream requirement fixer(%s)" % self.resolver
+
     def can_fix(self, error):
         req = problem_to_upstream_requirement(error)
         return req is not None
 
     def fix(self, error, context):
-        req = problem_to_upstream_requirement(error)
-        if req is None:
+        reqs = problem_to_upstream_requirement(error)
+        if reqs is None:
             return False
 
-        package = self.resolver.resolve(req)
-        if package is None:
-            return False
-        return context.add_dependency(package)
+        if not isinstance(reqs, list):
+            reqs = [reqs]
+
+        changed = False
+        for req in reqs:
+            package = self.resolver.resolve(reqs)
+            if package is None:
+                return False
+            if context.add_dependency(package):
+                changed = True
+        return changed

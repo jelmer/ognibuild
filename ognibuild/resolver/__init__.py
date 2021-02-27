@@ -60,8 +60,30 @@ class CPANResolver(Resolver):
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
 
-    def met(self, requirement):
-        raise NotImplementedError(self.met)
+
+class HackageResolver(Resolver):
+
+    def __init__(self, session):
+        self.session = session
+
+    def __str__(self):
+        return "hackage"
+
+    def install(self, requirements):
+        from ..requirements import HaskellPackageRequirement
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, HaskellPackageRequirement):
+                missing.append(requirement)
+                continue
+            self.session.check_call(
+                ["cabal", "install", requirement.package],
+                user="root")
+        if missing:
+            raise UnsatisfiedRequirements(missing)
+
+    def explain(self, requirements):
+        raise NotImplementedError(self.explain)
 
 
 class CargoResolver(Resolver):
@@ -88,9 +110,6 @@ class CargoResolver(Resolver):
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
 
-    def met(self, requirement):
-        raise NotImplementedError(self.met)
-
 
 class PypiResolver(Resolver):
 
@@ -113,9 +132,6 @@ class PypiResolver(Resolver):
 
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
-
-    def met(self, requirement):
-        raise NotImplementedError(self.met)
 
 
 NPM_COMMAND_PACKAGES = {
@@ -150,13 +166,13 @@ class NpmResolver(Resolver):
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
 
-    def met(self, requirement):
-        raise NotImplementedError(self.met)
-
 
 class StackedResolver(Resolver):
     def __init__(self, subs):
         self.subs = subs
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.subs)
 
     def __str__(self):
         return "[" + ", ".join(map(str, self.subs)) + "]"
@@ -176,7 +192,8 @@ def native_resolvers(session):
         CPANResolver(session),
         PypiResolver(session),
         NpmResolver(session),
-        CargoResolver(session)])
+        CargoResolver(session),
+        HackageResolver(session)])
 
 
 class ExplainResolver(Resolver):
@@ -203,5 +220,6 @@ def auto_resolver(session):
         CPANResolver(session),
         PypiResolver(session),
         NpmResolver(session),
-        CargoResolver(session)])
+        CargoResolver(session),
+        HackageResolver(session)])
     return StackedResolver(resolvers)

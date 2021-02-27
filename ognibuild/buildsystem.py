@@ -51,6 +51,9 @@ class BuildSystem(object):
 
     name: str
 
+    def __str__(self):
+        return self.name
+
     def dist(self, session, resolver, fixers):
         raise NotImplementedError(self.dist)
 
@@ -125,13 +128,13 @@ class SetupPy(BuildSystem):
         except FileNotFoundError:
             setup_cfg_contents = ""
         if "setuptools" in setup_py_contents:
-            logging.info("Reference to setuptools found, installing.")
+            logging.debug("Reference to setuptools found, installing.")
             resolver.install([PythonPackageRequirement("setuptools")])
         if (
             "setuptools_scm" in setup_py_contents
             or "setuptools_scm" in setup_cfg_contents
         ):
-            logging.info("Reference to setuptools-scm found, installing.")
+            logging.debug("Reference to setuptools-scm found, installing.")
             resolver.install(
                 [
                     PythonPackageRequirement("setuptools-scm"),
@@ -215,8 +218,9 @@ class PyProject(BuildSystem):
 
     def dist(self, session, resolver, fixers):
         if "poetry" in self.pyproject.get("tool", []):
-            logging.info(
-                "Found pyproject.toml with poetry section, " "assuming poetry project."
+            logging.debug(
+                "Found pyproject.toml with poetry section, "
+                "assuming poetry project."
             )
             resolver.install(
                 [
@@ -279,12 +283,16 @@ class Waf(BuildSystem):
     def __init__(self, path):
         self.path = path
 
-    def setup(self, resolver):
+    def setup(self, session, resolver, fixers):
         resolver.install([BinaryRequirement("python3")])
 
     def dist(self, session, resolver, fixers):
-        self.setup(resolver)
+        self.setup(session, resolver, fixers)
         run_with_build_fixers(session, ["./waf", "dist"], fixers)
+
+    def test(self, session, resolver, fixers):
+        self.setup(session, resolver, fixers)
+        run_with_build_fixers(session, ["./waf", "test"], fixers)
 
 
 class Gem(BuildSystem):
@@ -321,13 +329,14 @@ class DistInkt(BuildSystem):
                 except ValueError:
                     continue
                 if key.strip() == b"class" and value.strip().startswith(b"'Dist::Inkt"):
-                    logging.info(
-                        "Found Dist::Inkt section in dist.ini, " "assuming distinkt."
+                    logging.debug(
+                        "Found Dist::Inkt section in dist.ini, "
+                        "assuming distinkt."
                     )
                     self.name = "dist-inkt"
                     self.dist_inkt_class = value.decode().strip("'")
                     return
-        logging.info("Found dist.ini, assuming dist-zilla.")
+        logging.debug("Found dist.ini, assuming dist-zilla.")
 
     def setup(self, resolver):
         resolver.install(
@@ -397,15 +406,19 @@ class Make(BuildSystem):
             session.check_call(["./configure"])
 
     def build(self, session, resolver, fixers):
-        self.setup(session, resolver)
+        self.setup(session, resolver, fixers)
         run_with_build_fixers(session, ["make", "all"], fixers)
 
+    def test(self, session, resolver, fixers):
+        self.setup(session, resolver, fixers)
+        run_with_build_fixers(session, ["make", "check"], fixers)
+
     def install(self, session, resolver, fixers, install_target):
-        self.setup(session, resolver)
+        self.setup(session, resolver, fixers)
         run_with_build_fixers(session, ["make", "install"], fixers)
 
     def dist(self, session, resolver, fixers):
-        self.setup(session, resolver)
+        self.setup(session, resolver, fixers)
         try:
             run_with_build_fixers(session, ["make", "dist"], fixers)
         except UnidentifiedError as e:
@@ -491,6 +504,9 @@ class Cargo(BuildSystem):
                 # TODO(jelmer): Look at details['features'], details['version']
                 yield "build", CargoCrateRequirement(name)
 
+    def test(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["cargo", "test"], fixers)
+
 
 class Golang(BuildSystem):
     """Go builds."""
@@ -513,37 +529,59 @@ class Cabal(BuildSystem):
     def __init__(self, path):
         self.path = path
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
+    def _run(self, session, args, fixers):
+        try:
+            run_with_build_fixers(
+                session, ["runhaskell", "Setup.hs"] + args, fixers)
+        except UnidentifiedError as e:
+            if "Run the 'configure' command first.\n" in e.lines:
+                run_with_build_fixers(
+                    session, ["runhaskell", "Setup.hs", "configure"], fixers)
+                run_with_build_fixers(
+                    session, ["runhaskell", "Setup.hs"] + args, fixers)
+            else:
+                raise
+
+    def test(self, session, resolver, fixers):
+        self._run(session, ["test"], fixers)
 
 def detect_buildsystems(path, trust_package=False):  # noqa: C901
     """Detect build systems."""
     if os.path.exists(os.path.join(path, "package.xml")):
-        logging.info("Found package.xml, assuming pear package.")
+        logging.debug("Found package.xml, assuming pear package.")
         yield Pear("package.xml")
 
     if os.path.exists(os.path.join(path, "setup.py")):
-        logging.info("Found setup.py, assuming python project.")
+        logging.debug("Found setup.py, assuming python project.")
         yield SetupPy("setup.py")
     elif os.path.exists(os.path.join(path, "pyproject.toml")):
-        logging.info("Found pyproject.toml, assuming python project.")
+        logging.debug("Found pyproject.toml, assuming python project.")
         yield PyProject("pyproject.toml")
     elif os.path.exists(os.path.join(path, "setup.cfg")):
-        logging.info("Found setup.cfg, assuming python project.")
+        logging.debug("Found setup.cfg, assuming python project.")
         yield SetupCfg("setup.cfg")
 
     if os.path.exists(os.path.join(path, "package.json")):
-        logging.info("Found package.json, assuming node package.")
+        logging.debug("Found package.json, assuming node package.")
         yield Npm("package.json")
 
     if os.path.exists(os.path.join(path, "waf")):
-        logging.info("Found waf, assuming waf package.")
+        logging.debug("Found waf, assuming waf package.")
         yield Waf("waf")
 
     if os.path.exists(os.path.join(path, "Cargo.toml")):
-        logging.info("Found Cargo.toml, assuming rust cargo package.")
+        logging.debug("Found Cargo.toml, assuming rust cargo package.")
         yield Cargo("Cargo.toml")
 
+    if os.path.exists(os.path.join(path, 'Setup.hs')):
+        logging.debug("Found Setup.hs, assuming haskell package.")
+        yield Cabal('Setup.hs')
+
     if os.path.exists(os.path.join(path, "pom.xml")):
-        logging.info("Found pom.xml, assuming maven package.")
+        logging.debug("Found pom.xml, assuming maven package.")
         yield Maven("pom.xml")
 
     if os.path.exists(os.path.join(path, "dist.ini")) and not os.path.exists(
@@ -568,17 +606,6 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
         ]
     ):
         yield Make()
-
-    cabal_filenames = [
-        entry.name for entry in os.scandir(path) if entry.name.endswith(".cabal")
-    ]
-    if cabal_filenames:
-        if len(cabal_filenames) == 1:
-            yield Cabal(cabal_filenames[0])
-        else:
-            warnings.warn(
-                "More than one cabal filename, ignoring all: %r" % cabal_filenames
-            )
 
     if os.path.exists(os.path.join(path, ".travis.yml")):
         import ruamel.yaml.reader

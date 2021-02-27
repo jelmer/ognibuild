@@ -120,7 +120,7 @@ def resolve_error(error, context, fixers):
         logging.warning("No fixer found for %r", error)
         return False
     for fixer in relevant_fixers:
-        logging.info("Attempting to use fixer %r to address %r", fixer, error)
+        logging.info("Attempting to use fixer %s to address %r", fixer, error)
         made_changes = fixer.fix(error, context)
         if made_changes:
             return True
