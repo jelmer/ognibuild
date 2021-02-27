@@ -16,7 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 
-class MissingDependencies(Exception):
+class UnsatisfiedRequirements(Exception):
 
     def __init__(self, reqs):
         self.requirements = reqs
@@ -55,7 +55,7 @@ class CPANResolver(Resolver):
                 user="root", env={"PERL_MM_USE_DEFAULT": "1"}
             )
         if missing:
-            raise MissingDependencies(missing)
+            raise UnsatisfiedRequirements(missing)
 
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
@@ -83,7 +83,7 @@ class CargoResolver(Resolver):
                 ["cargo", "install", requirement.crate],
                 user="root")
         if missing:
-            raise MissingDependencies(missing)
+            raise UnsatisfiedRequirements(missing)
 
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
@@ -109,7 +109,7 @@ class PypiResolver(Resolver):
                 continue
             self.session.check_call(["pip", "install", requirement.package])
         if missing:
-            raise MissingDependencies(missing)
+            raise UnsatisfiedRequirements(missing)
 
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
@@ -145,7 +145,7 @@ class NpmResolver(Resolver):
                 continue
             self.session.check_call(["npm", "-g", "install", package])
         if missing:
-            raise MissingDependencies(missing)
+            raise UnsatisfiedRequirements(missing)
 
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
@@ -165,7 +165,7 @@ class StackedResolver(Resolver):
         for sub in self.subs:
             try:
                 sub.install(requirements)
-            except MissingDependencies as e:
+            except UnsatisfiedRequirements as e:
                 requirements = e.requirements
             else:
                 return
@@ -188,7 +188,7 @@ class ExplainResolver(Resolver):
         return cls(session)
 
     def install(self, requirements):
-        raise MissingDependencies(requirements)
+        raise UnsatisfiedRequirements(requirements)
 
 
 def auto_resolver(session):

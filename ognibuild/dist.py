@@ -125,6 +125,7 @@ def create_dist_schroot(
 ) -> str:
     from .buildsystem import detect_buildsystems
     from .resolver.apt import AptResolver
+    from .buildlog import UpstreamRequirementFixer
 
     if subdir is None:
         subdir = "package"
@@ -150,13 +151,14 @@ def create_dist_schroot(
 
         buildsystems = list(detect_buildsystems(export_directory))
         resolver = AptResolver.from_session(session)
+        fixers = [UpstreamRequirementFixer(resolver)]
 
         with DistCatcher(export_directory) as dc:
             oldcwd = os.getcwd()
             os.chdir(export_directory)
             try:
                 session.chdir(os.path.join(reldir, subdir))
-                run_dist(session, buildsystems, resolver)
+                run_dist(session, buildsystems, resolver, fixers)
             finally:
                 os.chdir(oldcwd)
 
@@ -194,9 +196,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--target-directory", type=str, default="..", help="Target directory"
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Be verbose")
+
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO)
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
 
     tree = WorkingTree.open(args.directory)
     if args.packaging_directory:

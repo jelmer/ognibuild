@@ -61,6 +61,9 @@ class SchrootSession(Session):
         except subprocess.CalledProcessError:
             # TODO(jelmer): Capture stderr and forward in SessionSetupFailure
             raise SessionSetupFailure()
+        logging.info(
+            'Opened schroot session %s (from %s)', self.session_id,
+            self.chroot)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

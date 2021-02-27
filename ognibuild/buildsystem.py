@@ -117,7 +117,6 @@ class SetupPy(BuildSystem):
         return "%s(%r)" % (type(self).__name__, self.path)
 
     def setup(self, resolver):
-        resolver.install([PythonPackageRequirement('pip')])
         with open(self.path, "r") as f:
             setup_py_contents = f.read()
         try:
@@ -222,10 +221,9 @@ class PyProject(BuildSystem):
             resolver.install(
                 [
                     PythonPackageRequirement("venv"),
-                    PythonPackageRequirement("pip"),
+                    PythonPackageRequirement("poetry"),
                 ]
             )
-            session.check_call(["pip3", "install", "poetry"], user="root")
             session.check_call(["poetry", "build", "-f", "sdist"])
             return
         raise AssertionError("no supported section in pyproject.toml")
@@ -242,7 +240,6 @@ class SetupCfg(BuildSystem):
         resolver.install(
             [
                 PythonPackageRequirement("pep517"),
-                PythonPackageRequirement("pip"),
             ]
         )
 

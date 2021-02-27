@@ -21,7 +21,7 @@ import posixpath
 
 from ..debian.apt import AptManager
 
-from . import Resolver, MissingDependencies
+from . import Resolver, UnsatisfiedRequirements
 from ..requirements import (
     BinaryRequirement,
     CHeaderRequirement,
@@ -520,19 +520,20 @@ class AptResolver(Resolver):
                     missing.append(req)
             except NotImplementedError:
                 missing.append(req)
-        if missing:
-            still_missing = []
-            apt_requirements = []
-            for m in missing:
-                apt_req = self.resolve(m)
-                if apt_req is None:
-                    still_missing.append(m)
-                else:
-                    apt_requirements.append(m)
-            self.apt.install(
-                [req.package for req in apt_requirements])
-            if still_missing:
-                raise MissingDependencies(still_missing)
+        if not missing:
+            return
+        still_missing = []
+        apt_requirements = []
+        for m in missing:
+            apt_req = self.resolve(m)
+            if apt_req is None:
+                still_missing.append(m)
+            else:
+                apt_requirements.append(m)
+        self.apt.install(
+            [req.package for req in apt_requirements])
+        if still_missing:
+            raise UnsatisfiedRequirements(still_missing)
 
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
