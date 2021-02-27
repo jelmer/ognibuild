@@ -529,9 +529,9 @@ class AptResolver(Resolver):
             if apt_req is None:
                 still_missing.append(m)
             else:
-                apt_requirements.append(m)
-        self.apt.install(
-            [req.package for req in apt_requirements])
+                apt_requirements.append(apt_req)
+        if apt_requirements:
+            self.apt.install([r.package for r in apt_requirements])
         if still_missing:
             raise UnsatisfiedRequirements(still_missing)
 

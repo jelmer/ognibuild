@@ -121,15 +121,18 @@ class RemoteAptContentsFileSearcher(FileSearcher):
         sl.load(os.path.join(session.location, 'etc/apt/sources.list'))
         return cls.from_sources_list(
             sl,
-            cache_dir=os.path.join(session.location, 'var/lib/apt/lists'))
+            cache_dirs=[
+                os.path.join(session.location, 'var/lib/apt/lists'),
+                '/var/lib/apt/lists'])
 
     def __setitem__(self, path, package):
         self._db[path] = package
 
     def search_files(self, path, regex=False):
+        c = re.compile(path)
         for p, pkg in sorted(self._db.items()):
             if regex:
-                if re.match(path, p):
+                if c.match(p):
                     yield pkg
             else:
                 if path == p:
@@ -149,37 +152,42 @@ class RemoteAptContentsFileSearcher(FileSearcher):
         p = os.path.join(
             cache_dir,
             parsed.hostname + parsed.path.replace('/', '_') + '.lz4')
-        logging.debug('Loading cached contents file %s', p)
         if not os.path.exists(p):
             return None
+        logging.debug('Loading cached contents file %s', p)
         import lz4.frame
         return lz4.frame.open(p, mode='rb')
 
     @classmethod
-    def from_urls(cls, urls, cache_dir=None):
+    def from_urls(cls, urls, cache_dirs=None):
         self = cls()
         for url, mandatory in urls:
-            f = cls._load_cache_file(url, cache_dir)
-            if f is not None:
-                self.load_file(f)
-            elif not mandatory and self._db:
-                logging.debug(
-                    'Not attempting to fetch optional contents file %s', url)
+            for cache_dir in cache_dirs or []:
+                f = cls._load_cache_file(url, cache_dir)
+                if f is not None:
+                    self.load_file(f)
+                    break
             else:
-                logging.debug('Fetching contents file %s', url)
-                try:
-                    self.load_url(url)
-                except ContentsFileNotFound:
-                    if mandatory:
-                        logging.warning(
-                            'Unable to fetch contents file %s', url)
-                    else:
-                        logging.debug(
-                            'Unable to fetch optional contents file %s', url)
+                if not mandatory and self._db:
+                    logging.debug(
+                        'Not attempting to fetch optional contents '
+                        'file %s', url)
+                else:
+                    logging.debug('Fetching contents file %s', url)
+                    try:
+                        self.load_url(url)
+                    except ContentsFileNotFound:
+                        if mandatory:
+                            logging.warning(
+                                'Unable to fetch contents file %s', url)
+                        else:
+                            logging.debug(
+                                'Unable to fetch optional contents file %s',
+                                url)
         return self
 
     @classmethod
-    def from_sources_list(cls, sl, cache_dir=None):
+    def from_sources_list(cls, sl, cache_dirs=None):
         # TODO(jelmer): Use aptsources.sourceslist.SourcesList
         from .build import get_build_architecture
         # TODO(jelmer): Verify signatures, etc.
@@ -210,7 +218,7 @@ class RemoteAptContentsFileSearcher(FileSearcher):
                 for arch, mandatory in arches:
                     urls.append(
                         ("%s/%s/Contents-%s" % (dists_url, name.rstrip('/'), arch), mandatory))
-        return cls.from_urls(urls, cache_dir=cache_dir)
+        return cls.from_urls(urls, cache_dirs=cache_dirs)
 
     @staticmethod
     def _get(url):
