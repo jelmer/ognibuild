@@ -36,7 +36,6 @@ from breezy.tree import Tree
 from debmutate.control import (
     ensure_some_version,
     ensure_minimum_version,
-    pg_buildext_updatecontrol,
     ControlEditor,
 )
 from debmutate.debhelper import (
@@ -82,7 +81,7 @@ from buildlog_consultant.sbuild import (
 from ..fix_build import BuildFixer, resolve_error, DependencyContext
 from ..buildlog import UpstreamRequirementFixer
 from ..resolver.apt import (
-    NoAptPackage,
+    AptRequirement,
     get_package_for_python_module,
     )
 from .build import attempt_build, DEFAULT_BUILDER
@@ -99,11 +98,11 @@ class CircularDependency(Exception):
 
 
 class BuildDependencyContext(DependencyContext):
-    def add_dependency(self, package: str, minimum_version: Optional[Version] = None):
+
+    def add_dependency(self, requirement: AptRequirement):
         return add_build_dependency(
             self.tree,
-            package,
-            minimum_version=minimum_version,
+            requirement,
             committer=self.committer,
             subpath=self.subpath,
             update_changelog=self.update_changelog,
@@ -119,12 +118,11 @@ class AutopkgtestDependencyContext(DependencyContext):
             tree, apt, subpath, committer, update_changelog
         )
 
-    def add_dependency(self, package, minimum_version=None):
+    def add_dependency(self, requirement):
         return add_test_dependency(
             self.tree,
             self.testname,
-            package,
-            minimum_version=minimum_version,
+            requirement,
             committer=self.committer,
             subpath=self.subpath,
             update_changelog=self.update_changelog,
@@ -133,37 +131,38 @@ class AutopkgtestDependencyContext(DependencyContext):
 
 def add_build_dependency(
     tree: Tree,
-    package: str,
-    minimum_version: Optional[Version] = None,
+    requirement: AptRequirement,
     committer: Optional[str] = None,
     subpath: str = "",
     update_changelog: bool = True,
 ):
-    if not isinstance(package, str):
-        raise TypeError(package)
+    if not isinstance(requirement, AptRequirement):
+        raise TypeError(requirement)
 
     control_path = os.path.join(tree.abspath(subpath), "debian/control")
     try:
         with ControlEditor(path=control_path) as updater:
             for binary in updater.binaries:
-                if binary["Package"] == package:
-                    raise CircularDependency(package)
-            if minimum_version:
+                if binary["Package"] == requirement.package:
+                    raise CircularDependency(requirement.package)
+            if requirement.minimum_version:
                 updater.source["Build-Depends"] = ensure_minimum_version(
-                    updater.source.get("Build-Depends", ""), package, minimum_version
+                    updater.source.get("Build-Depends", ""),
+                    requirement.package, requirement.minimum_version
                 )
             else:
                 updater.source["Build-Depends"] = ensure_some_version(
-                    updater.source.get("Build-Depends", ""), package
+                    updater.source.get("Build-Depends", ""),
+                    requirement.package
                 )
     except FormattingUnpreservable as e:
         logging.info("Unable to edit %s in a way that preserves formatting.", e.path)
         return False
 
-    if minimum_version:
-        desc = "%s (>= %s)" % (package, minimum_version)
+    if requirement.minimum_version:
+        desc = "%s (>= %s)" % (requirement.package, requirement.minimum_version)
     else:
-        desc = package
+        desc = requirement.package
 
     if not updater.changed:
         logging.info("Giving up; dependency %s was already present.", desc)
@@ -182,14 +181,13 @@ def add_build_dependency(
 def add_test_dependency(
     tree,
     testname,
-    package,
-    minimum_version=None,
+    requirement,
     committer=None,
     subpath="",
     update_changelog=True,
 ):
-    if not isinstance(package, str):
-        raise TypeError(package)
+    if not isinstance(requirement, AptRequirement):
+        raise TypeError(requirement)
 
     tests_control_path = os.path.join(tree.abspath(subpath), "debian/tests/control")
 
@@ -204,13 +202,14 @@ def add_test_dependency(
                     command_counter += 1
                 if name != testname:
                     continue
-                if minimum_version:
+                if requirement.minimum_version:
                     control["Depends"] = ensure_minimum_version(
-                        control.get("Depends", ""), package, minimum_version
+                        control.get("Depends", ""),
+                        requirement.package, requirement.minimum_version
                     )
                 else:
                     control["Depends"] = ensure_some_version(
-                        control.get("Depends", ""), package
+                        control.get("Depends", ""), requirement.package
                     )
     except FormattingUnpreservable as e:
         logging.info("Unable to edit %s in a way that preserves formatting.", e.path)
@@ -218,10 +217,11 @@ def add_test_dependency(
     if not updater.changed:
         return False
 
-    if minimum_version:
-        desc = "%s (>= %s)" % (package, minimum_version)
+    if requirement.minimum_version:
+        desc = "%s (>= %s)" % (
+            requirement.package, requirement.minimum_version)
     else:
-        desc = package
+        desc = requirement.package
 
     logging.info("Adding dependency to test %s: %s", testname, desc)
     return commit_debian_changes(
@@ -333,7 +333,9 @@ def fix_missing_python_distribution(error, context):  # noqa: C901
 
     for dep_pkg in extra_build_deps:
         assert dep_pkg is not None
-        if not context.add_dependency(dep_pkg, minimum_version=error.minimum_version):
+        if not context.add_dependency(
+                AptRequirement(
+                    dep_pkg.package, minimum_version=error.minimum_version)):
             return False
     return True
 
@@ -345,9 +347,9 @@ def fix_missing_python_module(error, context):
         targeted = set()
     default = not targeted
 
-    pypy_pkg = get_package_for_python_module(context.apt, error.module, "pypy")
-    py2_pkg = get_package_for_python_module(context.apt, error.module, "python2")
-    py3_pkg = get_package_for_python_module(context.apt, error.module, "python3")
+    pypy_pkg = get_package_for_python_module(context.apt, error.module, "pypy", None)
+    py2_pkg = get_package_for_python_module(context.apt, error.module, "python2", None)
+    py3_pkg = get_package_for_python_module(context.apt, error.module, "python3", None)
 
     extra_build_deps = []
     if error.python_version == 2:
@@ -379,7 +381,8 @@ def fix_missing_python_module(error, context):
 
     for dep_pkg in extra_build_deps:
         assert dep_pkg is not None
-        if not context.add_dependency(dep_pkg, error.minimum_version):
+        if not context.add_dependency(
+                AptRequirement(dep_pkg.package, error.minimum_version)):
             return False
     return True
 
@@ -402,7 +405,7 @@ def enable_dh_autoreconf(context):
             return dh_invoke_add_with(line, b"autoreconf")
 
         if update_rules(command_line_cb=add_with_autoreconf):
-            return context.add_dependency("dh-autoreconf")
+            return context.add_dependency(AptRequirement("dh-autoreconf"))
 
     return False
 
@@ -453,17 +456,27 @@ def fix_missing_config_status_input(error, context):
     return True
 
 
-def run_pgbuildext_updatecontrol(error, context):
-    logging.info("Running 'pg_buildext updatecontrol'")
-    # TODO(jelmer): run in the schroot
-    pg_buildext_updatecontrol(context.tree.abspath(context.subpath))
-    return commit_debian_changes(
-        context.tree,
-        context.subpath,
-        "Run 'pgbuildext updatecontrol'.",
-        committer=context.committer,
-        update_changelog=False,
-    )
+class PgBuildExtOutOfDateControlFixer(BuildFixer):
+
+    def __init__(self, session):
+        self.session = session
+
+    def can_fix(self, problem):
+        return isinstance(problem, NeedPgBuildExtUpdateControl)
+
+    def _fix(self, problem, context):
+        return self._fn(problem, context)
+
+    def _fix(self, error, context):
+        logging.info("Running 'pg_buildext updatecontrol'")
+        self.session.check_call(["pg_buildext", "updatecontrol"])
+        return commit_debian_changes(
+            context.tree,
+            context.subpath,
+            "Run 'pgbuildext updatecontrol'.",
+            committer=context.committer,
+            update_changelog=False,
+        )
 
 
 def fix_missing_makefile_pl(error, context):
@@ -490,10 +503,9 @@ class SimpleBuildFixer(BuildFixer):
         return self._fn(problem, context)
 
 
-def versioned_package_fixers():
+def versioned_package_fixers(session):
     return [
-        SimpleBuildFixer(
-            NeedPgBuildExtUpdateControl, run_pgbuildext_updatecontrol),
+        PgBuildExtOutOfDateControlFixer(session),
         SimpleBuildFixer(MissingConfigure, fix_missing_configure),
         SimpleBuildFixer(MissingAutomakeInput, fix_missing_automake_input),
         SimpleBuildFixer(MissingConfigStatusInput, fix_missing_config_status_input),
@@ -527,6 +539,8 @@ def build_incrementally(
     update_changelog=True,
 ):
     fixed_errors = []
+    fixers = versioned_package_fixers(apt.session) + apt_fixers(apt)
+    logging.info('Using fixers: %r', fixers)
     while True:
         try:
             return attempt_build(
@@ -574,9 +588,7 @@ def build_incrementally(
                 logging.warning("unable to install for context %r", e.phase)
                 raise
             try:
-                if not resolve_error(
-                    e.error, context, versioned_package_fixers() + apt_fixers(apt)
-                ):
+                if not resolve_error(e.error, context, fixers):
                     logging.warning("Failed to resolve error %r. Giving up.", e.error)
                     raise
             except GeneratedFile:

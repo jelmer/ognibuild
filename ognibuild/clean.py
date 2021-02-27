@@ -18,13 +18,13 @@
 from .buildsystem import NoBuildToolsFound
 
 
-def run_clean(session, buildsystems, resolver):
+def run_clean(session, buildsystems, resolver, fixers):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
     for buildsystem in buildsystems:
-        buildsystem.clean(session, resolver)
+        buildsystem.clean(session, resolver, fixers)
         return
 
     raise NoBuildToolsFound()

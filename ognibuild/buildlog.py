@@ -189,4 +189,6 @@ class UpstreamRequirementFixer(BuildFixer):
             return False
 
         package = self.resolver.resolve(req)
+        if package is None:
+            return False
         return context.add_dependency(package)

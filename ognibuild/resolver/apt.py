@@ -53,10 +53,6 @@ from ..requirements import (
     )
 
 
-class NoAptPackage(Exception):
-    """No apt package."""
-
-
 class AptRequirement(object):
 
     def __init__(self, package, minimum_version=None):
@@ -161,15 +157,13 @@ def resolve_binary_req(apt_mgr, req):
 def resolve_pkg_config_req(apt_mgr, req):
     package = apt_mgr.get_package_for_paths(
         [posixpath.join("/usr/lib/pkgconfig", req.module + ".pc")],
-        req.minimum_version
     )
     if package is None:
         package = apt_mgr.get_package_for_paths(
             [posixpath.join("/usr/lib", ".*", "pkgconfig", req.module + ".pc")],
-            regex=True,
-            minimum_version=req.minimum_version)
+            regex=True)
     if package is not None:
-        return AptRequirement(package)
+        return AptRequirement(package, minimum_version=req.minimum_version)
     return None
 
 
@@ -502,10 +496,7 @@ APT_REQUIREMENT_RESOLVERS = [
 def resolve_requirement_apt(apt_mgr, req: UpstreamRequirement) -> AptRequirement:
     for rr_class, rr_fn in APT_REQUIREMENT_RESOLVERS:
         if isinstance(req, rr_class):
-            deb_req = rr_fn(apt_mgr, req)
-            if deb_req is None:
-                raise NoAptPackage(req)
-            return deb_req
+            return rr_fn(apt_mgr, req)
     raise NotImplementedError(type(req))
 
 
@@ -513,6 +504,9 @@ class AptResolver(Resolver):
 
     def __init__(self, apt):
         self.apt = apt
+
+    def __str__(self):
+        return "apt"
 
     @classmethod
     def from_session(cls, session):
@@ -530,10 +524,11 @@ class AptResolver(Resolver):
             still_missing = []
             apt_requirements = []
             for m in missing:
-                try:
-                    apt_requirements.append(self.resolve(m))
-                except NoAptPackage:
+                apt_req = self.resolve(m)
+                if apt_req is None:
                     still_missing.append(m)
+                else:
+                    apt_requirements.append(m)
             self.apt.install(
                 [req.package for req in apt_requirements])
             if still_missing:

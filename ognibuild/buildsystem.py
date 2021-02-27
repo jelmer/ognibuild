@@ -31,7 +31,7 @@ from .requirements import (
     NodePackageRequirement,
     CargoCrateRequirement,
     )
-from .fix_build import run_with_build_fixer
+from .fix_build import run_with_build_fixers
 
 
 class NoBuildToolsFound(Exception):
@@ -51,19 +51,19 @@ class BuildSystem(object):
 
     name: str
 
-    def dist(self, session, resolver):
+    def dist(self, session, resolver, fixers):
         raise NotImplementedError(self.dist)
 
-    def test(self, session, resolver):
+    def test(self, session, resolver, fixers):
         raise NotImplementedError(self.test)
 
-    def build(self, session, resolver):
+    def build(self, session, resolver, fixers):
         raise NotImplementedError(self.build)
 
-    def clean(self, session, resolver):
+    def clean(self, session, resolver, fixers):
         raise NotImplementedError(self.clean)
 
-    def install(self, session, resolver, install_target):
+    def install(self, session, resolver, fixers, install_target):
         raise NotImplementedError(self.install)
 
     def get_declared_dependencies(self):
@@ -83,25 +83,25 @@ class Pear(BuildSystem):
     def setup(self, resolver):
         resolver.install([BinaryRequirement("pear")])
 
-    def dist(self, session, resolver):
+    def dist(self, session, resolver, fixers):
         self.setup(resolver)
-        run_with_build_fixer(session, ["pear", "package"])
+        run_with_build_fixers(session, ["pear", "package"], fixers)
 
-    def test(self, session, resolver):
+    def test(self, session, resolver, fixers):
         self.setup(resolver)
-        run_with_build_fixer(session, ["pear", "run-tests"])
+        run_with_build_fixers(session, ["pear", "run-tests"], fixers)
 
-    def build(self, session, resolver):
+    def build(self, session, resolver, fixers):
         self.setup(resolver)
-        run_with_build_fixer(session, ["pear", "build", self.path])
+        run_with_build_fixers(session, ["pear", "build", self.path], fixers)
 
-    def clean(self, session, resolver):
+    def clean(self, session, resolver, fixers):
         self.setup(resolver)
         # TODO
 
-    def install(self, session, resolver, install_target):
+    def install(self, session, resolver, fixers, install_target):
         self.setup(resolver)
-        run_with_build_fixer(session, ["pear", "install", self.path])
+        run_with_build_fixers(session, ["pear", "install", self.path], fixers)
 
 
 class SetupPy(BuildSystem):
@@ -143,41 +143,40 @@ class SetupPy(BuildSystem):
 
         # TODO(jelmer): Install setup_requires
 
-    def test(self, session, resolver):
+    def test(self, session, resolver, fixers):
         self.setup(resolver)
-        self._run_setup(session, resolver, ["test"])
+        self._run_setup(session, resolver, ["test"], fixers)
 
-    def build(self, session, resolver):
+    def build(self, session, resolver, fixers):
         self.setup(resolver)
-        self._run_setup(session, resolver, ["build"])
+        self._run_setup(session, resolver, ["build"], fixers)
 
-    def dist(self, session, resolver):
+    def dist(self, session, resolver, fixers):
         self.setup(resolver)
-        self._run_setup(session, resolver, ["sdist"])
+        self._run_setup(session, resolver, ["sdist"], fixers)
 
-    def clean(self, session, resolver):
+    def clean(self, session, resolver, fixers):
         self.setup(resolver)
-        self._run_setup(session, resolver, ["clean"])
+        self._run_setup(session, resolver, ["clean"], fixers)
 
-    def install(self, session, resolver, install_target):
+    def install(self, session, resolver, fixers, install_target):
         self.setup(resolver)
         extra_args = []
         if install_target.user:
             extra_args.append('--user')
-        self._run_setup(session, resolver, ["install"] + extra_args)
+        self._run_setup(session, resolver, ["install"] + extra_args, fixers)
 
-    def _run_setup(self, session, resolver, args):
+    def _run_setup(self, session, resolver, args, fixers):
         interpreter = shebang_binary("setup.py")
         if interpreter is not None:
-            if interpreter in ("python3", "python2", "python"):
-                resolver.install([BinaryRequirement(interpreter)])
-            else:
-                raise ValueError("Unknown interpreter %r" % interpreter)
-            run_with_build_fixer(session, ["./setup.py"] + args)
+            resolver.install([BinaryRequirement(interpreter)])
+            run_with_build_fixers(session, ["./setup.py"] + args, fixers)
         else:
             # Just assume it's Python 3
             resolver.install([BinaryRequirement("python3")])
-            run_with_build_fixer(session, ["python3", "./setup.py"] + args)
+            run_with_build_fixers(
+                session, ["python3", "./setup.py"] + args,
+                fixers)
 
     def get_declared_dependencies(self):
         for require in self.result.get_requires():
@@ -215,7 +214,7 @@ class PyProject(BuildSystem):
         with open(self.path, "r") as pf:
             return toml.load(pf)
 
-    def dist(self, session, resolver):
+    def dist(self, session, resolver, fixers):
         if "poetry" in self.pyproject.get("tool", []):
             logging.info(
                 "Found pyproject.toml with poetry section, " "assuming poetry project."
@@ -247,7 +246,7 @@ class SetupCfg(BuildSystem):
             ]
         )
 
-    def dist(self, session, resolver):
+    def dist(self, session, resolver, fixers):
         self.setup(resolver)
         session.check_call(["python3", "-m", "pep517.build", "-s", "."])
 
@@ -271,9 +270,9 @@ class Npm(BuildSystem):
     def setup(self, resolver):
         resolver.install([BinaryRequirement("npm")])
 
-    def dist(self, session, resolver):
+    def dist(self, session, resolver, fixers):
         self.setup(resolver)
-        run_with_build_fixer(session, ["npm", "pack"])
+        run_with_build_fixers(session, ["npm", "pack"], fixers)
 
 
 class Waf(BuildSystem):
@@ -286,9 +285,9 @@ class Waf(BuildSystem):
     def setup(self, resolver):
         resolver.install([BinaryRequirement("python3")])
 
-    def dist(self, session, resolver):
+    def dist(self, session, resolver, fixers):
         self.setup(resolver)
-        run_with_build_fixer(session, ["./waf", "dist"])
+        run_with_build_fixers(session, ["./waf", "dist"], fixers)
 
 
 class Gem(BuildSystem):
@@ -301,14 +300,14 @@ class Gem(BuildSystem):
     def setup(self, resolver):
         resolver.install([BinaryRequirement("gem2deb")])
 
-    def dist(self, session, resolver):
+    def dist(self, session, resolver, fixers):
         self.setup(resolver)
         gemfiles = [
             entry.name for entry in session.scandir(".") if entry.name.endswith(".gem")
         ]
         if len(gemfiles) > 1:
             logging.warning("More than one gemfile. Trying the first?")
-        run_with_build_fixer(session, ["gem2tgz", gemfiles[0]])
+        run_with_build_fixers(session, ["gem2tgz", gemfiles[0]], fixers)
 
 
 class DistInkt(BuildSystem):
@@ -340,15 +339,16 @@ class DistInkt(BuildSystem):
             ]
         )
 
-    def dist(self, session, resolver):
+    def dist(self, session, resolver, fixers):
         self.setup(resolver)
         if self.name == "dist-inkt":
             resolver.install([PerlModuleRequirement(self.dist_inkt_class)])
-            run_with_build_fixer(session, ["distinkt-dist"])
+            run_with_build_fixers(session, ["distinkt-dist"], fixers)
         else:
             # Default to invoking Dist::Zilla
             resolver.install([PerlModuleRequirement("Dist::Zilla")])
-            run_with_build_fixer(session, ["dzil", "build", "--in", ".."])
+            run_with_build_fixers(
+                session, ["dzil", "build", "--in", ".."], fixers)
 
 
 class Make(BuildSystem):
@@ -358,26 +358,30 @@ class Make(BuildSystem):
     def __repr__(self):
         return "%s()" % type(self).__name__
 
-    def setup(self, session, resolver):
+    def setup(self, session, resolver, fixers):
         resolver.install([BinaryRequirement("make")])
 
         if session.exists("Makefile.PL") and not session.exists("Makefile"):
             resolver.install([BinaryRequirement("perl")])
-            run_with_build_fixer(session, ["perl", "Makefile.PL"])
+            run_with_build_fixers(session, ["perl", "Makefile.PL"], fixers)
 
         if not session.exists("Makefile") and not session.exists("configure"):
             if session.exists("autogen.sh"):
                 if shebang_binary("autogen.sh") is None:
-                    run_with_build_fixer(session, ["/bin/sh", "./autogen.sh"])
+                    run_with_build_fixers(
+                        session, ["/bin/sh", "./autogen.sh"], fixers)
                 try:
-                    run_with_build_fixer(session, ["./autogen.sh"])
+                    run_with_build_fixers(
+                        session, ["./autogen.sh"], fixers)
                 except UnidentifiedError as e:
                     if (
                         "Gnulib not yet bootstrapped; "
                         "run ./bootstrap instead.\n" in e.lines
                     ):
-                        run_with_build_fixer(session, ["./bootstrap"])
-                        run_with_build_fixer(session, ["./autogen.sh"])
+                        run_with_build_fixers(
+                            session, ["./bootstrap"], fixers)
+                        run_with_build_fixers(
+                            session, ["./autogen.sh"], fixers)
                     else:
                         raise
 
@@ -390,23 +394,23 @@ class Make(BuildSystem):
                         BinaryRequirement("libtoolize"),
                     ]
                 )
-                run_with_build_fixer(session, ["autoreconf", "-i"])
+                run_with_build_fixers(session, ["autoreconf", "-i"], fixers)
 
         if not session.exists("Makefile") and session.exists("configure"):
             session.check_call(["./configure"])
 
-    def build(self, session, resolver):
+    def build(self, session, resolver, fixers):
         self.setup(session, resolver)
-        run_with_build_fixer(session, ["make", "all"])
+        run_with_build_fixers(session, ["make", "all"], fixers)
 
-    def install(self, session, resolver, install_target):
+    def install(self, session, resolver, fixers, install_target):
         self.setup(session, resolver)
-        run_with_build_fixer(session, ["make", "install"])
+        run_with_build_fixers(session, ["make", "install"], fixers)
 
-    def dist(self, session, resolver):
+    def dist(self, session, resolver, fixers):
         self.setup(session, resolver)
         try:
-            run_with_build_fixer(session, ["make", "dist"])
+            run_with_build_fixers(session, ["make", "dist"], fixers)
         except UnidentifiedError as e:
             if "make: *** No rule to make target 'dist'.  Stop.\n" in e.lines:
                 pass
@@ -416,17 +420,17 @@ class Make(BuildSystem):
                 "Reconfigure the source tree "
                 "(via './config' or 'perl Configure'), please.\n"
             ) in e.lines:
-                run_with_build_fixer(session, ["./config"])
-                run_with_build_fixer(session, ["make", "dist"])
+                run_with_build_fixers(session, ["./config"], fixers)
+                run_with_build_fixers(session, ["make", "dist"], fixers)
             elif (
                 "Please try running 'make manifest' and then run "
                 "'make dist' again.\n" in e.lines
             ):
-                run_with_build_fixer(session, ["make", "manifest"])
-                run_with_build_fixer(session, ["make", "dist"])
+                run_with_build_fixers(session, ["make", "manifest"], fixers)
+                run_with_build_fixers(session, ["make", "dist"], fixers)
             elif "Please run ./configure first\n" in e.lines:
-                run_with_build_fixer(session, ["./configure"])
-                run_with_build_fixer(session, ["make", "dist"])
+                run_with_build_fixers(session, ["./configure"], fixers)
+                run_with_build_fixers(session, ["make", "dist"], fixers)
             elif any(
                 [
                     re.match(
@@ -437,8 +441,8 @@ class Make(BuildSystem):
                     for line in e.lines
                 ]
             ):
-                run_with_build_fixer(session, ["./configure"])
-                run_with_build_fixer(session, ["make", "dist"])
+                run_with_build_fixers(session, ["./configure"], fixers)
+                run_with_build_fixers(session, ["make", "dist"], fixers)
             elif any(
                 [
                     re.match(
@@ -449,8 +453,8 @@ class Make(BuildSystem):
                     for line in e.lines
                 ]
             ):
-                run_with_build_fixer(session, ["make", "manifest"])
-                run_with_build_fixer(session, ["make", "dist"])
+                run_with_build_fixers(session, ["make", "manifest"], fixers)
+                run_with_build_fixers(session, ["make", "dist"], fixers)
             else:
                 raise
         else:

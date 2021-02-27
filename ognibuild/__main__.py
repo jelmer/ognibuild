@@ -21,8 +21,7 @@ import sys
 from . import UnidentifiedError
 from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .resolver import (
-    ExplainResolver,
-    AutoResolver,
+    auto_resolver,
     native_resolvers,
     MissingDependencies,
 )
@@ -56,6 +55,11 @@ STAGE_MAP = {
     "clean": [],
 }
 
+def determine_fixers(session, resolver):
+    from .buildlog import UpstreamRequirementFixer
+    from .resolver.apt import AptResolver
+    return [UpstreamRequirementFixer(resolver)]
+
 
 def main():  # noqa: C901
     import argparse
@@ -67,12 +71,17 @@ def main():  # noqa: C901
     parser.add_argument("--schroot", type=str, help="schroot to run in.")
     parser.add_argument(
         "--resolve",
-        choices=["explain", "apt", "native"],
-        default="apt",
+        choices=["apt", "native", "auto"],
+        default="auto",
         help="What to do about missing dependencies",
     )
     parser.add_argument(
+        "--explain",
+        action='store_true',
+        help="Explain what needs to be done rather than making changes")
+    parser.add_argument(
         "--ignore-declared-dependencies",
+        "--optimistic",
         action="store_true",
         help="Ignore declared dependencies, follow build errors only",
     )
@@ -109,56 +118,53 @@ def main():  # noqa: C901
     with session:
         if args.resolve == "apt":
             resolver = AptResolver.from_session(session)
-        elif args.resolve == "explain":
-            resolver = ExplainResolver.from_session(session)
         elif args.resolve == "native":
             resolver = native_resolvers(session)
-        elif args.resolver == "auto":
-            resolver = AutoResolver.from_session(session)
+        elif args.resolve == "auto":
+            resolver = auto_resolver(session)
+        logging.info('Using requirement resolver: %s', resolver)
         os.chdir(args.directory)
         try:
             bss = list(detect_buildsystems(args.directory))
             logging.info('Detected buildsystems: %r', bss)
-            if not args.ignore_declared_dependencies:
+            if not args.ignore_declared_dependencies and not args.explain:
                 stages = STAGE_MAP[args.subcommand]
                 if stages:
                     for bs in bss:
                         install_necessary_declared_requirements(resolver, bs, stages)
+            fixers = determine_fixers(session, resolver)
             if args.subcommand == "dist":
                 from .dist import run_dist
-                run_dist(session=session, buildsystems=bss, resolver=resolver)
+                run_dist(
+                    session=session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
             if args.subcommand == "build":
                 from .build import run_build
-                run_build(session, buildsystems=bss, resolver=resolver)
+                run_build(
+                    session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
             if args.subcommand == "clean":
                 from .clean import run_clean
-                run_clean(session, buildsystems=bss, resolver=resolver)
+                run_clean(
+                    session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
             if args.subcommand == "install":
                 from .install import run_install
                 run_install(
                     session, buildsystems=bss, resolver=resolver,
-                    user=args.user)
+                    fixers=fixers, user=args.user)
             if args.subcommand == "test":
                 from .test import run_test
-                run_test(session, buildsystems=bss, resolver=resolver)
+                run_test(session, buildsystems=bss, resolver=resolver,
+                         fixers=fixers)
             if args.subcommand == "info":
                 from .info import run_info
-                run_info(session, buildsystems=bss, resolver=resolver)
+                run_info(session, buildsystems=bss)
         except UnidentifiedError:
             return 1
         except NoBuildToolsFound:
             logging.info("No build tools found.")
             return 1
-        except MissingDependencies as e:
-            for req in e.requirements:
-                logging.info("Missing dependency (%s:%s)",
-                             req.family, req.package)
-                for resolver in [
-                    AptResolver.from_session(session),
-                    native_resolvers(session),
-                ]:
-                    logging.info("  %s", resolver.explain([req]))
-            return 2
         return 0
 
 

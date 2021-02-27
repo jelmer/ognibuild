@@ -31,7 +31,7 @@ from buildlog_consultant.common import (
     MissingValaPackage,
 )
 from ..debian import apt
-from ..debian.apt import AptManager
+from ..debian.apt import AptManager, FileSearcher
 from ..debian.fix_build import (
     resolve_error,
     versioned_package_fixers,
@@ -39,6 +39,21 @@ from ..debian.fix_build import (
     BuildDependencyContext,
 )
 from breezy.tests import TestCaseWithTransport
+
+
+class DummyAptSearcher(FileSearcher):
+
+    def __init__(self, files):
+        self._apt_files = files
+
+    def search_files(self, path, regex=False):
+        for p, pkg in sorted(self._apt_files.items()):
+            if regex:
+                if re.match(path, p):
+                    yield pkg
+            else:
+                if path == p:
+                    yield pkg
 
 
 class ResolveErrorTests(TestCaseWithTransport):
@@ -76,21 +91,13 @@ blah (0.1) UNRELEASED; urgency=medium
         )
         self.tree.add(["debian", "debian/control", "debian/changelog"])
         self.tree.commit("Initial commit")
-        self.overrideAttr(apt, "search_apt_file", self._search_apt_file)
         self._apt_files = {}
-
-    def _search_apt_file(self, path, regex=False):
-        for p, pkg in sorted(self._apt_files.items()):
-            if regex:
-                if re.match(path, p):
-                    yield pkg
-            else:
-                if path == p:
-                    yield pkg
 
     def resolve(self, error, context=("build",)):
         from ..session.plain import PlainSession
-        apt = AptManager(PlainSession())
+        session = PlainSession()
+        apt = AptManager(session)
+        apt._searchers = [DummyAptSearcher(self._apt_files)]
         context = BuildDependencyContext(
             self.tree,
             apt,
@@ -98,7 +105,8 @@ blah (0.1) UNRELEASED; urgency=medium
             committer="ognibuild <ognibuild@jelmer.uk>",
             update_changelog=True,
         )
-        return resolve_error(error, context, versioned_package_fixers() + apt_fixers(apt))
+        fixers = versioned_package_fixers(session) + apt_fixers(apt)
+        return resolve_error(error, context, fixers)
 
     def get_build_deps(self):
         with open(self.tree.abspath("debian/control"), "r") as f:

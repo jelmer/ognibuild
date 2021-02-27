@@ -34,10 +34,13 @@ class Resolver(object):
         raise NotImplementedError(self.met)
 
 
-class CPANResolver(object):
+class CPANResolver(Resolver):
 
     def __init__(self, session):
         self.session = session
+
+    def __str__(self):
+        return "cpan"
 
     def install(self, requirements):
         from ..requirements import PerlModuleRequirement
@@ -61,10 +64,41 @@ class CPANResolver(object):
         raise NotImplementedError(self.met)
 
 
-class PypiResolver(object):
+class CargoResolver(Resolver):
 
     def __init__(self, session):
         self.session = session
+
+    def __str__(self):
+        return "cargo"
+
+    def install(self, requirements):
+        from ..requirements import CargoCrateRequirement
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, CargoCrateRequirement):
+                missing.append(requirement)
+                continue
+            self.session.check_call(
+                ["cargo", "install", requirement.crate],
+                user="root")
+        if missing:
+            raise MissingDependencies(missing)
+
+    def explain(self, requirements):
+        raise NotImplementedError(self.explain)
+
+    def met(self, requirement):
+        raise NotImplementedError(self.met)
+
+
+class PypiResolver(Resolver):
+
+    def __init__(self, session):
+        self.session = session
+
+    def __str__(self):
+        return "pypi"
 
     def install(self, requirements):
         from ..requirements import PythonPackageRequirement
@@ -89,10 +123,13 @@ NPM_COMMAND_PACKAGES = {
 }
 
 
-class NpmResolver(object):
+class NpmResolver(Resolver):
 
     def __init__(self, session):
         self.session = session
+
+    def __str__(self):
+        return "npm"
 
     def install(self, requirements):
         from ..requirements import NodePackageRequirement
@@ -121,6 +158,9 @@ class StackedResolver(Resolver):
     def __init__(self, subs):
         self.subs = subs
 
+    def __str__(self):
+        return "[" + ", ".join(map(str, self.subs)) + "]"
+
     def install(self, requirements):
         for sub in self.subs:
             try:
@@ -135,7 +175,8 @@ def native_resolvers(session):
     return StackedResolver([
         CPANResolver(session),
         PypiResolver(session),
-        NpmResolver(session)])
+        NpmResolver(session),
+        CargoResolver(session)])
 
 
 class ExplainResolver(Resolver):
@@ -150,19 +191,17 @@ class ExplainResolver(Resolver):
         raise MissingDependencies(requirements)
 
 
-class AutoResolver(Resolver):
-    """Automatically find out the most appropriate way to install dependencies.
-    """
-
-    def __init__(self, session):
-        self.session = session
-
-    @classmethod
-    def from_session(cls, session):
-        return cls(session)
-
-    def install(self, requirements):
-        raise NotImplementedError(self.install)
-
-    def explain(self, requirements):
-        raise NotImplementedError(self.explain)
+def auto_resolver(session):
+    # TODO(jelmer): if session is SchrootSession or if we're root, use apt
+    from .apt import AptResolver
+    from ..session.schroot import SchrootSession
+    user = session.check_output(['echo', '$USER']).decode().strip()
+    resolvers = []
+    if isinstance(session, SchrootSession) or user == 'root':
+        resolvers.append(AptResolver.from_session(session))
+    resolvers.extend([
+        CPANResolver(session),
+        PypiResolver(session),
+        NpmResolver(session),
+        CargoResolver(session)])
+    return StackedResolver(resolvers)

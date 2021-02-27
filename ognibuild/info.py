@@ -18,7 +18,7 @@
 from .buildsystem import NoBuildToolsFound, InstallTarget
 
 
-def run_info(session, buildsystems, resolver):
+def run_info(session, buildsystems):
     for buildsystem in buildsystems:
         print('%r:' % buildsystem)
         deps = {}

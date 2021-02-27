@@ -33,6 +33,9 @@ class PlainSession(Session):
     def check_call(self, args):
         return subprocess.check_call(args)
 
+    def check_output(self, args):
+        return subprocess.check_output(args)
+
     def Popen(self, args, stdout=None, stderr=None, user=None, cwd=None):
         return subprocess.Popen(args, stdout=stdout, stderr=stderr, cwd=cwd)
 

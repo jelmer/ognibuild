@@ -67,3 +67,6 @@ class UpstreamOutput(object):
     def __init__(self, family, name):
         self.family = family
         self.name = name
+
+    def __repr__(self):
+        return "%s(%r, %r)" % (type(self).__name__, self.family, self.name)

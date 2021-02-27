@@ -79,23 +79,8 @@ class SchrootDependencyContext(DependencyContext):
         return True
 
 
-def generic_install_fixers(session):
-    from .buildlog import UpstreamRequirementFixer
-    from .resolver import CPANResolver, PypiResolver, NpmResolver
-    return [
-        UpstreamRequirementFixer(CPANResolver(session)),
-        UpstreamRequirementFixer(PypiResolver(session)),
-        UpstreamRequirementFixer(NpmResolver(session)),
-        ]
-
-
-def run_with_build_fixer(
-        session: Session, args: List[str],
-        fixers: Optional[List[BuildFixer]] = None):
-    if fixers is None:
-        from .debian.fix_build import apt_fixers
-        from .resolver.apt import AptResolver
-        fixers = generic_install_fixers(session) + apt_fixers(AptResolver.from_session(session))
+def run_with_build_fixers(
+        session: Session, args: List[str], fixers: List[BuildFixer]):
     logging.info("Running %r", args)
     fixed_errors = []
     while True:
