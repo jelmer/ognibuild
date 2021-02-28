@@ -1,3 +1,4 @@
 Test-Command: python3 -m unittest ognibuild.tests.test_suite
-Depends: @, python3
+Depends: python3,
+         @,
 Restrictions: allow-stderr
