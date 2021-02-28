@@ -1,6 +1,5 @@
-#!/usr/bin/python
-# Copyright (C) 2019-2020 Jelmer Vernooij <jelmer@jelmer.uk>
-# encoding: utf-8
+#!/usr/bin/python3
+# Copyright (C) 2020-2021 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,31 +15,16 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from . import Session
-
-import os
-import subprocess
+from .buildsystem import NoBuildToolsFound
 
 
-class PlainSession(Session):
-    """Session ignoring user."""
+def run_test(session, buildsystems, resolver, fixers):
+    # Some things want to write to the user's home directory,
+    # e.g. pip caches in ~/.cache
+    session.create_home()
 
-    location = "/"
+    for buildsystem in buildsystems:
+        buildsystem.test(session, resolver, fixers)
+        return
 
-    def create_home(self):
-        pass
-
-    def check_call(self, args):
-        return subprocess.check_call(args)
-
-    def check_output(self, args):
-        return subprocess.check_output(args)
-
-    def Popen(self, args, stdout=None, stderr=None, user=None, cwd=None):
-        return subprocess.Popen(args, stdout=stdout, stderr=stderr, cwd=cwd)
-
-    def exists(self, path):
-        return os.path.exists(path)
-
-    def scandir(self, path):
-        return os.scandir(path)
+    raise NoBuildToolsFound()
