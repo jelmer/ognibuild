@@ -48,9 +48,11 @@ from debmutate.reformatting import (
     FormattingUnpreservable,
     GeneratedFile,
 )
-from lintian_brush import (
-    reset_tree,
-)
+try:
+    from breezy.workspace import reset_tree
+except ImportError:
+    from lintian_brush import reset_tree
+
 from lintian_brush.changelog import (
     add_changelog_entry,
 )

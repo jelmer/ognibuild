@@ -44,3 +44,6 @@ class PlainSession(Session):
 
     def scandir(self, path):
         return os.scandir(path)
+
+    def chdir(self, path):
+        os.chdir(path)

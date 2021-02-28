@@ -114,7 +114,11 @@ class SetupPy(BuildSystem):
     def __init__(self, path):
         self.path = path
         from distutils.core import run_setup
-        self.result = run_setup(os.path.abspath(path), stop_after="init")
+        try:
+            self.result = run_setup(os.path.abspath(path), stop_after="init")
+        except RuntimeError as e:
+            logging.warning('Unable to load setup.py metadata: %s', e)
+            self.result = None
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
@@ -137,9 +141,9 @@ class SetupPy(BuildSystem):
             logging.debug("Reference to setuptools-scm found, installing.")
             resolver.install(
                 [
-                    PythonPackageRequirement("setuptools-scm"),
+                    PythonPackageRequirement("setuptools_scm"),
                     BinaryRequirement("git"),
-                    BinaryRequirement("mercurial"),
+                    BinaryRequirement("hg"),
                 ]
             )
 
@@ -181,6 +185,8 @@ class SetupPy(BuildSystem):
                 fixers)
 
     def get_declared_dependencies(self):
+        if self.result is None:
+            raise NotImplementedError
         for require in self.result.get_requires():
             yield "build", PythonPackageRequirement(require)
         # Not present for distutils-only packages
@@ -193,6 +199,8 @@ class SetupPy(BuildSystem):
                 yield "test", PythonPackageRequirement(require)
 
     def get_declared_outputs(self):
+        if self.result is None:
+            raise NotImplementedError
         for script in self.result.scripts or []:
             yield UpstreamOutput("binary", os.path.basename(script))
         entry_points = getattr(self.result, 'entry_points', None) or {}
