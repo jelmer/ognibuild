@@ -1,0 +1,2 @@
+- Need to be able to check up front whether a requirement is satisfied, before attempting to install it (which is more expensive)
+- Cache parsed Contents files during test suite runs and/or speed up reading
