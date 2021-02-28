@@ -27,6 +27,9 @@ class Resolver(object):
     def install(self, requirements):
         raise NotImplementedError(self.install)
 
+    def resolve(self, requirement):
+        raise NotImplementedError(self.resolve)
+
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
 
