@@ -682,6 +682,7 @@ def main(argv=None):
             args.suite,
             output_directory,
             args.build_command,
+            None,
             committer=args.committer,
             update_changelog=args.update_changelog,
         )
