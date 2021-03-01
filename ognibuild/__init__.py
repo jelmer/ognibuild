@@ -70,3 +70,6 @@ class UpstreamOutput(object):
 
     def __repr__(self):
         return "%s(%r, %r)" % (type(self).__name__, self.family, self.name)
+
+    def get_declared_dependencies(self):
+        raise NotImplementedError(self.get_declared_dependencies)

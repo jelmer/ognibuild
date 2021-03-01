@@ -110,9 +110,9 @@ def main():  # noqa: C901
         parser.print_usage()
         return 1
     if args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.DEBUG, format='%(message)s')
     else:
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.INFO, format='%(message)s')
     if args.schroot:
         from .session.schroot import SchrootSession
 

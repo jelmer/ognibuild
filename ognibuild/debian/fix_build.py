@@ -665,7 +665,7 @@ def main(argv=None):
     import contextlib
     apt = AptManager(PlainSession())
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
 
     with contextlib.ExitStack() as es:
         if args.output_directory is None:
