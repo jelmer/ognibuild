@@ -62,7 +62,7 @@ class AptRequirement(Requirement):
         self.minimum_version = minimum_version
 
 
-def get_package_for_python_package(apt_mgr, package, python_version, minimum_version=None):
+def get_package_for_python_package(apt_mgr, package, python_version, specs=None):
     if python_version == "pypy":
         pkg_name = apt_mgr.get_package_for_paths(
             ["/usr/lib/pypy/dist-packages/%s-.*.egg-info/PKG-INFO" % package],
@@ -78,12 +78,20 @@ def get_package_for_python_package(apt_mgr, package, python_version, minimum_ver
     else:
         raise NotImplementedError
     # TODO(jelmer): Dealing with epoch, etc?
+    if not specs:
+        minimum_version = None
+    else:
+        for spec in specs:
+            if spec[0] == '>=':
+                minimum_version = spec[1]
+            else:
+                raise NotImplementedError(spec)
     if pkg_name is not None:
         return AptRequirement(pkg_name, minimum_version)
     return None
 
 
-def get_package_for_python_module(apt_mgr, module, python_version, minimum_version):
+def get_package_for_python_module(apt_mgr, module, python_version, specs):
     if python_version == "python3":
         paths = [
             posixpath.join(
@@ -136,6 +144,14 @@ def get_package_for_python_module(apt_mgr, module, python_version, minimum_versi
         ]
     else:
         raise AssertionError("unknown python version %r" % python_version)
+    if not specs:
+        minimum_version = None
+    else:
+        for spec in specs:
+            if spec[0] == '>=':
+                minimum_version = spec[1]
+            else:
+                raise NotImplementedError(spec)
     pkg_name = apt_mgr.get_package_for_paths(paths, regex=True)
     if pkg_name is not None:
         return AptRequirement(pkg_name, minimum_version=minimum_version)
@@ -449,18 +465,18 @@ def resolve_autoconf_macro_req(apt_mgr, req):
 
 def resolve_python_module_req(apt_mgr, req):
     if req.python_version == 2:
-        return get_package_for_python_module(apt_mgr, req.module, "cpython2", req.minimum_version)
+        return get_package_for_python_module(apt_mgr, req.module, "cpython2", req.specs)
     elif req.python_version in (None, 3):
-        return get_package_for_python_module(apt_mgr, req.module, "cpython3", req.minimum_version)
+        return get_package_for_python_module(apt_mgr, req.module, "cpython3", req.specs)
     else:
         return None
 
 
 def resolve_python_package_req(apt_mgr, req):
     if req.python_version == 2:
-        return get_package_for_python_package(apt_mgr, req.package, "cpython2", req.minimum_version)
+        return get_package_for_python_package(apt_mgr, req.package, "cpython2", req.specs)
     elif req.python_version in (None, 3):
-        return get_package_for_python_package(apt_mgr, req.package, "cpython3", req.minimum_version)
+        return get_package_for_python_package(apt_mgr, req.package, "cpython3", req.specs)
     else:
         return None
 

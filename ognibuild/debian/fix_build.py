@@ -349,9 +349,14 @@ def fix_missing_python_module(error, context):
         targeted = set()
     default = not targeted
 
-    pypy_pkg = get_package_for_python_module(context.apt, error.module, "pypy", None)
-    py2_pkg = get_package_for_python_module(context.apt, error.module, "python2", None)
-    py3_pkg = get_package_for_python_module(context.apt, error.module, "python3", None)
+    if error.minimum_version:
+        specs = [('>=', error.minimum_version)]
+    else:
+        specs = []
+
+    pypy_pkg = get_package_for_python_module(context.apt, error.module, "pypy", specs)
+    py2_pkg = get_package_for_python_module(context.apt, error.module, "python2", specs)
+    py3_pkg = get_package_for_python_module(context.apt, error.module, "python3", specs)
 
     extra_build_deps = []
     if error.python_version == 2:
