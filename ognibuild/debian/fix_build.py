@@ -498,6 +498,9 @@ class SimpleBuildFixer(BuildFixer):
         self._problem_cls = problem_cls
         self._fn = fn
 
+    def __repr__(self):
+        return "%s(%r, %r)" % (type(self).__name__, self._problem_cls, self._fn)
+
     def can_fix(self, problem):
         return isinstance(problem, self._problem_cls)
 
@@ -533,7 +536,7 @@ def build_incrementally(
     build_suite,
     output_directory,
     build_command,
-    build_changelog_entry="Build for debian-janitor apt repository.",
+    build_changelog_entry,
     committer=None,
     max_iterations=DEFAULT_MAX_ITERATIONS,
     subpath="",
@@ -658,19 +661,30 @@ def main(argv=None):
     from breezy.workingtree import WorkingTree
     from .apt import AptManager
     from ..session.plain import PlainSession
+    import tempfile
+    import contextlib
     apt = AptManager(PlainSession())
 
-    tree = WorkingTree.open(".")
-    build_incrementally(
-        tree,
-        apt,
-        args.suffix,
-        args.suite,
-        args.output_directory,
-        args.build_command,
-        committer=args.committer,
-        update_changelog=args.update_changelog,
-    )
+    logging.basicConfig(level=logging.INFO)
+
+    with contextlib.ExitStack() as es:
+        if args.output_directory is None:
+            output_directory = es.enter_context(tempfile.TemporaryDirectory())
+            logging.info('Using output directory %s', output_directory)
+        else:
+            output_directory = args.output_directory
+
+        tree = WorkingTree.open(".")
+        build_incrementally(
+            tree,
+            apt,
+            args.suffix,
+            args.suite,
+            output_directory,
+            args.build_command,
+            committer=args.committer,
+            update_changelog=args.update_changelog,
+        )
 
 
 if __name__ == "__main__":
