@@ -37,12 +37,12 @@ from debmutate.control import (
     ensure_relation,
     ControlEditor,
 )
+from debian.deb822 import PkgRelation
 from debmutate.debhelper import (
     get_debhelper_compat_level,
 )
 from debmutate.deb822 import (
     Deb822Editor,
-    PkgRelation,
 )
 from debmutate.reformatting import (
     FormattingUnpreservable,
@@ -243,7 +243,7 @@ def commit_debian_changes(
 def targeted_python_versions(tree: Tree) -> Set[str]:
     with tree.get_file("debian/control") as f:
         control = Deb822(f)
-    build_depends = PkgRelation.parse(control.get("Build-Depends", ""))
+    build_depends = PkgRelation.parse_relations(control.get("Build-Depends", ""))
     all_build_deps: Set[str] = set()
     for or_deps in build_depends:
         all_build_deps.update(or_dep["name"] for or_dep in or_deps)
@@ -317,9 +317,7 @@ def fix_missing_python_distribution(error, context):  # noqa: C901
 
     for dep_pkg in extra_build_deps:
         assert dep_pkg is not None
-        if not context.add_dependency(
-                AptRequirement.simple(
-                    dep_pkg.package, minimum_version=error.minimum_version)):
+        if not context.add_dependency(dep_pkg):
             return False
     return True
 
@@ -370,8 +368,7 @@ def fix_missing_python_module(error, context):
 
     for dep_pkg in extra_build_deps:
         assert dep_pkg is not None
-        if not context.add_dependency(
-                AptRequirement.simple(dep_pkg.package, error.minimum_version)):
+        if not context.add_dependency(dep_pkg):
             return False
     return True
 
