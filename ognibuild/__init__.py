@@ -64,12 +64,8 @@ class UpstreamRequirement(object):
 
 class UpstreamOutput(object):
 
-    def __init__(self, family, name):
+    def __init__(self, family):
         self.family = family
-        self.name = name
-
-    def __repr__(self):
-        return "%s(%r, %r)" % (type(self).__name__, self.family, self.name)
 
     def get_declared_dependencies(self):
         raise NotImplementedError(self.get_declared_dependencies)

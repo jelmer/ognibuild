@@ -23,7 +23,11 @@ import re
 from typing import Optional
 import warnings
 
-from . import shebang_binary, UpstreamOutput, UnidentifiedError
+from . import shebang_binary, UnidentifiedError
+from .outputs import (
+    BinaryOutput,
+    PythonPackageOutput,
+    )
 from .requirements import (
     BinaryRequirement,
     PythonPackageRequirement,
@@ -202,12 +206,12 @@ class SetupPy(BuildSystem):
         if self.result is None:
             raise NotImplementedError
         for script in self.result.scripts or []:
-            yield UpstreamOutput("binary", os.path.basename(script))
+            yield BinaryOutput(os.path.basename(script))
         entry_points = getattr(self.result, 'entry_points', None) or {}
         for script in entry_points.get("console_scripts", []):
-            yield UpstreamOutput("binary", script.split("=")[0])
+            yield BinaryOutput(script.split("=")[0])
         for package in self.result.packages or []:
-            yield UpstreamOutput("python3", package)
+            yield PythonPackageOutput(package, python_version="cpython3")
 
 
 class PyProject(BuildSystem):
