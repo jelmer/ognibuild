@@ -89,11 +89,12 @@ def run_with_build_fixers(
             return
         match, error = find_build_failure_description(lines)
         if error is None:
-            logging.warning("Build failed with unidentified error. Giving up.")
-            if match is not None:
-                raise UnidentifiedError(
-                    retcode, args, lines, secondary=(match.lineno, match.line))
-            raise UnidentifiedError(retcode, args, lines)
+            if match:
+                logging.warning("Build failed with unidentified error:")
+                logging.warning('%s', match.line.rstrip('\n'))
+            else:
+                logging.warning("Build failed and unable to find cause. Giving up.")
+            raise UnidentifiedError(retcode, args, lines, secondary=match)
 
         logging.info("Identified error: %r", error)
         if error in fixed_errors:

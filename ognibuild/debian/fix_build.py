@@ -81,7 +81,7 @@ from buildlog_consultant.sbuild import (
 )
 
 from ..fix_build import BuildFixer, resolve_error, DependencyContext
-from ..buildlog import UpstreamRequirementFixer
+from ..buildlog import RequirementFixer
 from ..resolver.apt import (
     AptRequirement,
     get_package_for_python_module,
@@ -525,7 +525,7 @@ def apt_fixers(apt) -> List[BuildFixer]:
         SimpleBuildFixer(MissingPythonModule, fix_missing_python_module),
         SimpleBuildFixer(MissingPythonDistribution, fix_missing_python_distribution),
         SimpleBuildFixer(AptFetchFailure, retry_apt_failure),
-        UpstreamRequirementFixer(resolver),
+        RequirementFixer(resolver),
     ]
 
 

@@ -62,9 +62,9 @@ STAGE_MAP = {
 }
 
 def determine_fixers(session, resolver):
-    from .buildlog import UpstreamRequirementFixer
+    from .buildlog import RequirementFixer
     from .resolver.apt import AptResolver
-    return [UpstreamRequirementFixer(resolver)]
+    return [RequirementFixer(resolver)]
 
 
 def main():  # noqa: C901
@@ -136,6 +136,7 @@ def main():  # noqa: C901
             if not args.ignore_declared_dependencies and not args.explain:
                 stages = STAGE_MAP[args.subcommand]
                 if stages:
+                    logging.info('Checking that declared requirements are present')
                     for bs in bss:
                         install_necessary_declared_requirements(resolver, bs, stages)
             fixers = determine_fixers(session, resolver)
@@ -166,7 +167,7 @@ def main():  # noqa: C901
             if args.subcommand == "info":
                 from .info import run_info
                 run_info(session, buildsystems=bss)
-        except UnidentifiedError:
+        except UnidentifiedError as e:
             return 1
         except NoBuildToolsFound:
             logging.info("No build tools found.")

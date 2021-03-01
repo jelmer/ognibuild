@@ -118,6 +118,8 @@ class SetupPy(BuildSystem):
     def __init__(self, path):
         self.path = path
         from distutils.core import run_setup
+        # TODO(jelmer): Perhaps run this in session, so we can install
+        # missing dependencies?
         try:
             self.result = run_setup(os.path.abspath(path), stop_after="init")
         except RuntimeError as e:
@@ -420,6 +422,10 @@ class Make(BuildSystem):
     def build(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
         run_with_build_fixers(session, ["make", "all"], fixers)
+
+    def clean(self, session, resolver, fixers):
+        self.setup(session, resolver, fixers)
+        run_with_build_fixers(session, ["make", "clean"], fixers)
 
     def test(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)

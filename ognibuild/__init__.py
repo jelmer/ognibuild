@@ -50,7 +50,7 @@ def shebang_binary(p):
         return os.path.basename(args[0].decode()).strip()
 
 
-class UpstreamRequirement(object):
+class Requirement(object):
 
     # Name of the family of requirements - e.g. "python-package"
     family: str

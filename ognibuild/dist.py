@@ -125,7 +125,7 @@ def create_dist_schroot(
 ) -> str:
     from .buildsystem import detect_buildsystems
     from .resolver.apt import AptResolver
-    from .buildlog import UpstreamRequirementFixer
+    from .buildlog import RequirementFixer
 
     if subdir is None:
         subdir = "package"
@@ -151,7 +151,7 @@ def create_dist_schroot(
 
         buildsystems = list(detect_buildsystems(export_directory))
         resolver = AptResolver.from_session(session)
-        fixers = [UpstreamRequirementFixer(resolver)]
+        fixers = [RequirementFixer(resolver)]
 
         with DistCatcher(export_directory) as dc:
             oldcwd = os.getcwd()

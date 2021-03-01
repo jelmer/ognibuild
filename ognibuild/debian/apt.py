@@ -39,11 +39,9 @@ def run_apt(session: Session, args: List[str]) -> None:
     match, error = find_apt_get_failure(lines)
     if error is not None:
         raise DetailedFailure(retcode, args, error)
-    if match is not None:
-        raise UnidentifiedError(retcode, args, lines, secondary=(match.lineno, match.line))
     while lines and lines[-1] == "":
         lines.pop(-1)
-    raise UnidentifiedError(retcode, args, lines)
+    raise UnidentifiedError(retcode, args, lines, secondary=match)
 
 
 class FileSearcher(object):

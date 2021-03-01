@@ -173,7 +173,7 @@ def problem_to_upstream_requirement(problem):
         return None
 
 
-class UpstreamRequirementFixer(BuildFixer):
+class RequirementFixer(BuildFixer):
 
     def __init__(self, resolver):
         self.resolver = resolver

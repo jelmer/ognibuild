@@ -19,10 +19,10 @@
 import posixpath
 from typing import Optional, List, Tuple
 
-from . import UpstreamRequirement
+from . import Requirement
 
 
-class PythonPackageRequirement(UpstreamRequirement):
+class PythonPackageRequirement(Requirement):
 
     package: str
 
@@ -41,7 +41,7 @@ class PythonPackageRequirement(UpstreamRequirement):
         return "python package: %s" % self.package
 
 
-class BinaryRequirement(UpstreamRequirement):
+class BinaryRequirement(Requirement):
 
     binary_name: str
 
@@ -50,7 +50,7 @@ class BinaryRequirement(UpstreamRequirement):
         self.binary_name = binary_name
 
 
-class PerlModuleRequirement(UpstreamRequirement):
+class PerlModuleRequirement(Requirement):
 
     module: str
     filename: Optional[str]
@@ -66,7 +66,7 @@ class PerlModuleRequirement(UpstreamRequirement):
         return self.module.replace("::", "/") + ".pm"
 
 
-class NodePackageRequirement(UpstreamRequirement):
+class NodePackageRequirement(Requirement):
 
     package: str
 
@@ -75,7 +75,7 @@ class NodePackageRequirement(UpstreamRequirement):
         self.package = package
 
 
-class CargoCrateRequirement(UpstreamRequirement):
+class CargoCrateRequirement(Requirement):
 
     crate: str
 
@@ -84,7 +84,7 @@ class CargoCrateRequirement(UpstreamRequirement):
         self.crate = crate
 
 
-class PkgConfigRequirement(UpstreamRequirement):
+class PkgConfigRequirement(Requirement):
 
     module: str
 
@@ -94,7 +94,7 @@ class PkgConfigRequirement(UpstreamRequirement):
         self.minimum_version = minimum_version
 
 
-class PathRequirement(UpstreamRequirement):
+class PathRequirement(Requirement):
 
     path: str
 
@@ -103,7 +103,7 @@ class PathRequirement(UpstreamRequirement):
         self.path = path
 
 
-class CHeaderRequirement(UpstreamRequirement):
+class CHeaderRequirement(Requirement):
 
     header: str
 
@@ -112,14 +112,14 @@ class CHeaderRequirement(UpstreamRequirement):
         self.header = header
 
 
-class JavaScriptRuntimeRequirement(UpstreamRequirement):
+class JavaScriptRuntimeRequirement(Requirement):
 
     def __init__(self):
         super(JavaScriptRuntimeRequirement, self).__init__(
             'javascript-runtime')
 
 
-class ValaPackageRequirement(UpstreamRequirement):
+class ValaPackageRequirement(Requirement):
 
     package: str
 
@@ -128,7 +128,7 @@ class ValaPackageRequirement(UpstreamRequirement):
         self.package = package
 
 
-class RubyGemRequirement(UpstreamRequirement):
+class RubyGemRequirement(Requirement):
 
     gem: str
     minimum_version: Optional[str]
@@ -139,7 +139,7 @@ class RubyGemRequirement(UpstreamRequirement):
         self.minimum_version = minimum_version
 
 
-class GoPackageRequirement(UpstreamRequirement):
+class GoPackageRequirement(Requirement):
 
     package: str
 
@@ -148,7 +148,7 @@ class GoPackageRequirement(UpstreamRequirement):
         self.package = package
 
 
-class DhAddonRequirement(UpstreamRequirement):
+class DhAddonRequirement(Requirement):
 
     path: str
 
@@ -157,7 +157,7 @@ class DhAddonRequirement(UpstreamRequirement):
         self.path = path
 
 
-class PhpClassRequirement(UpstreamRequirement):
+class PhpClassRequirement(Requirement):
 
     php_class: str
 
@@ -166,7 +166,7 @@ class PhpClassRequirement(UpstreamRequirement):
         self.php_class = php_class
 
 
-class RPackageRequirement(UpstreamRequirement):
+class RPackageRequirement(Requirement):
 
     package: str
     minimum_version: Optional[str]
@@ -177,7 +177,7 @@ class RPackageRequirement(UpstreamRequirement):
         self.minimum_version = minimum_version
 
 
-class LibraryRequirement(UpstreamRequirement):
+class LibraryRequirement(Requirement):
 
     library: str
 
@@ -186,7 +186,7 @@ class LibraryRequirement(UpstreamRequirement):
         self.library = library
 
 
-class RubyFileRequirement(UpstreamRequirement):
+class RubyFileRequirement(Requirement):
 
     filename: str
 
@@ -195,7 +195,7 @@ class RubyFileRequirement(UpstreamRequirement):
         self.filename = filename
 
 
-class XmlEntityRequirement(UpstreamRequirement):
+class XmlEntityRequirement(Requirement):
 
     url: str
 
@@ -204,7 +204,7 @@ class XmlEntityRequirement(UpstreamRequirement):
         self.url = url
 
 
-class SprocketsFileRequirement(UpstreamRequirement):
+class SprocketsFileRequirement(Requirement):
 
     content_type: str
     name: str
@@ -215,7 +215,7 @@ class SprocketsFileRequirement(UpstreamRequirement):
         self.name = name
 
 
-class JavaClassRequirement(UpstreamRequirement):
+class JavaClassRequirement(Requirement):
 
     classname: str
 
@@ -224,7 +224,7 @@ class JavaClassRequirement(UpstreamRequirement):
         self.classname = classname
 
 
-class HaskellPackageRequirement(UpstreamRequirement):
+class HaskellPackageRequirement(Requirement):
 
     package: str
 
@@ -233,7 +233,7 @@ class HaskellPackageRequirement(UpstreamRequirement):
         self.package = package
 
 
-class MavenArtifactRequirement(UpstreamRequirement):
+class MavenArtifactRequirement(Requirement):
 
     artifacts: List[Tuple[str, str, str]]
 
@@ -242,13 +242,13 @@ class MavenArtifactRequirement(UpstreamRequirement):
         self.artifacts = artifacts
 
 
-class GnomeCommonRequirement(UpstreamRequirement):
+class GnomeCommonRequirement(Requirement):
 
     def __init__(self):
         super(GnomeCommonRequirement, self).__init__('gnome-common')
 
 
-class JDKFileRequirement(UpstreamRequirement):
+class JDKFileRequirement(Requirement):
 
     jdk_path: str
     filename: str
@@ -263,7 +263,7 @@ class JDKFileRequirement(UpstreamRequirement):
         return posixpath.join(self.jdk_path, self.filename)
 
 
-class PerlFileRequirement(UpstreamRequirement):
+class PerlFileRequirement(Requirement):
 
     filename: str
 
@@ -272,7 +272,7 @@ class PerlFileRequirement(UpstreamRequirement):
         self.filename = filename
 
 
-class AutoconfMacroRequirement(UpstreamRequirement):
+class AutoconfMacroRequirement(Requirement):
 
     macro: str
 
@@ -281,7 +281,7 @@ class AutoconfMacroRequirement(UpstreamRequirement):
         self.macro = macro
 
 
-class PythonModuleRequirement(UpstreamRequirement):
+class PythonModuleRequirement(Requirement):
 
     module: str
     python_version: Optional[str]

@@ -23,11 +23,12 @@ from ..debian.apt import AptManager
 
 from . import Resolver, UnsatisfiedRequirements
 from ..requirements import (
+    Requirement,
     BinaryRequirement,
     CHeaderRequirement,
     PkgConfigRequirement,
     PathRequirement,
-    UpstreamRequirement,
+    Requirement,
     JavaScriptRuntimeRequirement,
     ValaPackageRequirement,
     RubyGemRequirement,
@@ -53,9 +54,10 @@ from ..requirements import (
     )
 
 
-class AptRequirement(object):
+class AptRequirement(Requirement):
 
     def __init__(self, package, minimum_version=None):
+        super(AptRequirement, self).__init__('apt')
         self.package = package
         self.minimum_version = minimum_version
 
@@ -493,7 +495,7 @@ APT_REQUIREMENT_RESOLVERS = [
 ]
 
 
-def resolve_requirement_apt(apt_mgr, req: UpstreamRequirement) -> AptRequirement:
+def resolve_requirement_apt(apt_mgr, req: Requirement) -> AptRequirement:
     for rr_class, rr_fn in APT_REQUIREMENT_RESOLVERS:
         if isinstance(req, rr_class):
             return rr_fn(apt_mgr, req)
@@ -538,5 +540,5 @@ class AptResolver(Resolver):
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
 
-    def resolve(self, req: UpstreamRequirement):
+    def resolve(self, req: Requirement):
         return resolve_requirement_apt(self.apt, req)
