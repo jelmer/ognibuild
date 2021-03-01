@@ -30,6 +30,7 @@ setup(name="ognibuild",
       install_requires=[
           'breezy',
           'buildlog-consultant',
+          'requirements-parser',
           ],
       extras_require={
           'debian': ['debmutate', 'python_debian', 'python_apt'],

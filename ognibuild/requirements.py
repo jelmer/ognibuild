@@ -26,19 +26,32 @@ class PythonPackageRequirement(Requirement):
 
     package: str
 
-    def __init__(self, package, python_version=None, minimum_version=None):
+    def __init__(self, package, python_version=None, specs=None,
+                 minimum_version=None):
         super(PythonPackageRequirement, self).__init__('python-package')
         self.package = package
         self.python_version = python_version
-        self.minimum_version = minimum_version
+        if minimum_version is not None:
+            specs = [('>=', minimum_version)]
+        self.specs = specs
 
     def __repr__(self):
-        return "%s(%r, python_version=%r, minimum_version=%r)" % (
+        return "%s(%r, python_version=%r, specs=%r)" % (
             type(self).__name__, self.package, self.python_version,
-            self.minimum_version)
+            self.specs)
 
     def __str__(self):
-        return "python package: %s" % self.package
+        if self.specs:
+            return "python package: %s (%r)" % (self.package, self.specs)
+        else:
+            return "python package: %s" % (self.package, )
+
+
+    @classmethod
+    def from_requirement_str(cls, text):
+        from requirements.requirement import Requirement
+        req = Requirement.parse(text)
+        return cls(package=req.name, specs=req.specs)
 
 
 class BinaryRequirement(Requirement):

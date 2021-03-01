@@ -194,15 +194,15 @@ class SetupPy(BuildSystem):
         if self.result is None:
             raise NotImplementedError
         for require in self.result.get_requires():
-            yield "build", PythonPackageRequirement(require)
+            yield "build", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
         if getattr(self.result, 'install_requires', []):
             for require in self.result.install_requires:
-                yield "install", PythonPackageRequirement(require)
+                yield "install", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
         if getattr(self.result, 'tests_require', []):
             for require in self.result.tests_require:
-                yield "test", PythonPackageRequirement(require)
+                yield "test", PythonPackageRequirement.from_requirement_str(require)
 
     def get_declared_outputs(self):
         if self.result is None:
