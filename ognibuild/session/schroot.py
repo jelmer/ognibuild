@@ -62,8 +62,8 @@ class SchrootSession(Session):
             # TODO(jelmer): Capture stderr and forward in SessionSetupFailure
             raise SessionSetupFailure()
         logging.info(
-            'Opened schroot session %s (from %s)', self.session_id,
-            self.chroot)
+            "Opened schroot session %s (from %s)", self.session_id, self.chroot
+        )
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -157,7 +157,7 @@ class SchrootSession(Session):
 
     def _fullpath(self, path: str) -> str:
         if self._cwd is None:
-            raise ValueError('no cwd set')
+            raise ValueError("no cwd set")
         return os.path.join(self.location, os.path.join(self._cwd, path).lstrip("/"))
 
     def exists(self, path: str) -> bool:

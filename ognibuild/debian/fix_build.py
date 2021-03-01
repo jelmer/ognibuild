@@ -22,13 +22,12 @@ __all__ = [
 import logging
 import os
 import sys
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Type
 
 from debian.deb822 import (
     Deb822,
     PkgRelation,
 )
-from debian.changelog import Version
 
 from breezy.commit import PointlessCommit
 from breezy.mutabletree import MutableTree
@@ -37,7 +36,6 @@ from debmutate.control import (
     ensure_relation,
     ControlEditor,
 )
-from debian.deb822 import PkgRelation
 from debmutate.debhelper import (
     get_debhelper_compat_level,
 )
@@ -48,6 +46,7 @@ from debmutate.reformatting import (
     FormattingUnpreservable,
     GeneratedFile,
 )
+
 try:
     from breezy.workspace import reset_tree
 except ImportError:
@@ -75,7 +74,7 @@ from buildlog_consultant.common import (
     MissingPythonModule,
     MissingPythonDistribution,
     MissingPerlFile,
-    )
+)
 from buildlog_consultant.sbuild import (
     SbuildFailure,
 )
@@ -85,7 +84,7 @@ from ..buildlog import RequirementFixer
 from ..resolver.apt import (
     AptRequirement,
     get_package_for_python_module,
-    )
+)
 from .build import attempt_build, DEFAULT_BUILDER
 
 
@@ -100,7 +99,6 @@ class CircularDependency(Exception):
 
 
 class BuildDependencyContext(DependencyContext):
-
     def add_dependency(self, requirement: AptRequirement):
         return add_build_dependency(
             self.tree,
@@ -149,8 +147,8 @@ def add_build_dependency(
                     raise CircularDependency(binary["Package"])
             for rel in requirement.relations:
                 updater.source["Build-Depends"] = ensure_relation(
-                        updater.source.get("Build-Depends", ""),
-                        PkgRelation.str([rel]))
+                    updater.source.get("Build-Depends", ""), PkgRelation.str([rel])
+                )
     except FormattingUnpreservable as e:
         logging.info("Unable to edit %s in a way that preserves formatting.", e.path)
         return False
@@ -197,8 +195,8 @@ def add_test_dependency(
                     continue
                 for rel in requirement.relations:
                     control["Depends"] = ensure_relation(
-                        control.get("Depends", ""),
-                        PkgRelation.str([rel]))
+                        control.get("Depends", ""), PkgRelation.str([rel])
+                    )
     except FormattingUnpreservable as e:
         logging.info("Unable to edit %s in a way that preserves formatting.", e.path)
         return False
@@ -330,7 +328,7 @@ def fix_missing_python_module(error, context):
     default = not targeted
 
     if error.minimum_version:
-        specs = [('>=', error.minimum_version)]
+        specs = [(">=", error.minimum_version)]
     else:
         specs = []
 
@@ -397,8 +395,9 @@ def enable_dh_autoreconf(context):
 
 
 def fix_missing_configure(error, context):
-    if (not context.tree.has_filename("configure.ac") and
-            not context.tree.has_filename("configure.in")):
+    if not context.tree.has_filename("configure.ac") and not context.tree.has_filename(
+        "configure.in"
+    ):
         return False
 
     return enable_dh_autoreconf(context)
@@ -443,15 +442,11 @@ def fix_missing_config_status_input(error, context):
 
 
 class PgBuildExtOutOfDateControlFixer(BuildFixer):
-
     def __init__(self, session):
         self.session = session
 
     def can_fix(self, problem):
         return isinstance(problem, NeedPgBuildExtUpdateControl)
-
-    def _fix(self, problem, context):
-        return self._fn(problem, context)
 
     def _fix(self, error, context):
         logging.info("Running 'pg_buildext updatecontrol'")
@@ -477,18 +472,17 @@ def fix_missing_makefile_pl(error, context):
 
 
 class SimpleBuildFixer(BuildFixer):
-
-    def __init__(self, problem_cls, fn):
+    def __init__(self, problem_cls: Type[Problem], fn):
         self._problem_cls = problem_cls
         self._fn = fn
 
     def __repr__(self):
         return "%s(%r, %r)" % (type(self).__name__, self._problem_cls, self._fn)
 
-    def can_fix(self, problem):
+    def can_fix(self, problem: Problem):
         return isinstance(problem, self._problem_cls)
 
-    def _fix(self, problem, context):
+    def _fix(self, problem: Problem, context):
         return self._fn(problem, context)
 
 
@@ -504,6 +498,7 @@ def versioned_package_fixers(session):
 
 def apt_fixers(apt) -> List[BuildFixer]:
     from ..resolver.apt import AptResolver
+
     resolver = AptResolver(apt)
     return [
         SimpleBuildFixer(MissingPythonModule, fix_missing_python_module),
@@ -529,7 +524,7 @@ def build_incrementally(
 ):
     fixed_errors = []
     fixers = versioned_package_fixers(apt.session) + apt_fixers(apt)
-    logging.info('Using fixers: %r', fixers)
+    logging.info("Using fixers: %r", fixers)
     while True:
         try:
             return attempt_build(
@@ -583,7 +578,9 @@ def build_incrementally(
             except GeneratedFile:
                 logging.warning(
                     "Control file is generated, unable to edit to "
-                    "resolver error %r.", e.error)
+                    "resolver error %r.",
+                    e.error,
+                )
                 raise e
             except CircularDependency:
                 logging.warning(
@@ -647,14 +644,15 @@ def main(argv=None):
     from ..session.plain import PlainSession
     import tempfile
     import contextlib
+
     apt = AptManager(PlainSession())
 
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     with contextlib.ExitStack() as es:
         if args.output_directory is None:
             output_directory = es.enter_context(tempfile.TemporaryDirectory())
-            logging.info('Using output directory %s', output_directory)
+            logging.info("Using output directory %s", output_directory)
         else:
             output_directory = args.output_directory
 

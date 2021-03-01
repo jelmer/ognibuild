@@ -36,5 +36,6 @@ def satisfy_build_deps(session: Session, tree):
             pass
     deps = [dep.strip().strip(",") for dep in deps]
     from .apt import AptManager
+
     apt = AptManager(session)
     apt.satisfy(deps)

@@ -16,14 +16,10 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import logging
-from typing import List, Tuple, Callable, Type, Optional
+from typing import List, Optional
 
 from buildlog_consultant.common import (
     find_build_failure_description,
-    Problem,
-    MissingPerlModule,
-    MissingPythonDistribution,
-    MissingCommand,
 )
 from breezy.mutabletree import MutableTree
 
@@ -63,7 +59,7 @@ class DependencyContext(object):
         self.update_changelog = update_changelog
 
     def add_dependency(
-        self, package: str, minimum_version: Optional['Version'] = None
+        self, package: str, minimum_version=None
     ) -> bool:
         raise NotImplementedError(self.add_dependency)
 
@@ -79,8 +75,7 @@ class SchrootDependencyContext(DependencyContext):
         return True
 
 
-def run_with_build_fixers(
-        session: Session, args: List[str], fixers: List[BuildFixer]):
+def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer]):
     logging.info("Running %r", args)
     fixed_errors = []
     while True:
@@ -91,7 +86,7 @@ def run_with_build_fixers(
         if error is None:
             if match:
                 logging.warning("Build failed with unidentified error:")
-                logging.warning('%s', match.line.rstrip('\n'))
+                logging.warning("%s", match.line.rstrip("\n"))
             else:
                 logging.warning("Build failed and unable to find cause. Giving up.")
             raise UnidentifiedError(retcode, args, lines, secondary=match)

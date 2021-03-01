@@ -20,9 +20,8 @@ from . import UpstreamOutput
 
 
 class BinaryOutput(UpstreamOutput):
-
     def __init__(self, name):
-        super(BinaryOutput, self).__init__('binary')
+        super(BinaryOutput, self).__init__("binary")
         self.name = name
 
     def __repr__(self):
@@ -33,9 +32,8 @@ class BinaryOutput(UpstreamOutput):
 
 
 class PythonPackageOutput(UpstreamOutput):
-
     def __init__(self, name, python_version=None):
-        super(PythonPackageOutput, self).__init__('python-package')
+        super(PythonPackageOutput, self).__init__("python-package")
         self.name = name
         self.python_version = python_version
 
@@ -44,4 +42,7 @@ class PythonPackageOutput(UpstreamOutput):
 
     def __repr__(self):
         return "%s(%r, python_version=%r)" % (
-            type(self).__name__, self.name, self.python_version)
+            type(self).__name__,
+            self.name,
+            self.python_version,
+        )

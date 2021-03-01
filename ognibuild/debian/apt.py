@@ -24,7 +24,6 @@ import os
 from buildlog_consultant.apt import (
     find_apt_get_failure,
 )
-from debian.deb822 import Release
 
 from .. import DetailedFailure, UnidentifiedError
 from ..session import Session, run_with_tee
@@ -63,17 +62,19 @@ class AptManager(object):
         if self._searchers is None:
             self._searchers = [
                 AptContentsFileSearcher.from_session(self.session),
-                GENERATED_FILE_SEARCHER]
+                GENERATED_FILE_SEARCHER,
+            ]
         return self._searchers
 
     def package_exists(self, package):
         if self._apt_cache is None:
             import apt
+
             self._apt_cache = apt.Cache(rootdir=self.session.location)
         return package in self._apt_cache
 
     def get_package_for_paths(self, paths, regex=False):
-        logging.debug('Searching for packages containing %r', paths)
+        logging.debug("Searching for packages containing %r", paths)
         # TODO(jelmer): Make sure we use whatever is configured in self.session
         return get_package_for_paths(paths, self.searchers(), regex=regex)
 
@@ -82,6 +83,7 @@ class AptManager(object):
         status_path = os.path.join(root, "var/lib/dpkg/status")
         missing = set(packages)
         import apt_pkg
+
         with apt_pkg.TagFile(status_path) as tagf:
             while missing:
                 tagf.step()
@@ -93,7 +95,7 @@ class AptManager(object):
         return list(missing)
 
     def install(self, packages: List[str]) -> None:
-        logging.info('Installing using apt: %r', packages)
+        logging.info("Installing using apt: %r", packages)
         packages = self.missing(packages)
         if packages:
             run_apt(self.session, ["install"] + packages)
@@ -112,16 +114,19 @@ class AptContentsFileSearcher(FileSearcher):
 
     @classmethod
     def from_session(cls, session):
-        logging.info('Loading apt contents information')
+        logging.info("Loading apt contents information")
         # TODO(jelmer): what about sources.list.d?
         from aptsources.sourceslist import SourcesList
+
         sl = SourcesList()
-        sl.load(os.path.join(session.location, 'etc/apt/sources.list'))
+        sl.load(os.path.join(session.location, "etc/apt/sources.list"))
         return cls.from_sources_list(
             sl,
             cache_dirs=[
-                os.path.join(session.location, 'var/lib/apt/lists'),
-                '/var/lib/apt/lists'])
+                os.path.join(session.location, "var/lib/apt/lists"),
+                "/var/lib/apt/lists",
+            ],
+        )
 
     def __setitem__(self, path, package):
         self._db[path] = package
@@ -146,15 +151,17 @@ class AptContentsFileSearcher(FileSearcher):
     @classmethod
     def _load_cache_file(cls, url, cache_dir):
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
         p = os.path.join(
-            cache_dir,
-            parsed.hostname + parsed.path.replace('/', '_') + '.lz4')
+            cache_dir, parsed.hostname + parsed.path.replace("/", "_") + ".lz4"
+        )
         if not os.path.exists(p):
             return None
-        logging.debug('Loading cached contents file %s', p)
+        logging.debug("Loading cached contents file %s", p)
         import lz4.frame
-        return lz4.frame.open(p, mode='rb')
+
+        return lz4.frame.open(p, mode="rb")
 
     @classmethod
     def from_urls(cls, urls, cache_dirs=None):
@@ -168,39 +175,39 @@ class AptContentsFileSearcher(FileSearcher):
             else:
                 if not mandatory and self._db:
                     logging.debug(
-                        'Not attempting to fetch optional contents '
-                        'file %s', url)
+                        "Not attempting to fetch optional contents " "file %s", url
+                    )
                 else:
-                    logging.debug('Fetching contents file %s', url)
+                    logging.debug("Fetching contents file %s", url)
                     try:
                         self.load_url(url)
                     except ContentsFileNotFound:
                         if mandatory:
-                            logging.warning(
-                                'Unable to fetch contents file %s', url)
+                            logging.warning("Unable to fetch contents file %s", url)
                         else:
                             logging.debug(
-                                'Unable to fetch optional contents file %s',
-                                url)
+                                "Unable to fetch optional contents file %s", url
+                            )
         return self
 
     @classmethod
     def from_sources_list(cls, sl, cache_dirs=None):
         # TODO(jelmer): Use aptsources.sourceslist.SourcesList
         from .build import get_build_architecture
+
         # TODO(jelmer): Verify signatures, etc.
         urls = []
         arches = [(get_build_architecture(), True), ("all", False)]
         for source in sl.list:
             if source.invalid or source.disabled:
                 continue
-            if source.type == 'deb-src':
+            if source.type == "deb-src":
                 continue
-            if source.type != 'deb':
+            if source.type != "deb":
                 logging.warning("Invalid line in sources: %r", source)
                 continue
-            base_url = source.uri.rstrip('/')
-            name = source.dist.rstrip('/')
+            base_url = source.uri.rstrip("/")
+            name = source.dist.rstrip("/")
             components = source.comps
             if components:
                 dists_url = base_url + "/dists"
@@ -210,12 +217,20 @@ class AptContentsFileSearcher(FileSearcher):
                 for component in components:
                     for arch, mandatory in arches:
                         urls.append(
-                            ("%s/%s/%s/Contents-%s" % (
-                                dists_url, name, component, arch), mandatory))
+                            (
+                                "%s/%s/%s/Contents-%s"
+                                % (dists_url, name, component, arch),
+                                mandatory,
+                            )
+                        )
             else:
                 for arch, mandatory in arches:
                     urls.append(
-                        ("%s/%s/Contents-%s" % (dists_url, name.rstrip('/'), arch), mandatory))
+                        (
+                            "%s/%s/Contents-%s" % (dists_url, name.rstrip("/"), arch),
+                            mandatory,
+                        )
+                    )
         return cls.from_urls(urls, cache_dirs=cache_dirs)
 
     @staticmethod
@@ -228,7 +243,7 @@ class AptContentsFileSearcher(FileSearcher):
     def load_url(self, url, allow_cache=True):
         from urllib.error import HTTPError
 
-        for ext in ['.xz', '.gz', '']:
+        for ext in [".xz", ".gz", ""]:
             try:
                 response = self._get(url + ext)
             except HTTPError as e:
@@ -238,13 +253,14 @@ class AptContentsFileSearcher(FileSearcher):
             break
         else:
             raise ContentsFileNotFound(url)
-        if ext == '.gz':
+        if ext == ".gz":
             import gzip
 
             f = gzip.GzipFile(fileobj=response)
-        elif ext == '.xz':
+        elif ext == ".xz":
             import lzma
             from io import BytesIO
+
             f = BytesIO(lzma.decompress(response.read()))
         elif response.headers.get_content_type() == "text/plain":
             f = response
@@ -280,7 +296,8 @@ GENERATED_FILE_SEARCHER = GeneratedFileSearcher(
 
 
 def get_package_for_paths(
-        paths: List[str], searchers: List[FileSearcher], regex: bool = False) -> Optional[str]:
+    paths: List[str], searchers: List[FileSearcher], regex: bool = False
+) -> Optional[str]:
     candidates: Set[str] = set()
     for path in paths:
         for searcher in searchers:

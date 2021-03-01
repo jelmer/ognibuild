@@ -21,7 +21,6 @@ import stat
 
 
 class DetailedFailure(Exception):
-
     def __init__(self, retcode, argv, error):
         self.retcode = retcode
         self.argv = argv
@@ -29,7 +28,6 @@ class DetailedFailure(Exception):
 
 
 class UnidentifiedError(Exception):
-
     def __init__(self, retcode, argv, lines, secondary=None):
         self.retcode = retcode
         self.argv = argv
@@ -63,7 +61,6 @@ class Requirement(object):
 
 
 class UpstreamOutput(object):
-
     def __init__(self, family):
         self.family = family
 

@@ -49,7 +49,7 @@ SUPPORTED_DIST_EXTENSIONS = [
     ".tbz2",
     ".tar",
     ".zip",
-    ]
+]
 
 
 def is_dist_file(fn):
@@ -76,7 +76,6 @@ def run_dist(session, buildsystems, resolver, fixers, quiet=False):
 
 
 class DistCatcher(object):
-
     def __init__(self, directory):
         self.export_directory = directory
         self.files = []
@@ -205,17 +204,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--target-directory", type=str, default="..", help="Target directory"
     )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Be verbose")
+    parser.add_argument("--verbose", action="store_true", help="Be verbose")
 
     args = parser.parse_args()
 
     if args.verbose:
-        logging.basicConfig(level=logging.DEBUG, format='%(message)s')
+        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
     else:
-        logging.basicConfig(level=logging.INFO, format='%(message)s')
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     tree = WorkingTree.open(args.directory)
     if args.packaging_directory:

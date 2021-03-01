@@ -62,11 +62,13 @@ def changes_filename(package, version, arch):
 
 def get_build_architecture():
     try:
-        return subprocess.check_output(
-            ['dpkg-architecture', '-qDEB_BUILD_ARCH']).strip().decode()
+        return (
+            subprocess.check_output(["dpkg-architecture", "-qDEB_BUILD_ARCH"])
+            .strip()
+            .decode()
+        )
     except subprocess.CalledProcessError as e:
-        raise Exception(
-            "Could not find the build architecture: %s" % e)
+        raise Exception("Could not find the build architecture: %s" % e)
 
 
 def add_dummy_changelog_entry(

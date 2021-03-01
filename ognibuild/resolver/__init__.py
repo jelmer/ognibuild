@@ -17,13 +17,11 @@
 
 
 class UnsatisfiedRequirements(Exception):
-
     def __init__(self, reqs):
         self.requirements = reqs
 
 
 class Resolver(object):
-
     def install(self, requirements):
         raise NotImplementedError(self.install)
 
@@ -38,7 +36,6 @@ class Resolver(object):
 
 
 class CPANResolver(Resolver):
-
     def __init__(self, session):
         self.session = session
 
@@ -47,6 +44,7 @@ class CPANResolver(Resolver):
 
     def install(self, requirements):
         from ..requirements import PerlModuleRequirement
+
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, PerlModuleRequirement):
@@ -55,7 +53,8 @@ class CPANResolver(Resolver):
             # TODO(jelmer): Specify -T to skip tests?
             self.session.check_call(
                 ["cpan", "-i", requirement.module],
-                user="root", env={"PERL_MM_USE_DEFAULT": "1"}
+                user="root",
+                env={"PERL_MM_USE_DEFAULT": "1"},
             )
         if missing:
             raise UnsatisfiedRequirements(missing)
@@ -65,7 +64,6 @@ class CPANResolver(Resolver):
 
 
 class HackageResolver(Resolver):
-
     def __init__(self, session):
         self.session = session
 
@@ -74,14 +72,15 @@ class HackageResolver(Resolver):
 
     def install(self, requirements):
         from ..requirements import HaskellPackageRequirement
+
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, HaskellPackageRequirement):
                 missing.append(requirement)
                 continue
             self.session.check_call(
-                ["cabal", "install", requirement.package],
-                user="root")
+                ["cabal", "install", requirement.package], user="root"
+            )
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -90,7 +89,6 @@ class HackageResolver(Resolver):
 
 
 class CargoResolver(Resolver):
-
     def __init__(self, session):
         self.session = session
 
@@ -99,14 +97,15 @@ class CargoResolver(Resolver):
 
     def install(self, requirements):
         from ..requirements import CargoCrateRequirement
+
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, CargoCrateRequirement):
                 missing.append(requirement)
                 continue
             self.session.check_call(
-                ["cargo", "install", requirement.crate],
-                user="root")
+                ["cargo", "install", requirement.crate], user="root"
+            )
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -115,7 +114,6 @@ class CargoResolver(Resolver):
 
 
 class PypiResolver(Resolver):
-
     def __init__(self, session):
         self.session = session
 
@@ -124,6 +122,7 @@ class PypiResolver(Resolver):
 
     def install(self, requirements):
         from ..requirements import PythonPackageRequirement
+
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, PythonPackageRequirement):
@@ -143,7 +142,6 @@ NPM_COMMAND_PACKAGES = {
 
 
 class NpmResolver(Resolver):
-
     def __init__(self, session):
         self.session = session
 
@@ -152,6 +150,7 @@ class NpmResolver(Resolver):
 
     def install(self, requirements):
         from ..requirements import NodePackageRequirement
+
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, NodePackageRequirement):
@@ -191,12 +190,15 @@ class StackedResolver(Resolver):
 
 
 def native_resolvers(session):
-    return StackedResolver([
-        CPANResolver(session),
-        PypiResolver(session),
-        NpmResolver(session),
-        CargoResolver(session),
-        HackageResolver(session)])
+    return StackedResolver(
+        [
+            CPANResolver(session),
+            PypiResolver(session),
+            NpmResolver(session),
+            CargoResolver(session),
+            HackageResolver(session),
+        ]
+    )
 
 
 class ExplainResolver(Resolver):
@@ -215,14 +217,18 @@ def auto_resolver(session):
     # TODO(jelmer): if session is SchrootSession or if we're root, use apt
     from .apt import AptResolver
     from ..session.schroot import SchrootSession
-    user = session.check_output(['echo', '$USER']).decode().strip()
+
+    user = session.check_output(["echo", "$USER"]).decode().strip()
     resolvers = []
-    if isinstance(session, SchrootSession) or user == 'root':
+    if isinstance(session, SchrootSession) or user == "root":
         resolvers.append(AptResolver.from_session(session))
-    resolvers.extend([
-        CPANResolver(session),
-        PypiResolver(session),
-        NpmResolver(session),
-        CargoResolver(session),
-        HackageResolver(session)])
+    resolvers.extend(
+        [
+            CPANResolver(session),
+            PypiResolver(session),
+            NpmResolver(session),
+            CargoResolver(session),
+            HackageResolver(session),
+        ]
+    )
     return StackedResolver(resolvers)

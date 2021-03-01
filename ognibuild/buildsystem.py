@@ -27,14 +27,14 @@ from . import shebang_binary, UnidentifiedError
 from .outputs import (
     BinaryOutput,
     PythonPackageOutput,
-    )
+)
 from .requirements import (
     BinaryRequirement,
     PythonPackageRequirement,
     PerlModuleRequirement,
     NodePackageRequirement,
     CargoCrateRequirement,
-    )
+)
 from .fix_build import run_with_build_fixers
 
 
@@ -114,22 +114,24 @@ class Pear(BuildSystem):
 # run_setup, but setting __name__
 # Imported from Python's distutils.core, Copyright (C) PSF
 
+
 def run_setup(script_name, script_args=None, stop_after="run"):
     from distutils import core
     import sys
-    if stop_after not in ('init', 'config', 'commandline', 'run'):
+
+    if stop_after not in ("init", "config", "commandline", "run"):
         raise ValueError("invalid value for 'stop_after': %r" % (stop_after,))
 
     core._setup_stop_after = stop_after
 
     save_argv = sys.argv.copy()
-    g = {'__file__': script_name, '__name__': '__main__'}
+    g = {"__file__": script_name, "__name__": "__main__"}
     try:
         try:
             sys.argv[0] = script_name
             if script_args is not None:
                 sys.argv[1:] = script_args
-            with open(script_name, 'rb') as f:
+            with open(script_name, "rb") as f:
                 exec(f.read(), g)
         finally:
             sys.argv = save_argv
@@ -140,9 +142,13 @@ def run_setup(script_name, script_args=None, stop_after="run"):
         pass
 
     if core._setup_distribution is None:
-        raise RuntimeError(("'distutils.core.setup()' was never called -- "
-              "perhaps '%s' is not a Distutils setup script?") % \
-              script_name)
+        raise RuntimeError(
+            (
+                "'distutils.core.setup()' was never called -- "
+                "perhaps '%s' is not a Distutils setup script?"
+            )
+            % script_name
+        )
 
     return core._setup_distribution
 
@@ -158,7 +164,7 @@ class SetupPy(BuildSystem):
         try:
             self.result = run_setup(os.path.abspath(path), stop_after="init")
         except RuntimeError as e:
-            logging.warning('Unable to load setup.py metadata: %s', e)
+            logging.warning("Unable to load setup.py metadata: %s", e)
             self.result = None
 
     def __repr__(self):
@@ -202,7 +208,7 @@ class SetupPy(BuildSystem):
         self.setup(resolver)
         preargs = []
         if quiet:
-            preargs.append('--quiet')
+            preargs.append("--quiet")
         self._run_setup(session, resolver, preargs + ["sdist"], fixers)
 
     def clean(self, session, resolver, fixers):
@@ -213,7 +219,7 @@ class SetupPy(BuildSystem):
         self.setup(resolver)
         extra_args = []
         if install_target.user:
-            extra_args.append('--user')
+            extra_args.append("--user")
         self._run_setup(session, resolver, ["install"] + extra_args, fixers)
 
     def _run_setup(self, session, resolver, args, fixers):
@@ -224,9 +230,7 @@ class SetupPy(BuildSystem):
         else:
             # Just assume it's Python 3
             resolver.install([BinaryRequirement("python3")])
-            run_with_build_fixers(
-                session, ["python3", "./setup.py"] + args,
-                fixers)
+            run_with_build_fixers(session, ["python3", "./setup.py"] + args, fixers)
 
     def get_declared_dependencies(self):
         if self.result is None:
@@ -234,11 +238,11 @@ class SetupPy(BuildSystem):
         for require in self.result.get_requires():
             yield "core", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
-        if getattr(self.result, 'install_requires', []):
+        if getattr(self.result, "install_requires", []):
             for require in self.result.install_requires:
                 yield "core", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
-        if getattr(self.result, 'tests_require', []):
+        if getattr(self.result, "tests_require", []):
             for require in self.result.tests_require:
                 yield "test", PythonPackageRequirement.from_requirement_str(require)
 
@@ -247,7 +251,7 @@ class SetupPy(BuildSystem):
             raise NotImplementedError
         for script in self.result.scripts or []:
             yield BinaryOutput(os.path.basename(script))
-        entry_points = getattr(self.result, 'entry_points', None) or {}
+        entry_points = getattr(self.result, "entry_points", None) or {}
         for script in entry_points.get("console_scripts", []):
             yield BinaryOutput(script.split("=")[0])
         for package in self.result.packages or []:
@@ -271,8 +275,7 @@ class PyProject(BuildSystem):
     def dist(self, session, resolver, fixers, quiet=False):
         if "poetry" in self.pyproject.get("tool", []):
             logging.debug(
-                "Found pyproject.toml with poetry section, "
-                "assuming poetry project."
+                "Found pyproject.toml with poetry section, " "assuming poetry project."
             )
             resolver.install(
                 [
@@ -382,8 +385,7 @@ class DistInkt(BuildSystem):
                     continue
                 if key.strip() == b"class" and value.strip().startswith(b"'Dist::Inkt"):
                     logging.debug(
-                        "Found Dist::Inkt section in dist.ini, "
-                        "assuming distinkt."
+                        "Found Dist::Inkt section in dist.ini, " "assuming distinkt."
                     )
                     self.name = "dist-inkt"
                     self.dist_inkt_class = value.decode().strip("'")
@@ -405,8 +407,7 @@ class DistInkt(BuildSystem):
         else:
             # Default to invoking Dist::Zilla
             resolver.install([PerlModuleRequirement("Dist::Zilla")])
-            run_with_build_fixers(
-                session, ["dzil", "build", "--in", ".."], fixers)
+            run_with_build_fixers(session, ["dzil", "build", "--in", ".."], fixers)
 
 
 class Make(BuildSystem):
@@ -419,27 +420,28 @@ class Make(BuildSystem):
     def setup(self, session, resolver, fixers):
         resolver.install([BinaryRequirement("make")])
 
-        if session.exists("Makefile.PL") and not session.exists("Makefile"):
+        def makefile_exists():
+            return any(
+                [session.exists(p) for p in ["Makefile", "GNUmakefile", "makefile"]]
+            )
+
+        if session.exists("Makefile.PL") and not makefile_exists():
             resolver.install([BinaryRequirement("perl")])
             run_with_build_fixers(session, ["perl", "Makefile.PL"], fixers)
 
-        if not session.exists("Makefile") and not session.exists("configure"):
+        if not makefile_exists() and not session.exists("configure"):
             if session.exists("autogen.sh"):
                 if shebang_binary("autogen.sh") is None:
-                    run_with_build_fixers(
-                        session, ["/bin/sh", "./autogen.sh"], fixers)
+                    run_with_build_fixers(session, ["/bin/sh", "./autogen.sh"], fixers)
                 try:
-                    run_with_build_fixers(
-                        session, ["./autogen.sh"], fixers)
+                    run_with_build_fixers(session, ["./autogen.sh"], fixers)
                 except UnidentifiedError as e:
                     if (
                         "Gnulib not yet bootstrapped; "
                         "run ./bootstrap instead.\n" in e.lines
                     ):
-                        run_with_build_fixers(
-                            session, ["./bootstrap"], fixers)
-                        run_with_build_fixers(
-                            session, ["./autogen.sh"], fixers)
+                        run_with_build_fixers(session, ["./bootstrap"], fixers)
+                        run_with_build_fixers(session, ["./autogen.sh"], fixers)
                     else:
                         raise
 
@@ -454,7 +456,7 @@ class Make(BuildSystem):
                 )
                 run_with_build_fixers(session, ["autoreconf", "-i"], fixers)
 
-        if not session.exists("Makefile") and session.exists("configure"):
+        if not makefile_exists() and session.exists("configure"):
             session.check_call(["./configure"])
 
     def build(self, session, resolver, fixers):
@@ -500,7 +502,8 @@ class Make(BuildSystem):
             elif any(
                 [
                     re.match(
-                        r"Makefile:[0-9]+: \*\*\* Missing \'Make.inc\' "
+                        r"(Makefile|GNUmakefile|makefile):[0-9]+: "
+                        r"\*\*\* Missing \'Make.inc\' "
                         r"Run \'./configure \[options\]\' and retry.  Stop.\n",
                         line,
                     )
@@ -592,19 +595,21 @@ class Cabal(BuildSystem):
 
     def _run(self, session, args, fixers):
         try:
-            run_with_build_fixers(
-                session, ["runhaskell", "Setup.hs"] + args, fixers)
+            run_with_build_fixers(session, ["runhaskell", "Setup.hs"] + args, fixers)
         except UnidentifiedError as e:
             if "Run the 'configure' command first.\n" in e.lines:
                 run_with_build_fixers(
-                    session, ["runhaskell", "Setup.hs", "configure"], fixers)
+                    session, ["runhaskell", "Setup.hs", "configure"], fixers
+                )
                 run_with_build_fixers(
-                    session, ["runhaskell", "Setup.hs"] + args, fixers)
+                    session, ["runhaskell", "Setup.hs"] + args, fixers
+                )
             else:
                 raise
 
     def test(self, session, resolver, fixers):
         self._run(session, ["test"], fixers)
+
 
 def detect_buildsystems(path, trust_package=False):  # noqa: C901
     """Detect build systems."""
@@ -634,9 +639,9 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
         logging.debug("Found Cargo.toml, assuming rust cargo package.")
         yield Cargo("Cargo.toml")
 
-    if os.path.exists(os.path.join(path, 'Setup.hs')):
+    if os.path.exists(os.path.join(path, "Setup.hs")):
         logging.debug("Found Setup.hs, assuming haskell package.")
-        yield Cabal('Setup.hs')
+        yield Cabal("Setup.hs")
 
     if os.path.exists(os.path.join(path, "pom.xml")):
         logging.debug("Found pom.xml, assuming maven package.")
@@ -656,6 +661,8 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
             os.path.exists(os.path.join(path, p))
             for p in [
                 "Makefile",
+                "GNUmakefile",
+                "makefile",
                 "Makefile.PL",
                 "autogen.sh",
                 "configure.ac",
