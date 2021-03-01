@@ -42,6 +42,7 @@ from debmutate.debhelper import (
 )
 from debmutate.deb822 import (
     Deb822Editor,
+    PkgRelation,
 )
 from debmutate.reformatting import (
     FormattingUnpreservable,
@@ -144,16 +145,17 @@ def add_build_dependency(
     try:
         with ControlEditor(path=control_path) as updater:
             for binary in updater.binaries:
-                if binary["Package"] == requirement.package:
-                    raise CircularDependency(requirement.package)
-            updater.source["Build-Depends"] = ensure_relation(
-                    updater.source.get("Build-Depends", ""),
-                    requirement.relations)
+                if requirement.touches_package(binary["Package"]):
+                    raise CircularDependency(binary["Package"])
+            for rel in requirement.relations:
+                updater.source["Build-Depends"] = ensure_relation(
+                        updater.source.get("Build-Depends", ""),
+                        PkgRelation.str([rel]))
     except FormattingUnpreservable as e:
         logging.info("Unable to edit %s in a way that preserves formatting.", e.path)
         return False
 
-    desc = PkgRelation.str(requirement.relations)
+    desc = requirement.pkg_relation_str()
 
     if not updater.changed:
         logging.info("Giving up; dependency %s was already present.", desc)
@@ -193,16 +195,17 @@ def add_test_dependency(
                     command_counter += 1
                 if name != testname:
                     continue
-                control["Depends"] = ensure_relation(
-                    control.get("Depends", ""),
-                    requirement.relations)
+                for rel in requirement.relations:
+                    control["Depends"] = ensure_relation(
+                        control.get("Depends", ""),
+                        PkgRelation.str([rel]))
     except FormattingUnpreservable as e:
         logging.info("Unable to edit %s in a way that preserves formatting.", e.path)
         return False
     if not updater.changed:
         return False
 
-    desc = PkgRelation.str(requirement.relations)
+    desc = requirement.pkg_relation_str()
 
     logging.info("Adding dependency to test %s: %s", testname, desc)
     return commit_debian_changes(
@@ -240,7 +243,7 @@ def commit_debian_changes(
 def targeted_python_versions(tree: Tree) -> Set[str]:
     with tree.get_file("debian/control") as f:
         control = Deb822(f)
-    build_depends = PkgRelation.parse_relations(control.get("Build-Depends", ""))
+    build_depends = PkgRelation.parse(control.get("Build-Depends", ""))
     all_build_deps: Set[str] = set()
     for or_deps in build_depends:
         all_build_deps.update(or_dep["name"] for or_dep in or_deps)

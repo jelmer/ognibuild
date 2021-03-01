@@ -75,6 +75,16 @@ class AptRequirement(Requirement):
     def from_str(cls, text):
         return cls(PkgRelation.parse_relations(text))
 
+    def pkg_relation_str(self):
+        return PkgRelation.str(self.relations)
+
+    def touches_package(self, package):
+        for rel in self.relations:
+            for entry in rel:
+                if entry['name'] == package:
+                    return True
+        return False
+
 
 def get_package_for_python_package(apt_mgr, package, python_version, specs=None):
     if python_version == "pypy":

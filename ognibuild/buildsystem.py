@@ -58,7 +58,7 @@ class BuildSystem(object):
     def __str__(self):
         return self.name
 
-    def dist(self, session, resolver, fixers):
+    def dist(self, session, resolver, fixers, quiet=False):
         raise NotImplementedError(self.dist)
 
     def test(self, session, resolver, fixers):
@@ -90,7 +90,7 @@ class Pear(BuildSystem):
     def setup(self, resolver):
         resolver.install([BinaryRequirement("pear")])
 
-    def dist(self, session, resolver, fixers):
+    def dist(self, session, resolver, fixers, quiet=False):
         self.setup(resolver)
         run_with_build_fixers(session, ["pear", "package"], fixers)
 
@@ -111,13 +111,48 @@ class Pear(BuildSystem):
         run_with_build_fixers(session, ["pear", "install", self.path], fixers)
 
 
+# run_setup, but setting __name__
+# Imported from Python's distutils.core, Copyright (C) PSF
+
+def run_setup(script_name, script_args=None, stop_after="run"):
+    from distutils import core
+    import sys
+    if stop_after not in ('init', 'config', 'commandline', 'run'):
+        raise ValueError("invalid value for 'stop_after': %r" % (stop_after,))
+
+    core._setup_stop_after = stop_after
+
+    save_argv = sys.argv.copy()
+    g = {'__file__': script_name, '__name__': '__main__'}
+    try:
+        try:
+            sys.argv[0] = script_name
+            if script_args is not None:
+                sys.argv[1:] = script_args
+            with open(script_name, 'rb') as f:
+                exec(f.read(), g)
+        finally:
+            sys.argv = save_argv
+            core._setup_stop_after = None
+    except SystemExit:
+        # Hmm, should we do something if exiting with a non-zero code
+        # (ie. error)?
+        pass
+
+    if core._setup_distribution is None:
+        raise RuntimeError(("'distutils.core.setup()' was never called -- "
+              "perhaps '%s' is not a Distutils setup script?") % \
+              script_name)
+
+    return core._setup_distribution
+
+
 class SetupPy(BuildSystem):
 
     name = "setup.py"
 
     def __init__(self, path):
         self.path = path
-        from distutils.core import run_setup
         # TODO(jelmer): Perhaps run this in session, so we can install
         # missing dependencies?
         try:
@@ -163,9 +198,12 @@ class SetupPy(BuildSystem):
         self.setup(resolver)
         self._run_setup(session, resolver, ["build"], fixers)
 
-    def dist(self, session, resolver, fixers):
+    def dist(self, session, resolver, fixers, quiet=False):
         self.setup(resolver)
-        self._run_setup(session, resolver, ["sdist"], fixers)
+        preargs = []
+        if quiet:
+            preargs.append('--quiet')
+        self._run_setup(session, resolver, preargs + ["sdist"], fixers)
 
     def clean(self, session, resolver, fixers):
         self.setup(resolver)
@@ -230,7 +268,7 @@ class PyProject(BuildSystem):
         with open(self.path, "r") as pf:
             return toml.load(pf)
 
-    def dist(self, session, resolver, fixers):
+    def dist(self, session, resolver, fixers, quiet=False):
         if "poetry" in self.pyproject.get("tool", []):
             logging.debug(
                 "Found pyproject.toml with poetry section, "
@@ -261,7 +299,7 @@ class SetupCfg(BuildSystem):
             ]
         )
 
-    def dist(self, session, resolver, fixers):
+    def dist(self, session, resolver, fixers, quiet=False):
         self.setup(resolver)
         session.check_call(["python3", "-m", "pep517.build", "-s", "."])
 
@@ -285,7 +323,7 @@ class Npm(BuildSystem):
     def setup(self, resolver):
         resolver.install([BinaryRequirement("npm")])
 
-    def dist(self, session, resolver, fixers):
+    def dist(self, session, resolver, fixers, quiet=False):
         self.setup(resolver)
         run_with_build_fixers(session, ["npm", "pack"], fixers)
 
@@ -300,7 +338,7 @@ class Waf(BuildSystem):
     def setup(self, session, resolver, fixers):
         resolver.install([BinaryRequirement("python3")])
 
-    def dist(self, session, resolver, fixers):
+    def dist(self, session, resolver, fixers, quiet=False):
         self.setup(session, resolver, fixers)
         run_with_build_fixers(session, ["./waf", "dist"], fixers)
 
@@ -319,7 +357,7 @@ class Gem(BuildSystem):
     def setup(self, resolver):
         resolver.install([BinaryRequirement("gem2deb")])
 
-    def dist(self, session, resolver, fixers):
+    def dist(self, session, resolver, fixers, quiet=False):
         self.setup(resolver)
         gemfiles = [
             entry.name for entry in session.scandir(".") if entry.name.endswith(".gem")
@@ -359,7 +397,7 @@ class DistInkt(BuildSystem):
             ]
         )
 
-    def dist(self, session, resolver, fixers):
+    def dist(self, session, resolver, fixers, quiet=False):
         self.setup(resolver)
         if self.name == "dist-inkt":
             resolver.install([PerlModuleRequirement(self.dist_inkt_class)])
@@ -435,7 +473,7 @@ class Make(BuildSystem):
         self.setup(session, resolver, fixers)
         run_with_build_fixers(session, ["make", "install"], fixers)
 
-    def dist(self, session, resolver, fixers):
+    def dist(self, session, resolver, fixers, quiet=False):
         self.setup(session, resolver, fixers)
         try:
             run_with_build_fixers(session, ["make", "dist"], fixers)

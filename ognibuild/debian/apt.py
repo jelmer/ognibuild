@@ -62,7 +62,7 @@ class AptManager(object):
     def searchers(self):
         if self._searchers is None:
             self._searchers = [
-                RemoteAptContentsFileSearcher.from_session(self.session),
+                AptContentsFileSearcher.from_session(self.session),
                 GENERATED_FILE_SEARCHER]
         return self._searchers
 
@@ -106,7 +106,7 @@ class ContentsFileNotFound(Exception):
     """The contents file was not found."""
 
 
-class RemoteAptContentsFileSearcher(FileSearcher):
+class AptContentsFileSearcher(FileSearcher):
     def __init__(self):
         self._db = {}
 
@@ -233,7 +233,7 @@ class RemoteAptContentsFileSearcher(FileSearcher):
                 response = self._get(url + ext)
             except HTTPError as e:
                 if e.status == 404:
-                   continue
+                    continue
                 raise
             break
         else:
