@@ -194,11 +194,11 @@ class SetupPy(BuildSystem):
         if self.result is None:
             raise NotImplementedError
         for require in self.result.get_requires():
-            yield "build", PythonPackageRequirement.from_requirement_str(require)
+            yield "core", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
         if getattr(self.result, 'install_requires', []):
             for require in self.result.install_requires:
-                yield "install", PythonPackageRequirement.from_requirement_str(require)
+                yield "core", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
         if getattr(self.result, 'tests_require', []):
             for require in self.result.tests_require:
@@ -504,6 +504,8 @@ class Make(BuildSystem):
                     return
                 for require in data.get("requires", []):
                     yield "build", PerlModuleRequirement(require)
+        else:
+            raise NotImplementedError
 
 
 class Cargo(BuildSystem):

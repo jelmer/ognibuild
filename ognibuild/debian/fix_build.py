@@ -34,8 +34,7 @@ from breezy.commit import PointlessCommit
 from breezy.mutabletree import MutableTree
 from breezy.tree import Tree
 from debmutate.control import (
-    ensure_some_version,
-    ensure_minimum_version,
+    ensure_relation,
     ControlEditor,
 )
 from debmutate.debhelper import (
@@ -147,24 +146,14 @@ def add_build_dependency(
             for binary in updater.binaries:
                 if binary["Package"] == requirement.package:
                     raise CircularDependency(requirement.package)
-            if requirement.minimum_version:
-                updater.source["Build-Depends"] = ensure_minimum_version(
+            updater.source["Build-Depends"] = ensure_relation(
                     updater.source.get("Build-Depends", ""),
-                    requirement.package, requirement.minimum_version
-                )
-            else:
-                updater.source["Build-Depends"] = ensure_some_version(
-                    updater.source.get("Build-Depends", ""),
-                    requirement.package
-                )
+                    requirement.relations)
     except FormattingUnpreservable as e:
         logging.info("Unable to edit %s in a way that preserves formatting.", e.path)
         return False
 
-    if requirement.minimum_version:
-        desc = "%s (>= %s)" % (requirement.package, requirement.minimum_version)
-    else:
-        desc = requirement.package
+    desc = PkgRelation.str(requirement.relations)
 
     if not updater.changed:
         logging.info("Giving up; dependency %s was already present.", desc)
@@ -204,26 +193,16 @@ def add_test_dependency(
                     command_counter += 1
                 if name != testname:
                     continue
-                if requirement.minimum_version:
-                    control["Depends"] = ensure_minimum_version(
-                        control.get("Depends", ""),
-                        requirement.package, requirement.minimum_version
-                    )
-                else:
-                    control["Depends"] = ensure_some_version(
-                        control.get("Depends", ""), requirement.package
-                    )
+                control["Depends"] = ensure_relation(
+                    control.get("Depends", ""),
+                    requirement.relations)
     except FormattingUnpreservable as e:
         logging.info("Unable to edit %s in a way that preserves formatting.", e.path)
         return False
     if not updater.changed:
         return False
 
-    if requirement.minimum_version:
-        desc = "%s (>= %s)" % (
-            requirement.package, requirement.minimum_version)
-    else:
-        desc = requirement.package
+    desc = PkgRelation.str(requirement.relations)
 
     logging.info("Adding dependency to test %s: %s", testname, desc)
     return commit_debian_changes(
@@ -336,7 +315,7 @@ def fix_missing_python_distribution(error, context):  # noqa: C901
     for dep_pkg in extra_build_deps:
         assert dep_pkg is not None
         if not context.add_dependency(
-                AptRequirement(
+                AptRequirement.simple(
                     dep_pkg.package, minimum_version=error.minimum_version)):
             return False
     return True
@@ -389,7 +368,7 @@ def fix_missing_python_module(error, context):
     for dep_pkg in extra_build_deps:
         assert dep_pkg is not None
         if not context.add_dependency(
-                AptRequirement(dep_pkg.package, error.minimum_version)):
+                AptRequirement.simple(dep_pkg.package, error.minimum_version)):
             return False
     return True
 
@@ -412,7 +391,7 @@ def enable_dh_autoreconf(context):
             return dh_invoke_add_with(line, b"autoreconf")
 
         if update_rules(command_line_cb=add_with_autoreconf):
-            return context.add_dependency(AptRequirement("dh-autoreconf"))
+            return context.add_dependency(AptRequirement.simple("dh-autoreconf"))
 
     return False
 

@@ -21,6 +21,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 from typing import Optional
 
 from debian.deb822 import Deb822
@@ -80,6 +81,7 @@ class DistCatcher(object):
         self.export_directory = directory
         self.files = []
         self.existing_files = None
+        self.start_time = time.time()
 
     def __enter__(self):
         self.existing_files = os.listdir(self.export_directory)
@@ -109,6 +111,13 @@ class DistCatcher(object):
             logging.info("Found tarball %s in parent directory.", fn)
             self.files.append(os.path.join(parent_directory, fn))
             return fn
+
+        if "dist" in new_files:
+            for entry in os.scandir(os.path.join(self.export_directory, "dist")):
+                if is_dist_file(entry.name) and entry.stat().st_mtime > self.start_time:
+                    logging.info("Found tarball %s in dist directory.", entry.name)
+                    self.files.append(entry.path)
+                    return entry.name
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.find_files()

@@ -15,9 +15,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from itertools import chain
 import logging
 import os
 import posixpath
+
+from debian.changelog import Version
+from debian.deb822 import PkgRelation
 
 from ..debian.apt import AptManager
 
@@ -56,10 +60,20 @@ from ..requirements import (
 
 class AptRequirement(Requirement):
 
-    def __init__(self, package, minimum_version=None):
+    def __init__(self, relations):
         super(AptRequirement, self).__init__('apt')
-        self.package = package
-        self.minimum_version = minimum_version
+        self.relations = relations
+
+    @classmethod
+    def simple(cls, package, minimum_version=None):
+        rel = {'name': package}
+        if minimum_version is not None:
+            rel['version'] = ('>=', minimum_version)
+        return cls([[rel]])
+
+    @classmethod
+    def from_str(cls, text):
+        return cls(PkgRelation.parse_relations(text))
 
 
 def get_package_for_python_package(apt_mgr, package, python_version, specs=None):
@@ -77,18 +91,16 @@ def get_package_for_python_package(apt_mgr, package, python_version, specs=None)
             regex=True)
     else:
         raise NotImplementedError
+    if pkg_name is None:
+        return None
     # TODO(jelmer): Dealing with epoch, etc?
     if not specs:
-        minimum_version = None
+        rels = [[{'name': pkg_name}]]
     else:
+        rels = []
         for spec in specs:
-            if spec[0] == '>=':
-                minimum_version = spec[1]
-            else:
-                raise NotImplementedError(spec)
-    if pkg_name is not None:
-        return AptRequirement(pkg_name, minimum_version)
-    return None
+            rels.append([{'name': pkg_name, 'version': (spec[0], Version(spec[1]))}])
+    return AptRequirement(rels)
 
 
 def get_package_for_python_module(apt_mgr, module, python_version, specs):
@@ -144,18 +156,17 @@ def get_package_for_python_module(apt_mgr, module, python_version, specs):
         ]
     else:
         raise AssertionError("unknown python version %r" % python_version)
-    if not specs:
-        minimum_version = None
-    else:
-        for spec in specs:
-            if spec[0] == '>=':
-                minimum_version = spec[1]
-            else:
-                raise NotImplementedError(spec)
     pkg_name = apt_mgr.get_package_for_paths(paths, regex=True)
-    if pkg_name is not None:
-        return AptRequirement(pkg_name, minimum_version=minimum_version)
-    return None
+    if pkg_name is None:
+        return None
+    rels = []
+    if not specs:
+        rels = [[{'name': pkg_name}]]
+    else:
+        rels = []
+        for spec in specs:
+            rels.append([{'name': pkg_name, 'version': (spec[0], Version(spec[1]))}])
+    return AptRequirement(rels)
 
 
 def resolve_binary_req(apt_mgr, req):
@@ -168,7 +179,7 @@ def resolve_binary_req(apt_mgr, req):
         ]
     pkg_name = apt_mgr.get_package_for_paths(paths)
     if pkg_name is not None:
-        return AptRequirement(pkg_name)
+        return AptRequirement.simple(pkg_name)
     return None
 
 
@@ -181,14 +192,14 @@ def resolve_pkg_config_req(apt_mgr, req):
             [posixpath.join("/usr/lib", ".*", "pkgconfig", req.module + ".pc")],
             regex=True)
     if package is not None:
-        return AptRequirement(package, minimum_version=req.minimum_version)
+        return AptRequirement.simple(package, minimum_version=req.minimum_version)
     return None
 
 
 def resolve_path_req(apt_mgr, req):
     package = apt_mgr.get_package_for_paths([req.path])
     if package is not None:
-        return AptRequirement(package)
+        return AptRequirement.simple(package)
     return None
 
 
@@ -202,14 +213,14 @@ def resolve_c_header_req(apt_mgr, req):
         )
     if package is None:
         return None
-    return AptRequirement(package)
+    return AptRequirement.simple(package)
 
 
 def resolve_js_runtime_req(apt_mgr, req):
     package = apt_mgr.get_package_for_paths(
         ["/usr/bin/node", "/usr/bin/duk"], regex=False)
     if package is not None:
-        return AptRequirement(package)
+        return AptRequirement.simple(package)
     return None
 
 
@@ -217,7 +228,7 @@ def resolve_vala_package_req(apt_mgr, req):
     path = "/usr/share/vala-[0-9.]+/vapi/%s.vapi" % req.package
     package = apt_mgr.get_package_for_paths([path], regex=True)
     if package is not None:
-        return AptRequirement(package)
+        return AptRequirement.simple(package)
     return None
 
 
@@ -231,7 +242,7 @@ def resolve_ruby_gem_req(apt_mgr, req):
     package = apt_mgr.get_package_for_paths(
         paths, regex=True)
     if package is not None:
-        return AptRequirement(package, minimum_version=req.minimum_version)
+        return AptRequirement.simple(package, minimum_version=req.minimum_version)
     return None
 
 
@@ -241,7 +252,7 @@ def resolve_go_package_req(apt_mgr, req):
         regex=True
     )
     if package is not None:
-        return AptRequirement(package)
+        return AptRequirement.simple(package)
     return None
 
 
@@ -249,7 +260,7 @@ def resolve_dh_addon_req(apt_mgr, req):
     paths = [posixpath.join("/usr/share/perl5", req.path)]
     package = apt_mgr.get_package_for_paths(paths)
     if package is not None:
-        return AptRequirement(package)
+        return AptRequirement.simple(package)
     return None
 
 
@@ -257,7 +268,7 @@ def resolve_php_class_req(apt_mgr, req):
     path = "/usr/share/php/%s.php" % req.php_class.replace("\\", "/")
     package = apt_mgr.get_package_for_paths([path])
     if package is not None:
-        return AptRequirement(package)
+        return AptRequirement.simple(package)
     return None
 
 
@@ -265,7 +276,7 @@ def resolve_r_package_req(apt_mgr, req):
     paths = [posixpath.join("/usr/lib/R/site-library/.*/R/%s$" % req.package)]
     package = apt_mgr.get_package_for_paths(paths, regex=True)
     if package is not None:
-        return AptRequirement(package)
+        return AptRequirement.simple(package)
     return None
 
 
@@ -277,7 +288,7 @@ def resolve_node_package_req(apt_mgr, req):
     ]
     pkg_name = apt_mgr.get_package_for_paths(paths, regex=True)
     if pkg_name is not None:
-        return AptRequirement(pkg_name)
+        return AptRequirement.simple(pkg_name)
     return None
 
 
@@ -290,7 +301,7 @@ def resolve_library_req(apt_mgr, req):
     ]
     pkg_name = apt_mgr.get_package_for_paths(paths, regex=True)
     if pkg_name is not None:
-        return AptRequirement(pkg_name)
+        return AptRequirement.simple(pkg_name)
     return None
 
 
@@ -298,7 +309,7 @@ def resolve_ruby_file_req(apt_mgr, req):
     paths = [posixpath.join("/usr/lib/ruby/vendor_ruby/%s.rb" % req.filename)]
     package = apt_mgr.get_package_for_paths(paths)
     if package is not None:
-        return AptRequirement(package)
+        return AptRequirement.simple(package)
     paths = [
         posixpath.join(
             r"/usr/share/rubygems-integration/all/gems/([^/]+)/"
@@ -307,7 +318,7 @@ def resolve_ruby_file_req(apt_mgr, req):
     ]
     pkg_name = apt_mgr.get_package_for_paths(paths, regex=True)
     if pkg_name is not None:
-        return AptRequirement(pkg_name)
+        return AptRequirement.simple(pkg_name)
     return None
 
 
@@ -326,7 +337,7 @@ def resolve_xml_entity_req(apt_mgr, req):
 
     pkg_name = apt_mgr.get_package_for_paths([search_path], regex=False)
     if pkg_name is not None:
-        return AptRequirement(pkg_name)
+        return AptRequirement.simple(pkg_name)
     return None
 
 
@@ -338,7 +349,7 @@ def resolve_sprockets_file_req(apt_mgr, req):
         return None
     pkg_name = apt_mgr.get_package_for_paths([path], regex=True)
     if pkg_name is not None:
-        return AptRequirement(pkg_name)
+        return AptRequirement.simple(pkg_name)
     return None
 
 
@@ -357,14 +368,14 @@ def resolve_java_class_req(apt_mgr, req):
     if package is None:
         logging.warning("no package for files in %r", classpath)
         return None
-    return AptRequirement(package)
+    return AptRequirement.simple(package)
 
 
 def resolve_haskell_package_req(apt_mgr, req):
     path = "/var/lib/ghc/package.conf.d/%s-.*.conf" % req.deps[0][0]
     pkg_name = apt_mgr.get_package_for_paths([path], regex=True)
     if pkg_name is not None:
-        return AptRequirement(pkg_name)
+        return AptRequirement.simple(pkg_name)
     return None
 
 
@@ -396,19 +407,19 @@ def resolve_maven_artifact_req(apt_mgr, req):
     ]
     pkg_name = apt_mgr.get_package_for_paths(paths, regex=regex)
     if pkg_name is not None:
-        return AptRequirement(pkg_name)
+        return AptRequirement.simple(pkg_name)
     return None
 
 
 def resolve_gnome_common_req(apt_mgr, req):
-    return AptRequirement('gnome-common')
+    return AptRequirement.simple('gnome-common')
 
 
 def resolve_jdk_file_req(apt_mgr, req):
     path = req.jdk_path + ".*/" + req.filename
     pkg_name = apt_mgr.get_package_for_paths([path], regex=True)
     if pkg_name is not None:
-        return AptRequirement(pkg_name)
+        return AptRequirement.simple(pkg_name)
     return None
 
 
@@ -427,14 +438,14 @@ def resolve_perl_module_req(apt_mgr, req):
         paths = [posixpath.join(inc, req.filename) for inc in req.inc]
     pkg_name = apt_mgr.get_package_for_paths(paths, regex=False)
     if pkg_name is not None:
-        return AptRequirement(pkg_name)
+        return AptRequirement.simple(pkg_name)
     return None
 
 
 def resolve_perl_file_req(apt_mgr, req):
     pkg_name = apt_mgr.get_package_for_paths([req.filename], regex=False)
     if pkg_name is not None:
-        return AptRequirement(pkg_name)
+        return AptRequirement.simple(pkg_name)
     return None
 
 
@@ -459,7 +470,7 @@ def resolve_autoconf_macro_req(apt_mgr, req):
         return None
     pkg_name = apt_mgr.get_package_for_paths([path])
     if pkg_name is not None:
-        return AptRequirement(pkg_name)
+        return AptRequirement.simple(pkg_name)
     return None
 
 
@@ -549,7 +560,8 @@ class AptResolver(Resolver):
             else:
                 apt_requirements.append(apt_req)
         if apt_requirements:
-            self.apt.install([r.package for r in apt_requirements])
+            self.apt.satisfy([PkgRelation.str(chain(*[
+                r.relations for r in apt_requirements]))])
         if still_missing:
             raise UnsatisfiedRequirements(still_missing)
 

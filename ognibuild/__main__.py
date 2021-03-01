@@ -52,14 +52,21 @@ def install_necessary_declared_requirements(resolver, buildsystem, stages):
     resolver.install(missing)
 
 
+# Types of dependencies:
+# - core: necessary to do anything with the package
+# - build: necessary to build the package
+# - test: necessary to run the tests
+# - dev: necessary for development (e.g. linters, yacc)
+
 STAGE_MAP = {
     "dist": [],
     "info": [],
-    "install": ["build"],
-    "test": ["test", "dev"],
-    "build": ["build"],
+    "install": ["core", "build"],
+    "test": ["test", "build", "core"],
+    "build": ["build", "core"],
     "clean": [],
 }
+
 
 def determine_fixers(session, resolver):
     from .buildlog import RequirementFixer
