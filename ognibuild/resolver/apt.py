@@ -79,15 +79,15 @@ class AptRequirement(Requirement):
 def get_package_for_python_package(apt_mgr, package, python_version, specs=None):
     if python_version == "pypy":
         pkg_name = apt_mgr.get_package_for_paths(
-            ["/usr/lib/pypy/dist-packages/%s-.*.egg-info/PKG-INFO" % package],
+            ["/usr/lib/pypy/dist-packages/%s-.*.egg-info" % package],
             regex=True)
     elif python_version == "cpython2":
         pkg_name = apt_mgr.get_package_for_paths(
-            ["/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info/PKG-INFO" % package],
+            ["/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info" % package],
             regex=True)
     elif python_version == "cpython3":
         pkg_name = apt_mgr.get_package_for_paths(
-            ["/usr/lib/python3/dist-packages/%s-.*.egg-info/PKG-INFO" % package],
+            ["/usr/lib/python3/dist-packages/%s-.*.egg-info" % package],
             regex=True)
     else:
         raise NotImplementedError

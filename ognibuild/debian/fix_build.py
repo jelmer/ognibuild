@@ -259,7 +259,7 @@ def fix_missing_python_distribution(error, context):  # noqa: C901
     default = not targeted
 
     pypy_pkg = context.apt.get_package_for_paths(
-        ["/usr/lib/pypy/dist-packages/%s-.*.egg-info/PKG-INFO" % error.distribution], regex=True
+        ["/usr/lib/pypy/dist-packages/%s-.*.egg-info" % error.distribution], regex=True
     )
     if pypy_pkg is None:
         pypy_pkg = "pypy-%s" % error.distribution
@@ -267,7 +267,7 @@ def fix_missing_python_distribution(error, context):  # noqa: C901
             pypy_pkg = None
 
     py2_pkg = context.apt.get_package_for_paths(
-        ["/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info/PKG-INFO" % error.distribution],
+        ["/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info" % error.distribution],
         regex=True,
     )
     if py2_pkg is None:
@@ -276,7 +276,7 @@ def fix_missing_python_distribution(error, context):  # noqa: C901
             py2_pkg = None
 
     py3_pkg = context.apt.get_package_for_paths(
-        ["/usr/lib/python3/dist-packages/%s-.*.egg-info/PKG-INFO" % error.distribution],
+        ["/usr/lib/python3/dist-packages/%s-.*.egg-info" % error.distribution],
         regex=True,
     )
     if py3_pkg is None:
