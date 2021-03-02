@@ -76,6 +76,9 @@ class AptRequirement(Requirement):
     def pkg_relation_str(self):
         return PkgRelation.str(self.relations)
 
+    def __str__(self):
+        return "apt requirement: %s" % self.pkg_relation_str()
+
     def touches_package(self, package):
         for rel in self.relations:
             for entry in rel:
@@ -586,7 +589,13 @@ class AptResolver(Resolver):
             raise UnsatisfiedRequirements(still_missing)
 
     def explain(self, requirements):
-        raise NotImplementedError(self.explain)
+        apt_requirements = []
+        for r in requirements:
+            apt_req = self.resolve(r)
+            if apt_req is not None:
+                apt_requirements.append((r, apt_req))
+        if apt_requirements:
+            yield (["apt", "satisfy"] + [PkgRelation.str(chain(*[r.relations for o, r in apt_requirements]))], [o for o, r in apt_requirements])
 
     def resolve(self, req: Requirement):
         return resolve_requirement_apt(self.apt, req)

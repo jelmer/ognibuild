@@ -17,14 +17,26 @@
 
 import logging
 import os
+import shlex
 import sys
-from . import UnidentifiedError
+from . import UnidentifiedError, DetailedFailure
+from .buildlog import InstallFixer, ExplainInstallFixer, ExplainInstall
 from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .resolver import (
     auto_resolver,
     native_resolvers,
+    UnsatisfiedRequirements,
 )
 from .resolver.apt import AptResolver
+
+
+def display_explain_commands(commands):
+    logging.info("Run one or more of the following commands:")
+    for command, reqs in commands:
+        if isinstance(command, list):
+            command = shlex.join(command)
+        logging.info(
+            '  %s (to install %s)', command, ', '.join(map(str, reqs)))
 
 
 def get_necessary_declared_requirements(resolver, requirements, stages):
@@ -35,18 +47,19 @@ def get_necessary_declared_requirements(resolver, requirements, stages):
     return missing
 
 
-def install_necessary_declared_requirements(session, resolver, buildsystem, stages):
+def install_necessary_declared_requirements(session, resolver, buildsystems, stages, explain=False):
     relevant = []
-    try:
-        declared_reqs = list(buildsystem.get_declared_dependencies())
-    except NotImplementedError:
-        logging.warning(
-            "Unable to determine declared dependencies from %s", buildsystem
-        )
-    else:
-        relevant.extend(
-            get_necessary_declared_requirements(resolver, declared_reqs, stages)
-        )
+    declared_reqs = []
+    for buildsystem in buildsystems:
+        try:
+            declared_reqs.extend(buildsystem.get_declared_dependencies())
+        except NotImplementedError:
+            logging.warning(
+                "Unable to determine declared dependencies from %r", buildsystem
+            )
+    relevant.extend(
+        get_necessary_declared_requirements(resolver, declared_reqs, stages)
+    )
     missing = []
     for req in relevant:
         try:
@@ -55,7 +68,13 @@ def install_necessary_declared_requirements(session, resolver, buildsystem, stag
         except NotImplementedError:
             missing.append(req)
     if missing:
-        resolver.install(missing)
+        if explain:
+            commands = resolver.explain(missing)
+            if not commands:
+                raise UnsatisfiedRequirements(missing)
+            raise ExplainInstall(commands)
+        else:
+            resolver.install(missing)
 
 
 # Types of dependencies:
@@ -74,9 +93,11 @@ STAGE_MAP = {
 }
 
 
-def determine_fixers(session, resolver):
-    from .buildlog import InstallFixer
-    return [InstallFixer(resolver)]
+def determine_fixers(session, resolver, explain=False):
+    if explain:
+        return [ExplainInstallFixer(resolver)]
+    else:
+        return [InstallFixer(resolver)]
 
 
 def main():  # noqa: C901
@@ -143,14 +164,19 @@ def main():  # noqa: C901
         os.chdir(args.directory)
         try:
             bss = list(detect_buildsystems(args.directory))
-            logging.info("Detected buildsystems: %r", bss)
-            if not args.ignore_declared_dependencies and not args.explain:
+            logging.info(
+                "Detected buildsystems: %s", ', '.join(map(str, bss)))
+            if not args.ignore_declared_dependencies:
                 stages = STAGE_MAP[args.subcommand]
                 if stages:
                     logging.info("Checking that declared requirements are present")
-                    for bs in bss:
-                        install_necessary_declared_requirements(session, resolver, bs, stages)
-            fixers = determine_fixers(session, resolver)
+                    try:
+                        install_necessary_declared_requirements(
+                            session, resolver, bss, stages, explain=args.explain)
+                    except ExplainInstall as e:
+                        display_explain_commands(e.commands)
+                        return 1
+            fixers = determine_fixers(session, resolver, explain=args.explain)
             if args.subcommand == "dist":
                 from .dist import run_dist
 
@@ -183,7 +209,9 @@ def main():  # noqa: C901
                 from .info import run_info
 
                 run_info(session, buildsystems=bss)
-        except UnidentifiedError:
+        except ExplainInstall as e:
+            display_explain_commands(e.commands)
+        except (UnidentifiedError, DetailedFailure):
             return 1
         except NoBuildToolsFound:
             logging.info("No build tools found.")

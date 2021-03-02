@@ -194,3 +194,37 @@ class InstallFixer(BuildFixer):
         except UnsatisfiedRequirements:
             return False
         return True
+
+
+class ExplainInstall(Exception):
+
+    def __init__(self, commands):
+        self.commands = commands
+
+
+class ExplainInstallFixer(BuildFixer):
+    def __init__(self, resolver):
+        self.resolver = resolver
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.resolver)
+
+    def __str__(self):
+        return "upstream requirement install explainer(%s)" % self.resolver
+
+    def can_fix(self, error):
+        req = problem_to_upstream_requirement(error)
+        return req is not None
+
+    def fix(self, error, context):
+        reqs = problem_to_upstream_requirement(error)
+        if reqs is None:
+            return False
+
+        if not isinstance(reqs, list):
+            reqs = [reqs]
+
+        explanations = list(self.resolver.explain(reqs))
+        if not explanations:
+            return False
+        raise ExplainInstall(explanations)

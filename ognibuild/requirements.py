@@ -33,6 +33,8 @@ class PythonPackageRequirement(Requirement):
         self.python_version = python_version
         if minimum_version is not None:
             specs = [(">=", minimum_version)]
+        if specs is None:
+            specs = []
         self.specs = specs
 
     def __repr__(self):
