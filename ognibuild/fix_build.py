@@ -58,21 +58,8 @@ class DependencyContext(object):
         self.committer = committer
         self.update_changelog = update_changelog
 
-    def add_dependency(
-        self, package: str, minimum_version=None
-    ) -> bool:
+    def add_dependency(self, package) -> bool:
         raise NotImplementedError(self.add_dependency)
-
-
-class SchrootDependencyContext(DependencyContext):
-    def __init__(self, session):
-        self.session = session
-        self.apt = AptManager(session)
-
-    def add_dependency(self, package, minimum_version=None):
-        # TODO(jelmer): Handle minimum_version
-        self.apt.install([package])
-        return True
 
 
 def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer]):
@@ -99,7 +86,7 @@ def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildF
             raise DetailedFailure(retcode, args, error)
         if not resolve_error(
             error,
-            SchrootDependencyContext(session),
+            None,
             fixers=fixers,
         ):
             logging.warning("Failed to find resolution for error %r. Giving up.", error)

@@ -98,6 +98,15 @@ class CargoCrateRequirement(Requirement):
         super(CargoCrateRequirement, self).__init__("cargo-crate")
         self.crate = crate
 
+    def __repr__(self):
+        return "%s(%r)" % (
+            type(self).__name__,
+            self.crate,
+        )
+
+    def __str__(self):
+        return "cargo crate: %s" % self.crate
+
 
 class PkgConfigRequirement(Requirement):
 

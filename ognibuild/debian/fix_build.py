@@ -79,8 +79,8 @@ from buildlog_consultant.sbuild import (
     SbuildFailure,
 )
 
+from ..buildlog import problem_to_upstream_requirement
 from ..fix_build import BuildFixer, resolve_error, DependencyContext
-from ..buildlog import RequirementFixer
 from ..resolver.apt import (
     AptRequirement,
     get_package_for_python_module,
@@ -98,7 +98,66 @@ class CircularDependency(Exception):
         self.package = package
 
 
+class PackageDependencyFixer(BuildFixer):
+
+    def __init__(self, apt_resolver):
+        self.apt_resolver = apt_resolver
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.apt_resolver)
+
+    def __str__(self):
+        return "upstream requirement fixer(%s)" % self.apt_resolver
+
+    def can_fix(self, error):
+        req = problem_to_upstream_requirement(error)
+        return req is not None
+
+    def fix(self, error, context):
+        reqs = problem_to_upstream_requirement(error)
+        if reqs is None:
+            return False
+
+        if not isinstance(reqs, list):
+            reqs = [reqs]
+
+        changed = False
+        for req in reqs:
+            package = self.apt_resolver.resolve(req)
+            if package is None:
+                return False
+            if context.phase[0] == "autopkgtest":
+                return add_test_dependency(
+                    context.tree,
+                    context.phase[1],
+                    package,
+                    committer=context.committer,
+                    subpath=context.subpath,
+                    update_changelog=context.update_changelog,
+                )
+            elif context.phase[0] == "build":
+                return add_build_dependency(
+                    context.tree,
+                    package,
+                    committer=context.committer,
+                    subpath=context.subpath,
+                    update_changelog=context.update_changelog,
+                )
+            else:
+                logging.warning('Unknown phase %r', context.phase)
+                return False
+        return changed
+
+
 class BuildDependencyContext(DependencyContext):
+    def __init__(
+        self, phase, tree, apt, subpath="", committer=None, update_changelog=True
+    ):
+        self.phase = phase
+        super(BuildDependencyContext, self).__init__(
+            tree, apt, subpath, committer, update_changelog
+        )
+
     def add_dependency(self, requirement: AptRequirement):
         return add_build_dependency(
             self.tree,
@@ -111,9 +170,9 @@ class BuildDependencyContext(DependencyContext):
 
 class AutopkgtestDependencyContext(DependencyContext):
     def __init__(
-        self, testname, tree, apt, subpath="", committer=None, update_changelog=True
+        self, phase, tree, apt, subpath="", committer=None, update_changelog=True
     ):
-        self.testname = testname
+        self.phase = phase
         super(AutopkgtestDependencyContext, self).__init__(
             tree, apt, subpath, committer, update_changelog
         )
@@ -498,13 +557,12 @@ def versioned_package_fixers(session):
 
 def apt_fixers(apt) -> List[BuildFixer]:
     from ..resolver.apt import AptResolver
-
     resolver = AptResolver(apt)
     return [
         SimpleBuildFixer(MissingPythonModule, fix_missing_python_module),
         SimpleBuildFixer(MissingPythonDistribution, fix_missing_python_distribution),
         SimpleBuildFixer(AptFetchFailure, retry_apt_failure),
-        RequirementFixer(resolver),
+        PackageDependencyFixer(resolver),
     ]
 
 
@@ -553,6 +611,7 @@ def build_incrementally(
             reset_tree(local_tree, local_tree.basis_tree(), subpath=subpath)
             if e.phase[0] == "build":
                 context = BuildDependencyContext(
+                    e.phase,
                     local_tree,
                     apt,
                     subpath=subpath,
@@ -561,7 +620,7 @@ def build_incrementally(
                 )
             elif e.phase[0] == "autopkgtest":
                 context = AutopkgtestDependencyContext(
-                    e.phase[1],
+                    e.phase,
                     local_tree,
                     apt,
                     subpath=subpath,

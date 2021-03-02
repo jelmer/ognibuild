@@ -98,6 +98,7 @@ blah (0.1) UNRELEASED; urgency=medium
         apt = AptManager(session)
         apt._searchers = [DummyAptSearcher(self._apt_files)]
         context = BuildDependencyContext(
+            ("build", ),
             self.tree,
             apt,
             subpath="",

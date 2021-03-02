@@ -81,6 +81,7 @@ from .requirements import (
     PythonModuleRequirement,
     PythonPackageRequirement,
 )
+from .resolver import UnsatisfiedRequirements
 
 
 def problem_to_upstream_requirement(problem):  # noqa: C901
@@ -166,7 +167,7 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return None
 
 
-class RequirementFixer(BuildFixer):
+class InstallFixer(BuildFixer):
     def __init__(self, resolver):
         self.resolver = resolver
 
@@ -188,11 +189,8 @@ class RequirementFixer(BuildFixer):
         if not isinstance(reqs, list):
             reqs = [reqs]
 
-        changed = False
-        for req in reqs:
-            package = self.resolver.resolve(req)
-            if package is None:
-                return False
-            if context.add_dependency(package):
-                changed = True
-        return changed
+        try:
+            self.resolver.install(reqs)
+        except UnsatisfiedRequirements:
+            return False
+        return True

@@ -27,6 +27,9 @@ class PlainSession(Session):
 
     location = "/"
 
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )
+
     def create_home(self):
         pass
 

@@ -67,8 +67,8 @@ STAGE_MAP = {
 
 
 def determine_fixers(session, resolver):
-    from .buildlog import RequirementFixer
-    return [RequirementFixer(resolver)]
+    from .buildlog import InstallFixer
+    return [InstallFixer(resolver)]
 
 
 def main():  # noqa: C901

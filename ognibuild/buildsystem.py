@@ -457,7 +457,7 @@ class Make(BuildSystem):
                 run_with_build_fixers(session, ["autoreconf", "-i"], fixers)
 
         if not makefile_exists() and session.exists("configure"):
-            session.check_call(["./configure"])
+            run_with_build_fixers(session, ["./configure"], fixers)
 
     def build(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
@@ -553,8 +553,13 @@ class Cargo(BuildSystem):
 
     name = "cargo"
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
     def __init__(self, path):
         from toml.decoder import load
+
+        self.path = path
 
         with open(path, "r") as f:
             self.cargo = load(f)
@@ -568,11 +573,29 @@ class Cargo(BuildSystem):
     def test(self, session, resolver, fixers):
         run_with_build_fixers(session, ["cargo", "test"], fixers)
 
+    def clean(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["cargo", "clean"], fixers)
+
+    def build(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["cargo", "build"], fixers)
+
 
 class Golang(BuildSystem):
     """Go builds."""
 
     name = "golang"
+
+    def __repr__(self):
+        return "%s()" % (type(self).__name__)
+
+    def test(self, session, resolver, fixers):
+        session.check_call(["go", "test"])
+
+    def build(self, session, resolver, fixers):
+        session.check_call(["go", "build"])
+
+    def clean(self, session, resolver, fixers):
+        session.check_call(["go", "clean"])
 
 
 class Maven(BuildSystem):
@@ -664,6 +687,7 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
                 "GNUmakefile",
                 "makefile",
                 "Makefile.PL",
+                "CMakeLists.txt",
                 "autogen.sh",
                 "configure.ac",
                 "configure.in",
@@ -672,6 +696,7 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
     ):
         yield Make()
 
+    seen_golang = False
     if os.path.exists(os.path.join(path, ".travis.yml")):
         import ruamel.yaml.reader
 
@@ -684,11 +709,13 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
                 language = data.get("language")
                 if language == "go":
                     yield Golang()
+                    seen_golang = True
 
-    for entry in os.scandir(path):
-        if entry.name.endswith(".go"):
-            yield Golang()
-            break
+    if not seen_golang:
+        for entry in os.scandir(path):
+            if entry.name.endswith(".go"):
+                yield Golang()
+                break
 
 
 def get_buildsystem(path, trust_package=False):

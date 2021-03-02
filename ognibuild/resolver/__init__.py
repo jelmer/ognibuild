@@ -42,6 +42,9 @@ class CPANResolver(Resolver):
     def __str__(self):
         return "cpan"
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.session)
+
     def install(self, requirements):
         from ..requirements import PerlModuleRequirement
 
@@ -70,6 +73,9 @@ class HackageResolver(Resolver):
     def __str__(self):
         return "hackage"
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.session)
+
     def install(self, requirements):
         from ..requirements import HaskellPackageRequirement
 
@@ -88,37 +94,15 @@ class HackageResolver(Resolver):
         raise NotImplementedError(self.explain)
 
 
-class CargoResolver(Resolver):
-    def __init__(self, session):
-        self.session = session
-
-    def __str__(self):
-        return "cargo"
-
-    def install(self, requirements):
-        from ..requirements import CargoCrateRequirement
-
-        missing = []
-        for requirement in requirements:
-            if not isinstance(requirement, CargoCrateRequirement):
-                missing.append(requirement)
-                continue
-            self.session.check_call(
-                ["cargo", "install", requirement.crate], user="root"
-            )
-        if missing:
-            raise UnsatisfiedRequirements(missing)
-
-    def explain(self, requirements):
-        raise NotImplementedError(self.explain)
-
-
 class PypiResolver(Resolver):
     def __init__(self, session):
         self.session = session
 
     def __str__(self):
         return "pypi"
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.session)
 
     def install(self, requirements):
         from ..requirements import PythonPackageRequirement
@@ -147,6 +131,9 @@ class NpmResolver(Resolver):
 
     def __str__(self):
         return "npm"
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.session)
 
     def install(self, requirements):
         from ..requirements import NodePackageRequirement
@@ -195,7 +182,6 @@ def native_resolvers(session):
             CPANResolver(session),
             PypiResolver(session),
             NpmResolver(session),
-            CargoResolver(session),
             HackageResolver(session),
         ]
     )
@@ -227,7 +213,6 @@ def auto_resolver(session):
             CPANResolver(session),
             PypiResolver(session),
             NpmResolver(session),
-            CargoResolver(session),
             HackageResolver(session),
         ]
     )
