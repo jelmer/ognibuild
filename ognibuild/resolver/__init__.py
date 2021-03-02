@@ -119,6 +119,33 @@ class PypiResolver(Resolver):
         raise NotImplementedError(self.explain)
 
 
+class GoResolver(Resolver):
+
+    def __init__(self, session):
+        self.session = session
+
+    def __str__(self):
+        return "go"
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.session)
+
+    def install(self, requirements):
+        from ..requirements import GoPackageRequirement
+
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, GoPackageRequirement):
+                missing.append(requirement)
+                continue
+            self.session.check_call(["go", "get", requirement.package])
+        if missing:
+            raise UnsatisfiedRequirements(missing)
+
+    def explain(self, requirements):
+        raise NotImplementedError(self.explain)
+
+
 NPM_COMMAND_PACKAGES = {
     "del-cli": "del-cli",
 }
@@ -175,15 +202,17 @@ class StackedResolver(Resolver):
                 return
 
 
+NATIVE_RESOLVER_CLS = [
+    CPANResolver,
+    PypiResolver,
+    NpmResolver,
+    GoResolver,
+    HackageResolver,
+    ]
+
+
 def native_resolvers(session):
-    return StackedResolver(
-        [
-            CPANResolver(session),
-            PypiResolver(session),
-            NpmResolver(session),
-            HackageResolver(session),
-        ]
-    )
+    return StackedResolver([kls(session) for kls in NATIVE_RESOLVER_CLS])
 
 
 class ExplainResolver(Resolver):
@@ -207,12 +236,5 @@ def auto_resolver(session):
     resolvers = []
     if isinstance(session, SchrootSession) or user == "root":
         resolvers.append(AptResolver.from_session(session))
-    resolvers.extend(
-        [
-            CPANResolver(session),
-            PypiResolver(session),
-            NpmResolver(session),
-            HackageResolver(session),
-        ]
-    )
+    resolvers.extend([kls(session) for kls in NATIVE_RESOLVER_CLS])
     return StackedResolver(resolvers)

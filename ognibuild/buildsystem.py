@@ -258,6 +258,59 @@ class SetupPy(BuildSystem):
             yield PythonPackageOutput(package, python_version="cpython3")
 
 
+class Gradle(BuildSystem):
+
+    name = "gradle"
+
+    def __init__(self, path):
+        self.path = path
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
+    def clean(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["gradle", "clean"], fixers)
+
+    def build(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["gradle", "build"], fixers)
+
+    def test(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["gradle", "test"], fixers)
+
+
+class Meson(BuildSystem):
+
+    name = "meson"
+
+    def __init__(self, path):
+        self.path = path
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
+    def _setup(self, session, fixers):
+        if session.exists("build"):
+            return
+        session.mkdir("build")
+        run_with_build_fixers(session, ["meson", "setup", "build"], fixers)
+
+    def clean(self, session, resolver, fixers):
+        self._setup(session, fixers)
+        run_with_build_fixers(session, ["ninja", "-C", "build", "clean"], fixers)
+
+    def build(self, session, resolver, fixers):
+        self._setup(session, fixers)
+        run_with_build_fixers(session, ["ninja", "-C", "build"], fixers)
+
+    def test(self, session, resolver, fixers):
+        self._setup(session, fixers)
+        run_with_build_fixers(session, ["ninja", "-C", "build", "test"], fixers)
+
+    def install(self, session, resolver, fixers, install_target):
+        self._setup(session, fixers)
+        run_with_build_fixers(session, ["ninja", "-C", "build", "install"], fixers)
+
+
 class PyProject(BuildSystem):
 
     name = "pyproject"
@@ -265,6 +318,9 @@ class PyProject(BuildSystem):
     def __init__(self, path):
         self.path = path
         self.pyproject = self.load_toml()
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
 
     def load_toml(self):
         import toml
@@ -589,10 +645,13 @@ class Golang(BuildSystem):
         return "%s()" % (type(self).__name__)
 
     def test(self, session, resolver, fixers):
-        session.check_call(["go", "test"])
+        run_with_build_fixers(session, ["go", "test"], fixers)
 
     def build(self, session, resolver, fixers):
-        session.check_call(["go", "build"])
+        run_with_build_fixers(session, ["go", "build"], fixers)
+
+    def install(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["go", "install"], fixers)
 
     def clean(self, session, resolver, fixers):
         session.check_call(["go", "clean"])
@@ -664,6 +723,14 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
     if os.path.exists(os.path.join(path, "Cargo.toml")):
         logging.debug("Found Cargo.toml, assuming rust cargo package.")
         yield Cargo("Cargo.toml")
+
+    if os.path.exists(os.path.join(path, "build.gradle")):
+        logging.debug("Found build.gradle, assuming gradle package.")
+        yield Gradle("build.gradle")
+
+    if os.path.exists(os.path.join(path, "meson.build")):
+        logging.debug("Found meson.build, assuming meson package.")
+        yield Meson("meson.build")
 
     if os.path.exists(os.path.join(path, "Setup.hs")):
         logging.debug("Found Setup.hs, assuming haskell package.")
