@@ -21,6 +21,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 from typing import Optional
 
 from debian.deb822 import Deb822
@@ -48,7 +49,7 @@ SUPPORTED_DIST_EXTENSIONS = [
     ".tbz2",
     ".tar",
     ".zip",
-    ]
+]
 
 
 def is_dist_file(fn):
@@ -62,24 +63,24 @@ class DistNoTarball(Exception):
     """Dist operation did not create a tarball."""
 
 
-def run_dist(session, buildsystems, resolver, fixers):
+def run_dist(session, buildsystems, resolver, fixers, quiet=False):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
     for buildsystem in buildsystems:
-        buildsystem.dist(session, resolver, fixers)
+        buildsystem.dist(session, resolver, fixers, quiet=quiet)
         return
 
     raise NoBuildToolsFound()
 
 
 class DistCatcher(object):
-
     def __init__(self, directory):
         self.export_directory = directory
         self.files = []
         self.existing_files = None
+        self.start_time = time.time()
 
     def __enter__(self):
         self.existing_files = os.listdir(self.export_directory)
@@ -103,12 +104,19 @@ class DistCatcher(object):
             logging.info("No tarballs found in dist directory.")
 
         parent_directory = os.path.dirname(self.export_directory)
-        diff = set(os.listdir(parent_directory)) - set([subdir])
+        diff = set(os.listdir(parent_directory)) - set([self.export_directory])
         if len(diff) == 1:
             fn = diff.pop()
             logging.info("Found tarball %s in parent directory.", fn)
             self.files.append(os.path.join(parent_directory, fn))
             return fn
+
+        if "dist" in new_files:
+            for entry in os.scandir(os.path.join(self.export_directory, "dist")):
+                if is_dist_file(entry.name) and entry.stat().st_mtime > self.start_time:
+                    logging.info("Found tarball %s in dist directory.", entry.name)
+                    self.files.append(entry.path)
+                    return entry.name
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.find_files()
@@ -125,7 +133,7 @@ def create_dist_schroot(
 ) -> str:
     from .buildsystem import detect_buildsystems
     from .resolver.apt import AptResolver
-    from .buildlog import UpstreamRequirementFixer
+    from .buildlog import InstallFixer
 
     if subdir is None:
         subdir = "package"
@@ -151,7 +159,7 @@ def create_dist_schroot(
 
         buildsystems = list(detect_buildsystems(export_directory))
         resolver = AptResolver.from_session(session)
-        fixers = [UpstreamRequirementFixer(resolver)]
+        fixers = [InstallFixer(resolver)]
 
         with DistCatcher(export_directory) as dc:
             oldcwd = os.getcwd()
@@ -196,17 +204,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--target-directory", type=str, default="..", help="Target directory"
     )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Be verbose")
+    parser.add_argument("--verbose", action="store_true", help="Be verbose")
 
     args = parser.parse_args()
 
     if args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
     else:
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     tree = WorkingTree.open(args.directory)
     if args.packaging_directory:

@@ -16,14 +16,15 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 
-class UnsatisfiedRequirements(Exception):
+import subprocess
 
+
+class UnsatisfiedRequirements(Exception):
     def __init__(self, reqs):
         self.requirements = reqs
 
 
 class Resolver(object):
-
     def install(self, requirements):
         raise NotImplementedError(self.install)
 
@@ -38,15 +39,29 @@ class Resolver(object):
 
 
 class CPANResolver(Resolver):
-
     def __init__(self, session):
         self.session = session
 
     def __str__(self):
         return "cpan"
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.session)
+
+    def explain(self, requirements):
+        from ..requirements import PerlModuleRequirement
+
+        perlreqs = []
+        for requirement in requirements:
+            if not isinstance(requirement, PerlModuleRequirement):
+                continue
+            perlreqs.append(requirement)
+        if perlreqs:
+            yield (["cpan", "-i"] + [req.module for req in perlreqs], [perlreqs])
+
     def install(self, requirements):
         from ..requirements import PerlModuleRequirement
+
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, PerlModuleRequirement):
@@ -55,86 +70,122 @@ class CPANResolver(Resolver):
             # TODO(jelmer): Specify -T to skip tests?
             self.session.check_call(
                 ["cpan", "-i", requirement.module],
-                user="root", env={"PERL_MM_USE_DEFAULT": "1"}
+                env={"PERL_MM_USE_DEFAULT": "1"},
             )
         if missing:
             raise UnsatisfiedRequirements(missing)
 
-    def explain(self, requirements):
-        raise NotImplementedError(self.explain)
-
 
 class HackageResolver(Resolver):
-
     def __init__(self, session):
         self.session = session
 
     def __str__(self):
         return "hackage"
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.session)
+
     def install(self, requirements):
         from ..requirements import HaskellPackageRequirement
+
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, HaskellPackageRequirement):
                 missing.append(requirement)
                 continue
             self.session.check_call(
-                ["cabal", "install", requirement.package],
-                user="root")
+                ["cabal", "install", requirement.package]
+            )
         if missing:
             raise UnsatisfiedRequirements(missing)
 
     def explain(self, requirements):
-        raise NotImplementedError(self.explain)
+        from ..requirements import HaskellPackageRequirement
 
-
-class CargoResolver(Resolver):
-
-    def __init__(self, session):
-        self.session = session
-
-    def __str__(self):
-        return "cargo"
-
-    def install(self, requirements):
-        from ..requirements import CargoCrateRequirement
-        missing = []
+        haskellreqs = []
         for requirement in requirements:
-            if not isinstance(requirement, CargoCrateRequirement):
-                missing.append(requirement)
+            if not isinstance(requirement, HaskellPackageRequirement):
                 continue
-            self.session.check_call(
-                ["cargo", "install", requirement.crate],
-                user="root")
-        if missing:
-            raise UnsatisfiedRequirements(missing)
-
-    def explain(self, requirements):
-        raise NotImplementedError(self.explain)
+            haskellreqs.append(requirement)
+        if haskellreqs:
+            yield (["cabal", "install"] + [req.package for req in haskellreqs],
+                   haskellreqs)
 
 
 class PypiResolver(Resolver):
-
     def __init__(self, session):
         self.session = session
 
     def __str__(self):
         return "pypi"
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.session)
+
     def install(self, requirements):
         from ..requirements import PythonPackageRequirement
+
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, PythonPackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(["pip", "install", requirement.package])
+            try:
+                self.session.check_call(
+                    ["pip", "install", requirement.package])
+            except subprocess.CalledProcessError:
+                missing.append(requirement)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
     def explain(self, requirements):
-        raise NotImplementedError(self.explain)
+        from ..requirements import PythonPackageRequirement
+
+        pyreqs = []
+        for requirement in requirements:
+            if not isinstance(requirement, PythonPackageRequirement):
+                continue
+            pyreqs.append(requirement)
+        if pyreqs:
+            yield (["pip", "install"] + [req.package for req in pyreqs],
+                   pyreqs)
+
+
+class GoResolver(Resolver):
+
+    def __init__(self, session):
+        self.session = session
+
+    def __str__(self):
+        return "go"
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.session)
+
+    def install(self, requirements):
+        from ..requirements import GoPackageRequirement
+
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, GoPackageRequirement):
+                missing.append(requirement)
+                continue
+            self.session.check_call(["go", "get", requirement.package])
+        if missing:
+            raise UnsatisfiedRequirements(missing)
+
+    def explain(self, requirements):
+        from ..requirements import GoPackageRequirement
+
+        goreqs = []
+        for requirement in requirements:
+            if not isinstance(requirement, GoPackageRequirement):
+                continue
+            goreqs.append(requirement)
+        if goreqs:
+            yield (["go", "get"] + [req.package for req in goreqs],
+                   goreqs)
 
 
 NPM_COMMAND_PACKAGES = {
@@ -143,15 +194,18 @@ NPM_COMMAND_PACKAGES = {
 
 
 class NpmResolver(Resolver):
-
     def __init__(self, session):
         self.session = session
 
     def __str__(self):
         return "npm"
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.session)
+
     def install(self, requirements):
         from ..requirements import NodePackageRequirement
+
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, NodePackageRequirement):
@@ -167,7 +221,21 @@ class NpmResolver(Resolver):
             raise UnsatisfiedRequirements(missing)
 
     def explain(self, requirements):
-        raise NotImplementedError(self.explain)
+        from ..requirements import NodePackageRequirement
+
+        nodereqs = []
+        packages = []
+        for requirement in requirements:
+            if not isinstance(requirement, NodePackageRequirement):
+                continue
+            try:
+                package = NPM_COMMAND_PACKAGES[requirement.command]
+            except KeyError:
+                continue
+            nodereqs.append(requirement)
+            packages.append(package)
+        if nodereqs:
+            yield (["npm", "-g", "install"] + packages, nodereqs)
 
 
 class StackedResolver(Resolver):
@@ -180,6 +248,10 @@ class StackedResolver(Resolver):
     def __str__(self):
         return "[" + ", ".join(map(str, self.subs)) + "]"
 
+    def explain(self, requirements):
+        for sub in self.subs:
+            yield from sub.explain(requirements)
+
     def install(self, requirements):
         for sub in self.subs:
             try:
@@ -190,13 +262,17 @@ class StackedResolver(Resolver):
                 return
 
 
+NATIVE_RESOLVER_CLS = [
+    CPANResolver,
+    PypiResolver,
+    NpmResolver,
+    GoResolver,
+    HackageResolver,
+    ]
+
+
 def native_resolvers(session):
-    return StackedResolver([
-        CPANResolver(session),
-        PypiResolver(session),
-        NpmResolver(session),
-        CargoResolver(session),
-        HackageResolver(session)])
+    return StackedResolver([kls(session) for kls in NATIVE_RESOLVER_CLS])
 
 
 class ExplainResolver(Resolver):
@@ -212,17 +288,15 @@ class ExplainResolver(Resolver):
 
 
 def auto_resolver(session):
-    # TODO(jelmer): if session is SchrootSession or if we're root, use apt
+    # if session is SchrootSession or if we're root, use apt
     from .apt import AptResolver
     from ..session.schroot import SchrootSession
-    user = session.check_output(['echo', '$USER']).decode().strip()
+
+    user = session.check_output(["echo", "$USER"]).decode().strip()
     resolvers = []
-    if isinstance(session, SchrootSession) or user == 'root':
+    # TODO(jelmer): Check VIRTUAL_ENV, and prioritize PypiResolver if
+    # present?
+    if isinstance(session, SchrootSession) or user == "root":
         resolvers.append(AptResolver.from_session(session))
-    resolvers.extend([
-        CPANResolver(session),
-        PypiResolver(session),
-        NpmResolver(session),
-        CargoResolver(session),
-        HackageResolver(session)])
+    resolvers.extend([kls(session) for kls in NATIVE_RESOLVER_CLS])
     return StackedResolver(resolvers)

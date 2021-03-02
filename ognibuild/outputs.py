@@ -16,37 +16,33 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from . import Session
-
-import os
-import subprocess
+from . import UpstreamOutput
 
 
-class PlainSession(Session):
-    """Session ignoring user."""
-
-    location = "/"
+class BinaryOutput(UpstreamOutput):
+    def __init__(self, name):
+        super(BinaryOutput, self).__init__("binary")
+        self.name = name
 
     def __repr__(self):
-        return "%s()" % (type(self).__name__, )
+        return "%s(%r)" % (type(self).__name__, self.name)
 
-    def create_home(self):
-        pass
+    def __str__(self):
+        return "binary: %s" % self.name
 
-    def check_call(self, args):
-        return subprocess.check_call(args)
 
-    def check_output(self, args):
-        return subprocess.check_output(args)
+class PythonPackageOutput(UpstreamOutput):
+    def __init__(self, name, python_version=None):
+        super(PythonPackageOutput, self).__init__("python-package")
+        self.name = name
+        self.python_version = python_version
 
-    def Popen(self, args, stdout=None, stderr=None, user=None, cwd=None):
-        return subprocess.Popen(args, stdout=stdout, stderr=stderr, cwd=cwd)
+    def __str__(self):
+        return "python package: %s" % self.name
 
-    def exists(self, path):
-        return os.path.exists(path)
-
-    def scandir(self, path):
-        return os.scandir(path)
-
-    def chdir(self, path):
-        os.chdir(path)
+    def __repr__(self):
+        return "%s(%r, python_version=%r)" % (
+            type(self).__name__,
+            self.name,
+            self.python_version,
+        )

@@ -16,14 +16,10 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import logging
-from typing import List, Tuple, Callable, Type, Optional
+from typing import List, Optional
 
 from buildlog_consultant.common import (
     find_build_failure_description,
-    Problem,
-    MissingPerlModule,
-    MissingPythonDistribution,
-    MissingCommand,
 )
 from breezy.mutabletree import MutableTree
 
@@ -62,25 +58,11 @@ class DependencyContext(object):
         self.committer = committer
         self.update_changelog = update_changelog
 
-    def add_dependency(
-        self, package: str, minimum_version: Optional['Version'] = None
-    ) -> bool:
+    def add_dependency(self, package) -> bool:
         raise NotImplementedError(self.add_dependency)
 
 
-class SchrootDependencyContext(DependencyContext):
-    def __init__(self, session):
-        self.session = session
-        self.apt = AptManager(session)
-
-    def add_dependency(self, package, minimum_version=None):
-        # TODO(jelmer): Handle minimum_version
-        self.apt.install([package])
-        return True
-
-
-def run_with_build_fixers(
-        session: Session, args: List[str], fixers: List[BuildFixer]):
+def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer]):
     logging.info("Running %r", args)
     fixed_errors = []
     while True:
@@ -89,11 +71,12 @@ def run_with_build_fixers(
             return
         match, error = find_build_failure_description(lines)
         if error is None:
-            logging.warning("Build failed with unidentified error. Giving up.")
-            if match is not None:
-                raise UnidentifiedError(
-                    retcode, args, lines, secondary=(match.lineno, match.line))
-            raise UnidentifiedError(retcode, args, lines)
+            if match:
+                logging.warning("Build failed with unidentified error:")
+                logging.warning("%s", match.line.rstrip("\n"))
+            else:
+                logging.warning("Build failed and unable to find cause. Giving up.")
+            raise UnidentifiedError(retcode, args, lines, secondary=match)
 
         logging.info("Identified error: %r", error)
         if error in fixed_errors:
@@ -103,7 +86,7 @@ def run_with_build_fixers(
             raise DetailedFailure(retcode, args, error)
         if not resolve_error(
             error,
-            SchrootDependencyContext(session),
+            None,
             fixers=fixers,
         ):
             logging.warning("Failed to find resolution for error %r. Giving up.", error)

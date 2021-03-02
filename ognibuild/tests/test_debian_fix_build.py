@@ -30,7 +30,6 @@ from buildlog_consultant.common import (
     MissingRubyGem,
     MissingValaPackage,
 )
-from ..debian import apt
 from ..debian.apt import AptManager, FileSearcher
 from ..debian.fix_build import (
     resolve_error,
@@ -42,7 +41,6 @@ from breezy.tests import TestCaseWithTransport
 
 
 class DummyAptSearcher(FileSearcher):
-
     def __init__(self, files):
         self._apt_files = files
 
@@ -59,8 +57,8 @@ class DummyAptSearcher(FileSearcher):
 class ResolveErrorTests(TestCaseWithTransport):
     def setUp(self):
         super(ResolveErrorTests, self).setUp()
-        if not os.path.exists('/usr/bin/dpkg-architecture'):
-            self.skipTest('not a debian system')
+        if not os.path.exists("/usr/bin/dpkg-architecture"):
+            self.skipTest("not a debian system")
         self.tree = self.make_branch_and_tree(".")
         self.build_tree_contents(
             [
@@ -95,10 +93,12 @@ blah (0.1) UNRELEASED; urgency=medium
 
     def resolve(self, error, context=("build",)):
         from ..session.plain import PlainSession
+
         session = PlainSession()
         apt = AptManager(session)
         apt._searchers = [DummyAptSearcher(self._apt_files)]
         context = BuildDependencyContext(
+            ("build", ),
             self.tree,
             apt,
             subpath="",
@@ -122,8 +122,8 @@ blah (0.1) UNRELEASED; urgency=medium
             "/usr/bin/brz": "brz",
             "/usr/bin/brzier": "bash",
         }
-        self.overrideEnv('DEBEMAIL', 'jelmer@debian.org')
-        self.overrideEnv('DEBFULLNAME', 'Jelmer Vernooĳ')
+        self.overrideEnv("DEBEMAIL", "jelmer@debian.org")
+        self.overrideEnv("DEBFULLNAME", "Jelmer Vernooĳ")
         self.assertTrue(self.resolve(MissingCommand("brz")))
         self.assertEqual("libc6, brz", self.get_build_deps())
         rev = self.tree.branch.repository.get_revision(self.tree.branch.last_revision())

@@ -15,31 +15,31 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from .buildsystem import NoBuildToolsFound, InstallTarget
-
 
 def run_info(session, buildsystems):
     for buildsystem in buildsystems:
-        print('%r:' % buildsystem)
+        print("%r:" % buildsystem)
         deps = {}
         try:
             for kind, dep in buildsystem.get_declared_dependencies():
                 deps.setdefault(kind, []).append(dep)
         except NotImplementedError:
-            print('\tUnable to detect declared dependencies for this type of build system')
+            print(
+                "\tUnable to detect declared dependencies for this type of build system"
+            )
         if deps:
-            print('\tDeclared dependencies:')
+            print("\tDeclared dependencies:")
             for kind in deps:
-                print('\t\t%s:' % kind)
+                print("\t\t%s:" % kind)
                 for dep in deps[kind]:
-                    print('\t\t\t%s' % dep)
-            print('')
+                    print("\t\t\t%s" % dep)
+            print("")
         try:
             outputs = list(buildsystem.get_declared_outputs())
         except NotImplementedError:
-            print('\tUnable to detect declared outputs for this type of build system')
+            print("\tUnable to detect declared outputs for this type of build system")
             outputs = []
         if outputs:
-            print('\tDeclared outputs:')
+            print("\tDeclared outputs:")
             for output in outputs:
-                print('\t\t%s' % output)
+                print("\t\t%s" % output)

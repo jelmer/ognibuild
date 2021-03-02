@@ -17,8 +17,10 @@
 
 import logging
 import os
+import shlex
 import sys
-from . import UnidentifiedError
+from . import UnidentifiedError, DetailedFailure
+from .buildlog import InstallFixer, ExplainInstallFixer, ExplainInstall
 from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .resolver import (
     auto_resolver,
@@ -26,6 +28,15 @@ from .resolver import (
     UnsatisfiedRequirements,
 )
 from .resolver.apt import AptResolver
+
+
+def display_explain_commands(commands):
+    logging.info("Run one or more of the following commands:")
+    for command, reqs in commands:
+        if isinstance(command, list):
+            command = shlex.join(command)
+        logging.info(
+            '  %s (to install %s)', command, ', '.join(map(str, reqs)))
 
 
 def get_necessary_declared_requirements(resolver, requirements, stages):
@@ -36,35 +47,57 @@ def get_necessary_declared_requirements(resolver, requirements, stages):
     return missing
 
 
-def install_necessary_declared_requirements(resolver, buildsystem, stages):
-    missing = []
-    try:
-        declared_reqs = buildsystem.get_declared_dependencies()
-    except NotImplementedError:
-        logging.warning(
-            'Unable to determine declared dependencies from %s', buildsystem)
-    else:
-        missing.extend(
-            get_necessary_declared_requirements(
-                resolver, declared_reqs, stages
+def install_necessary_declared_requirements(session, resolver, buildsystems, stages, explain=False):
+    relevant = []
+    declared_reqs = []
+    for buildsystem in buildsystems:
+        try:
+            declared_reqs.extend(buildsystem.get_declared_dependencies())
+        except NotImplementedError:
+            logging.warning(
+                "Unable to determine declared dependencies from %r", buildsystem
             )
-        )
-    resolver.install(missing)
+    relevant.extend(
+        get_necessary_declared_requirements(resolver, declared_reqs, stages)
+    )
+    missing = []
+    for req in relevant:
+        try:
+            if not req.met(session):
+                missing.append(req)
+        except NotImplementedError:
+            missing.append(req)
+    if missing:
+        if explain:
+            commands = resolver.explain(missing)
+            if not commands:
+                raise UnsatisfiedRequirements(missing)
+            raise ExplainInstall(commands)
+        else:
+            resolver.install(missing)
 
+
+# Types of dependencies:
+# - core: necessary to do anything with the package
+# - build: necessary to build the package
+# - test: necessary to run the tests
+# - dev: necessary for development (e.g. linters, yacc)
 
 STAGE_MAP = {
     "dist": [],
     "info": [],
-    "install": ["build"],
-    "test": ["test", "dev"],
-    "build": ["build"],
+    "install": ["core", "build"],
+    "test": ["test", "build", "core"],
+    "build": ["build", "core"],
     "clean": [],
 }
 
-def determine_fixers(session, resolver):
-    from .buildlog import UpstreamRequirementFixer
-    from .resolver.apt import AptResolver
-    return [UpstreamRequirementFixer(resolver)]
+
+def determine_fixers(session, resolver, explain=False):
+    if explain:
+        return [ExplainInstallFixer(resolver)]
+    else:
+        return [InstallFixer(resolver)]
 
 
 def main():  # noqa: C901
@@ -83,36 +116,35 @@ def main():  # noqa: C901
     )
     parser.add_argument(
         "--explain",
-        action='store_true',
-        help="Explain what needs to be done rather than making changes")
+        action="store_true",
+        help="Explain what needs to be done rather than making changes",
+    )
     parser.add_argument(
         "--ignore-declared-dependencies",
         "--optimistic",
         action="store_true",
         help="Ignore declared dependencies, follow build errors only",
     )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Be verbose")
-    subparsers = parser.add_subparsers(dest='subcommand')
-    subparsers.add_parser('dist')
-    subparsers.add_parser('build')
-    subparsers.add_parser('clean')
-    subparsers.add_parser('test')
-    subparsers.add_parser('info')
-    install_parser = subparsers.add_parser('install')
+    parser.add_argument("--verbose", action="store_true", help="Be verbose")
+    subparsers = parser.add_subparsers(dest="subcommand")
+    subparsers.add_parser("dist")
+    subparsers.add_parser("build")
+    subparsers.add_parser("clean")
+    subparsers.add_parser("test")
+    subparsers.add_parser("info")
+    install_parser = subparsers.add_parser("install")
     install_parser.add_argument(
-        '--user', action='store_true', help='Install in local-user directories.')
+        "--user", action="store_true", help="Install in local-user directories."
+    )
 
     args = parser.parse_args()
     if not args.subcommand:
         parser.print_usage()
         return 1
     if args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
     else:
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
     if args.schroot:
         from .session.schroot import SchrootSession
 
@@ -128,45 +160,58 @@ def main():  # noqa: C901
             resolver = native_resolvers(session)
         elif args.resolve == "auto":
             resolver = auto_resolver(session)
-        logging.info('Using requirement resolver: %s', resolver)
+        logging.info("Using requirement resolver: %s", resolver)
         os.chdir(args.directory)
         try:
             bss = list(detect_buildsystems(args.directory))
-            logging.info('Detected buildsystems: %r', bss)
-            if not args.ignore_declared_dependencies and not args.explain:
+            logging.info(
+                "Detected buildsystems: %s", ', '.join(map(str, bss)))
+            if not args.ignore_declared_dependencies:
                 stages = STAGE_MAP[args.subcommand]
                 if stages:
-                    for bs in bss:
-                        install_necessary_declared_requirements(resolver, bs, stages)
-            fixers = determine_fixers(session, resolver)
+                    logging.info("Checking that declared requirements are present")
+                    try:
+                        install_necessary_declared_requirements(
+                            session, resolver, bss, stages, explain=args.explain)
+                    except ExplainInstall as e:
+                        display_explain_commands(e.commands)
+                        return 1
+            fixers = determine_fixers(session, resolver, explain=args.explain)
             if args.subcommand == "dist":
                 from .dist import run_dist
+
                 run_dist(
-                    session=session, buildsystems=bss, resolver=resolver,
-                    fixers=fixers)
+                    session=session, buildsystems=bss, resolver=resolver, fixers=fixers
+                )
             if args.subcommand == "build":
                 from .build import run_build
-                run_build(
-                    session, buildsystems=bss, resolver=resolver,
-                    fixers=fixers)
+
+                run_build(session, buildsystems=bss, resolver=resolver, fixers=fixers)
             if args.subcommand == "clean":
                 from .clean import run_clean
-                run_clean(
-                    session, buildsystems=bss, resolver=resolver,
-                    fixers=fixers)
+
+                run_clean(session, buildsystems=bss, resolver=resolver, fixers=fixers)
             if args.subcommand == "install":
                 from .install import run_install
+
                 run_install(
-                    session, buildsystems=bss, resolver=resolver,
-                    fixers=fixers, user=args.user)
+                    session,
+                    buildsystems=bss,
+                    resolver=resolver,
+                    fixers=fixers,
+                    user=args.user,
+                )
             if args.subcommand == "test":
                 from .test import run_test
-                run_test(session, buildsystems=bss, resolver=resolver,
-                         fixers=fixers)
+
+                run_test(session, buildsystems=bss, resolver=resolver, fixers=fixers)
             if args.subcommand == "info":
                 from .info import run_info
+
                 run_info(session, buildsystems=bss)
-        except UnidentifiedError:
+        except ExplainInstall as e:
+            display_explain_commands(e.commands)
+        except (UnidentifiedError, DetailedFailure):
             return 1
         except NoBuildToolsFound:
             logging.info("No build tools found.")
