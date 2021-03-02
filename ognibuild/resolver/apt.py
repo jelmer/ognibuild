@@ -595,7 +595,7 @@ class AptResolver(Resolver):
             if apt_req is not None:
                 apt_requirements.append((r, apt_req))
         if apt_requirements:
-            yield (["apt", "satisfy"] + [PkgRelation.str(chain(*[r.relations for o, r in apt_requirements]))], [o for o, r in apt_requirements])
+            yield (self.apt.satisfy_command([PkgRelation.str(chain(*[r.relations for o, r in apt_requirements]))]), [o for o, r in apt_requirements])
 
     def resolve(self, req: Requirement):
         return resolve_requirement_apt(self.apt, req)

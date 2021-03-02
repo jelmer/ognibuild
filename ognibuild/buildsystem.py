@@ -302,6 +302,10 @@ class Meson(BuildSystem):
         self._setup(session, fixers)
         run_with_build_fixers(session, ["ninja", "-C", "build"], fixers)
 
+    def dist(self, session, resolver, fixers, quiet=False):
+        self._setup(session, fixers)
+        run_with_build_fixers(session, ["ninja", "-C", "build", "dist"], fixers)
+
     def test(self, session, resolver, fixers):
         self._setup(session, fixers)
         run_with_build_fixers(session, ["ninja", "-C", "build", "test"], fixers)

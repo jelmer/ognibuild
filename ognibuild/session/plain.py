@@ -27,6 +27,13 @@ class PlainSession(Session):
 
     location = "/"
 
+    def _prepend_user(self, user, args):
+        if user is not None:
+            import getpass
+            if user != getpass.getuser():
+                args = ["sudo", "-u", user] + args
+        return args
+
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
@@ -40,6 +47,7 @@ class PlainSession(Session):
         return subprocess.check_output(args)
 
     def Popen(self, args, stdout=None, stderr=None, user=None, cwd=None):
+        args = self._prepend_user(user, args)
         return subprocess.Popen(args, stdout=stdout, stderr=stderr, cwd=cwd)
 
     def exists(self, path):
