@@ -21,7 +21,6 @@ import stat
 
 
 class DetailedFailure(Exception):
-
     def __init__(self, retcode, argv, error):
         self.retcode = retcode
         self.argv = argv
@@ -29,7 +28,6 @@ class DetailedFailure(Exception):
 
 
 class UnidentifiedError(Exception):
-
     def __init__(self, retcode, argv, lines, secondary=None):
         self.retcode = retcode
         self.argv = argv
@@ -50,7 +48,7 @@ def shebang_binary(p):
         return os.path.basename(args[0].decode()).strip()
 
 
-class UpstreamRequirement(object):
+class Requirement(object):
 
     # Name of the family of requirements - e.g. "python-package"
     family: str
@@ -63,10 +61,8 @@ class UpstreamRequirement(object):
 
 
 class UpstreamOutput(object):
-
-    def __init__(self, family, name):
+    def __init__(self, family):
         self.family = family
-        self.name = name
 
-    def __repr__(self):
-        return "%s(%r, %r)" % (type(self).__name__, self.family, self.name)
+    def get_declared_dependencies(self):
+        raise NotImplementedError(self.get_declared_dependencies)

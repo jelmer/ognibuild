@@ -62,11 +62,13 @@ def changes_filename(package, version, arch):
 
 def get_build_architecture():
     try:
-        return subprocess.check_output(
-            ['dpkg-architecture', '-qDEB_BUILD_ARCH']).strip().decode()
+        return (
+            subprocess.check_output(["dpkg-architecture", "-qDEB_BUILD_ARCH"])
+            .strip()
+            .decode()
+        )
     except subprocess.CalledProcessError as e:
-        raise Exception(
-            "Could not find the build architecture: %s" % e)
+        raise Exception("Could not find the build architecture: %s" % e)
 
 
 def add_dummy_changelog_entry(
@@ -207,7 +209,7 @@ def attempt_build(
     build_suite,
     output_directory,
     build_command,
-    build_changelog_entry="Build for debian-janitor apt repository.",
+    build_changelog_entry=None,
     subpath="",
     source_date_epoch=None,
 ):
@@ -224,9 +226,10 @@ def attempt_build(
       source_date_epoch: Source date epoch to set
     Returns: Tuple with (changes_name, cl_version)
     """
-    add_dummy_changelog_entry(
-        local_tree, subpath, suffix, build_suite, build_changelog_entry
-    )
+    if build_changelog_entry is not None:
+        add_dummy_changelog_entry(
+            local_tree, subpath, suffix, build_suite, build_changelog_entry
+        )
     return build_once(
         local_tree,
         build_suite,

@@ -21,7 +21,6 @@
 import logging
 
 from buildlog_consultant.common import (
-    MissingConfigStatusInput,
     MissingPythonModule,
     MissingPythonDistribution,
     MissingCHeader,
@@ -41,15 +40,12 @@ from buildlog_consultant.common import (
     MissingLibrary,
     MissingJavaClass,
     MissingCSharpCompiler,
-    MissingConfigure,
-    MissingAutomakeInput,
     MissingRPackage,
     MissingRubyFile,
     MissingAutoconfMacro,
     MissingValaPackage,
     MissingXfceDependency,
     MissingHaskellDependencies,
-    NeedPgBuildExtUpdateControl,
     DhAddonLoadFailure,
     MissingMavenArtifacts,
     GnomeCommonMissing,
@@ -84,17 +80,17 @@ from .requirements import (
     AutoconfMacroRequirement,
     PythonModuleRequirement,
     PythonPackageRequirement,
-    )
+)
+from .resolver import UnsatisfiedRequirements
 
 
-def problem_to_upstream_requirement(problem):
+def problem_to_upstream_requirement(problem):  # noqa: C901
     if isinstance(problem, MissingFile):
         return PathRequirement(problem.path)
     elif isinstance(problem, MissingCommand):
         return BinaryRequirement(problem.command)
     elif isinstance(problem, MissingPkgConfig):
-        return PkgConfigRequirement(
-            problem.module, problem.minimum_version)
+        return PkgConfigRequirement(problem.module, problem.minimum_version)
     elif isinstance(problem, MissingCHeader):
         return CHeaderRequirement(problem.header)
     elif isinstance(problem, MissingJavaScriptRuntime):
@@ -124,37 +120,33 @@ def problem_to_upstream_requirement(problem):
     elif isinstance(problem, MissingJavaClass):
         return JavaClassRequirement(problem.classname)
     elif isinstance(problem, MissingHaskellDependencies):
-        return [HaskellPackageRequirement(dep) for dep in problem.deps]
+        return [HaskellPackageRequirement.from_string(dep) for dep in problem.deps]
     elif isinstance(problem, MissingMavenArtifacts):
-        return [MavenArtifactRequirement(artifact)
-                for artifact in problem.artifacts]
+        return [MavenArtifactRequirement(artifact) for artifact in problem.artifacts]
     elif isinstance(problem, MissingCSharpCompiler):
-        return BinaryRequirement('msc')
+        return BinaryRequirement("msc")
     elif isinstance(problem, GnomeCommonMissing):
         return GnomeCommonRequirement()
     elif isinstance(problem, MissingJDKFile):
         return JDKFileRequirement(problem.jdk_path, problem.filename)
     elif isinstance(problem, MissingGnomeCommonDependency):
         if problem.package == "glib-gettext":
-            return BinaryRequirement('glib-gettextize')
+            return BinaryRequirement("glib-gettextize")
         else:
             logging.warning(
-                "No known command for gnome-common dependency %s",
-                problem.package)
+                "No known command for gnome-common dependency %s", problem.package
+            )
             return None
     elif isinstance(problem, MissingXfceDependency):
         if problem.package == "gtk-doc":
             return BinaryRequirement("gtkdocize")
         else:
-            logging.warning(
-                "No known command for xfce dependency %s",
-                problem.package)
+            logging.warning("No known command for xfce dependency %s", problem.package)
             return None
     elif isinstance(problem, MissingPerlModule):
         return PerlModuleRequirement(
-            module=problem.module,
-            filename=problem.filename,
-            inc=problem.inc)
+            module=problem.module, filename=problem.filename, inc=problem.inc
+        )
     elif isinstance(problem, MissingPerlFile):
         return PerlFileRequirement(filename=problem.filename)
     elif isinstance(problem, MissingAutoconfMacro):
@@ -163,18 +155,19 @@ def problem_to_upstream_requirement(problem):
         return PythonModuleRequirement(
             problem.module,
             python_version=problem.python_version,
-            minimum_version=problem.minimum_version)
+            minimum_version=problem.minimum_version,
+        )
     elif isinstance(problem, MissingPythonDistribution):
         return PythonPackageRequirement(
             problem.module,
             python_version=problem.python_version,
-            minimum_version=problem.minimum_version)
+            minimum_version=problem.minimum_version,
+        )
     else:
         return None
 
 
-class UpstreamRequirementFixer(BuildFixer):
-
+class InstallFixer(BuildFixer):
     def __init__(self, resolver):
         self.resolver = resolver
 
@@ -196,11 +189,42 @@ class UpstreamRequirementFixer(BuildFixer):
         if not isinstance(reqs, list):
             reqs = [reqs]
 
-        changed = False
-        for req in reqs:
-            package = self.resolver.resolve(req)
-            if package is None:
-                return False
-            if context.add_dependency(package):
-                changed = True
-        return changed
+        try:
+            self.resolver.install(reqs)
+        except UnsatisfiedRequirements:
+            return False
+        return True
+
+
+class ExplainInstall(Exception):
+
+    def __init__(self, commands):
+        self.commands = commands
+
+
+class ExplainInstallFixer(BuildFixer):
+    def __init__(self, resolver):
+        self.resolver = resolver
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.resolver)
+
+    def __str__(self):
+        return "upstream requirement install explainer(%s)" % self.resolver
+
+    def can_fix(self, error):
+        req = problem_to_upstream_requirement(error)
+        return req is not None
+
+    def fix(self, error, context):
+        reqs = problem_to_upstream_requirement(error)
+        if reqs is None:
+            return False
+
+        if not isinstance(reqs, list):
+            reqs = [reqs]
+
+        explanations = list(self.resolver.explain(reqs))
+        if not explanations:
+            return False
+        raise ExplainInstall(explanations)

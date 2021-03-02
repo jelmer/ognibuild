@@ -1,11 +1,11 @@
-Upstream requirements are expressed as objects derived from UpstreamRequirement.
+Upstream requirements are expressed as objects derived from Requirement.
 
 They can either be:
 
  * extracted from the build system
  * extracted from errors in build logs
 
-The details of UpstreamRequirements are specific to the kind of requirement,
+The details of Requirements are specific to the kind of requirement,
 and otherwise opaque to ognibuild.
 
 When building a package, we first make sure that all declared upstream
@@ -21,10 +21,10 @@ like e.g. upgrade configure.ac to a newer version, or invoke autoreconf.
 A list of possible fixers can be provided. Each fixer will be called
 (in order) until one of them claims to ahve fixed the issue.
 
-Problems can be converted to UpstreamRequirements by UpstreamRequirementFixer
+Problems can be converted to Requirements by RequirementFixer
 
-UpstreamRequirementFixer uses a UpstreamRequirementResolver object that
-can translate UpstreamRequirement objects into apt package names or
+InstallFixer uses a Resolver object that
+can translate Requirement objects into apt package names or
 e.g. cpan commands.
 
 ognibuild keeps finding problems, resolving them and rebuilding until it finds
@@ -38,14 +38,14 @@ on the host machine.
 For e.g. PerlModuleRequirement, need to be able to:
 
  * install from apt package
-  + DebianInstallFixer(AptResolver()).fix(problem)
+  + InstallFixer(AptResolver()).fix(problem)
  * update debian package (source, runtime, test) deps to include apt package
   + DebianPackageDepFixer(AptResolver()).fix(problem, ('test', 'foo'))
  * suggest command to run to install from apt package
-  + DebianInstallFixer(AptResolver()).command(problem)
+  + InstallFixer(AptResolver()).command(problem)
  * install from cpan
-  + CpanInstallFixer().fix(problem)
+  + InstallFixer(CpanResolver()).fix(problem)
  * suggest command to run to install from cpan package
-  + CpanInstallFixer().command(problem)
+  + InstallFixer(CpanResolver()).command(problem)
  * update source package reqs to depend on perl module
   + PerlDepFixer().fix(problem)

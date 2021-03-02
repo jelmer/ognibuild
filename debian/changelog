@@ -1,3 +1,9 @@
+ognibuild (0.0.2-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Tue, 02 Mar 2021 17:55:58 +0000
+
 ognibuild (0.0.1~git20210228.bc79314-1) unstable; urgency=medium
 
   * New upstream snapshot.
