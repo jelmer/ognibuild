@@ -633,6 +633,9 @@ class Cabal(BuildSystem):
     def test(self, session, resolver, fixers):
         self._run(session, ["test"], fixers)
 
+    def dist(self, session, resolver, fixers, quiet=False):
+        self._run(session, ["sdist"], fixers)
+
 
 def detect_buildsystems(path, trust_package=False):  # noqa: C901
     """Detect build systems."""

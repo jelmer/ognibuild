@@ -17,6 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import posixpath
+import subprocess
 from typing import Optional, List, Tuple
 
 from . import Requirement
@@ -55,6 +56,26 @@ class PythonPackageRequirement(Requirement):
         req = Requirement.parse(text)
         return cls(package=req.name, specs=req.specs)
 
+    def met(self, session):
+        if self.python_version == "cpython3":
+            cmd = "python3"
+        elif self.python_version == "cpython2":
+            cmd = "python2"
+        elif self.python_version == "pypy":
+            cmd = "pypy"
+        elif self.python_version == "pypy3":
+            cmd = "pypy3"
+        elif self.python_version is None:
+            cmd = "python3"
+        else:
+            raise NotImplementedError
+        text = self.package + ','.join([''.join(spec) for spec in self.specs])
+        p = session.Popen(
+            [cmd, "-c", "import pkg_resources; pkg_resources.require(%r)" % text],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        p.communicate()
+        return p.returncode == 0
+
 
 class BinaryRequirement(Requirement):
 
@@ -63,6 +84,13 @@ class BinaryRequirement(Requirement):
     def __init__(self, binary_name):
         super(BinaryRequirement, self).__init__("binary")
         self.binary_name = binary_name
+
+    def met(self, session):
+        p = session.Popen(
+            ["which", self.binary_name], stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL)
+        p.communicate()
+        return p.returncode == 0
 
 
 class PerlModuleRequirement(Requirement):
@@ -250,9 +278,15 @@ class HaskellPackageRequirement(Requirement):
 
     package: str
 
-    def __init__(self, package: str):
+    def __init__(self, package: str, specs=None):
         super(HaskellPackageRequirement, self).__init__("haskell-package")
         self.package = package
+        self.specs = specs
+
+    @classmethod
+    def from_string(cls, text):
+        parts = text.split()
+        return cls(parts[0], specs=parts[1:])
 
 
 class MavenArtifactRequirement(Requirement):
@@ -312,3 +346,22 @@ class PythonModuleRequirement(Requirement):
         super(PythonModuleRequirement, self).__init__("python-module")
         self.python_version = python_version
         self.minimum_version = minimum_version
+
+    def met(self, session):
+        if self.python_version == "cpython3":
+            cmd = "python3"
+        elif self.python_version == "cpython2":
+            cmd = "python2"
+        elif self.python_version == "pypy":
+            cmd = "pypy"
+        elif self.python_version == "pypy3":
+            cmd = "pypy3"
+        elif self.python_version is None:
+            cmd = "python3"
+        else:
+            raise NotImplementedError
+        p = session.Popen(
+            [cmd, "-c", "import %s" % self.module],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        p.communicate()
+        return p.returncode == 0

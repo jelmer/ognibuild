@@ -120,7 +120,7 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
     elif isinstance(problem, MissingJavaClass):
         return JavaClassRequirement(problem.classname)
     elif isinstance(problem, MissingHaskellDependencies):
-        return [HaskellPackageRequirement(dep) for dep in problem.deps]
+        return [HaskellPackageRequirement.from_string(dep) for dep in problem.deps]
     elif isinstance(problem, MissingMavenArtifacts):
         return [MavenArtifactRequirement(artifact) for artifact in problem.artifacts]
     elif isinstance(problem, MissingCSharpCompiler):

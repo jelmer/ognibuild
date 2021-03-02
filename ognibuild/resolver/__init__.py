@@ -56,7 +56,6 @@ class CPANResolver(Resolver):
             # TODO(jelmer): Specify -T to skip tests?
             self.session.check_call(
                 ["cpan", "-i", requirement.module],
-                user="root",
                 env={"PERL_MM_USE_DEFAULT": "1"},
             )
         if missing:
@@ -85,7 +84,7 @@ class HackageResolver(Resolver):
                 missing.append(requirement)
                 continue
             self.session.check_call(
-                ["cabal", "install", requirement.package], user="root"
+                ["cabal", "install", requirement.package]
             )
         if missing:
             raise UnsatisfiedRequirements(missing)
