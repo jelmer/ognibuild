@@ -608,7 +608,7 @@ def build_incrementally(
             if max_iterations is not None and len(fixed_errors) > max_iterations:
                 logging.warning("Last fix did not address the issue. Giving up.")
                 raise
-            reset_tree(local_tree, local_tree.basis_tree(), subpath=subpath)
+            reset_tree(local_tree, subpath=subpath)
             if e.phase[0] == "build":
                 context = BuildDependencyContext(
                     e.phase,
