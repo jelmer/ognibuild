@@ -103,7 +103,7 @@ class AptManager(object):
     def satisfy(self, deps: List[str]) -> None:
         run_apt(self.session, ["satisfy"] + deps)
 
-    def satisfy_command(self, deps: List[str]) -> str:
+    def satisfy_command(self, deps: List[str]) -> List[str]:
         return ["apt", "satisfy"] + deps
 
 
