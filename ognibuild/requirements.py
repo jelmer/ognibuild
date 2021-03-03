@@ -18,7 +18,7 @@
 
 import posixpath
 import subprocess
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Set
 
 from . import Requirement
 
@@ -123,19 +123,33 @@ class NodePackageRequirement(Requirement):
 class CargoCrateRequirement(Requirement):
 
     crate: str
+    features: Set[str]
+    version: Optional[str]
 
-    def __init__(self, crate):
+    def __init__(self, crate, features=None, version=None):
         super(CargoCrateRequirement, self).__init__("cargo-crate")
         self.crate = crate
+        if features is None:
+            features = set()
+        self.features = features
+        self.version = version
 
     def __repr__(self):
-        return "%s(%r)" % (
+        return "%s(%r, features=%r, version=%r)" % (
             type(self).__name__,
             self.crate,
+            self.features,
+            self.version
         )
 
     def __str__(self):
-        return "cargo crate: %s" % self.crate
+        if self.features:
+            return "cargo crate: %s %s (%s)" % (
+                self.crate, self.version or '',
+                ', '.join(sorted(self.features)))
+        else:
+            return "cargo crate: %s %s" % (
+                self.crate, self.version or '')
 
 
 class PkgConfigRequirement(Requirement):

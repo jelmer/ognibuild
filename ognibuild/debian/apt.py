@@ -308,7 +308,7 @@ def get_package_for_paths(
         if candidates:
             break
     if len(candidates) == 0:
-        logging.warning("No packages found that contain %r", paths)
+        logging.debug("No packages found that contain %r", paths)
         return None
     if len(candidates) > 1:
         logging.warning(

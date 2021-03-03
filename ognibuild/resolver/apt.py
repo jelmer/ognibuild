@@ -28,6 +28,7 @@ from ..debian.apt import AptManager
 from . import Resolver, UnsatisfiedRequirements
 from ..requirements import (
     Requirement,
+    CargoCrateRequirement,
     BinaryRequirement,
     CHeaderRequirement,
     PkgConfigRequirement,
@@ -515,6 +516,15 @@ def resolve_python_package_req(apt_mgr, req):
         return None
 
 
+def resolve_cargo_crate_req(apt_mgr, req):
+    paths = [
+        '/usr/share/cargo/registry/%s-[0-9]+.*/Cargo.toml' % req.crate]
+    pkg_name = apt_mgr.get_package_for_paths(paths, regex=True)
+    if pkg_name is None:
+        return None
+    return AptRequirement.simple(pkg_name)
+
+
 APT_REQUIREMENT_RESOLVERS = [
     (BinaryRequirement, resolve_binary_req),
     (PkgConfigRequirement, resolve_pkg_config_req),
@@ -542,6 +552,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (AutoconfMacroRequirement, resolve_autoconf_macro_req),
     (PythonModuleRequirement, resolve_python_module_req),
     (PythonPackageRequirement, resolve_python_package_req),
+    (CargoCrateRequirement, resolve_cargo_crate_req),
 ]
 
 

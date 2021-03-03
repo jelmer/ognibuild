@@ -627,8 +627,13 @@ class Cargo(BuildSystem):
     def get_declared_dependencies(self):
         if "dependencies" in self.cargo:
             for name, details in self.cargo["dependencies"].items():
-                # TODO(jelmer): Look at details['features'], details['version']
-                yield "build", CargoCrateRequirement(name)
+                if isinstance(details, str):
+                    details = {"version": details}
+                # TODO(jelmer): Look at details['version']
+                yield "build", CargoCrateRequirement(
+                    name,
+                    features=details.get('features', []),
+                    version=details.get("version"))
 
     def test(self, session, resolver, fixers):
         run_with_build_fixers(session, ["cargo", "test"], fixers)
