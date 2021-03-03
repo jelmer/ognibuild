@@ -3,3 +3,4 @@ Bug-Database: https://github.com/jelmer/ognibuild/issues
 Bug-Submit: https://github.com/jelmer/ognibuild/issues/new
 Repository: https://github.com/jelmer/ognibuild.git
 Repository-Browse: https://github.com/jelmer/ognibuild
+Security-Contact: https://github.com/jelmer/ognibuild/tree/HEAD/SECURITY.md
