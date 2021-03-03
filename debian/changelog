@@ -2,6 +2,7 @@ ognibuild (0.0.2-2) UNRELEASED; urgency=medium
 
   * Add missing dependency on python3-lz4.
   * Set upstream metadata fields: Security-Contact.
+  * Add upstream signing keys.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Wed, 03 Mar 2021 16:42:28 +0000
 
