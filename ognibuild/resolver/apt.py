@@ -50,6 +50,7 @@ from ..requirements import (
     MavenArtifactRequirement,
     GnomeCommonRequirement,
     JDKFileRequirement,
+    JDKRequirement,
     PerlModuleRequirement,
     PerlFileRequirement,
     AutoconfMacroRequirement,
@@ -444,6 +445,10 @@ def resolve_jdk_file_req(apt_mgr, req):
     return None
 
 
+def resolve_jdk_req(apt_mgr, req):
+    return AptRequirement.simple('default-jdk')
+
+
 def resolve_perl_module_req(apt_mgr, req):
     DEFAULT_PERL_PATHS = ["/usr/share/perl5"]
 
@@ -547,6 +552,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (MavenArtifactRequirement, resolve_maven_artifact_req),
     (GnomeCommonRequirement, resolve_gnome_common_req),
     (JDKFileRequirement, resolve_jdk_file_req),
+    (JDKRequirement, resolve_jdk_req),
     (PerlModuleRequirement, resolve_perl_module_req),
     (PerlFileRequirement, resolve_perl_file_req),
     (AutoconfMacroRequirement, resolve_autoconf_macro_req),

@@ -34,6 +34,7 @@ from buildlog_consultant.common import (
     MissingPerlModule,
     MissingXmlEntity,
     MissingJDKFile,
+    MissingJDK,
     MissingNodeModule,
     MissingPhpClass,
     MissingRubyGem,
@@ -75,6 +76,7 @@ from .requirements import (
     MavenArtifactRequirement,
     GnomeCommonRequirement,
     JDKFileRequirement,
+    JDKRequirement,
     PerlModuleRequirement,
     PerlFileRequirement,
     AutoconfMacroRequirement,
@@ -129,6 +131,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return GnomeCommonRequirement()
     elif isinstance(problem, MissingJDKFile):
         return JDKFileRequirement(problem.jdk_path, problem.filename)
+    elif isinstance(problem, MissingJDK):
+        return JDKRequirement()
     elif isinstance(problem, MissingGnomeCommonDependency):
         if problem.package == "glib-gettext":
             return BinaryRequirement("glib-gettextize")

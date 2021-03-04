@@ -334,6 +334,12 @@ class JDKFileRequirement(Requirement):
         return posixpath.join(self.jdk_path, self.filename)
 
 
+class JDKRequirement(Requirement):
+
+    def __init__(self):
+        super(JDKRequirement, self).__init__("jdk")
+
+
 class PerlFileRequirement(Requirement):
 
     filename: str

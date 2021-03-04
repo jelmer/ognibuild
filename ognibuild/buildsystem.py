@@ -262,20 +262,51 @@ class Gradle(BuildSystem):
 
     name = "gradle"
 
-    def __init__(self, path):
+    def __init__(self, path, executable="gradle"):
         self.path = path
+        self.executable = executable
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
 
+    @classmethod
+    def exists(cls, path):
+        return (
+            os.path.exists(os.path.join(path, "build.gradle")) or
+            os.path.exists(os.path.join(path, "build.gradle.kts")))
+
+    @classmethod
+    def from_path(cls, path):
+        if os.path.exists(os.path.join(path, "gradlew")):
+            return cls(path, "./gradlew")
+        return cls(path)
+
+    def setup(self, resolver):
+        if not self.executable.startswith('./'):
+            resolver.install([BinaryRequirement(self.executable)])
+
     def clean(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["gradle", "clean"], fixers)
+        self.setup(resolver)
+        run_with_build_fixers(session, [self.executable, "clean"], fixers)
 
     def build(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["gradle", "build"], fixers)
+        self.setup(resolver)
+        run_with_build_fixers(session, [self.executable, "build"], fixers)
 
     def test(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["gradle", "test"], fixers)
+        self.setup(resolver)
+        run_with_build_fixers(session, [self.executable, "test"], fixers)
+
+    def dist(self, session, resolver, fixers, quiet=False):
+        self.setup(resolver)
+        run_with_build_fixers(session, [self.executable, "distTar"], fixers)
+
+    def install(self, session, resolver, fixers, install_target):
+        raise NotImplementedError
+        self.setup(resolver)
+        # TODO(jelmer): installDist just creates files under build/install/...
+        run_with_build_fixers(
+            session, [self.executable, "installDist"], fixers)
 
 
 class Meson(BuildSystem):
@@ -733,9 +764,9 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
         logging.debug("Found Cargo.toml, assuming rust cargo package.")
         yield Cargo("Cargo.toml")
 
-    if os.path.exists(os.path.join(path, "build.gradle")):
+    if Gradle.exists(path):
         logging.debug("Found build.gradle, assuming gradle package.")
-        yield Gradle("build.gradle")
+        yield Gradle.from_path(path)
 
     if os.path.exists(os.path.join(path, "meson.build")):
         logging.debug("Found meson.build, assuming meson package.")
