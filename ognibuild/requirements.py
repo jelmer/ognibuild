@@ -366,6 +366,7 @@ class PythonModuleRequirement(Requirement):
 
     def __init__(self, module, python_version=None, minimum_version=None):
         super(PythonModuleRequirement, self).__init__("python-module")
+        self.module = module
         self.python_version = python_version
         self.minimum_version = minimum_version
 
