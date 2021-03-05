@@ -34,6 +34,50 @@ Ognibuild has a number of subcommands:
 It also includes a subcommand that can fix up the build dependencies
 for Debian packages, called deb-fix-build.
 
+Status
+------
+
+Ognibuild is functional, but sometimes rough around the edges. If you run into
+issues (or lack of support for a particular ecosystem), please file a bug.
+
+Supported Build Systems
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* Cabal
+* Cargo
+* Golang
+* Gradle
+* Make, including various makefile generators:
+ + autoconf/automake
+ + CMake
+ + Makefile.PL
+* Maven
+* ninja, including ninja generators:
+ + meson
+* Node
+* PHP Pear
+* Python - setup.py/setup.cfg/pyproject.toml
+* Ruby gems
+* Waf
+
+Supported package repositories
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Package repositories are used to install missing dependencies.
+
+The following "native" repositories are supported:
+
+* pypi
+* cpan
+* hackage
+* npm
+* cargo
+* golang\*
+
+As well one distribution repository:
+
+* apt
+
 License
 -------
 
