@@ -43,12 +43,12 @@ issues (or lack of support for a particular ecosystem), please file a bug.
 - Golang
 - Gradle
 - Make, including various makefile generators:
- + autoconf/automake
- + CMake
- + Makefile.PL
+    - autoconf/automake
+    - CMake
+    - Makefile.PL
 - Maven
-- ninja, including ninja generators:
- + meson
+- ninja, including ninja file generators:
+    - meson
 - Node
 - PHP Pear
 - Python - setup.py/setup.cfg/pyproject.toml
