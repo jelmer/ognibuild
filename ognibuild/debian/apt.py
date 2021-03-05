@@ -111,6 +111,14 @@ class ContentsFileNotFound(Exception):
     """The contents file was not found."""
 
 
+def read_contents_file(f):
+    for line in f:
+        (path, rest) = line.rsplit(maxsplit=1)
+        package = rest.split(b"/")[-1]
+        decoded_path = "/" + path.decode("utf-8", "surrogateescape")
+        yield decoded_path, package.decode("utf-8")
+
+
 class AptContentsFileSearcher(FileSearcher):
     def __init__(self):
         self._db = {}
@@ -145,11 +153,8 @@ class AptContentsFileSearcher(FileSearcher):
                     yield pkg
 
     def load_file(self, f):
-        for line in f:
-            (path, rest) = line.rsplit(maxsplit=1)
-            package = rest.split(b"/")[-1]
-            decoded_path = "/" + path.decode("utf-8", "surrogateescape")
-            self[decoded_path] = package.decode("utf-8")
+        for path, package in read_contents_file(f):
+            self[path] = package
 
     @classmethod
     def _load_cache_file(cls, url, cache_dir):
