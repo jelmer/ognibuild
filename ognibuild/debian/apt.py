@@ -119,6 +119,12 @@ def read_contents_file(f):
         yield decoded_path, package.decode("utf-8")
 
 
+def url_to_cache_filename(url):
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    return parsed.hostname + parsed.path.replace("/", "_")
+
+
 class AptContentsFileSearcher(FileSearcher):
     def __init__(self):
         self._db = {}
@@ -143,14 +149,16 @@ class AptContentsFileSearcher(FileSearcher):
         self._db[path] = package
 
     def search_files(self, path, regex=False):
-        c = re.compile(path)
-        for p, pkg in sorted(self._db.items()):
-            if regex:
+        if regex:
+            c = re.compile(path)
+            for p, pkg in sorted(self._db.items()):
                 if c.match(p):
                     yield pkg
-            else:
-                if path == p:
-                    yield pkg
+        else:
+            try:
+                return self._db[path]
+            except KeyError:
+                pass
 
     def load_file(self, f):
         for path, package in read_contents_file(f):
@@ -158,12 +166,8 @@ class AptContentsFileSearcher(FileSearcher):
 
     @classmethod
     def _load_cache_file(cls, url, cache_dir):
-        from urllib.parse import urlparse
-
-        parsed = urlparse(url)
-        p = os.path.join(
-            cache_dir, parsed.hostname + parsed.path.replace("/", "_") + ".lz4"
-        )
+        fn = url_to_cache_filename(url)
+        p = os.path.join(cache_dir, fn + ".lz4")
         if not os.path.exists(p):
             return None
         logging.debug("Loading cached contents file %s", p)
