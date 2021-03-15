@@ -24,7 +24,7 @@ jobs:
         python setup.py develop
     - name: Install Debian-specific dependencies
       run: |
-        apt install libapt-pkg-dev
+        sudo apt install libapt-pkg-dev
         python -m pip install git+https://salsa.debian.org/apt-team/python-apt
         python -m pip install -e ".[debian]"
         mkdir -p ~/.config/breezy/plugins
