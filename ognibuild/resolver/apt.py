@@ -500,10 +500,14 @@ def resolve_autoconf_macro_req(apt_mgr, req):
 
 
 def resolve_python_module_req(apt_mgr, req):
+    if req.minimum_version:
+        specs = [(">=", req.minimum_version)]
+    else:
+        specs = []
     if req.python_version == 2:
-        return get_package_for_python_module(apt_mgr, req.module, "cpython2", req.specs)
+        return get_package_for_python_module(apt_mgr, req.module, "cpython2", specs)
     elif req.python_version in (None, 3):
-        return get_package_for_python_module(apt_mgr, req.module, "cpython3", req.specs)
+        return get_package_for_python_module(apt_mgr, req.module, "cpython3", specs)
     else:
         return None
 
