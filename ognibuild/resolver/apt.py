@@ -132,7 +132,7 @@ def get_package_for_python_package(apt_mgr, package, python_version, specs=None)
 
 
 def get_package_for_python_module(apt_mgr, module, python_version, specs):
-    if python_version == "python3":
+    if python_version == "cpython3":
         paths = [
             posixpath.join(
                 "/usr/lib/python3/dist-packages",
@@ -153,7 +153,7 @@ def get_package_for_python_module(apt_mgr, module, python_version, specs):
                 "/usr/lib/python3\\.[0-9]+/", module.replace(".", "/"), "__init__.py"
             ),
         ]
-    elif python_version == "python2":
+    elif python_version == "cpython2":
         paths = [
             posixpath.join(
                 "/usr/lib/python2\\.[0-9]/dist-packages",
