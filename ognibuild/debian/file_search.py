@@ -18,6 +18,7 @@
 
 import apt_pkg
 from datetime import datetime
+from debian.deb822 import Release
 import os
 import re
 from typing import Iterator, List, Optional, Set
@@ -57,18 +58,36 @@ def contents_urls_from_sources_entry(source, arches, load_url):
         dists_url = base_url + "/dists"
     else:
         dists_url = base_url
+    inrelease_url = "%s/%s/InRelease" % (dists_url, name)
+    try:
+        response = load_url(inrelease_url)
+    except FileNotFoundError:
+        release_url = "%s/%s/Release" % (dists_url, name)
+        try:
+            response = load_url(release_url)
+        except FileNotFoundError as e:
+            logging.warning('Unable to download %s or %s: %s', inrelease_url, release_url, e)
+            return
+
+    existing_names = {}
+    release = Release(response.read())
+    for hn in ['MD5Sum', 'SHA1Sum', 'SHA256Sum']:
+        for entry in release.get(hn, []):
+            existing_names[os.path.splitext(entry['name'])[0]] = entry['name']
+
+    contents_files = set()
     if components:
         for component in components:
             for arch in arches:
-                yield (
-                        "%s/%s/%s/Contents-%s"
-                        % (dists_url, name, component, arch)
-                    )
+                contents_files.add("%s/Contents-%s" % (component, arch))
     else:
         for arch in arches:
-            yield (
-                    "%s/%s/Contents-%s" % (dists_url, name.rstrip("/"), arch)
-                )
+            contents_files.add("Contents-%s" % (arch,))
+
+    for fn in contents_files:
+        if fn in existing_names:
+            url = "%s/%s/%s" % (dists_url, name, fn)
+            yield url
 
 
 def contents_urls_from_sourceslist(sl, arch, load_url):
@@ -76,6 +95,20 @@ def contents_urls_from_sourceslist(sl, arch, load_url):
     arches = [arch, "all"]
     for source in sl.list:
         yield from contents_urls_from_sources_entry(source, arches, load_url)
+
+
+def _unwrap(f, ext):
+    if ext == ".gz":
+        import gzip
+
+        return gzip.GzipFile(fileobj=f)
+    elif ext == ".xz":
+        import lzma
+        from io import BytesIO
+
+        f = BytesIO(lzma.decompress(f.read()))
+    else:
+        return f
 
 
 def load_direct_url(url):
@@ -93,23 +126,8 @@ def load_direct_url(url):
             raise
         break
     else:
-        raise ContentsFileNotFound(url)
-    if ext == ".gz":
-        import gzip
-
-        f = gzip.GzipFile(fileobj=response)
-    elif ext == ".xz":
-        import lzma
-        from io import BytesIO
-
-        f = BytesIO(lzma.decompress(response.read()))
-    elif response.headers.get_content_type() == "text/plain":
-        f = response
-    else:
-        raise Exception(
-            "Unknown content type %r" % response.headers.get_content_type()
-        )
-    return f
+        raise FileNotFoundError(url)
+    return _unwrap(response, ext)
 
 
 def load_url_with_cache(url, cache_dirs):
@@ -123,13 +141,17 @@ def load_url_with_cache(url, cache_dirs):
 
 def load_apt_cache_file(url, cache_dir):
     fn = apt_pkg.uri_to_filename(url)
-    p = os.path.join(cache_dir, fn + ".lz4")
-    if not os.path.exists(p):
-        raise FileNotFoundError(p)
-    logging.debug("Loading cached contents file %s", p)
-    #return os.popen('/usr/lib/apt/apt-helper cat-file %s' % p)
-    import lz4.frame
-    return lz4.frame.open(p, mode="rb")
+    for ext in ['.xz', '.gz', '.lz4', '']:
+        p = os.path.join(cache_dir, fn + ext)
+        if not os.path.exists(p):
+            continue
+        #return os.popen('/usr/lib/apt/apt-helper cat-file %s' % p)
+        logging.debug("Loading cached contents file %s", p)
+        if ext == '.lz4':
+            import lz4.frame
+            return lz4.frame.open(p, mode="rb")
+        return _unwrap(open(p, 'rb'), ext)
+    raise FileNotFoundError(url)
 
 
 class AptCachedContentsFileSearcher(FileSearcher):
@@ -158,8 +180,8 @@ class AptCachedContentsFileSearcher(FileSearcher):
             return load_url_with_cache(url, cache_dirs)
 
         urls = list(
-            contents_urls_from_sourceslist(sl, get_build_architecture(),
-            load_url))
+            contents_urls_from_sourceslist(
+                sl, get_build_architecture(), load_url))
         self._load_urls(urls, cache_dirs, load_url)
 
     def load_from_session(self, session):
