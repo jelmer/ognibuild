@@ -125,6 +125,40 @@ def url_to_cache_filename(url):
     return parsed.hostname + parsed.path.replace("/", "_")
 
 
+def contents_urls_from_sourceslist(sl, arch):
+    # TODO(jelmer): Verify signatures, etc.
+    arches = [(arch, True), ("all", False)]
+    for source in sl.list:
+        if source.invalid or source.disabled:
+            continue
+        if source.type == "deb-src":
+            continue
+        if source.type != "deb":
+            logging.warning("Invalid line in sources: %r", source)
+            continue
+        base_url = source.uri.rstrip("/")
+        name = source.dist.rstrip("/")
+        components = source.comps
+        if components:
+            dists_url = base_url + "/dists"
+        else:
+            dists_url = base_url
+        if components:
+            for component in components:
+                for arch, mandatory in arches:
+                    yield (
+                            "%s/%s/%s/Contents-%s"
+                            % (dists_url, name, component, arch),
+                            mandatory,
+                        )
+        else:
+            for arch, mandatory in arches:
+                yield (
+                        "%s/%s/Contents-%s" % (dists_url, name.rstrip("/"), arch),
+                        mandatory,
+                    )
+
+
 class AptContentsFileSearcher(FileSearcher):
     def __init__(self):
         self._db = {}
@@ -207,42 +241,8 @@ class AptContentsFileSearcher(FileSearcher):
         # TODO(jelmer): Use aptsources.sourceslist.SourcesList
         from .build import get_build_architecture
 
-        # TODO(jelmer): Verify signatures, etc.
-        urls = []
-        arches = [(get_build_architecture(), True), ("all", False)]
-        for source in sl.list:
-            if source.invalid or source.disabled:
-                continue
-            if source.type == "deb-src":
-                continue
-            if source.type != "deb":
-                logging.warning("Invalid line in sources: %r", source)
-                continue
-            base_url = source.uri.rstrip("/")
-            name = source.dist.rstrip("/")
-            components = source.comps
-            if components:
-                dists_url = base_url + "/dists"
-            else:
-                dists_url = base_url
-            if components:
-                for component in components:
-                    for arch, mandatory in arches:
-                        urls.append(
-                            (
-                                "%s/%s/%s/Contents-%s"
-                                % (dists_url, name, component, arch),
-                                mandatory,
-                            )
-                        )
-            else:
-                for arch, mandatory in arches:
-                    urls.append(
-                        (
-                            "%s/%s/Contents-%s" % (dists_url, name.rstrip("/"), arch),
-                            mandatory,
-                        )
-                    )
+        urls = list(
+            contents_urls_from_sourceslist(sl, get_build_architecture()))
         return cls.from_urls(urls, cache_dirs=cache_dirs)
 
     @staticmethod
