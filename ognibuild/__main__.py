@@ -159,7 +159,7 @@ def main():  # noqa: C901
         elif args.resolve == "native":
             resolver = native_resolvers(session)
         elif args.resolve == "auto":
-            resolver = auto_resolver(session)
+            resolver = auto_resolver(session, explain=args.explain)
         logging.info("Using requirement resolver: %s", resolver)
         os.chdir(args.directory)
         try:

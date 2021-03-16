@@ -26,13 +26,15 @@ from buildlog_consultant.apt import (
 )
 
 from .. import DetailedFailure, UnidentifiedError
-from ..session import Session, run_with_tee
+from ..session import Session, run_with_tee, get_user
 from .file_search import FileSearcher, AptCachedContentsFileSearcher, GENERATED_FILE_SEARCHER, get_package_for_paths
 
 
-def run_apt(session: Session, args: List[str]) -> None:
+def run_apt(session: Session, args: List[str], prefix: Optional[List[str]] = None) -> None:
     """Run apt."""
-    args = ["apt", "-y"] + args
+    if prefix is None:
+        prefix = []
+    args = prefix = ["apt", "-y"] + args
     retcode, lines = run_with_tee(session, args, cwd="/", user="root")
     if retcode == 0:
         return
@@ -49,10 +51,21 @@ class AptManager(object):
     session: Session
     _searchers: Optional[List[FileSearcher]]
 
-    def __init__(self, session):
+    def __init__(self, session, prefix=None):
         self.session = session
         self._apt_cache = None
         self._searchers = None
+        if prefix is None:
+            prefix = []
+        self.prefix = prefix
+
+    @classmethod
+    def from_session(cls, session):
+        if get_user(session) != "root":
+            prefix = ["sudo"]
+        else:
+            prefix = []
+        return cls(session, prefix=prefix)
 
     def searchers(self):
         if self._searchers is None:
@@ -94,10 +107,10 @@ class AptManager(object):
         logging.info("Installing using apt: %r", packages)
         packages = self.missing(packages)
         if packages:
-            run_apt(self.session, ["install"] + packages)
+            run_apt(self.session, ["install"] + packages, prefix=self.prefix)
 
     def satisfy(self, deps: List[str]) -> None:
-        run_apt(self.session, ["satisfy"] + deps)
+        run_apt(self.session, ["satisfy"] + deps, prefix=self.prefix)
 
     def satisfy_command(self, deps: List[str]) -> List[str]:
-        return ["apt", "satisfy"] + deps
+        return self.prefix + ["apt", "satisfy"] + deps

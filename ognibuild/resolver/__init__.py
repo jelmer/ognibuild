@@ -275,28 +275,17 @@ def native_resolvers(session):
     return StackedResolver([kls(session) for kls in NATIVE_RESOLVER_CLS])
 
 
-class ExplainResolver(Resolver):
-    def __init__(self, session):
-        self.session = session
-
-    @classmethod
-    def from_session(cls, session):
-        return cls(session)
-
-    def install(self, requirements):
-        raise UnsatisfiedRequirements(requirements)
-
-
-def auto_resolver(session):
+def auto_resolver(session, explain=False):
     # if session is SchrootSession or if we're root, use apt
     from .apt import AptResolver
     from ..session.schroot import SchrootSession
+    from ..session import get_user
 
-    user = session.check_output(["echo", "$USER"]).decode().strip()
+    user = get_user(session)
     resolvers = []
     # TODO(jelmer): Check VIRTUAL_ENV, and prioritize PypiResolver if
     # present?
-    if isinstance(session, SchrootSession) or user == "root":
+    if isinstance(session, SchrootSession) or user == "root" or explain:
         resolvers.append(AptResolver.from_session(session))
     resolvers.extend([kls(session) for kls in NATIVE_RESOLVER_CLS])
     return StackedResolver(resolvers)

@@ -88,3 +88,7 @@ def run_with_tee(session: Session, args: List[str], **kwargs):
         sys.stdout.buffer.flush()
         contents.append(line.decode("utf-8", "surrogateescape"))
     return p.returncode, contents
+
+
+def get_user(session):
+    return session.check_output(["echo", "$USER"]).decode().strip()

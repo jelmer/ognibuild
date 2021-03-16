@@ -582,7 +582,7 @@ class AptResolver(Resolver):
 
     @classmethod
     def from_session(cls, session):
-        return cls(AptManager(session))
+        return cls(AptManager.from_session(session))
 
     def install(self, requirements):
         missing = []
