@@ -20,6 +20,9 @@ import os
 import stat
 
 
+USER_AGENT = "Ognibuild"
+
+
 class DetailedFailure(Exception):
     def __init__(self, retcode, argv, error):
         self.retcode = retcode
