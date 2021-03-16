@@ -207,7 +207,6 @@ class AptCachedContentsFileSearcher(FileSearcher):
 
     def _load_urls(self, urls, cache_dirs, load_url):
         for url in urls:
-            logging.debug("Fetching contents file %s", url)
             try:
                 f = load_url(url)
                 self.load_file(f, url)
