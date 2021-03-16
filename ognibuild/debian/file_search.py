@@ -42,38 +42,42 @@ def read_contents_file(f):
         yield path, rest
 
 
+def contents_urls_from_sources_entry(source, arches):
+    if source.invalid or source.disabled:
+        return
+    if source.type == "deb-src":
+        return
+    if source.type != "deb":
+        logging.warning("Invalid line in sources: %r", source)
+        return
+    base_url = source.uri.rstrip("/")
+    name = source.dist.rstrip("/")
+    components = source.comps
+    if components:
+        dists_url = base_url + "/dists"
+    else:
+        dists_url = base_url
+    if components:
+        for component in components:
+            for arch, mandatory in arches:
+                yield (
+                        "%s/%s/%s/Contents-%s"
+                        % (dists_url, name, component, arch),
+                        mandatory,
+                    )
+    else:
+        for arch, mandatory in arches:
+            yield (
+                    "%s/%s/Contents-%s" % (dists_url, name.rstrip("/"), arch),
+                    mandatory,
+                )
+
+
 def contents_urls_from_sourceslist(sl, arch):
     # TODO(jelmer): Verify signatures, etc.
     arches = [(arch, True), ("all", False)]
     for source in sl.list:
-        if source.invalid or source.disabled:
-            continue
-        if source.type == "deb-src":
-            continue
-        if source.type != "deb":
-            logging.warning("Invalid line in sources: %r", source)
-            continue
-        base_url = source.uri.rstrip("/")
-        name = source.dist.rstrip("/")
-        components = source.comps
-        if components:
-            dists_url = base_url + "/dists"
-        else:
-            dists_url = base_url
-        if components:
-            for component in components:
-                for arch, mandatory in arches:
-                    yield (
-                            "%s/%s/%s/Contents-%s"
-                            % (dists_url, name, component, arch),
-                            mandatory,
-                        )
-        else:
-            for arch, mandatory in arches:
-                yield (
-                        "%s/%s/Contents-%s" % (dists_url, name.rstrip("/"), arch),
-                        mandatory,
-                    )
+        yield from contents_urls_from_sources_entry(source, arches)
 
 
 def load_contents_url(url):
@@ -158,10 +162,10 @@ class AptCachedContentsFileSearcher(FileSearcher):
 
         urls = list(
             contents_urls_from_sourceslist(sl, get_build_architecture()))
-        cache_dirs = [
+        cache_dirs = set([
             os.path.join(session.location, "var/lib/apt/lists"),
             "/var/lib/apt/lists",
-        ]
+        ])
         self._load_urls(urls, cache_dirs)
 
     def _load_urls(self, urls, cache_dirs):
