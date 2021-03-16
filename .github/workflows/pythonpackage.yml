@@ -28,7 +28,7 @@ jobs:
           python -m pip install -e ".[debian]"
           mkdir -p ~/.config/breezy/plugins
           brz branch lp:brz-debian ~/.config/breezy/plugins/debian
-        if: "matrix.python-version != 'pypy3' and matrix.os == 'ubuntu-latest'"
+        if: "matrix.python-version != 'pypy3' && matrix.os == 'ubuntu-latest'"
       - name: Style checks
         run: |
           python -m flake8
