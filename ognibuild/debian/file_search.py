@@ -16,6 +16,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+import apt_pkg
 from datetime import datetime
 import os
 import re
@@ -39,12 +40,6 @@ def read_contents_file(f):
     for line in f:
         (path, rest) = line.rsplit(maxsplit=1)
         yield path, rest
-
-
-def url_to_cache_filename(url):
-    from urllib.parse import urlparse
-    parsed = urlparse(url)
-    return parsed.hostname + parsed.path.replace("/", "_")
 
 
 def contents_urls_from_sourceslist(sl, arch):
@@ -116,7 +111,7 @@ def load_contents_url(url):
 
 
 def load_apt_cache_file(cache_dir, url):
-    fn = url_to_cache_filename(url)
+    fn = apt_pkg.uri_to_filename(url)
     p = os.path.join(cache_dir, fn + ".lz4")
     if not os.path.exists(p):
         return None
