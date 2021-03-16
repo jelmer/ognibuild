@@ -42,7 +42,7 @@ def read_contents_file(f):
         yield path, rest
 
 
-def contents_urls_from_sources_entry(source, arches):
+def contents_urls_from_sources_entry(source, arches, load_url):
     if source.invalid or source.disabled:
         return
     if source.type == "deb-src":
@@ -59,28 +59,26 @@ def contents_urls_from_sources_entry(source, arches):
         dists_url = base_url
     if components:
         for component in components:
-            for arch, mandatory in arches:
+            for arch in arches:
                 yield (
                         "%s/%s/%s/Contents-%s"
-                        % (dists_url, name, component, arch),
-                        mandatory,
+                        % (dists_url, name, component, arch)
                     )
     else:
-        for arch, mandatory in arches:
+        for arch in arches:
             yield (
-                    "%s/%s/Contents-%s" % (dists_url, name.rstrip("/"), arch),
-                    mandatory,
+                    "%s/%s/Contents-%s" % (dists_url, name.rstrip("/"), arch)
                 )
 
 
-def contents_urls_from_sourceslist(sl, arch):
+def contents_urls_from_sourceslist(sl, arch, load_url):
     # TODO(jelmer): Verify signatures, etc.
-    arches = [(arch, True), ("all", False)]
+    arches = [arch, "all"]
     for source in sl.list:
-        yield from contents_urls_from_sources_entry(source, arches)
+        yield from contents_urls_from_sources_entry(source, arches, load_url)
 
 
-def load_contents_url(url):
+def load_direct_url(url):
     from urllib.error import HTTPError
     from urllib.request import urlopen, Request
 
@@ -114,11 +112,20 @@ def load_contents_url(url):
     return f
 
 
-def load_apt_cache_file(cache_dir, url):
+def load_url_with_cache(url, cache_dirs):
+    for cache_dir in cache_dirs:
+        try:
+            return load_apt_cache_file(url, cache_dir)
+        except FileNotFoundError:
+            pass
+    return load_direct_url(url)
+
+
+def load_apt_cache_file(url, cache_dir):
     fn = apt_pkg.uri_to_filename(url)
     p = os.path.join(cache_dir, fn + ".lz4")
     if not os.path.exists(p):
-        return None
+        raise FileNotFoundError(p)
     logging.debug("Loading cached contents file %s", p)
     #return os.popen('/usr/lib/apt/apt-helper cat-file %s' % p)
     import lz4.frame
@@ -145,11 +152,15 @@ class AptCachedContentsFileSearcher(FileSearcher):
         sl.load("/etc/apt/sources.list")
 
         from .build import get_build_architecture
+        cache_dirs = set(["/var/lib/apt/lists"])
+
+        def load_url(url):
+            return load_url_with_cache(url, cache_dirs)
 
         urls = list(
-            contents_urls_from_sourceslist(sl, get_build_architecture()))
-        cache_dirs = set(["/var/lib/apt/lists"])
-        self._load_urls(urls, cache_dirs)
+            contents_urls_from_sourceslist(sl, get_build_architecture(),
+            load_url))
+        self._load_urls(urls, cache_dirs, load_url)
 
     def load_from_session(self, session):
         # TODO(jelmer): what about sources.list.d?
@@ -160,38 +171,26 @@ class AptCachedContentsFileSearcher(FileSearcher):
 
         from .build import get_build_architecture
 
-        urls = list(
-            contents_urls_from_sourceslist(sl, get_build_architecture()))
         cache_dirs = set([
             os.path.join(session.location, "var/lib/apt/lists"),
             "/var/lib/apt/lists",
         ])
-        self._load_urls(urls, cache_dirs)
 
-    def _load_urls(self, urls, cache_dirs):
-        for url, mandatory in urls:
-            for cache_dir in cache_dirs:
-                f = load_apt_cache_file(cache_dir, url)
-                if f is not None:
-                    self.load_file(f, url)
-                    break
-            else:
-                if not mandatory and self._db:
-                    logging.debug(
-                        "Not attempting to fetch optional contents " "file %s", url
-                    )
-                else:
-                    logging.debug("Fetching contents file %s", url)
-                    try:
-                        f = load_contents_url(url)
-                        self.load_file(f, url)
-                    except ContentsFileNotFound:
-                        if mandatory:
-                            logging.warning("Unable to fetch contents file %s", url)
-                        else:
-                            logging.debug(
-                                "Unable to fetch optional contents file %s", url
-                            )
+        def load_url(url):
+            return load_url_with_cache(url, cache_dirs)
+
+        urls = list(
+            contents_urls_from_sourceslist(sl, get_build_architecture(), load_url))
+        self._load_urls(urls, cache_dirs, load_url)
+
+    def _load_urls(self, urls, cache_dirs, load_url):
+        for url in urls:
+            logging.debug("Fetching contents file %s", url)
+            try:
+                f = load_url(url)
+                self.load_file(f, url)
+            except ContentsFileNotFound:
+                logging.warning("Unable to fetch contents file %s", url)
 
     def __setitem__(self, path, package):
         self._db[path] = package
