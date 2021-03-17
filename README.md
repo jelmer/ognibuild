@@ -46,6 +46,7 @@ issues (or lack of support for a particular ecosystem), please file a bug.
     - autoconf/automake
     - CMake
     - Makefile.PL
+    - qmake
 - Maven
 - ninja, including ninja file generators:
     - meson
