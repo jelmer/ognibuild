@@ -127,6 +127,8 @@ def run_setup(script_name, script_args=None, stop_after="run"):
     save_argv = sys.argv.copy()
     g = {"__file__": script_name, "__name__": "__main__"}
     try:
+        old_cwd = os.getcwd()
+        os.chdir(os.path.dirname(script_name))
         try:
             sys.argv[0] = script_name
             if script_args is not None:
@@ -134,6 +136,7 @@ def run_setup(script_name, script_args=None, stop_after="run"):
             with open(script_name, "rb") as f:
                 exec(f.read(), g)
         finally:
+            os.chdir(old_cwd)
             sys.argv = save_argv
             core._setup_stop_after = None
     except SystemExit:
