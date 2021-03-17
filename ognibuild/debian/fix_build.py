@@ -536,7 +536,8 @@ class SimpleBuildFixer(BuildFixer):
         self._fn = fn
 
     def __repr__(self):
-        return "%s(%r, %r)" % (type(self).__name__, self._problem_cls, self._fn)
+        return "%s(%r, %r)" % (
+            type(self).__name__, self._problem_cls.__name__, self._fn.__name__)
 
     def can_fix(self, problem: Problem):
         return isinstance(problem, self._problem_cls)
