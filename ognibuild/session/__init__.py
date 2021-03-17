@@ -91,4 +91,4 @@ def run_with_tee(session: Session, args: List[str], **kwargs):
 
 
 def get_user(session):
-    return session.check_output(["echo", "$USER"]).decode().strip()
+    return session.check_output(["echo", "$USER"], cwd="/").decode().strip()
