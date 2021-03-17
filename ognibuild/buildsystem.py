@@ -110,6 +110,12 @@ class Pear(BuildSystem):
         self.setup(resolver)
         run_with_build_fixers(session, ["pear", "install", self.path], fixers)
 
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, "package.xml")):
+            logging.debug("Found package.xml, assuming pear package.")
+            return cls(os.path.join(path, "package.xml"))
+
 
 # run_setup, but setting __name__
 # Imported from Python's distutils.core, Copyright (C) PSF
@@ -265,6 +271,12 @@ class Gradle(BuildSystem):
             return cls(path, "./gradlew")
         return cls(path)
 
+    @classmethod
+    def probe(cls, path):
+        if cls.exists(path):
+            logging.debug("Found build.gradle, assuming gradle package.")
+            return cls.from_path(path)
+
     def setup(self, resolver):
         if not self.executable.startswith('./'):
             resolver.install([BinaryRequirement(self.executable)])
@@ -328,6 +340,12 @@ class Meson(BuildSystem):
     def install(self, session, resolver, fixers, install_target):
         self._setup(session, fixers)
         run_with_build_fixers(session, ["ninja", "-C", "build", "install"], fixers)
+
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, "meson.build")):
+            logging.debug("Found meson.build, assuming meson package.")
+            return Meson(os.path.join(path, "meson.build"))
 
 
 class PyProject(BuildSystem):
@@ -404,6 +422,12 @@ class Npm(BuildSystem):
         self.setup(resolver)
         run_with_build_fixers(session, ["npm", "pack"], fixers)
 
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, "package.json")):
+            logging.debug("Found package.json, assuming node package.")
+            return cls(os.path.join(path, "package.json"))
+
 
 class Waf(BuildSystem):
 
@@ -422,6 +446,12 @@ class Waf(BuildSystem):
     def test(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
         run_with_build_fixers(session, ["./waf", "test"], fixers)
+
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, "waf")):
+            logging.debug("Found waf, assuming waf package.")
+            return cls(os.path.join(path, "waf"))
 
 
 class Gem(BuildSystem):
@@ -442,6 +472,12 @@ class Gem(BuildSystem):
         if len(gemfiles) > 1:
             logging.warning("More than one gemfile. Trying the first?")
         run_with_build_fixers(session, ["gem2tgz", gemfiles[0]], fixers)
+
+    @classmethod
+    def probe(cls, path):
+        gemfiles = [entry.path for entry in os.scandir(path) if entry.name.endswith(".gem")]
+        if gemfiles:
+            return cls(gemfiles[0])
 
 
 class DistInkt(BuildSystem):
@@ -482,6 +518,14 @@ class DistInkt(BuildSystem):
             # Default to invoking Dist::Zilla
             resolver.install([PerlModuleRequirement("Dist::Zilla")])
             run_with_build_fixers(session, ["dzil", "build", "--in", ".."], fixers)
+
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, "dist.ini")) and not os.path.exists(
+            os.path.join(path, "Makefile.PL")
+        ):
+            return cls(os.path.join(path, "dist.ini"))
+
 
 
 class Make(BuildSystem):
@@ -620,6 +664,25 @@ class Make(BuildSystem):
         else:
             raise NotImplementedError
 
+    @classmethod
+    def probe(cls, path):
+        if any(
+            [
+                os.path.exists(os.path.join(path, p))
+                for p in [
+                    "Makefile",
+                    "GNUmakefile",
+                    "makefile",
+                    "Makefile.PL",
+                    "CMakeLists.txt",
+                    "autogen.sh",
+                    "configure.ac",
+                    "configure.in",
+                ]
+            ]
+        ):
+            return cls(path)
+
 
 class Cargo(BuildSystem):
 
@@ -656,6 +719,12 @@ class Cargo(BuildSystem):
     def build(self, session, resolver, fixers):
         run_with_build_fixers(session, ["cargo", "build"], fixers)
 
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, "Cargo.toml")):
+            logging.debug("Found Cargo.toml, assuming rust cargo package.")
+            return Cargo(os.path.join(path, "Cargo.toml"))
+
 
 class Golang(BuildSystem):
     """Go builds."""
@@ -688,6 +757,12 @@ class Maven(BuildSystem):
     def __init__(self, path):
         self.path = path
 
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, "pom.xml")):
+            logging.debug("Found pom.xml, assuming maven package.")
+            return cls(os.path.join(path, "pom.xml"))
+
 
 class Cabal(BuildSystem):
 
@@ -719,12 +794,19 @@ class Cabal(BuildSystem):
     def dist(self, session, resolver, fixers, quiet=False):
         self._run(session, ["sdist"], fixers)
 
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, "Setup.hs")):
+            logging.debug("Found Setup.hs, assuming haskell package.")
+            return cls(os.path.join(path, "Setup.hs"))
+
 
 def detect_buildsystems(path, trust_package=False):  # noqa: C901
     """Detect build systems."""
-    if os.path.exists(os.path.join(path, "package.xml")):
-        logging.debug("Found package.xml, assuming pear package.")
-        yield Pear(os.path.join(path, "package.xml"))
+    for bs_cls in [Pear, Npm, Waf, Cargo, Meson, Cabal, Gradle, Maven, DistInkt, Gem, Make]:
+        bs = bs_cls.probe(path)
+        if bs is not None:
+            yield bs
 
     if os.path.exists(os.path.join(path, "setup.py")):
         logging.debug("Found setup.py, assuming python project.")
@@ -735,60 +817,6 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
     if os.path.exists(os.path.join(path, "pyproject.toml")):
         logging.debug("Found pyproject.toml, assuming python project.")
         yield PyProject(os.path.join(path, "pyproject.toml"))
-
-    if os.path.exists(os.path.join(path, "package.json")):
-        logging.debug("Found package.json, assuming node package.")
-        yield Npm(os.path.join(path, "package.json"))
-
-    if os.path.exists(os.path.join(path, "waf")):
-        logging.debug("Found waf, assuming waf package.")
-        yield Waf(os.path.join(path, "waf"))
-
-    if os.path.exists(os.path.join(path, "Cargo.toml")):
-        logging.debug("Found Cargo.toml, assuming rust cargo package.")
-        yield Cargo(os.path.join(path, "Cargo.toml"))
-
-    if Gradle.exists(path):
-        logging.debug("Found build.gradle, assuming gradle package.")
-        yield Gradle.from_path(path)
-
-    if os.path.exists(os.path.join(path, "meson.build")):
-        logging.debug("Found meson.build, assuming meson package.")
-        yield Meson(os.path.join(path, "meson.build"))
-
-    if os.path.exists(os.path.join(path, "Setup.hs")):
-        logging.debug("Found Setup.hs, assuming haskell package.")
-        yield Cabal(os.path.join(path, "Setup.hs"))
-
-    if os.path.exists(os.path.join(path, "pom.xml")):
-        logging.debug("Found pom.xml, assuming maven package.")
-        yield Maven(os.path.join(path, "pom.xml"))
-
-    if os.path.exists(os.path.join(path, "dist.ini")) and not os.path.exists(
-        os.path.join(path, "Makefile.PL")
-    ):
-        yield DistInkt(os.path.join(path, "dist.ini"))
-
-    gemfiles = [entry.path for entry in os.scandir(path) if entry.name.endswith(".gem")]
-    if gemfiles:
-        yield Gem(gemfiles[0])
-
-    if any(
-        [
-            os.path.exists(os.path.join(path, p))
-            for p in [
-                "Makefile",
-                "GNUmakefile",
-                "makefile",
-                "Makefile.PL",
-                "CMakeLists.txt",
-                "autogen.sh",
-                "configure.ac",
-                "configure.in",
-            ]
-        ]
-    ):
-        yield Make(path)
 
     seen_golang = False
     if os.path.exists(os.path.join(path, ".travis.yml")):
