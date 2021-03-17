@@ -681,6 +681,9 @@ class Golang(BuildSystem):
 
     name = "golang"
 
+    def __init__(self, path):
+        self.path = path
+
     def __repr__(self):
         return "%s()" % (type(self).__name__)
 
@@ -740,29 +743,29 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
     """Detect build systems."""
     if os.path.exists(os.path.join(path, "package.xml")):
         logging.debug("Found package.xml, assuming pear package.")
-        yield Pear("package.xml")
+        yield Pear(os.path.join(path, "package.xml"))
 
     if os.path.exists(os.path.join(path, "setup.py")):
         logging.debug("Found setup.py, assuming python project.")
-        yield SetupPy("setup.py")
+        yield SetupPy(os.path.join(path, "setup.py"))
     elif os.path.exists(os.path.join(path, "pyproject.toml")):
         logging.debug("Found pyproject.toml, assuming python project.")
-        yield PyProject("pyproject.toml")
+        yield PyProject(os.path.join(path, "pyproject.toml"))
     elif os.path.exists(os.path.join(path, "setup.cfg")):
         logging.debug("Found setup.cfg, assuming python project.")
-        yield SetupCfg("setup.cfg")
+        yield SetupCfg(os.path.join(path, "setup.cfg"))
 
     if os.path.exists(os.path.join(path, "package.json")):
         logging.debug("Found package.json, assuming node package.")
-        yield Npm("package.json")
+        yield Npm(os.path.join(path, "package.json"))
 
     if os.path.exists(os.path.join(path, "waf")):
         logging.debug("Found waf, assuming waf package.")
-        yield Waf("waf")
+        yield Waf(os.path.join(path, "waf"))
 
     if os.path.exists(os.path.join(path, "Cargo.toml")):
         logging.debug("Found Cargo.toml, assuming rust cargo package.")
-        yield Cargo("Cargo.toml")
+        yield Cargo(os.path.join(path, "Cargo.toml"))
 
     if Gradle.exists(path):
         logging.debug("Found build.gradle, assuming gradle package.")
@@ -770,22 +773,22 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
 
     if os.path.exists(os.path.join(path, "meson.build")):
         logging.debug("Found meson.build, assuming meson package.")
-        yield Meson("meson.build")
+        yield Meson(os.path.join(path, "meson.build"))
 
     if os.path.exists(os.path.join(path, "Setup.hs")):
         logging.debug("Found Setup.hs, assuming haskell package.")
-        yield Cabal("Setup.hs")
+        yield Cabal(os.path.join(path, "Setup.hs"))
 
     if os.path.exists(os.path.join(path, "pom.xml")):
         logging.debug("Found pom.xml, assuming maven package.")
-        yield Maven("pom.xml")
+        yield Maven(os.path.join(path, "pom.xml"))
 
     if os.path.exists(os.path.join(path, "dist.ini")) and not os.path.exists(
         os.path.join(path, "Makefile.PL")
     ):
-        yield DistInkt("dist.ini")
+        yield DistInkt(os.path.join(path, "dist.ini"))
 
-    gemfiles = [entry.name for entry in os.scandir(path) if entry.name.endswith(".gem")]
+    gemfiles = [entry.path for entry in os.scandir(path) if entry.name.endswith(".gem")]
     if gemfiles:
         yield Gem(gemfiles[0])
 
@@ -810,7 +813,7 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
     if os.path.exists(os.path.join(path, ".travis.yml")):
         import ruamel.yaml.reader
 
-        with open(".travis.yml", "rb") as f:
+        with open(os.path.join(path, ".travis.yml"), "rb") as f:
             try:
                 data = ruamel.yaml.load(f, ruamel.yaml.SafeLoader)
             except ruamel.yaml.reader.ReaderError as e:
@@ -818,13 +821,13 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
             else:
                 language = data.get("language")
                 if language == "go":
-                    yield Golang()
+                    yield Golang(path)
                     seen_golang = True
 
     if not seen_golang:
         for entry in os.scandir(path):
             if entry.name.endswith(".go"):
-                yield Golang()
+                yield Golang(path)
                 break
 
 
