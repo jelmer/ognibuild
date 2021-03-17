@@ -362,6 +362,11 @@ class PyProject(BuildSystem):
             return
         raise AssertionError("no supported section in pyproject.toml")
 
+    def get_declared_dependencies(self):
+        if "build-system" in self.pyproject:
+            for require in self.pyproject['build-system'].get("requires", []):
+                yield "build", PythonPackageRequirement.from_requirement_str(require)
+
 
 class SetupCfg(BuildSystem):
 
@@ -730,12 +735,12 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
     if os.path.exists(os.path.join(path, "setup.py")):
         logging.debug("Found setup.py, assuming python project.")
         yield SetupPy(os.path.join(path, "setup.py"))
-    elif os.path.exists(os.path.join(path, "pyproject.toml")):
-        logging.debug("Found pyproject.toml, assuming python project.")
-        yield PyProject(os.path.join(path, "pyproject.toml"))
     elif os.path.exists(os.path.join(path, "setup.cfg")):
         logging.debug("Found setup.cfg, assuming python project.")
         yield SetupCfg(os.path.join(path, "setup.cfg"))
+    if os.path.exists(os.path.join(path, "pyproject.toml")):
+        logging.debug("Found pyproject.toml, assuming python project.")
+        yield PyProject(os.path.join(path, "pyproject.toml"))
 
     if os.path.exists(os.path.join(path, "package.json")):
         logging.debug("Found package.json, assuming node package.")
