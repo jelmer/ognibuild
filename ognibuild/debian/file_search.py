@@ -145,7 +145,7 @@ def load_apt_cache_file(url, cache_dir):
         p = os.path.join(cache_dir, fn + ext)
         if not os.path.exists(p):
             continue
-        #return os.popen('/usr/lib/apt/apt-helper cat-file %s' % p)
+        # return os.popen('/usr/lib/apt/apt-helper cat-file %s' % p)
         logging.debug("Loading cached contents file %s", p)
         if ext == '.lz4':
             import lz4.frame

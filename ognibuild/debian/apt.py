@@ -17,8 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import logging
-import re
-from typing import List, Optional, Set
+from typing import List, Optional
 
 import os
 from buildlog_consultant.apt import (

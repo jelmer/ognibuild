@@ -168,13 +168,29 @@ class SetupPy(BuildSystem):
 
     def __init__(self, path):
         self.path = path
-        # TODO(jelmer): Perhaps run this in session, so we can install
-        # missing dependencies?
+        if os.path.exists(os.path.join(self.path, 'setup.py')):
+            self.has_setup_py = True
+            # TODO(jelmer): Perhaps run this in session, so we can install
+            # missing dependencies?
+            try:
+                self.distribution = run_setup(os.path.abspath(os.path.join(self.path, 'setup.py')), stop_after="init")
+            except RuntimeError as e:
+                logging.warning("Unable to load setup.py metadata: %s", e)
+                self.distribution = None
+        else:
+            self.has_setup_py = False
+            self.distribution = None
+
         try:
-            self.result = run_setup(os.path.abspath(path), stop_after="init")
-        except RuntimeError as e:
-            logging.warning("Unable to load setup.py metadata: %s", e)
-            self.result = None
+            self.pyproject = self.load_toml()
+        except FileNotFoundError:
+            self.pyproject = None
+
+    def load_toml(self):
+        import toml
+
+        with open(os.path.join(self.path, "pyproject.toml"), "r") as pf:
+            return toml.load(pf)
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
@@ -184,32 +200,54 @@ class SetupPy(BuildSystem):
 
     def test(self, session, resolver, fixers):
         self.setup(resolver)
-        self._run_setup(session, resolver, ["test"], fixers)
+        if self.has_setup_py:
+            self._run_setup(session, resolver, ["test"], fixers)
+        else:
+            raise NotImplementedError
 
     def build(self, session, resolver, fixers):
         self.setup(resolver)
-        self._run_setup(session, resolver, ["build"], fixers)
+        if self.has_setup_py:
+            self._run_setup(session, resolver, ["build"], fixers)
+        else:
+            raise NotImplementedError
 
     def dist(self, session, resolver, fixers, quiet=False):
         self.setup(resolver)
-        preargs = []
-        if quiet:
-            preargs.append("--quiet")
-        self._run_setup(session, resolver, preargs + ["sdist"], fixers)
+        if self.has_setup_py:
+            preargs = []
+            if quiet:
+                preargs.append("--quiet")
+            self._run_setup(session, resolver, preargs + ["sdist"], fixers)
+            return
+        elif self.pyproject:
+            if "poetry" in self.pyproject.get("tool", []):
+                logging.debug(
+                    "Found pyproject.toml with poetry section, " "assuming poetry project."
+                )
+                run_with_build_fixers(session, ["poetry", "build", "-f", "sdist"], fixers)
+                return
+        raise AssertionError("no supported section in pyproject.toml")
 
     def clean(self, session, resolver, fixers):
         self.setup(resolver)
-        self._run_setup(session, resolver, ["clean"], fixers)
+        if self.has_setup_py:
+            self._run_setup(session, resolver, ["clean"], fixers)
+        else:
+            raise NotImplementedError
 
     def install(self, session, resolver, fixers, install_target):
         self.setup(resolver)
-        extra_args = []
-        if install_target.user:
-            extra_args.append("--user")
-        self._run_setup(session, resolver, ["install"] + extra_args, fixers)
+        if self.has_setup_py:
+            extra_args = []
+            if install_target.user:
+                extra_args.append("--user")
+            self._run_setup(session, resolver, ["install"] + extra_args, fixers)
+        else:
+            raise NotImplementedError
 
     def _run_setup(self, session, resolver, args, fixers):
-        interpreter = shebang_binary(self.path)
+        interpreter = shebang_binary(os.path.join(self.path, 'setup.py'))
         if interpreter is not None:
             resolver.install([BinaryRequirement(interpreter)])
             run_with_build_fixers(session, ["./setup.py"] + args, fixers)
@@ -219,33 +257,49 @@ class SetupPy(BuildSystem):
             run_with_build_fixers(session, ["python3", "./setup.py"] + args, fixers)
 
     def get_declared_dependencies(self):
-        if self.result is None:
+        if self.distribution is None:
             raise NotImplementedError
-        for require in self.result.get_requires():
+        for require in self.distribution.get_requires():
             yield "core", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
-        if getattr(self.result, "setup_requires", []):
-            for require in self.result.setup_requires:
+        if getattr(self.distribution, "setup_requires", []):
+            for require in self.distribution.setup_requires:
                 yield "build", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
-        if getattr(self.result, "install_requires", []):
-            for require in self.result.install_requires:
+        if getattr(self.distribution, "install_requires", []):
+            for require in self.distribution.install_requires:
                 yield "core", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
-        if getattr(self.result, "tests_require", []):
-            for require in self.result.tests_require:
+        if getattr(self.distribution, "tests_require", []):
+            for require in self.distribution.tests_require:
                 yield "test", PythonPackageRequirement.from_requirement_str(require)
+        if self.pyproject:
+            if "build-system" in self.pyproject:
+                for require in self.pyproject['build-system'].get("requires", []):
+                    yield "build", PythonPackageRequirement.from_requirement_str(require)
 
     def get_declared_outputs(self):
-        if self.result is None:
+        if self.distribution is None:
             raise NotImplementedError
-        for script in self.result.scripts or []:
+        for script in self.distribution.scripts or []:
             yield BinaryOutput(os.path.basename(script))
-        entry_points = getattr(self.result, "entry_points", None) or {}
+        entry_points = getattr(self.distribution, "entry_points", None) or {}
         for script in entry_points.get("console_scripts", []):
             yield BinaryOutput(script.split("=")[0])
-        for package in self.result.packages or []:
+        for package in self.distribution.packages or []:
             yield PythonPackageOutput(package, python_version="cpython3")
+
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, "setup.py")):
+            logging.debug("Found setup.py, assuming python project.")
+            return cls(path)
+        if os.path.exists(os.path.join(path, "setup.cfg")):
+            logging.debug("Found setup.py, assuming python project.")
+            return cls(path)
+        if os.path.exists(os.path.join(path, "pyproject.toml")):
+            logging.debug("Found pyproject.toml, assuming python project.")
+            return cls(path)
 
 
 class Gradle(BuildSystem):
@@ -346,57 +400,6 @@ class Meson(BuildSystem):
         if os.path.exists(os.path.join(path, "meson.build")):
             logging.debug("Found meson.build, assuming meson package.")
             return Meson(os.path.join(path, "meson.build"))
-
-
-class PyProject(BuildSystem):
-
-    name = "pyproject"
-
-    def __init__(self, path):
-        self.path = path
-        self.pyproject = self.load_toml()
-
-    def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
-
-    def load_toml(self):
-        import toml
-
-        with open(self.path, "r") as pf:
-            return toml.load(pf)
-
-    def dist(self, session, resolver, fixers, quiet=False):
-        if "poetry" in self.pyproject.get("tool", []):
-            logging.debug(
-                "Found pyproject.toml with poetry section, " "assuming poetry project."
-            )
-            run_with_build_fixers(session, ["poetry", "build", "-f", "sdist"], fixers)
-            return
-        raise AssertionError("no supported section in pyproject.toml")
-
-    def get_declared_dependencies(self):
-        if "build-system" in self.pyproject:
-            for require in self.pyproject['build-system'].get("requires", []):
-                yield "build", PythonPackageRequirement.from_requirement_str(require)
-
-
-class SetupCfg(BuildSystem):
-
-    name = "setup.cfg"
-
-    def __init__(self, path):
-        self.path = path
-
-    def setup(self, resolver):
-        resolver.install(
-            [
-                PythonPackageRequirement("pep517"),
-            ]
-        )
-
-    def dist(self, session, resolver, fixers, quiet=False):
-        self.setup(resolver)
-        session.check_call(["python3", "-m", "pep517.build", "-s", "."])
 
 
 class Npm(BuildSystem):
@@ -525,7 +528,6 @@ class DistInkt(BuildSystem):
             os.path.join(path, "Makefile.PL")
         ):
             return cls(os.path.join(path, "dist.ini"))
-
 
 
 class Make(BuildSystem):
@@ -803,20 +805,10 @@ class Cabal(BuildSystem):
 
 def detect_buildsystems(path, trust_package=False):  # noqa: C901
     """Detect build systems."""
-    for bs_cls in [Pear, Npm, Waf, Cargo, Meson, Cabal, Gradle, Maven, DistInkt, Gem, Make]:
+    for bs_cls in [Pear, SetupPy, Npm, Waf, Cargo, Meson, Cabal, Gradle, Maven, DistInkt, Gem, Make]:
         bs = bs_cls.probe(path)
         if bs is not None:
             yield bs
-
-    if os.path.exists(os.path.join(path, "setup.py")):
-        logging.debug("Found setup.py, assuming python project.")
-        yield SetupPy(os.path.join(path, "setup.py"))
-    elif os.path.exists(os.path.join(path, "setup.cfg")):
-        logging.debug("Found setup.cfg, assuming python project.")
-        yield SetupCfg(os.path.join(path, "setup.cfg"))
-    if os.path.exists(os.path.join(path, "pyproject.toml")):
-        logging.debug("Found pyproject.toml, assuming python project.")
-        yield PyProject(os.path.join(path, "pyproject.toml"))
 
     seen_golang = False
     if os.path.exists(os.path.join(path, ".travis.yml")):
