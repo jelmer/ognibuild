@@ -154,6 +154,10 @@ def main():  # noqa: C901
 
         session = PlainSession()
     with session:
+        logging.info("Preparing directory %s", args.directory)
+        external_dir, internal_dir = session.setup_from_directory(args.directory)
+        session.chdir(internal_dir)
+        os.chdir(external_dir)
         if args.resolve == "apt":
             resolver = AptResolver.from_session(session)
         elif args.resolve == "native":
@@ -161,7 +165,6 @@ def main():  # noqa: C901
         elif args.resolve == "auto":
             resolver = auto_resolver(session, explain=args.explain)
         logging.info("Using requirement resolver: %s", resolver)
-        os.chdir(args.directory)
         try:
             bss = list(detect_buildsystems(args.directory))
             logging.info(

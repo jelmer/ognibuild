@@ -170,13 +170,13 @@ class SchrootSession(Session):
         return os.scandir(fullpath)
 
     def setup_from_vcs(
-            self, tree, include_controldir=False, subdir="package"):
+            self, tree, include_controldir: Optional[bool] = None,
+            subdir="package"):
         from ..vcs import dupe_vcs_tree, export_vcs_tree
         build_dir = os.path.join(self.location, "build")
 
         directory = tempfile.mkdtemp(dir=build_dir)
         reldir = "/" + os.path.relpath(directory, self.location)
-        os.chdir(reldir)
 
         export_directory = os.path.join(directory, subdir)
         if not include_controldir:
@@ -184,4 +184,13 @@ class SchrootSession(Session):
         else:
             dupe_vcs_tree(tree, export_directory)
 
-        return export_directory, reldir
+        return export_directory, os.path.join(reldir, subdir)
+
+    def setup_from_directory(self, path, subdir="package"):
+        import shutil
+        build_dir = os.path.join(self.location, "build")
+        directory = tempfile.mkdtemp(dir=build_dir)
+        reldir = "/" + os.path.relpath(directory, self.location)
+        export_directory = os.path.join(directory, subdir)
+        shutil.copytree(path, export_directory, dirs_exist_ok=True)
+        return export_directory, os.path.join(reldir, subdir)

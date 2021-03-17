@@ -155,13 +155,8 @@ def create_dist_schroot(
         fixers = [InstallFixer(resolver)]
 
         with DistCatcher(export_directory) as dc:
-            oldcwd = os.getcwd()
-            os.chdir(export_directory)
-            try:
-                session.chdir(os.path.join(reldir, subdir))
-                run_dist(session, buildsystems, resolver, fixers)
-            finally:
-                os.chdir(oldcwd)
+            session.chdir(reldir)
+            run_dist(session, buildsystems, resolver, fixers)
 
         for path in dc.files:
             shutil.copy(path, target_dir)

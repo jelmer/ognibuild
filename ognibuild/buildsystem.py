@@ -174,13 +174,7 @@ class SetupPy(BuildSystem):
         return "%s(%r)" % (type(self).__name__, self.path)
 
     def setup(self, resolver):
-        with open(self.path, "r") as f:
-            setup_py_contents = f.read()
-        try:
-            with open("setup.cfg", "r") as f:
-                setup_cfg_contents = f.read()
-        except FileNotFoundError:
-            setup_cfg_contents = ""
+        pass
 
     def test(self, session, resolver, fixers):
         self.setup(resolver)

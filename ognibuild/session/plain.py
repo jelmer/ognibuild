@@ -18,8 +18,10 @@
 
 from . import Session
 
+import contextlib
 import os
 import subprocess
+import tempfile
 from typing import Optional, Dict, List
 
 
@@ -37,6 +39,15 @@ class PlainSession(Session):
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
+
+    def __enter__(self) -> "Session":
+        self.es = contextlib.ExitStack()
+        self.es.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.es.__exit__(exc_type, exc_val, exc_tb)
+        return False
 
     def create_home(self):
         pass
@@ -69,3 +80,21 @@ class PlainSession(Session):
 
     def chdir(self, path):
         os.chdir(path)
+
+    def setup_from_vcs(
+            self, tree, include_controldir=None, subdir="package"):
+        from ..vcs import dupe_vcs_tree, export_vcs_tree
+        if include_controldir is False or (
+                not hasattr(tree, 'base') and include_controldir is None):
+            td = self.es.enter_context(tempfile.TemporaryDirectory())
+            export_vcs_tree(tree, td)
+            return td, td
+        elif not hasattr(tree, 'base'):
+            td = self.es.enter_context(tempfile.TemporaryDirectory())
+            dupe_vcs_tree(tree, td)
+            return td, td
+        else:
+            return tree.base, tree.base
+
+    def setup_from_directory(self, path):
+        return path, path

@@ -16,7 +16,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 import sys
 import subprocess
 
@@ -73,6 +73,14 @@ class Session(object):
 
     def scandir(self, path: str):
         raise NotImplementedError(self.scandir)
+
+    def setup_from_vcs(
+            self, tree, include_controldir: Optional[bool] = None,
+            subdir="package") -> Tuple[str, str]:
+        raise NotImplementedError(self.setup_from_vcs)
+
+    def setup_from_directory(self, path, subdir="package") -> Tuple[str, str]:
+        raise NotImplementedError(self.setup_from_directory)
 
 
 class SessionSetupFailure(Exception):
