@@ -96,8 +96,20 @@ def python_spec_to_apt_rels(pkg_name, specs):
     else:
         rels = []
         for spec in specs:
-            c = {">=": ">=", "<=": "<=", "<": "<<", ">": ">>", "=": "="}[spec[0]]
-            rels.append([{"name": pkg_name, "version": (c, Version(spec[1]))}])
+            deb_version = Version(spec[1])
+            if spec[0] == '~=':
+                # PEP 440: For a given release identifier V.N , the compatible
+                # release clause is approximately equivalent to the pair of
+                # comparison clauses: >= V.N, == V.*
+                parts = spec[1].split('.')
+                parts.pop(-1)
+                parts[-1] = str(int(parts[-1])+1)
+                next_maj_deb_version = Version('.'.join(parts))
+                rels.extend([{"name": pkg_name, "version": ('>=', deb_version)},
+                             {"name": pkg_name, "version": ('<<', next_maj_deb_version)}])
+            else:
+                c = {">=": ">=", "<=": "<=", "<": "<<", ">": ">>", "=": "="}[spec[0]]
+                rels.append([{"name": pkg_name, "version": (c, deb_version)}])
         return rels
 
 
