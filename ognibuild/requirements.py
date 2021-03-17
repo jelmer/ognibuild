@@ -111,6 +111,9 @@ class PerlModuleRequirement(Requirement):
     def relfilename(self):
         return self.module.replace("::", "/") + ".pm"
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.module)
+
 
 class NodePackageRequirement(Requirement):
 
@@ -119,6 +122,9 @@ class NodePackageRequirement(Requirement):
     def __init__(self, package):
         super(NodePackageRequirement, self).__init__("npm-package")
         self.package = package
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.package)
 
 
 class CargoCrateRequirement(Requirement):
