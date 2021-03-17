@@ -579,6 +579,9 @@ class Make(BuildSystem):
         if not makefile_exists() and session.exists("configure"):
             run_with_build_fixers(session, ["./configure"], fixers)
 
+        if not makefile_exists() and any([n.endswith('.pro') for n in session.scandir(".")]):
+            run_with_build_fixers(session, ["qmake"], fixers)
+
     def build(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
         run_with_build_fixers(session, ["make", "all"], fixers)
@@ -684,6 +687,10 @@ class Make(BuildSystem):
             ]
         ):
             return cls(path)
+        for n in os.scandir(path):
+            # qmake
+            if n.name.endswith('.pro'):
+                return cls(path)
 
 
 class Cargo(BuildSystem):
