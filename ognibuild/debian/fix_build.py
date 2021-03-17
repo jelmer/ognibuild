@@ -721,9 +721,10 @@ def main(argv=None):
         tree = WorkingTree.open(".")
         if args.schroot:
             session = SchrootSession(args.schroot)
-            es.enter_context(session)
         else:
             session = PlainSession()
+
+        es.enter_context(session)
 
         apt = AptManager(session)
 
