@@ -372,7 +372,7 @@ class Meson(BuildSystem):
     def _setup(self, session, fixers):
         if session.exists("build"):
             return
-        os.mkdir(os.path.join(session.location, "build"))
+        session.check_call(['mkdir', 'build'])
         run_with_build_fixers(session, ["meson", "setup", "build"], fixers)
 
     def clean(self, session, resolver, fixers):
