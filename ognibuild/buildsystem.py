@@ -181,23 +181,6 @@ class SetupPy(BuildSystem):
                 setup_cfg_contents = f.read()
         except FileNotFoundError:
             setup_cfg_contents = ""
-        if "setuptools" in setup_py_contents:
-            logging.debug("Reference to setuptools found, installing.")
-            resolver.install([PythonPackageRequirement("setuptools")])
-        if (
-            "setuptools_scm" in setup_py_contents
-            or "setuptools_scm" in setup_cfg_contents
-        ):
-            logging.debug("Reference to setuptools-scm found, installing.")
-            resolver.install(
-                [
-                    PythonPackageRequirement("setuptools_scm"),
-                    BinaryRequirement("git"),
-                    BinaryRequirement("hg"),
-                ]
-            )
-
-        # TODO(jelmer): Install setup_requires
 
     def test(self, session, resolver, fixers):
         self.setup(resolver)
