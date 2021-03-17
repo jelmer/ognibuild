@@ -371,13 +371,7 @@ class PyProject(BuildSystem):
             logging.debug(
                 "Found pyproject.toml with poetry section, " "assuming poetry project."
             )
-            resolver.install(
-                [
-                    PythonPackageRequirement("venv"),
-                    PythonPackageRequirement("poetry"),
-                ]
-            )
-            session.check_call(["poetry", "build", "-f", "sdist"])
+            run_with_build_fixers(session, ["poetry", "build", "-f", "sdist"], fixers)
             return
         raise AssertionError("no supported section in pyproject.toml")
 
