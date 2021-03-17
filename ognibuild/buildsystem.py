@@ -463,7 +463,7 @@ class DistInkt(BuildSystem):
         self.path = path
         self.name = "dist-zilla"
         self.dist_inkt_class = None
-        with open("dist.ini", "rb") as f:
+        with open(self.path, "rb") as f:
             for line in f:
                 if not line.startswith(b";;"):
                     continue
