@@ -810,9 +810,47 @@ class Cabal(BuildSystem):
             return cls(os.path.join(path, "Setup.hs"))
 
 
+class PerlBuildTiny(BuildSystem):
+
+    name = "perl-build-tiny"
+
+    def __init__(self, path):
+        self.path = path
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
+    def setup(self, session, fixers):
+        run_with_build_fixers(session, ["perl", "Build.PL"], fixers)
+
+    def test(self, session, resolver, fixers):
+        self.setup(session, fixers)
+        run_with_build_fixers(session, ["./Build", "test"], fixers)
+
+    def build(self, session, resolver, fixers):
+        self.setup(session, fixers)
+        run_with_build_fixers(session, ["./Build", "build"], fixers)
+
+    def clean(self, session, resolver, fixers):
+        self.setup(session, fixers)
+        run_with_build_fixers(session, ["./Build", "clean"], fixers)
+
+    def install(self, session, resolver, fixers, install_target):
+        self.setup(session, fixers)
+        run_with_build_fixers(session, ["./Build", "install"], fixers)
+
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, "Build.PL")):
+            logging.debug("Found Build.PL, assuming Module::Build::Tiny package.")
+            return cls(path)
+
+
 def detect_buildsystems(path, trust_package=False):  # noqa: C901
     """Detect build systems."""
-    for bs_cls in [Pear, SetupPy, Npm, Waf, Cargo, Meson, Cabal, Gradle, Maven, DistInkt, Gem, Make]:
+    for bs_cls in [
+            Pear, SetupPy, Npm, Waf, Cargo, Meson, Cabal, Gradle, Maven,
+            DistInkt, Gem, Make, PerlBuildTiny]:
         bs = bs_cls.probe(path)
         if bs is not None:
             yield bs

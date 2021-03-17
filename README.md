@@ -51,6 +51,8 @@ issues (or lack of support for a particular ecosystem), please file a bug.
 - ninja, including ninja file generators:
     - meson
 - Node
+- Perl
+    - Module::Build::Tiny
 - PHP Pear
 - Python - setup.py/setup.cfg/pyproject.toml
 - Ruby gems
