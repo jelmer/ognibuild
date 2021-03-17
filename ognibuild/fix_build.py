@@ -20,6 +20,7 @@ from typing import List, Optional
 
 from buildlog_consultant.common import (
     find_build_failure_description,
+    MissingCommand,
 )
 from breezy.mutabletree import MutableTree
 
@@ -66,18 +67,22 @@ def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildF
     logging.info("Running %r", args)
     fixed_errors = []
     while True:
-        retcode, contents = run_with_tee(session, args)
-        if retcode == 0:
-            return
-        lines = ''.join(contents).splitlines(True)
-        match, error = find_build_failure_description(lines)
-        if error is None:
-            if match:
-                logging.warning("Build failed with unidentified error:")
-                logging.warning("%s", match.line.rstrip("\n"))
-            else:
-                logging.warning("Build failed and unable to find cause. Giving up.")
-            raise UnidentifiedError(retcode, args, lines, secondary=match)
+        try:
+            retcode, contents = run_with_tee(session, args)
+        except FileNotFoundError as e:
+            error = MissingCommand(e.args[0])
+        else:
+            if retcode == 0:
+                return
+            lines = ''.join(contents).splitlines(True)
+            match, error = find_build_failure_description(lines)
+            if error is None:
+                if match:
+                    logging.warning("Build failed with unidentified error:")
+                    logging.warning("%s", match.line.rstrip("\n"))
+                else:
+                    logging.warning("Build failed and unable to find cause. Giving up.")
+                raise UnidentifiedError(retcode, args, lines, secondary=match)
 
         logging.info("Identified error: %r", error)
         if error in fixed_errors:
