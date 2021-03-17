@@ -529,6 +529,12 @@ class DistInkt(BuildSystem):
         ):
             return cls(os.path.join(path, "dist.ini"))
 
+    def get_declared_dependencies(self):
+        import subprocess
+        out = subprocess.check_output(["dzil", "authordeps"])
+        for entry in out.splitlines():
+            yield "build", PerlModuleRequirement(entry.decode())
+
 
 class Make(BuildSystem):
 
