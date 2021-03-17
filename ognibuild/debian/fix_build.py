@@ -297,8 +297,8 @@ def commit_debian_changes(
             return True
 
 
-def targeted_python_versions(tree: Tree) -> Set[str]:
-    with tree.get_file("debian/control") as f:
+def targeted_python_versions(tree: Tree, subpath: str) -> Set[str]:
+    with tree.get_file(os.path.join(subpath, "debian/control")) as f:
         control = Deb822(f)
     build_depends = PkgRelation.parse_relations(control.get("Build-Depends", ""))
     all_build_deps: Set[str] = set()
@@ -315,7 +315,7 @@ def targeted_python_versions(tree: Tree) -> Set[str]:
 
 
 def fix_missing_python_distribution(error, context):  # noqa: C901
-    targeted = targeted_python_versions(context.tree)
+    targeted = targeted_python_versions(context.tree, context.subpath)
     default = not targeted
 
     pypy_pkg = context.apt.get_package_for_paths(
@@ -381,7 +381,7 @@ def fix_missing_python_distribution(error, context):  # noqa: C901
 
 def fix_missing_python_module(error, context):
     if getattr(context, "tree", None) is not None:
-        targeted = targeted_python_versions(context.tree)
+        targeted = targeted_python_versions(context.tree, context.subpath)
     else:
         targeted = set()
     default = not targeted
