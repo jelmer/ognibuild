@@ -241,6 +241,10 @@ class SetupPy(BuildSystem):
         for require in self.result.get_requires():
             yield "core", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
+        if getattr(self.result, "setup_requires", []):
+            for require in self.result.setup_requires:
+                yield "build", PythonPackageRequirement.from_requirement_str(require)
+        # Not present for distutils-only packages
         if getattr(self.result, "install_requires", []):
             for require in self.result.install_requires:
                 yield "core", PythonPackageRequirement.from_requirement_str(require)

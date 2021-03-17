@@ -37,7 +37,6 @@ from buildlog_consultant.common import (
 from . import DetailedFailure
 from .buildsystem import NoBuildToolsFound
 from .session.schroot import SchrootSession
-from .vcs import dupe_vcs_tree, export_vcs_tree
 
 
 SUPPORTED_DIST_EXTENSIONS = [
@@ -142,20 +141,14 @@ def create_dist_schroot(
             from .debian import satisfy_build_deps
 
             satisfy_build_deps(session, packaging_tree)
-        build_dir = os.path.join(session.location, "build")
 
         try:
-            directory = tempfile.mkdtemp(dir=build_dir)
+            export_directory, reldir = session.setup_from_vcs(
+                tree, include_controldir=include_controldir, subdir=subdir)
         except OSError as e:
             if e.errno == errno.ENOSPC:
                 raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
-        reldir = "/" + os.path.relpath(directory, session.location)
-
-        export_directory = os.path.join(directory, subdir)
-        if not include_controldir:
-            export_vcs_tree(tree, export_directory)
-        else:
-            dupe_vcs_tree(tree, export_directory)
+            raise
 
         buildsystems = list(detect_buildsystems(export_directory))
         resolver = AptResolver.from_session(session)

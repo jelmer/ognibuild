@@ -696,15 +696,18 @@ def main(argv=None):
         help="force updating of the changelog",
         default=None,
     )
+    parser.add_argument(
+        '--schroot',
+        type=str,
+        help='chroot to use.')
 
     args = parser.parse_args()
     from breezy.workingtree import WorkingTree
     from .apt import AptManager
     from ..session.plain import PlainSession
+    from ..session.schroot import SchrootSession
     import tempfile
     import contextlib
-
-    apt = AptManager(PlainSession())
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -716,17 +719,38 @@ def main(argv=None):
             output_directory = args.output_directory
 
         tree = WorkingTree.open(".")
-        build_incrementally(
-            tree,
-            apt,
-            args.suffix,
-            args.suite,
-            output_directory,
-            args.build_command,
-            None,
-            committer=args.committer,
-            update_changelog=args.update_changelog,
-        )
+        if args.schroot:
+            session = SchrootSession(args.schroot)
+            es.enter_context(session)
+        else:
+            session = PlainSession()
+
+        apt = AptManager(session)
+
+        try:
+            build_incrementally(
+                tree,
+                apt,
+                args.suffix,
+                args.suite,
+                output_directory,
+                args.build_command,
+                None,
+                committer=args.committer,
+                update_changelog=args.update_changelog,
+            )
+        except SbuildFailure as e:
+            if e.phase is None:
+                phase = 'unknown phase'
+            elif len(e.phase) == 1:
+                phase = e.phase[0]
+            else:
+                phase = '%s (%s)' % (e.phase[0], e.phase[1])
+            if e.error:
+                logging.fatal('Error during %s: %s', phase, e.error)
+            else:
+                logging.fatal('Error during %s: %s', phase, e.description)
+            return 1
 
 
 if __name__ == "__main__":

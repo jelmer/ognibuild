@@ -19,6 +19,7 @@ import logging
 import os
 import shlex
 import subprocess
+import tempfile
 
 from typing import Optional, List, Dict
 
@@ -167,3 +168,20 @@ class SchrootSession(Session):
     def scandir(self, path: str):
         fullpath = self._fullpath(path)
         return os.scandir(fullpath)
+
+    def setup_from_vcs(
+            self, tree, include_controldir=False, subdir="package"):
+        from ..vcs import dupe_vcs_tree, export_vcs_tree
+        build_dir = os.path.join(self.location, "build")
+
+        directory = tempfile.mkdtemp(dir=build_dir)
+        reldir = "/" + os.path.relpath(directory, self.location)
+        os.chdir(reldir)
+
+        export_directory = os.path.join(directory, subdir)
+        if not include_controldir:
+            export_vcs_tree(tree, export_directory)
+        else:
+            dupe_vcs_tree(tree, export_directory)
+
+        return export_directory, reldir
