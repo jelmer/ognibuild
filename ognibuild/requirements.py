@@ -107,6 +107,7 @@ class PerlModuleRequirement(Requirement):
         self.filename = filename
         self.inc = inc
 
+    @property
     def relfilename(self):
         return self.module.replace("::", "/") + ".pm"
 
