@@ -20,6 +20,7 @@ from . import Session
 
 import os
 import subprocess
+from typing import Optional, Dict, List
 
 
 class PlainSession(Session):
@@ -40,11 +41,21 @@ class PlainSession(Session):
     def create_home(self):
         pass
 
-    def check_call(self, args):
-        return subprocess.check_call(args)
+    def check_call(
+            self, argv: List[str],
+            cwd: Optional[str] = None,
+            user: Optional[str] = None,
+            env: Optional[Dict[str, str]] = None):
+        argv = self._prepend_user(user, argv)
+        return subprocess.check_call(argv, cwd=cwd, env=env)
 
-    def check_output(self, args):
-        return subprocess.check_output(args)
+    def check_output(
+            self, argv: List[str],
+            cwd: Optional[str] = None,
+            user: Optional[str] = None,
+            env: Optional[Dict[str, str]] = None) -> bytes:
+        argv = self._prepend_user(user, argv)
+        return subprocess.check_output(argv, cwd=cwd, env=env)
 
     def Popen(self, args, stdout=None, stderr=None, user=None, cwd=None):
         args = self._prepend_user(user, args)
