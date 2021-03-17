@@ -226,7 +226,7 @@ class SetupPy(BuildSystem):
         self._run_setup(session, resolver, ["install"] + extra_args, fixers)
 
     def _run_setup(self, session, resolver, args, fixers):
-        interpreter = shebang_binary("setup.py")
+        interpreter = shebang_binary(self.path)
         if interpreter is not None:
             resolver.install([BinaryRequirement(interpreter)])
             run_with_build_fixers(session, ["./setup.py"] + args, fixers)
@@ -502,24 +502,24 @@ class Make(BuildSystem):
 
     name = "make"
 
+    def __init__(self, path):
+        self.path = path
+
     def __repr__(self):
-        return "%s()" % type(self).__name__
+        return "%s(%r)" % (type(self).__name__, self.path)
 
     def setup(self, session, resolver, fixers):
-        resolver.install([BinaryRequirement("make")])
-
         def makefile_exists():
             return any(
                 [session.exists(p) for p in ["Makefile", "GNUmakefile", "makefile"]]
             )
 
         if session.exists("Makefile.PL") and not makefile_exists():
-            resolver.install([BinaryRequirement("perl")])
             run_with_build_fixers(session, ["perl", "Makefile.PL"], fixers)
 
         if not makefile_exists() and not session.exists("configure"):
             if session.exists("autogen.sh"):
-                if shebang_binary("autogen.sh") is None:
+                if shebang_binary(os.path.join(self.path, "autogen.sh")) is None:
                     run_with_build_fixers(session, ["/bin/sh", "./autogen.sh"], fixers)
                 try:
                     run_with_build_fixers(session, ["./autogen.sh"], fixers)
@@ -802,7 +802,7 @@ def detect_buildsystems(path, trust_package=False):  # noqa: C901
             ]
         ]
     ):
-        yield Make()
+        yield Make(path)
 
     seen_golang = False
     if os.path.exists(os.path.join(path, ".travis.yml")):
