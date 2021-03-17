@@ -569,9 +569,9 @@ class Make(BuildSystem):
             run_with_build_fixers(session, ["make", "dist"], fixers)
         except UnidentifiedError as e:
             if "make: *** No rule to make target 'dist'.  Stop.\n" in e.lines:
-                pass
+                raise NotImplementedError
             elif "make[1]: *** No rule to make target 'dist'. Stop.\n" in e.lines:
-                pass
+                raise NotImplementedError
             elif (
                 "Reconfigure the source tree "
                 "(via './config' or 'perl Configure'), please.\n"
@@ -614,8 +614,6 @@ class Make(BuildSystem):
                 run_with_build_fixers(session, ["make", "dist"], fixers)
             else:
                 raise
-        else:
-            return
 
     def get_declared_dependencies(self):
         # TODO(jelmer): Split out the perl-specific stuff?
