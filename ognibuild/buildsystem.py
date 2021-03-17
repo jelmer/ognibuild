@@ -603,13 +603,13 @@ class Make(BuildSystem):
 
     def get_declared_dependencies(self):
         # TODO(jelmer): Split out the perl-specific stuff?
-        if os.path.exists("META.yml"):
+        if os.path.exists(os.path.join(self.path, "META.yml")):
             # See http://module-build.sourceforge.net/META-spec-v1.4.html for
             # the specification of the format.
             import ruamel.yaml
             import ruamel.yaml.reader
 
-            with open("META.yml", "rb") as f:
+            with open(os.path.join(self.path, "META.yml"), "rb") as f:
                 try:
                     data = ruamel.yaml.load(f, ruamel.yaml.SafeLoader)
                 except ruamel.yaml.reader.ReaderError as e:
