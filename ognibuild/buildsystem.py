@@ -873,6 +873,19 @@ BUILDSYSTEM_CLSES = [
 
 def detect_buildsystems(path, trust_package=False):
     """Detect build systems."""
+    ret = []
+    ret.extend(_detect_buildsystems_directory(path))
+
+    if not ret:
+        # Nothing found. Try the next level?
+        for entry in os.scandir(path):
+            if entry.is_dir():
+                ret.extend(_detect_buildsystems_directory(entry.path))
+
+    return ret
+
+
+def _detect_buildsystems_directory(path):
     for bs_cls in BUILDSYSTEM_CLSES:
         bs = bs_cls.probe(path)
         if bs is not None:
