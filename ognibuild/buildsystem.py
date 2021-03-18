@@ -83,10 +83,6 @@ class BuildSystem(object):
     def probe(cls, path):
         return None
 
-    @classmethod
-    def probe_from_travis(cls, path, data):
-        return None
-
 
 class Pear(BuildSystem):
 
@@ -782,12 +778,6 @@ class Golang(BuildSystem):
                     if entry.name.endswith(".go"):
                         return Golang(path)
 
-    @classmethod
-    def probe_from_travis(cls, path, data):
-        language = data.get("language")
-        if language == "go":
-            return cls(path)
-
 
 class Maven(BuildSystem):
 
@@ -887,20 +877,6 @@ def detect_buildsystems(path, trust_package=False):
         bs = bs_cls.probe(path)
         if bs is not None:
             yield bs
-
-    if os.path.exists(os.path.join(path, ".travis.yml")):
-        import ruamel.yaml.reader
-
-        with open(os.path.join(path, ".travis.yml"), "rb") as f:
-            try:
-                data = ruamel.yaml.load(f, ruamel.yaml.SafeLoader)
-            except ruamel.yaml.reader.ReaderError as e:
-                warnings.warn("Unable to parse .travis.yml: %s" % (e,))
-            else:
-                for bs_cls in BUILDSYSTEM_CLSES:
-                    bs = bs_cls.probe_from_travis(path, data)
-                    if bs is not None:
-                        yield bs
 
 
 def get_buildsystem(path, trust_package=False):
