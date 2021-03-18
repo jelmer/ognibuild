@@ -28,9 +28,9 @@ from buildlog_consultant.sbuild import (
 from . import DetailedFailure
 
 
-def export_vcs_tree(tree, directory):
+def export_vcs_tree(tree, directory, subpath=""):
     try:
-        export(tree, directory, "dir", None)
+        export(tree, directory, "dir", None, subdir=(subpath or None))
     except OSError as e:
         if e.errno == errno.ENOSPC:
             raise DetailedFailure(1, ["export"], NoSpaceOnDevice())
