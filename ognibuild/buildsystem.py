@@ -73,10 +73,10 @@ class BuildSystem(object):
     def install(self, session, resolver, fixers, install_target):
         raise NotImplementedError(self.install)
 
-    def get_declared_dependencies(self):
+    def get_declared_dependencies(self, session, fixers=None):
         raise NotImplementedError(self.get_declared_dependencies)
 
-    def get_declared_outputs(self):
+    def get_declared_outputs(self, session, fixers=None):
         raise NotImplementedError(self.get_declared_outputs)
 
     @classmethod
@@ -124,7 +124,6 @@ class Pear(BuildSystem):
 # run_setup, but setting __name__
 # Imported from Python's distutils.core, Copyright (C) PSF
 
-
 def run_setup(script_name, script_args=None, stop_after="run"):
     from distutils import core
     import sys
@@ -154,36 +153,64 @@ def run_setup(script_name, script_args=None, stop_after="run"):
         # (ie. error)?
         pass
 
-    if core._setup_distribution is None:
-        raise RuntimeError(
-            (
-                "'distutils.core.setup()' was never called -- "
-                "perhaps '%s' is not a Distutils setup script?"
-            )
-            % script_name
-        )
-
     return core._setup_distribution
+
+
+_setup_wrapper = """\
+from distutils import core
+import sys
+
+script_name = %(script_name)s
+
+save_argv = sys.argv.copy()
+g = {"__file__": script_name, "__name__": "__main__"}
+try:
+    core._setup_stop_after = "init"
+    sys.argv[0] = script_name
+    with open(script_name, "rb") as f:
+        exec(f.read(), g)
+except SystemExit:
+    # Hmm, should we do something if exiting with a non-zero code
+    # (ie. error)?
+    pass
+
+if core._setup_distribution is None:
+    raise RuntimeError(
+        (
+            "'distutils.core.setup()' was never called -- "
+            "perhaps '%s' is not a Distutils setup script?"
+        )
+        % script_name
+    )
+
+d = core._setup_distribution
+r = {
+    'setup_requires': getattr(d, "setup_requires", []),
+    'install_requires': getattr(d, "install_requires", []),
+    'tests_require': getattr(d, "tests_require", []),
+    'scripts': getattr(d, "scripts", []) or [],
+    'entry_points': getattr(d, "entry_points", None) or {},
+    'packages': getattr(d, "packages", []) or [],
+    'requires': d.get_requires() or [],
+    }
+import os
+import json
+with open(%(output_path)s, 'w') as f:
+    json.dump(r, f)
+"""
 
 
 class SetupPy(BuildSystem):
 
     name = "setup.py"
+    DEFAULT_PYTHON = 'python3'
 
     def __init__(self, path):
         self.path = path
         if os.path.exists(os.path.join(self.path, 'setup.py')):
             self.has_setup_py = True
-            # TODO(jelmer): Perhaps run this in session, so we can install
-            # missing dependencies?
-            try:
-                self.distribution = run_setup(os.path.abspath(os.path.join(self.path, 'setup.py')), stop_after="init")
-            except RuntimeError as e:
-                logging.warning("Unable to load setup.py metadata: %s", e)
-                self.distribution = None
         else:
             self.has_setup_py = False
-            self.distribution = None
 
         try:
             self.pyproject = self.load_toml()
@@ -196,28 +223,79 @@ class SetupPy(BuildSystem):
         with open(os.path.join(self.path, "pyproject.toml"), "r") as pf:
             return toml.load(pf)
 
+    def _extract_setup(self, session=None, fixers=None):
+        if session is None:
+            return self._extract_setup_direct()
+        else:
+            return self._extract_setup_in_session(session, fixers)
+
+    def _extract_setup_direct(self):
+        p = os.path.join(self.path, 'setup.py')
+        try:
+            d = run_setup(os.path.abspath(p), stop_after="init")
+        except RuntimeError as e:
+            logging.warning("Unable to load setup.py metadata: %s", e)
+            return None
+        if d is None:
+            logging.warning(
+                "'distutils.core.setup()' was never called -- "
+                "perhaps '%s' is not a Distutils setup script?" % os.path.basename(p))
+            return None
+
+        return {
+            'setup_requires': getattr(d, "setup_requires", []),
+            'install_requires': getattr(d, "install_requires", []),
+            'tests_require': getattr(d, "tests_require", []),
+            'scripts': getattr(d, "scripts", []),
+            'entry_points': getattr(d, "entry_points", None) or {},
+            'packages': getattr(d, "packages", []),
+            'requires': d.get_requires() or [],
+            }
+
+    def _extract_setup_in_session(self, session, fixers=None):
+        import tempfile
+        import json
+        interpreter = shebang_binary(os.path.join(self.path, "setup.py"))
+        if interpreter is None:
+            interpreter = self.DEFAULT_PYTHON
+        output_f = tempfile.NamedTemporaryFile(
+            dir=os.path.join(session.location, 'tmp'), mode='w+t')
+        with output_f:
+            # TODO(jelmer): Perhaps run this in session, so we can install
+            # missing dependencies?
+            argv = [interpreter, "-c",
+                    _setup_wrapper
+                    .replace('%(script_name)s', '"setup.py"')
+                    .replace('%(output_path)s',
+                             '"/' + os.path.relpath(output_f.name, session.location) +
+                             '"')]
+            try:
+                if fixers is not None:
+                    run_with_build_fixers(session, argv, fixers)
+                else:
+                    session.check_call(argv, close_fds=False)
+            except RuntimeError as e:
+                logging.warning("Unable to load setup.py metadata: %s", e)
+                return None
+            output_f.seek(0)
+            return json.load(output_f)
+
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
 
-    def setup(self, resolver):
-        pass
-
     def test(self, session, resolver, fixers):
-        self.setup(resolver)
         if self.has_setup_py:
             self._run_setup(session, resolver, ["test"], fixers)
         else:
             raise NotImplementedError
 
     def build(self, session, resolver, fixers):
-        self.setup(resolver)
         if self.has_setup_py:
             self._run_setup(session, resolver, ["build"], fixers)
         else:
             raise NotImplementedError
 
     def dist(self, session, resolver, fixers, quiet=False):
-        self.setup(resolver)
         if self.has_setup_py:
             preargs = []
             if quiet:
@@ -234,14 +312,12 @@ class SetupPy(BuildSystem):
         raise AssertionError("no supported section in pyproject.toml")
 
     def clean(self, session, resolver, fixers):
-        self.setup(resolver)
         if self.has_setup_py:
             self._run_setup(session, resolver, ["clean"], fixers)
         else:
             raise NotImplementedError
 
     def install(self, session, resolver, fixers, install_target):
-        self.setup(resolver)
         if self.has_setup_py:
             extra_args = []
             if install_target.user:
@@ -253,44 +329,50 @@ class SetupPy(BuildSystem):
     def _run_setup(self, session, resolver, args, fixers):
         interpreter = shebang_binary(os.path.join(self.path, 'setup.py'))
         if interpreter is not None:
-            resolver.install([BinaryRequirement(interpreter)])
             run_with_build_fixers(session, ["./setup.py"] + args, fixers)
         else:
             # Just assume it's Python 3
-            resolver.install([BinaryRequirement("python3")])
-            run_with_build_fixers(session, ["python3", "./setup.py"] + args, fixers)
+            run_with_build_fixers(session, [self.DEFAULT_PYTHON, "./setup.py"] + args, fixers)
 
-    def get_declared_dependencies(self):
-        if self.distribution is None:
+    def get_declared_dependencies(self, session, fixers=None):
+        distribution = self._extract_setup(session, fixers)
+        if distribution is None:
             raise NotImplementedError
-        for require in self.distribution.get_requires():
+        for require in distribution['requires']:
             yield "core", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
-        if getattr(self.distribution, "setup_requires", []):
-            for require in self.distribution.setup_requires:
-                yield "build", PythonPackageRequirement.from_requirement_str(require)
+        for require in distribution['setup_requires']:
+            yield "build", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
-        if getattr(self.distribution, "install_requires", []):
-            for require in self.distribution.install_requires:
-                yield "core", PythonPackageRequirement.from_requirement_str(require)
+        for require in distribution['install_requires']:
+            yield "core", PythonPackageRequirement.from_requirement_str(require)
         # Not present for distutils-only packages
-        if getattr(self.distribution, "tests_require", []):
-            for require in self.distribution.tests_require:
-                yield "test", PythonPackageRequirement.from_requirement_str(require)
+        for require in distribution['tests_require']:
+            yield "test", PythonPackageRequirement.from_requirement_str(require)
         if self.pyproject:
             if "build-system" in self.pyproject:
                 for require in self.pyproject['build-system'].get("requires", []):
                     yield "build", PythonPackageRequirement.from_requirement_str(require)
 
-    def get_declared_outputs(self):
-        if self.distribution is None:
+    def get_declared_outputs(self, session, fixers=None):
+        distribution = self._extract_setup(session, fixers)
+        if distribution is None:
             raise NotImplementedError
-        for script in self.distribution.scripts or []:
+        for script in distribution['scripts']:
             yield BinaryOutput(os.path.basename(script))
-        entry_points = getattr(self.distribution, "entry_points", None) or {}
-        for script in entry_points.get("console_scripts", []):
+        for script in distribution["entry_points"].get("console_scripts", []):
             yield BinaryOutput(script.split("=")[0])
-        for package in self.distribution.packages or []:
+        packages = set()
+        for package in sorted(distribution['packages']):
+            pts = package.split('.')
+            b = []
+            for e in pts:
+                b.append(e)
+                if '.'.join(b) in packages:
+                    break
+            else:
+                packages.add(package)
+        for package in packages:
             yield PythonPackageOutput(package, python_version="cpython3")
 
     @classmethod
@@ -438,7 +520,7 @@ class Npm(BuildSystem):
         with open(path, "r") as f:
             self.package = json.load(f)
 
-    def get_declared_dependencies(self):
+    def get_declared_dependencies(self, session, fixers=None):
         if "devDependencies" in self.package:
             for name, unused_version in self.package["devDependencies"].items():
                 # TODO(jelmer): Look at version
@@ -555,9 +637,8 @@ class DistInkt(BuildSystem):
         ):
             return cls(os.path.join(path, "dist.ini"))
 
-    def get_declared_dependencies(self):
-        import subprocess
-        out = subprocess.check_output(["dzil", "authordeps"])
+    def get_declared_dependencies(self, session, fixers=None):
+        out = session.check_output(["dzil", "authordeps"])
         for entry in out.splitlines():
             yield "build", PerlModuleRequirement(entry.decode())
 
@@ -682,7 +763,7 @@ class Make(BuildSystem):
             else:
                 raise
 
-    def get_declared_dependencies(self):
+    def get_declared_dependencies(self, session, fixers=None):
         # TODO(jelmer): Split out the perl-specific stuff?
         if os.path.exists(os.path.join(self.path, "META.yml")):
             # See http://module-build.sourceforge.net/META-spec-v1.4.html for
@@ -740,7 +821,7 @@ class Cargo(BuildSystem):
         with open(path, "r") as f:
             self.cargo = load(f)
 
-    def get_declared_dependencies(self):
+    def get_declared_dependencies(self, session, fixers=None):
         if "dependencies" in self.cargo:
             for name, details in self.cargo["dependencies"].items():
                 if isinstance(details, str):

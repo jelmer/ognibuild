@@ -21,7 +21,7 @@ def run_info(session, buildsystems):
         print("%r:" % buildsystem)
         deps = {}
         try:
-            for kind, dep in buildsystem.get_declared_dependencies():
+            for kind, dep in buildsystem.get_declared_dependencies(session):
                 deps.setdefault(kind, []).append(dep)
         except NotImplementedError:
             print(
@@ -35,7 +35,7 @@ def run_info(session, buildsystems):
                     print("\t\t\t%s" % dep)
             print("")
         try:
-            outputs = list(buildsystem.get_declared_outputs())
+            outputs = list(buildsystem.get_declared_outputs(session))
         except NotImplementedError:
             print("\tUnable to detect declared outputs for this type of build system")
             outputs = []

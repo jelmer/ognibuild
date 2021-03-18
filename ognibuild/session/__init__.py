@@ -41,6 +41,7 @@ class Session(object):
         cwd: Optional[str] = None,
         user: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
+        close_fds: bool = True
     ):
         raise NotImplementedError(self.check_call)
 

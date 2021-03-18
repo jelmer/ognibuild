@@ -114,9 +114,10 @@ class SchrootSession(Session):
         cwd: Optional[str] = None,
         user: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
+        close_fds: bool = True
     ):
         try:
-            subprocess.check_call(self._run_argv(argv, cwd, user, env=env))
+            subprocess.check_call(self._run_argv(argv, cwd, user, env=env), close_fds=close_fds)
         except subprocess.CalledProcessError as e:
             raise subprocess.CalledProcessError(e.returncode, argv)
 

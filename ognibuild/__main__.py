@@ -47,12 +47,12 @@ def get_necessary_declared_requirements(resolver, requirements, stages):
     return missing
 
 
-def install_necessary_declared_requirements(session, resolver, buildsystems, stages, explain=False):
+def install_necessary_declared_requirements(session, resolver, fixers, buildsystems, stages, explain=False):
     relevant = []
     declared_reqs = []
     for buildsystem in buildsystems:
         try:
-            declared_reqs.extend(buildsystem.get_declared_dependencies())
+            declared_reqs.extend(buildsystem.get_declared_dependencies(session, fixers))
         except NotImplementedError:
             logging.warning(
                 "Unable to determine declared dependencies from %r", buildsystem
@@ -169,17 +169,17 @@ def main():  # noqa: C901
             bss = list(detect_buildsystems(args.directory))
             logging.info(
                 "Detected buildsystems: %s", ', '.join(map(str, bss)))
+            fixers = determine_fixers(session, resolver, explain=args.explain)
             if not args.ignore_declared_dependencies:
                 stages = STAGE_MAP[args.subcommand]
                 if stages:
                     logging.info("Checking that declared requirements are present")
                     try:
                         install_necessary_declared_requirements(
-                            session, resolver, bss, stages, explain=args.explain)
+                            session, resolver, fixers, bss, stages, explain=args.explain)
                     except ExplainInstall as e:
                         display_explain_commands(e.commands)
                         return 1
-            fixers = determine_fixers(session, resolver, explain=args.explain)
             if args.subcommand == "dist":
                 from .dist import run_dist
 

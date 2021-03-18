@@ -56,9 +56,10 @@ class PlainSession(Session):
             self, argv: List[str],
             cwd: Optional[str] = None,
             user: Optional[str] = None,
-            env: Optional[Dict[str, str]] = None):
+            env: Optional[Dict[str, str]] = None,
+            close_fds: bool = True):
         argv = self._prepend_user(user, argv)
-        return subprocess.check_call(argv, cwd=cwd, env=env)
+        return subprocess.check_call(argv, cwd=cwd, env=env, close_fds=close_fds)
 
     def check_output(
             self, argv: List[str],
