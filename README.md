@@ -55,6 +55,7 @@ issues (or lack of support for a particular ecosystem), please file a bug.
     - Module::Build::Tiny
 - PHP Pear
 - Python - setup.py/setup.cfg/pyproject.toml
+- R
 - Ruby gems
 - Waf
 
@@ -69,6 +70,7 @@ The following "native" repositories are supported:
 - hackage
 - npm
 - cargo
+- cran
 - golang\*
 
 As well one distribution repository:

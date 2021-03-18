@@ -363,6 +363,28 @@ class Gradle(BuildSystem):
             session, [self.executable, "installDist"], fixers)
 
 
+class R(BuildSystem):
+
+    name = "R"
+
+    def __init__(self, path):
+        self.path = path
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
+    def build(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["R", "CMD", "build", "."], fixers)
+
+    def test(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["R", "CMD", "test", "."], fixers)
+
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, 'DESCRIPTION')):
+            return cls(path)
+
+
 class Meson(BuildSystem):
 
     name = "meson"
@@ -868,7 +890,7 @@ class PerlBuildTiny(BuildSystem):
 
 BUILDSYSTEM_CLSES = [
     Pear, SetupPy, Npm, Waf, Cargo, Meson, Cabal, Gradle, Maven,
-    DistInkt, Gem, Make, PerlBuildTiny, Golang]
+    DistInkt, Gem, Make, PerlBuildTiny, Golang, R]
 
 
 def detect_buildsystems(path, trust_package=False):

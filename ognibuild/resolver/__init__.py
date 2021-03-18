@@ -76,6 +76,44 @@ class CPANResolver(Resolver):
             raise UnsatisfiedRequirements(missing)
 
 
+class CRANResolver(Resolver):
+    def __init__(self, session, repos='"http://cran.r-project.org'):
+        self.session = session
+        self.repos = repos
+
+    def __str__(self):
+        return "cran"
+
+    def __repr__(self):
+        return "%s(%r, %r)" % (type(self).__name__, self.session, self.repos)
+
+    def _cmd(self, req):
+        return ["R", "-e", "install.packages('%s', repos=%r)" % (req.package, self.repos)]
+
+    def explain(self, requirements):
+        from ..requirements import RPackageRequirement
+
+        rreqs = []
+        for requirement in requirements:
+            if not isinstance(requirement, RPackageRequirement):
+                continue
+            rreqs.append(requirement)
+        if rreqs:
+            yield ([self._cmd(req) for req in rreqs])
+
+    def install(self, requirements):
+        from ..requirements import RPackageRequirement
+
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, RPackageRequirement):
+                missing.append(requirement)
+                continue
+            self.session.check_call(self._cmd(requirement))
+        if missing:
+            raise UnsatisfiedRequirements(missing)
+
+
 class HackageResolver(Resolver):
     def __init__(self, session):
         self.session = session
@@ -268,6 +306,7 @@ NATIVE_RESOLVER_CLS = [
     NpmResolver,
     GoResolver,
     HackageResolver,
+    CRANResolver,
     ]
 
 
