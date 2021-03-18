@@ -764,6 +764,25 @@ class Golang(BuildSystem):
     def clean(self, session, resolver, fixers):
         session.check_call(["go", "clean"])
 
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, ".travis.yml")):
+            import ruamel.yaml.reader
+
+            with open(os.path.join(path, ".travis.yml"), "rb") as f:
+                try:
+                    data = ruamel.yaml.load(f, ruamel.yaml.SafeLoader)
+                except ruamel.yaml.reader.ReaderError as e:
+                    warnings.warn("Unable to parse .travis.yml: %s" % (e,))
+                else:
+                    language = data.get("language")
+                    if language == "go":
+                        return Golang(path)
+
+        for entry in os.scandir(path):
+            if entry.name.endswith(".go"):
+                return Golang(path)
+
 
 class Maven(BuildSystem):
 
@@ -852,35 +871,14 @@ class PerlBuildTiny(BuildSystem):
             return cls(path)
 
 
-def detect_buildsystems(path, trust_package=False):  # noqa: C901
+def detect_buildsystems(path, trust_package=False):
     """Detect build systems."""
     for bs_cls in [
             Pear, SetupPy, Npm, Waf, Cargo, Meson, Cabal, Gradle, Maven,
-            DistInkt, Gem, Make, PerlBuildTiny]:
+            DistInkt, Gem, Make, PerlBuildTiny, Golang]:
         bs = bs_cls.probe(path)
         if bs is not None:
             yield bs
-
-    seen_golang = False
-    if os.path.exists(os.path.join(path, ".travis.yml")):
-        import ruamel.yaml.reader
-
-        with open(os.path.join(path, ".travis.yml"), "rb") as f:
-            try:
-                data = ruamel.yaml.load(f, ruamel.yaml.SafeLoader)
-            except ruamel.yaml.reader.ReaderError as e:
-                warnings.warn("Unable to parse .travis.yml: %s" % (e,))
-            else:
-                language = data.get("language")
-                if language == "go":
-                    yield Golang(path)
-                    seen_golang = True
-
-    if not seen_golang:
-        for entry in os.scandir(path):
-            if entry.name.endswith(".go"):
-                yield Golang(path)
-                break
 
 
 def get_buildsystem(path, trust_package=False):
