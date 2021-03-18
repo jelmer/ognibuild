@@ -69,7 +69,7 @@ def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildF
     while True:
         try:
             retcode, contents = run_with_tee(session, args)
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             error = MissingCommand(args[0])
             retcode = 1
         else:
