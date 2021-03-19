@@ -172,7 +172,7 @@ class SchrootSession(Session):
             .decode()
             .rstrip("\n")
         )
-        logging.info("Creating directory %s", home)
+        logging.info("Creating directory %s in schroot session.", home)
         self.check_call(["mkdir", "-p", home], cwd="/", user="root")
         self.check_call(["chown", user, home], cwd="/", user="root")
 
