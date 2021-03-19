@@ -218,8 +218,9 @@ class SetupPy(BuildSystem):
             self.pyproject = self.load_toml()
         except FileNotFoundError:
             self.pyproject = None
-
-        self.build_backend = self.pyproject.get("build-system", {}).get('build-backend')
+            self.build_backend = None
+        else:
+            self.build_backend = self.pyproject.get("build-system", {}).get('build-backend')
 
     def load_toml(self):
         import toml
