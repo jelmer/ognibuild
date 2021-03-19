@@ -219,7 +219,7 @@ if __name__ == "__main__":
             packaging_tree=packaging_tree,
             chroot=args.chroot,
         )
-    except NoBuildToolsFound:
+    except (NoBuildToolsFound, NotImplementedError):
         logging.info("No build tools found, falling back to simple export.")
         export(tree, "dist.tar.gz", "tgz", None)
     else:
