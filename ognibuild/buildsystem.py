@@ -189,7 +189,7 @@ d = core._setup_distribution
 r = {
     'setup_requires': getattr(d, "setup_requires", []),
     'install_requires': getattr(d, "install_requires", []),
-    'tests_require': getattr(d, "tests_require", []),
+    'tests_require': getattr(d, "tests_require", []) or [],
     'scripts': getattr(d, "scripts", []) or [],
     'entry_points': getattr(d, "entry_points", None) or {},
     'packages': getattr(d, "packages", []) or [],
