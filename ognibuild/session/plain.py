@@ -16,7 +16,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from . import Session
+from . import Session, NoSessionOpen, SessionAlreadyOpen
 
 import contextlib
 import os
@@ -30,7 +30,12 @@ class PlainSession(Session):
 
     location = "/"
 
+    def __init__(self):
+        self.es = None
+
     def _prepend_user(self, user, args):
+        if self.es is None:
+            raise NoSessionOpen(self)
         if user is not None:
             import getpass
             if user != getpass.getuser():
@@ -41,12 +46,17 @@ class PlainSession(Session):
         return "%s()" % (type(self).__name__, )
 
     def __enter__(self) -> "Session":
+        if self.es is not None:
+            raise SessionAlreadyOpen(self)
         self.es = contextlib.ExitStack()
         self.es.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.es is None:
+            raise NoSessionOpen(self)
         self.es.__exit__(exc_type, exc_val, exc_tb)
+        self.es = None
         return False
 
     def create_home(self):

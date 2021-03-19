@@ -21,6 +21,20 @@ import sys
 import subprocess
 
 
+class NoSessionOpen(Exception):
+    """There is no session open."""
+
+    def __init__(self, session):
+        self.session = session
+
+
+class SessionAlreadyOpen(Exception):
+    """There is already a session open."""
+
+    def __init__(self, session):
+        self.session = session
+
+
 class Session(object):
     def __enter__(self) -> "Session":
         return self

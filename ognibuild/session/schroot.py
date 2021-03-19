@@ -24,7 +24,7 @@ import tempfile
 from typing import Optional, List, Dict
 
 
-from . import Session, SessionSetupFailure
+from . import Session, SessionSetupFailure, NoSessionOpen, SessionAlreadyOpen
 
 
 class SchrootSession(Session):
@@ -39,8 +39,11 @@ class SchrootSession(Session):
         self.chroot = chroot
         self._location = None
         self._cwd = None
+        self.session_id = None
 
     def _get_location(self) -> str:
+        if self.session_id is None:
+            raise NoSessionOpen(self)
         return (
             subprocess.check_output(
                 ["schroot", "--location", "-c", "session:" + self.session_id]
@@ -50,9 +53,14 @@ class SchrootSession(Session):
         )
 
     def _end_session(self) -> None:
+        if self.session_id is None:
+            raise NoSessionOpen(self)
         subprocess.check_output(["schroot", "-c", "session:" + self.session_id, "-e"])
+        self.session_id = None
 
     def __enter__(self) -> "Session":
+        if self.es is not None:
+            raise SessionAlreadyOpen(self)
         try:
             self.session_id = (
                 subprocess.check_output(["schroot", "-c", self.chroot, "-b"])
@@ -87,6 +95,8 @@ class SchrootSession(Session):
         user: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
     ):
+        if self.session_id is None:
+            raise NoSessionOpen(self)
         base_argv = ["schroot", "-r", "-c", "session:" + self.session_id]
         if cwd is None:
             cwd = self._cwd
