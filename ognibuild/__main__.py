@@ -20,7 +20,7 @@ import os
 import shlex
 import sys
 from . import UnidentifiedError, DetailedFailure
-from .buildlog import InstallFixer, ExplainInstallFixer, ExplainInstall
+from .buildlog import InstallFixer, ExplainInstallFixer, ExplainInstall, install_missing_reqs
 from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .resolver import (
     auto_resolver,
@@ -60,21 +60,8 @@ def install_necessary_declared_requirements(session, resolver, fixers, buildsyst
     relevant.extend(
         get_necessary_declared_requirements(resolver, declared_reqs, stages)
     )
-    missing = []
-    for req in relevant:
-        try:
-            if not req.met(session):
-                missing.append(req)
-        except NotImplementedError:
-            missing.append(req)
-    if missing:
-        if explain:
-            commands = resolver.explain(missing)
-            if not commands:
-                raise UnsatisfiedRequirements(missing)
-            raise ExplainInstall(commands)
-        else:
-            resolver.install(missing)
+
+    install_missing_reqs(session, resolver, relevant, explain=explain)
 
 
 # Types of dependencies:

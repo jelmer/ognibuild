@@ -64,7 +64,6 @@ class DependencyContext(object):
 
 
 def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer]):
-    logging.info("Running %r", args)
     fixed_errors = []
     while True:
         try:

@@ -69,3 +69,4 @@ class UpstreamOutput(object):
 
     def get_declared_dependencies(self):
         raise NotImplementedError(self.get_declared_dependencies)
+

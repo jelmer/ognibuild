@@ -52,11 +52,20 @@ class SchrootSession(Session):
             .decode()
         )
 
-    def _end_session(self) -> None:
+    def _end_session(self) -> bool:
         if self.session_id is None:
             raise NoSessionOpen(self)
-        subprocess.check_output(["schroot", "-c", "session:" + self.session_id, "-e"])
+        try:
+            subprocess.check_output(["schroot", "-c", "session:" + self.session_id, "-e"], stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+            for line in e.stderr.splitlines(False):
+                if line.startswith(b'E: '):
+                    logging.error('%s', line[3:].decode(errors='replace'))
+            logging.warning('Failed to close schroot session %s, leaving stray.', self.session_id)
+            self.session_id = None
+            return False
         self.session_id = None
+        return True
 
     def __enter__(self) -> "Session":
         if self.session_id is not None:

@@ -232,3 +232,21 @@ class ExplainInstallFixer(BuildFixer):
         if not explanations:
             return False
         raise ExplainInstall(explanations)
+
+
+def install_missing_reqs(session, resolver, reqs, explain=False):
+    missing = []
+    for req in reqs:
+        try:
+            if not req.met(session):
+                missing.append(req)
+        except NotImplementedError:
+            missing.append(req)
+    if missing:
+        if explain:
+            commands = resolver.explain(missing)
+            if not commands:
+                raise UnsatisfiedRequirements(missing)
+            raise ExplainInstall(commands)
+        else:
+            resolver.install(missing)
