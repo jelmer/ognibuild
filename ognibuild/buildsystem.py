@@ -27,6 +27,7 @@ from . import shebang_binary, UnidentifiedError
 from .outputs import (
     BinaryOutput,
     PythonPackageOutput,
+    RPackageOutput,
 )
 from .requirements import (
     BinaryRequirement,
@@ -34,6 +35,7 @@ from .requirements import (
     PerlModuleRequirement,
     NodePackageRequirement,
     CargoCrateRequirement,
+    RPackageRequirement,
 )
 from .fix_build import run_with_build_fixers
 
@@ -456,15 +458,40 @@ class R(BuildSystem):
         return "%s(%r)" % (type(self).__name__, self.path)
 
     def build(self, session, resolver, fixers):
+        pass
+
+    def dist(self, session, resolver, fixers, quiet=False):
         run_with_build_fixers(session, ["R", "CMD", "build", "."], fixers)
 
+    def install(self, session, resolver, fixers, install_target):
+        run_with_build_fixers(session, ["R", "CMD", "INSTALL", "."], fixers)
+
     def test(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["R", "CMD", "test", "."], fixers)
+        run_with_build_fixers(session, ["R", "CMD", "check", "."], fixers)
 
     @classmethod
     def probe(cls, path):
         if os.path.exists(os.path.join(path, 'DESCRIPTION')):
             return cls(path)
+
+    def _read_description(self):
+        path = os.path.join(self.path, 'DESCRIPTION')
+        from email.parser import BytesParser
+        with open(path, 'rb') as f:
+            return BytesParser().parse(f)
+
+    def get_declared_dependencies(self, session, fixers=None):
+        description = self._read_description()
+        if 'Suggests' in description:
+            suggests = [s.strip() for s in description['Suggests'].split(',') if s.strip()]
+            for s in suggests:
+                # TODO(jelmer): Look at version
+                yield "build", RPackageRequirement.from_str(s)
+
+    def get_declared_outputs(self, session, fixers=None):
+        description = self._read_description()
+        if 'Package' in description:
+            yield RPackageOutput(description['Package'])
 
 
 class Meson(BuildSystem):

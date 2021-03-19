@@ -76,8 +76,8 @@ class CPANResolver(Resolver):
             raise UnsatisfiedRequirements(missing)
 
 
-class CRANResolver(Resolver):
-    def __init__(self, session, repos='"http://cran.r-project.org'):
+class RResolver(Resolver):
+    def __init__(self, session, repos):
         self.session = session
         self.repos = repos
 
@@ -112,6 +112,19 @@ class CRANResolver(Resolver):
             self.session.check_call(self._cmd(requirement))
         if missing:
             raise UnsatisfiedRequirements(missing)
+
+
+class CRANResolver(RResolver):
+
+    def __init__(self, session):
+        super(CRANResolver, self).__init__(session, 'http://cran.r-project.org')
+
+
+class BioconductorResolver(RResolver):
+
+    def __init__(self, session):
+        super(BioconductorResolver, self).__init__(
+            session, 'https://hedgehog.fhcrc.org/bioconductor')
 
 
 class HackageResolver(Resolver):
@@ -307,6 +320,7 @@ NATIVE_RESOLVER_CLS = [
     GoResolver,
     HackageResolver,
     CRANResolver,
+    BioconductorResolver,
     ]
 
 
