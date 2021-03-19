@@ -216,6 +216,11 @@ class SetupPy(BuildSystem):
             self.has_setup_py = False
 
         try:
+            self.config = self.load_setup_cfg()
+        except FileNotFoundError:
+            self.config = None
+
+        try:
             self.pyproject = self.load_toml()
         except FileNotFoundError:
             self.pyproject = None
@@ -228,6 +233,10 @@ class SetupPy(BuildSystem):
 
         with open(os.path.join(self.path, "pyproject.toml"), "r") as pf:
             return toml.load(pf)
+
+    def load_setup_cfg(self):
+        from setuptools.config import read_configuration
+        return read_configuration(os.path.join(self.path, 'setup.cfg'))
 
     def _extract_setup(self, session=None, fixers=None):
         if session is None:
@@ -353,34 +362,48 @@ class SetupPy(BuildSystem):
 
     def get_declared_dependencies(self, session, fixers=None):
         distribution = self._extract_setup(session, fixers)
-        if distribution is None:
-            raise NotImplementedError
-        for require in distribution['requires']:
-            yield "core", PythonPackageRequirement.from_requirement_str(require)
-        # Not present for distutils-only packages
-        for require in distribution['setup_requires']:
-            yield "build", PythonPackageRequirement.from_requirement_str(require)
-        # Not present for distutils-only packages
-        for require in distribution['install_requires']:
-            yield "core", PythonPackageRequirement.from_requirement_str(require)
-        # Not present for distutils-only packages
-        for require in distribution['tests_require']:
-            yield "test", PythonPackageRequirement.from_requirement_str(require)
+        if distribution is not None:
+            for require in distribution['requires']:
+                yield "core", PythonPackageRequirement.from_requirement_str(require)
+            # Not present for distutils-only packages
+            for require in distribution['setup_requires']:
+                yield "build", PythonPackageRequirement.from_requirement_str(require)
+            # Not present for distutils-only packages
+            for require in distribution['install_requires']:
+                yield "core", PythonPackageRequirement.from_requirement_str(require)
+            # Not present for distutils-only packages
+            for require in distribution['tests_require']:
+                yield "test", PythonPackageRequirement.from_requirement_str(require)
         if self.pyproject:
             if "build-system" in self.pyproject:
                 for require in self.pyproject['build-system'].get("requires", []):
                     yield "build", PythonPackageRequirement.from_requirement_str(require)
+        if self.config:
+            options = self.config.get('options', {})
+            for require in options.get('setup_requires', []):
+                yield "build", PythonPackageRequirement.from_requirement_str(require)
+            for require in options.get('install_requires', []):
+                yield "core", PythonPackageRequirement.from_requirement_str(require)
 
     def get_declared_outputs(self, session, fixers=None):
         distribution = self._extract_setup(session, fixers)
-        if distribution is None:
-            raise NotImplementedError
-        for script in distribution['scripts']:
-            yield BinaryOutput(os.path.basename(script))
-        for script in distribution["entry_points"].get("console_scripts", []):
-            yield BinaryOutput(script.split("=")[0])
+        all_packages = set()
+        if distribution is not None:
+            for script in distribution['scripts']:
+                yield BinaryOutput(os.path.basename(script))
+            for script in distribution["entry_points"].get("console_scripts", []):
+                yield BinaryOutput(script.split("=")[0])
+            all_packages.update(distribution['packages'])
+        if self.config:
+            options = self.config.get('options', {})
+            all_packages.update(options.get('packages', []))
+            for script in options.get('scripts', []):
+                yield BinaryOutput(os.path.basename(script))
+            for script in options.get("entry_points", {}).get("console_scripts", []):
+                yield BinaryOutput(script.split("=")[0])
+
         packages = set()
-        for package in sorted(distribution['packages']):
+        for package in sorted(all_packages):
             pts = package.split('.')
             b = []
             for e in pts:
