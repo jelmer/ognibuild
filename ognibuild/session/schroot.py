@@ -59,7 +59,7 @@ class SchrootSession(Session):
         self.session_id = None
 
     def __enter__(self) -> "Session":
-        if self.es is not None:
+        if self.session_id is not None:
             raise SessionAlreadyOpen(self)
         try:
             self.session_id = (
