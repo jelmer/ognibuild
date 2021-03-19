@@ -1009,29 +1009,30 @@ BUILDSYSTEM_CLSES = [
     DistInkt, Gem, Make, PerlBuildTiny, Golang, R]
 
 
-def detect_buildsystems(path, trust_package=False):
+def scan_buildsystems(path):
     """Detect build systems."""
     ret = []
-    ret.extend(_detect_buildsystems_directory(path))
+    ret.extend([('.', bs) for bs in detect_buildsystems(path)])
 
     if not ret:
         # Nothing found. Try the next level?
         for entry in os.scandir(path):
             if entry.is_dir():
-                ret.extend(_detect_buildsystems_directory(entry.path))
+                ret.extend(
+                    [(entry.name, bs) for bs in detect_buildsystems(entry.path)])
 
     return ret
 
 
-def _detect_buildsystems_directory(path):
+def detect_buildsystems(path):
     for bs_cls in BUILDSYSTEM_CLSES:
         bs = bs_cls.probe(path)
         if bs is not None:
             yield bs
 
 
-def get_buildsystem(path, trust_package=False):
-    for buildsystem in detect_buildsystems(path, trust_package=trust_package):
+def get_buildsystem(path):
+    for buildsystem in detect_buildsystems(path):
         return buildsystem
 
     raise NoBuildToolsFound()
