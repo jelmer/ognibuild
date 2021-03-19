@@ -219,6 +219,8 @@ class SetupPy(BuildSystem):
         except FileNotFoundError:
             self.pyproject = None
 
+        self.build_backend = self.pyproject.get("build-system", {}).get('build-backend')
+
     def load_toml(self):
         import toml
 
@@ -298,6 +300,7 @@ class SetupPy(BuildSystem):
             raise NotImplementedError
 
     def dist(self, session, resolver, fixers, quiet=False):
+        # TODO(jelmer): Look at self.build_backend
         if self.has_setup_py:
             preargs = []
             if quiet:
