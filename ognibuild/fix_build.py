@@ -75,7 +75,7 @@ def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildF
         else:
             if retcode == 0:
                 return
-            lines = ''.join(contents).splitlines(True)
+            lines = ''.join(contents).splitlines(False)
             match, error = find_build_failure_description(lines)
             if error is None:
                 if match:
