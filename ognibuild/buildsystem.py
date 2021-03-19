@@ -709,7 +709,7 @@ class Make(BuildSystem):
                 except UnidentifiedError as e:
                     if (
                         "Gnulib not yet bootstrapped; "
-                        "run ./bootstrap instead.\n" in e.lines
+                        "run ./bootstrap instead." in e.lines
                     ):
                         run_with_build_fixers(session, ["./bootstrap"], fixers)
                         run_with_build_fixers(session, ["./autogen.sh"], fixers)
@@ -754,23 +754,23 @@ class Make(BuildSystem):
         try:
             run_with_build_fixers(session, ["make", "dist"], fixers)
         except UnidentifiedError as e:
-            if "make: *** No rule to make target 'dist'.  Stop.\n" in e.lines:
+            if "make: *** No rule to make target 'dist'.  Stop." in e.lines:
                 raise NotImplementedError
-            elif "make[1]: *** No rule to make target 'dist'. Stop.\n" in e.lines:
+            elif "make[1]: *** No rule to make target 'dist'. Stop." in e.lines:
                 raise NotImplementedError
             elif (
                 "Reconfigure the source tree "
-                "(via './config' or 'perl Configure'), please.\n"
+                "(via './config' or 'perl Configure'), please."
             ) in e.lines:
                 run_with_build_fixers(session, ["./config"], fixers)
                 run_with_build_fixers(session, ["make", "dist"], fixers)
             elif (
                 "Please try running 'make manifest' and then run "
-                "'make dist' again.\n" in e.lines
+                "'make dist' again." in e.lines
             ):
                 run_with_build_fixers(session, ["make", "manifest"], fixers)
                 run_with_build_fixers(session, ["make", "dist"], fixers)
-            elif "Please run ./configure first\n" in e.lines:
+            elif "Please run ./configure first" in e.lines:
                 run_with_build_fixers(session, ["./configure"], fixers)
                 run_with_build_fixers(session, ["make", "dist"], fixers)
             elif any(
@@ -778,7 +778,7 @@ class Make(BuildSystem):
                     re.match(
                         r"(Makefile|GNUmakefile|makefile):[0-9]+: "
                         r"\*\*\* Missing \'Make.inc\' "
-                        r"Run \'./configure \[options\]\' and retry.  Stop.\n",
+                        r"Run \'./configure \[options\]\' and retry.  Stop.",
                         line,
                     )
                     for line in e.lines
@@ -948,7 +948,7 @@ class Cabal(BuildSystem):
         try:
             run_with_build_fixers(session, ["runhaskell", "Setup.hs"] + args, fixers)
         except UnidentifiedError as e:
-            if "Run the 'configure' command first.\n" in e.lines:
+            if "Run the 'configure' command first." in e.lines:
                 run_with_build_fixers(
                     session, ["runhaskell", "Setup.hs", "configure"], fixers
                 )
