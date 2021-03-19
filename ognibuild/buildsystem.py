@@ -449,6 +449,8 @@ class Gradle(BuildSystem):
 
 class R(BuildSystem):
 
+    # https://r-pkgs.org/description.html
+
     name = "R"
 
     def __init__(self, path):
@@ -481,11 +483,17 @@ class R(BuildSystem):
             return BytesParser().parse(f)
 
     def get_declared_dependencies(self, session, fixers=None):
+        def parse_list(t):
+            return [s.strip() for s in t.split(',') if s.strip()]
         description = self._read_description()
         if 'Suggests' in description:
-            suggests = [s.strip() for s in description['Suggests'].split(',') if s.strip()]
-            for s in suggests:
-                # TODO(jelmer): Look at version
+            for s in parse_list(description['Suggests']):
+                yield "build", RPackageRequirement.from_str(s)
+        if 'Depends' in description:
+            for s in parse_list(description['Depends']):
+                yield "build", RPackageRequirement.from_str(s)
+        if 'Imports' in description:
+            for s in parse_list(description['Imports']):
                 yield "build", RPackageRequirement.from_str(s)
 
     def get_declared_outputs(self, session, fixers=None):
