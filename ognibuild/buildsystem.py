@@ -236,7 +236,10 @@ class SetupPy(BuildSystem):
 
     def load_setup_cfg(self):
         from setuptools.config import read_configuration
-        return read_configuration(os.path.join(self.path, 'setup.cfg'))
+        p = os.path.join(self.path, 'setup.cfg')
+        if os.path.exists(p):
+            return read_configuration(p)
+        raise FileNotFoundError(p)
 
     def _extract_setup(self, session=None, fixers=None):
         if session is None:
