@@ -107,6 +107,9 @@ def python_spec_to_apt_rels(pkg_name, specs):
                 next_maj_deb_version = Version('.'.join(parts))
                 rels.extend([{"name": pkg_name, "version": ('>=', deb_version)},
                              {"name": pkg_name, "version": ('<<', next_maj_deb_version)}])
+            elif spec[0] == '!=':
+                rels.extend([{"name": pkg_name, "version": ('>>', deb_version)},
+                             {"name": pkg_name, "version": ('<<', deb_version)}])
             else:
                 c = {">=": ">=", "<=": "<=", "<": "<<", ">": ">>", "==": "="}[spec[0]]
                 rels.append([{"name": pkg_name, "version": (c, deb_version)}])
