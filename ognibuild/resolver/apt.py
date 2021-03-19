@@ -489,12 +489,14 @@ def resolve_perl_file_req(apt_mgr, req):
 def _find_aclocal_fun(macro):
     # TODO(jelmer): Use the API for codesearch.debian.net instead?
     defun_prefix = b"AC_DEFUN([%s]," % macro.encode("ascii")
+    au_alias_prefix = b"AU_ALIAS([%s]," % macro.encode("ascii")
+    prefixes = [defun_prefix, au_alias_prefix]
     for entry in os.scandir("/usr/share/aclocal"):
         if not entry.is_file():
             continue
         with open(entry.path, "rb") as f:
             for line in f:
-                if line.startswith(defun_prefix):
+                if any([line.startswith(prefix) for prefix in prefixes]):
                     return entry.path
     raise KeyError
 
