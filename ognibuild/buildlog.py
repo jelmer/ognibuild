@@ -235,6 +235,8 @@ class ExplainInstallFixer(BuildFixer):
 
 
 def install_missing_reqs(session, resolver, reqs, explain=False):
+    if not reqs:
+        return
     missing = []
     for req in reqs:
         try:

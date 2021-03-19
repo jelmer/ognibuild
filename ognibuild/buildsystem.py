@@ -347,21 +347,25 @@ class SetupPy(BuildSystem):
 
     def _run_setup(self, session, resolver, args, fixers):
         from .buildlog import install_missing_reqs
-        distribution = self._extract_setup(session, fixers)
-        if distribution is not None:
-            # Install the setup_requires beforehand, since otherwise
-            # setuptools might fetch eggs instead of our preferred resolver.
-            install_missing_reqs(
-                session,
-                resolver,
-                [PythonPackageRequirement.from_requirement_str(require)
-                 for require in distribution['setup_requires']])
+        # Install the setup_requires beforehand, since otherwise
+        # setuptools might fetch eggs instead of our preferred resolver.
+        install_missing_reqs(session, resolver, list(self._setup_requires()))
         interpreter = shebang_binary(os.path.join(self.path, 'setup.py'))
         if interpreter is not None:
             run_with_build_fixers(session, ["./setup.py"] + args, fixers)
         else:
             # Just assume it's Python 3
             run_with_build_fixers(session, [self.DEFAULT_PYTHON, "./setup.py"] + args, fixers)
+
+    def _setup_requires(self):
+        if self.pyproject:
+            if "build-system" in self.pyproject:
+                for require in self.pyproject['build-system'].get("requires", []):
+                    yield PythonPackageRequirement.from_requirement_str(require)
+        if self.config:
+            options = self.config.get('options', {})
+            for require in options.get('setup_requires', []):
+                yield PythonPackageRequirement.from_requirement_str(require)
 
     def get_declared_dependencies(self, session, fixers=None):
         distribution = self._extract_setup(session, fixers)
