@@ -20,7 +20,7 @@
 import logging
 import os
 import re
-from typing import Optional
+from typing import Optional, Tuple
 import warnings
 
 from . import shebang_binary, UnidentifiedError
@@ -1031,8 +1031,8 @@ def detect_buildsystems(path):
             yield bs
 
 
-def get_buildsystem(path):
-    for buildsystem in detect_buildsystems(path):
-        return buildsystem
+def get_buildsystem(path: str) -> Tuple[str, BuildSystem]:
+    for subpath, buildsystem in scan_buildsystems(path):
+        return subpath, buildsystem
 
     raise NoBuildToolsFound()
