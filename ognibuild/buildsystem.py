@@ -681,7 +681,7 @@ class DistInkt(BuildSystem):
                 if not line.startswith(b";;"):
                     continue
                 try:
-                    (key, value) = line[2:].split(b"=", 1)
+                    (key, value) = line[2:].strip().split(b"=", 1)
                 except ValueError:
                     continue
                 if key.strip() == b"class" and value.strip().startswith(b"'Dist::Inkt"):
@@ -720,7 +720,7 @@ class DistInkt(BuildSystem):
     def get_declared_dependencies(self, session, fixers=None):
         out = session.check_output(["dzil", "authordeps"])
         for entry in out.splitlines():
-            yield "build", PerlModuleRequirement(entry.decode())
+            yield "build", PerlModuleRequirement(entry.decode().strip())
 
 
 class Make(BuildSystem):
