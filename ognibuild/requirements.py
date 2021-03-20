@@ -88,6 +88,9 @@ class BinaryRequirement(Requirement):
         super(BinaryRequirement, self).__init__("binary")
         self.binary_name = binary_name
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.binary_name)
+
     def met(self, session):
         p = session.Popen(
             ["which", self.binary_name], stdout=subprocess.DEVNULL,
