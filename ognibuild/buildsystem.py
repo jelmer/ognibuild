@@ -953,6 +953,8 @@ class Golang(BuildSystem):
 
     @classmethod
     def probe(cls, path):
+        if os.path.exists(os.path.join(path, 'go.mod')):
+            return Golang(path)
         for entry in os.scandir(path):
             if entry.name.endswith(".go"):
                 return Golang(path)
