@@ -163,7 +163,7 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         )
     elif isinstance(problem, MissingPythonDistribution):
         return PythonPackageRequirement(
-            problem.module,
+            problem.distribution,
             python_version=problem.python_version,
             minimum_version=problem.minimum_version,
         )
