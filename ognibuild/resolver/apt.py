@@ -19,6 +19,7 @@ from itertools import chain
 import logging
 import os
 import posixpath
+import re
 
 from debian.changelog import Version
 from debian.deb822 import PkgRelation
@@ -119,14 +120,14 @@ def python_spec_to_apt_rels(pkg_name, specs):
 def get_package_for_python_package(apt_mgr, package, python_version, specs=None):
     if python_version == "pypy":
         pkg_name = apt_mgr.get_package_for_paths(
-            ["/usr/lib/pypy/dist-packages/%s-.*.egg-info" % package.replace("-", "_")],
+            ["/usr/lib/pypy/dist-packages/%s-.*.egg-info" % re.escape(package.replace("-", "_"))],
             regex=True,
         )
     elif python_version == "cpython2":
         pkg_name = apt_mgr.get_package_for_paths(
             [
                 "/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info"
-                % package.replace("-", "_")
+                % re.escape(package.replace("-", "_"))
             ],
             regex=True,
         )
@@ -134,7 +135,7 @@ def get_package_for_python_package(apt_mgr, package, python_version, specs=None)
         pkg_name = apt_mgr.get_package_for_paths(
             [
                 "/usr/lib/python3/dist-packages/%s-.*.egg-info"
-                % package.replace("-", "_")
+                % re.escape(package.replace("-", "_"))
             ],
             regex=True,
         )
@@ -151,50 +152,50 @@ def get_package_for_python_module(apt_mgr, module, python_version, specs):
         paths = [
             posixpath.join(
                 "/usr/lib/python3/dist-packages",
-                module.replace(".", "/"),
+                re.escape(module.replace(".", "/")),
                 "__init__.py",
             ),
             posixpath.join(
-                "/usr/lib/python3/dist-packages", module.replace(".", "/") + ".py"
+                "/usr/lib/python3/dist-packages", re.escape(module.replace(".", "/")) + ".py"
             ),
             posixpath.join(
                 "/usr/lib/python3\\.[0-9]+/lib-dynload",
-                module.replace(".", "/") + "\\.cpython-.*\\.so",
+                re.escape(module.replace(".", "/")) + "\\.cpython-.*\\.so",
             ),
             posixpath.join(
-                "/usr/lib/python3\\.[0-9]+/", module.replace(".", "/") + ".py"
+                "/usr/lib/python3\\.[0-9]+/", re.escape(module.replace(".", "/")) + ".py"
             ),
             posixpath.join(
-                "/usr/lib/python3\\.[0-9]+/", module.replace(".", "/"), "__init__.py"
+                "/usr/lib/python3\\.[0-9]+/", re.escape(module.replace(".", "/")), "__init__.py"
             ),
         ]
     elif python_version == "cpython2":
         paths = [
             posixpath.join(
                 "/usr/lib/python2\\.[0-9]/dist-packages",
-                module.replace(".", "/"),
+                re.escape(module.replace(".", "/")),
                 "__init__.py",
             ),
             posixpath.join(
                 "/usr/lib/python2\\.[0-9]/dist-packages",
-                module.replace(".", "/") + ".py",
+                re.escape(module.replace(".", "/")) + ".py",
             ),
             posixpath.join(
                 "/usr/lib/python2.\\.[0-9]/lib-dynload",
-                module.replace(".", "/") + ".so",
+                re.escape(module.replace(".", "/")) + ".so",
             ),
         ]
     elif python_version == "pypy":
         paths = [
             posixpath.join(
-                "/usr/lib/pypy/dist-packages", module.replace(".", "/"), "__init__.py"
+                "/usr/lib/pypy/dist-packages", re.escape(module.replace(".", "/")), "__init__.py"
             ),
             posixpath.join(
-                "/usr/lib/pypy/dist-packages", module.replace(".", "/") + ".py"
+                "/usr/lib/pypy/dist-packages", re.escape(module.replace(".", "/")) + ".py"
             ),
             posixpath.join(
                 "/usr/lib/pypy/dist-packages",
-                module.replace(".", "/") + "\\.pypy-.*\\.so",
+                re.escape(module.replace(".", "/")) + "\\.pypy-.*\\.so",
             ),
         ]
     else:
@@ -225,7 +226,7 @@ def resolve_pkg_config_req(apt_mgr, req):
     )
     if package is None:
         package = apt_mgr.get_package_for_paths(
-            [posixpath.join("/usr/lib", ".*", "pkgconfig", req.module + ".pc")],
+            [posixpath.join("/usr/lib", ".*", "pkgconfig", re.escape(req.module) + "\\.pc")],
             regex=True,
         )
     if package is not None:
@@ -246,7 +247,7 @@ def resolve_c_header_req(apt_mgr, req):
     )
     if package is None:
         package = apt_mgr.get_package_for_paths(
-            [posixpath.join("/usr/include", ".*", req.header)], regex=True
+            [posixpath.join("/usr/include", ".*", re.escape(req.header))], regex=True
         )
     if package is None:
         return None
@@ -263,7 +264,7 @@ def resolve_js_runtime_req(apt_mgr, req):
 
 
 def resolve_vala_package_req(apt_mgr, req):
-    path = "/usr/share/vala-[0-9.]+/vapi/%s.vapi" % req.package
+    path = "/usr/share/vala-[0-9.]+/vapi/%s\\.vapi" % re.escape(req.package)
     package = apt_mgr.get_package_for_paths([path], regex=True)
     if package is not None:
         return AptRequirement.simple(package)
@@ -274,7 +275,7 @@ def resolve_ruby_gem_req(apt_mgr, req):
     paths = [
         posixpath.join(
             "/usr/share/rubygems-integration/all/"
-            "specifications/%s-.*\\.gemspec" % req.gem
+            "specifications/%s-.*\\.gemspec" % re.escape(req.gem)
         )
     ]
     package = apt_mgr.get_package_for_paths(paths, regex=True)
@@ -285,7 +286,7 @@ def resolve_ruby_gem_req(apt_mgr, req):
 
 def resolve_go_package_req(apt_mgr, req):
     package = apt_mgr.get_package_for_paths(
-        [posixpath.join("/usr/share/gocode/src", req.package, ".*")], regex=True
+        [posixpath.join("/usr/share/gocode/src", re.escape(req.package), ".*")], regex=True
     )
     if package is not None:
         return AptRequirement.simple(package)
@@ -309,7 +310,7 @@ def resolve_php_class_req(apt_mgr, req):
 
 
 def resolve_r_package_req(apt_mgr, req):
-    paths = [posixpath.join("/usr/lib/R/site-library/.*/R/%s$" % req.package)]
+    paths = [posixpath.join("/usr/lib/R/site-library/.*/R/%s$" % re.escape(req.package))]
     package = apt_mgr.get_package_for_paths(paths, regex=True)
     if package is not None:
         return AptRequirement.simple(package)
@@ -318,9 +319,9 @@ def resolve_r_package_req(apt_mgr, req):
 
 def resolve_node_package_req(apt_mgr, req):
     paths = [
-        "/usr/share/nodejs/.*/node_modules/%s/package.json" % req.package,
-        "/usr/lib/nodejs/%s/package.json" % req.package,
-        "/usr/share/nodejs/%s/package.json" % req.package,
+        "/usr/share/nodejs/.*/node_modules/%s/package\\.json" % req.package,
+        "/usr/lib/nodejs/%s/package\\.json" % re.escape(req.package),
+        "/usr/share/nodejs/%s/package\\.json" % re.escape(req.package),
     ]
     pkg_name = apt_mgr.get_package_for_paths(paths, regex=True)
     if pkg_name is not None:
@@ -330,10 +331,10 @@ def resolve_node_package_req(apt_mgr, req):
 
 def resolve_library_req(apt_mgr, req):
     paths = [
-        posixpath.join("/usr/lib/lib%s.so$" % req.library),
-        posixpath.join("/usr/lib/.*/lib%s.so$" % req.library),
-        posixpath.join("/usr/lib/lib%s.a$" % req.library),
-        posixpath.join("/usr/lib/.*/lib%s.a$" % req.library),
+        posixpath.join("/usr/lib/lib%s.so$" % re.escape(req.library)),
+        posixpath.join("/usr/lib/.*/lib%s.so$" % re.escape(req.library)),
+        posixpath.join("/usr/lib/lib%s.a$" % re.escape(req.library)),
+        posixpath.join("/usr/lib/.*/lib%s.a$" % re.escape(req.library)),
     ]
     pkg_name = apt_mgr.get_package_for_paths(paths, regex=True)
     if pkg_name is not None:
@@ -349,7 +350,7 @@ def resolve_ruby_file_req(apt_mgr, req):
     paths = [
         posixpath.join(
             r"/usr/share/rubygems-integration/all/gems/([^/]+)/"
-            "lib/%s.rb" % req.filename
+            "lib/%s\\.rb" % re.escape(req.filename)
         )
     ]
     pkg_name = apt_mgr.get_package_for_paths(paths, regex=True)
@@ -379,7 +380,7 @@ def resolve_xml_entity_req(apt_mgr, req):
 
 def resolve_sprockets_file_req(apt_mgr, req):
     if req.content_type == "application/javascript":
-        path = "/usr/share/.*/app/assets/javascripts/%s.js$" % req.name
+        path = "/usr/share/.*/app/assets/javascripts/%s\\.js$" % re.escape(req.name)
     else:
         logging.warning("unable to handle content type %s", req.content_type)
         return None
@@ -409,7 +410,7 @@ def resolve_java_class_req(apt_mgr, req):
 
 
 def resolve_haskell_package_req(apt_mgr, req):
-    path = "/var/lib/ghc/package.conf.d/%s-.*.conf" % req.deps[0][0]
+    path = "/var/lib/ghc/package\\.conf\\.d/%s-.*\\.conf" % re.escape(req.deps[0][0])
     pkg_name = apt_mgr.get_package_for_paths([path], regex=True)
     if pkg_name is not None:
         return AptRequirement.simple(pkg_name)
@@ -453,7 +454,7 @@ def resolve_gnome_common_req(apt_mgr, req):
 
 
 def resolve_jdk_file_req(apt_mgr, req):
-    path = req.jdk_path + ".*/" + req.filename
+    path = re.escape(req.jdk_path) + ".*/" + re.escape(req.filename)
     pkg_name = apt_mgr.get_package_for_paths([path], regex=True)
     if pkg_name is not None:
         return AptRequirement.simple(pkg_name)
@@ -544,7 +545,7 @@ def resolve_python_package_req(apt_mgr, req):
 
 def resolve_cargo_crate_req(apt_mgr, req):
     paths = [
-        '/usr/share/cargo/registry/%s-[0-9]+.*/Cargo.toml' % req.crate]
+        '/usr/share/cargo/registry/%s-[0-9]+.*/Cargo.toml' % re.escape(req.crate)]
     pkg_name = apt_mgr.get_package_for_paths(paths, regex=True)
     if pkg_name is None:
         return None
