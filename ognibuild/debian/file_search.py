@@ -280,8 +280,20 @@ def get_package_for_paths(
         logging.warning(
             "More than 1 packages found that contain %r: %r", path, candidates
         )
-        # Euhr. Pick the one with the shortest name?
-        return sorted(candidates, key=len)[0]
+        try:
+            from .udd import UDD
+        except ModuleNotFoundError:
+            logging.warning('Unable to import UDD, not ranking by popcon')
+            return sorted(candidates, key=len)[0]
+        udd = UDD()
+        udd.connect()
+        winner = udd.get_most_popular(candidates)
+        if winner is None:
+            logging.warning(
+                'No relevant popcon information found, not ranking by popcon')
+            return sorted(candidates, key=len)[0]
+        logging.info('Picked winner using popcon')
+        return winner
     else:
         return candidates.pop()
 
