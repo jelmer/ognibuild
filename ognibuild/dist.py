@@ -42,6 +42,7 @@ from buildlog_consultant.common import (
 
 from . import DetailedFailure, UnidentifiedError
 from .buildsystem import NoBuildToolsFound
+from .resolver import auto_resolver
 from .session import Session
 from .session.schroot import SchrootSession
 
@@ -138,7 +139,6 @@ def create_dist(
     subdir: Optional[str] = None,
 ) -> Optional[str]:
     from .buildsystem import detect_buildsystems
-    from .resolver.apt import AptResolver
     from .buildlog import InstallFixer
 
     if subdir is None:
@@ -158,7 +158,7 @@ def create_dist(
             raise
 
         buildsystems = list(detect_buildsystems(export_directory))
-        resolver = AptResolver.from_session(session)
+        resolver = auto_resolver(session)
         fixers = [InstallFixer(resolver)]
 
         with DistCatcher(export_directory) as dc:
