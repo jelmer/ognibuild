@@ -302,7 +302,9 @@ class SetupPy(BuildSystem):
         return "%s(%r)" % (type(self).__name__, self.path)
 
     def test(self, session, resolver, fixers):
-        if self.has_setup_py:
+        if os.path.exists(os.path.join(self.path, 'tox.ini')):
+            run_with_build_fixers(session, ['tox'], fixers)
+        elif self.has_setup_py:
             self._run_setup(session, resolver, ["test"], fixers)
         else:
             raise NotImplementedError
