@@ -507,6 +507,9 @@ class PgBuildExtOutOfDateControlFixer(BuildFixer):
     def can_fix(self, problem):
         return isinstance(problem, NeedPgBuildExtUpdateControl)
 
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )
+
     def _fix(self, error, context):
         logging.info("Running 'pg_buildext updatecontrol'")
         self.session.check_call(["pg_buildext", "updatecontrol"])

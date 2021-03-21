@@ -598,6 +598,9 @@ class AptResolver(Resolver):
     def __str__(self):
         return "apt"
 
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )
+
     @classmethod
     def from_session(cls, session):
         return cls(AptManager.from_session(session))
