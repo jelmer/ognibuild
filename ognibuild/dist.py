@@ -15,6 +15,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+__all__ = [
+    'UnidentifiedError',
+    'DetailedFailure',
+    'create_dist',
+    'create_dist_schroot',
+    ]
+
 import errno
 import logging
 import os
@@ -33,8 +40,10 @@ from buildlog_consultant.common import (
 )
 
 
-from . import DetailedFailure
+from . import DetailedFailure, UnidentifiedError
 from .buildsystem import NoBuildToolsFound
+from .resolver import auto_resolver
+from .session import Session
 from .session.schroot import SchrootSession
 
 
@@ -120,6 +129,60 @@ class DistCatcher(object):
         self.find_files()
         return False
 
+    def cleanup(self):
+        for path in self.files:
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.unlink(path)
+
+
+def create_dist(
+    session: Session,
+    tree: Tree,
+    target_dir: str,
+    packaging_tree: Optional[Tree] = None,
+    include_controldir: bool = True,
+    subdir: Optional[str] = None,
+    cleanup: bool = False
+) -> Optional[str]:
+    from .buildsystem import detect_buildsystems
+    from .buildlog import InstallFixer
+
+    if subdir is None:
+        subdir = "package"
+    if packaging_tree is not None:
+        from .debian import satisfy_build_deps
+
+        satisfy_build_deps(session, packaging_tree)
+
+    try:
+        export_directory, reldir = session.setup_from_vcs(
+            tree, include_controldir=include_controldir, subdir=subdir)
+    except OSError as e:
+        if e.errno == errno.ENOSPC:
+            raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
+        raise
+
+    buildsystems = list(detect_buildsystems(export_directory))
+    resolver = auto_resolver(session)
+    fixers = [InstallFixer(resolver)]
+
+    with DistCatcher(export_directory) as dc:
+        session.chdir(reldir)
+        run_dist(session, buildsystems, resolver, fixers)
+
+    try:
+        for path in dc.files:
+            shutil.copy(path, target_dir)
+            return os.path.join(target_dir, os.path.basename(path))
+    finally:
+        if cleanup:
+            dc.cleanup()
+
+    logging.info("No tarball created :(")
+    raise DistNoTarball()
+
 
 def create_dist_schroot(
     tree: Tree,
@@ -128,41 +191,15 @@ def create_dist_schroot(
     packaging_tree: Optional[Tree] = None,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
-) -> str:
-    from .buildsystem import detect_buildsystems
-    from .resolver.apt import AptResolver
-    from .buildlog import InstallFixer
-
-    if subdir is None:
-        subdir = "package"
+    cleanup: bool = False
+) -> Optional[str]:
     with SchrootSession(chroot) as session:
-        if packaging_tree is not None:
-            from .debian import satisfy_build_deps
-
-            satisfy_build_deps(session, packaging_tree)
-
-        try:
-            export_directory, reldir = session.setup_from_vcs(
-                tree, include_controldir=include_controldir, subdir=subdir)
-        except OSError as e:
-            if e.errno == errno.ENOSPC:
-                raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
-            raise
-
-        buildsystems = list(detect_buildsystems(export_directory))
-        resolver = AptResolver.from_session(session)
-        fixers = [InstallFixer(resolver)]
-
-        with DistCatcher(export_directory) as dc:
-            session.chdir(reldir)
-            run_dist(session, buildsystems, resolver, fixers)
-
-        for path in dc.files:
-            shutil.copy(path, target_dir)
-            return os.path.join(target_dir, os.path.basename(path))
-
-        logging.info("No tarball created :(")
-        raise DistNoTarball()
+        return create_dist(
+            session, tree, target_dir,
+            packaging_tree=packaging_tree,
+            include_controldir=include_controldir,
+            subdir=subdir,
+            cleanup=cleanup)
 
 
 if __name__ == "__main__":
@@ -222,6 +259,14 @@ if __name__ == "__main__":
     except (NoBuildToolsFound, NotImplementedError):
         logging.info("No build tools found, falling back to simple export.")
         export(tree, "dist.tar.gz", "tgz", None)
+    except NotImplementedError:
+        logging.info("Build system does not support dist tarball creation, "
+                     "falling back to simple export.")
+        export(tree, "dist.tar.gz", "tgz", None)
+    except UnidentifiedError as e:
+        logging.fatal('Unidentified error: %r', e.lines)
+    except DetailedFailure as e:
+        logging.fatal('Identified error during dist creation: %s', e.error)
     else:
-        print("Created %s" % ret)
+        logging.info("Created %s", ret)
     sys.exit(0)

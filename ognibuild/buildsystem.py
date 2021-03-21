@@ -188,6 +188,7 @@ if core._setup_distribution is None:
 
 d = core._setup_distribution
 r = {
+    'name': d.name,
     'setup_requires': getattr(d, "setup_requires", []),
     'install_requires': getattr(d, "install_requires", []),
     'tests_require': getattr(d, "tests_require", []) or [],
@@ -261,6 +262,7 @@ class SetupPy(BuildSystem):
             return None
 
         return {
+            'name': d.name,
             'setup_requires': getattr(d, "setup_requires", []),
             'install_requires': getattr(d, "install_requires", []),
             'tests_require': getattr(d, "tests_require", []) or [],
