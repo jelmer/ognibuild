@@ -25,7 +25,6 @@ from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .resolver import (
     auto_resolver,
     native_resolvers,
-    UnsatisfiedRequirements,
 )
 from .resolver.apt import AptResolver
 

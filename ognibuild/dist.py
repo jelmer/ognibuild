@@ -15,6 +15,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+__all__ = [
+    'UnidentifiedError',
+    'DetailedFailure',
+    'create_dist',
+    'create_dist_schroot',
+    ]
+
 import errno
 import logging
 import os
@@ -33,7 +40,7 @@ from buildlog_consultant.common import (
 )
 
 
-from . import DetailedFailure
+from . import DetailedFailure, UnidentifiedError
 from .buildsystem import NoBuildToolsFound
 from .session import Session
 from .session.schroot import SchrootSession
@@ -129,7 +136,7 @@ def create_dist(
     packaging_tree: Optional[Tree] = None,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
-) -> str:
+) -> Optional[str]:
     from .buildsystem import detect_buildsystems
     from .resolver.apt import AptResolver
     from .buildlog import InstallFixer
@@ -158,9 +165,16 @@ def create_dist(
             session.chdir(reldir)
             run_dist(session, buildsystems, resolver, fixers)
 
-        for path in dc.files:
-            shutil.copy(path, target_dir)
-            return os.path.join(target_dir, os.path.basename(path))
+        try:
+            for path in dc.files:
+                shutil.copy(path, target_dir)
+                return os.path.join(target_dir, os.path.basename(path))
+        finally:
+            for path in dc.files:
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.unlink(path)
 
         logging.info("No tarball created :(")
         raise DistNoTarball()
@@ -173,7 +187,7 @@ def create_dist_schroot(
     packaging_tree: Optional[Tree] = None,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
-) -> str:
+) -> Optional[str]:
     session = SchrootSession(chroot)
     return create_dist(
         session, tree, target_dir,
@@ -239,6 +253,14 @@ if __name__ == "__main__":
     except NoBuildToolsFound:
         logging.info("No build tools found, falling back to simple export.")
         export(tree, "dist.tar.gz", "tgz", None)
+    except NotImplementedError:
+        logging.info("Build system does not support dist tarball creation, "
+                     "falling back to simple export.")
+        export(tree, "dist.tar.gz", "tgz", None)
+    except UnidentifiedError as e:
+        logging.fatal('Unidentified error: %r', e.lines)
+    except DetailedFailure as e:
+        logging.fatal('Identified error during dist creation: %s', e.error)
     else:
-        print("Created %s" % ret)
+        logging.info("Created %s", ret)
     sys.exit(0)
