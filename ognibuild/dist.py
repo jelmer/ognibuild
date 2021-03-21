@@ -35,6 +35,7 @@ from buildlog_consultant.common import (
 
 from . import DetailedFailure
 from .buildsystem import NoBuildToolsFound
+from .session import Session
 from .session.schroot import SchrootSession
 
 
@@ -121,10 +122,10 @@ class DistCatcher(object):
         return False
 
 
-def create_dist_schroot(
+def create_dist(
+    session: Session,
     tree: Tree,
     target_dir: str,
-    chroot: str,
     packaging_tree: Optional[Tree] = None,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
@@ -135,7 +136,7 @@ def create_dist_schroot(
 
     if subdir is None:
         subdir = "package"
-    with SchrootSession(chroot) as session:
+    with session:
         if packaging_tree is not None:
             from .debian import satisfy_build_deps
 
@@ -163,6 +164,22 @@ def create_dist_schroot(
 
         logging.info("No tarball created :(")
         raise DistNoTarball()
+
+
+def create_dist_schroot(
+    tree: Tree,
+    target_dir: str,
+    chroot: str,
+    packaging_tree: Optional[Tree] = None,
+    include_controldir: bool = True,
+    subdir: Optional[str] = None,
+) -> str:
+    session = SchrootSession(chroot)
+    return create_dist(
+        session, tree, target_dir,
+        packaging_tree=packaging_tree,
+        include_controldir=include_controldir,
+        subdir=subdir)
 
 
 if __name__ == "__main__":
