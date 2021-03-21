@@ -322,13 +322,9 @@ class SetupPy(BuildSystem):
             self._run_setup(session, resolver, preargs + ["sdist"], fixers)
             return
         elif self.pyproject:
-            if "poetry" in self.pyproject.get("tool", []):
-                logging.debug(
-                    "Found pyproject.toml with poetry section, " "assuming poetry project."
-                )
-                run_with_build_fixers(session, ["poetry", "build", "-f", "sdist"], fixers)
-                return
-        raise AssertionError("no supported section in pyproject.toml")
+            run_with_build_fixers(session, [self.DEFAULT_PYTHON, "-m", "pep517.build", "--source"], fixers)
+            return
+        raise AssertionError("no setup.py or pyproject.toml")
 
     def clean(self, session, resolver, fixers):
         if self.has_setup_py:
