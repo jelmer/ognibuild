@@ -180,7 +180,7 @@ class AutopkgtestDependencyContext(DependencyContext):
     def add_dependency(self, requirement):
         return add_test_dependency(
             self.tree,
-            self.testname,
+            self.phase[1],
             requirement,
             committer=self.committer,
             subpath=self.subpath,
@@ -510,6 +510,7 @@ class PgBuildExtOutOfDateControlFixer(BuildFixer):
     def _fix(self, error, context):
         logging.info("Running 'pg_buildext updatecontrol'")
         self.session.check_call(["pg_buildext", "updatecontrol"])
+        # TODO(jelmer): Copy control file back
         return commit_debian_changes(
             context.tree,
             context.subpath,
@@ -655,10 +656,12 @@ def build_incrementally(
                     os.path.join(output_directory, "build.log.%d" % i)
                 ):
                     i += 1
+                target_path = os.path.join(output_directory, "build.log.%d" % i)
                 os.rename(
                     os.path.join(output_directory, "build.log"),
-                    os.path.join(output_directory, "build.log.%d" % i),
+                    target_path
                 )
+                logging.debug('Storing build log at %s', target_path)
 
 
 def main(argv=None):
@@ -701,6 +704,10 @@ def main(argv=None):
         '--schroot',
         type=str,
         help='chroot to use.')
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help='Be verbose')
 
     args = parser.parse_args()
     from breezy.workingtree import WorkingTree
@@ -710,7 +717,10 @@ def main(argv=None):
     import tempfile
     import contextlib
 
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+    else:
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     with contextlib.ExitStack() as es:
         if args.output_directory is None:
