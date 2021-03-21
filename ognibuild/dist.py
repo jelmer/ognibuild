@@ -129,6 +129,13 @@ class DistCatcher(object):
         self.find_files()
         return False
 
+    def cleanup(self):
+        for path in self.files:
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.unlink(path)
+
 
 def create_dist(
     session: Session,
@@ -137,47 +144,44 @@ def create_dist(
     packaging_tree: Optional[Tree] = None,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
+    cleanup: bool = False
 ) -> Optional[str]:
     from .buildsystem import detect_buildsystems
     from .buildlog import InstallFixer
 
     if subdir is None:
         subdir = "package"
-    with session:
-        if packaging_tree is not None:
-            from .debian import satisfy_build_deps
+    if packaging_tree is not None:
+        from .debian import satisfy_build_deps
 
-            satisfy_build_deps(session, packaging_tree)
+        satisfy_build_deps(session, packaging_tree)
 
-        try:
-            export_directory, reldir = session.setup_from_vcs(
-                tree, include_controldir=include_controldir, subdir=subdir)
-        except OSError as e:
-            if e.errno == errno.ENOSPC:
-                raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
-            raise
+    try:
+        export_directory, reldir = session.setup_from_vcs(
+            tree, include_controldir=include_controldir, subdir=subdir)
+    except OSError as e:
+        if e.errno == errno.ENOSPC:
+            raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
+        raise
 
-        buildsystems = list(detect_buildsystems(export_directory))
-        resolver = auto_resolver(session)
-        fixers = [InstallFixer(resolver)]
+    buildsystems = list(detect_buildsystems(export_directory))
+    resolver = auto_resolver(session)
+    fixers = [InstallFixer(resolver)]
 
-        with DistCatcher(export_directory) as dc:
-            session.chdir(reldir)
-            run_dist(session, buildsystems, resolver, fixers)
+    with DistCatcher(export_directory) as dc:
+        session.chdir(reldir)
+        run_dist(session, buildsystems, resolver, fixers)
 
-        try:
-            for path in dc.files:
-                shutil.copy(path, target_dir)
-                return os.path.join(target_dir, os.path.basename(path))
-        finally:
-            for path in dc.files:
-                if os.path.isdir(path):
-                    shutil.rmtree(path)
-                else:
-                    os.unlink(path)
+    try:
+        for path in dc.files:
+            shutil.copy(path, target_dir)
+            return os.path.join(target_dir, os.path.basename(path))
+    finally:
+        if cleanup:
+            dc.cleanup()
 
-        logging.info("No tarball created :(")
-        raise DistNoTarball()
+    logging.info("No tarball created :(")
+    raise DistNoTarball()
 
 
 def create_dist_schroot(
@@ -187,13 +191,15 @@ def create_dist_schroot(
     packaging_tree: Optional[Tree] = None,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
+    cleanup: bool = False
 ) -> Optional[str]:
-    session = SchrootSession(chroot)
-    return create_dist(
-        session, tree, target_dir,
-        packaging_tree=packaging_tree,
-        include_controldir=include_controldir,
-        subdir=subdir)
+    with SchrootSession(chroot) as session:
+        return create_dist(
+            session, tree, target_dir,
+            packaging_tree=packaging_tree,
+            include_controldir=include_controldir,
+            subdir=subdir,
+            cleanup=cleanup)
 
 
 if __name__ == "__main__":
