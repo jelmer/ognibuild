@@ -1009,6 +1009,8 @@ class Golang(BuildSystem):
     def probe(cls, path):
         if os.path.exists(os.path.join(path, 'go.mod')):
             return Golang(path)
+        if os.path.exists(os.path.join(path, 'go.sum')):
+            return Golang(path)
         for entry in os.scandir(path):
             if entry.name.endswith(".go"):
                 return Golang(path)
