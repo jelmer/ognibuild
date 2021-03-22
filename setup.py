@@ -29,7 +29,7 @@ setup(name="ognibuild",
       },
       install_requires=[
           'breezy',
-          'buildlog-consultant',
+          'buildlog-consultant>=0.0.4',
           'requirements-parser',
           ],
       extras_require={
