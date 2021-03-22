@@ -459,6 +459,8 @@ class Octave(BuildSystem):
             return False
         # Urgh, isn't there a better way to see if this is an octave package?
         for entry in os.scandir(path):
+            if entry.name.endswith('.m'):
+                return True
             if not entry.is_dir():
                 continue
             for subentry in os.scandir(entry.path):
