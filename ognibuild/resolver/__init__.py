@@ -132,6 +132,50 @@ class RResolver(Resolver):
             raise UnsatisfiedRequirements(missing)
 
 
+class OctaveForgeResolver(Resolver):
+    def __init__(self, session, user_local=False):
+        self.session = session
+        self.user_local = user_local
+
+    def __str__(self):
+        return "octave-forge"
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.session)
+
+    def _cmd(self, req):
+        # TODO(jelmer: Handle self.user_local
+        return ["octave-cli", "--eval", "pkg install -forge %s" % req.package]
+
+    def explain(self, requirements):
+        from ..requirements import OctavePackageRequirement
+
+        rreqs = []
+        for requirement in requirements:
+            if not isinstance(requirement, OctavePackageRequirement):
+                continue
+            rreqs.append(requirement)
+        if rreqs:
+            yield ([self._cmd(req) for req in rreqs])
+
+    def install(self, requirements):
+        from ..requirements import OctavePackageRequirement
+
+        if self.user_local:
+            user = None
+        else:
+            user = "root"
+
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, OctavePackageRequirement):
+                missing.append(requirement)
+                continue
+            self.session.check_call(self._cmd(requirement), user=user)
+        if missing:
+            raise UnsatisfiedRequirements(missing)
+
+
 class CRANResolver(RResolver):
 
     def __init__(self, session, user_local=False):
@@ -362,6 +406,7 @@ NATIVE_RESOLVER_CLS = [
     HackageResolver,
     CRANResolver,
     BioconductorResolver,
+    OctaveForgeResolver,
     ]
 
 

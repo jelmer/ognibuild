@@ -36,6 +36,7 @@ from .requirements import (
     NodePackageRequirement,
     CargoCrateRequirement,
     RPackageRequirement,
+    OctavePackageRequirement,
 )
 from .fix_build import run_with_build_fixers
 
@@ -453,9 +454,7 @@ class Octave(BuildSystem):
 
     @classmethod
     def exists(cls, path):
-        if not (
-                os.path.exists(os.path.join(path, "DESCRIPTION")) and
-                os.path.exists(os.path.join(path, "COPYING"))):
+        if not os.path.exists(os.path.join(path, "DESCRIPTION")):
             return False
         # Urgh, isn't there a better way to see if this is an octave package?
         for entry in os.scandir(path):
@@ -471,8 +470,22 @@ class Octave(BuildSystem):
     @classmethod
     def probe(cls, path):
         if cls.exists(path):
-            logging.debug("Found DESCRIPTION and COPYING, assuming octave package.")
+            logging.debug("Found DESCRIPTION, assuming octave package.")
             return cls(path)
+
+    def _read_description(self):
+        path = os.path.join(self.path, 'DESCRIPTION')
+        from email.parser import BytesParser
+        with open(path, 'rb') as f:
+            return BytesParser().parse(f)
+
+    def get_declared_dependencies(self, session, fixers=None):
+        def parse_list(t):
+            return [s.strip() for s in t.split(',') if s.strip()]
+        description = self._read_description()
+        if 'Depends' in description:
+            for s in parse_list(description['Depends']):
+                yield "build", OctavePackageRequirement.from_str(s)
 
 
 class Gradle(BuildSystem):

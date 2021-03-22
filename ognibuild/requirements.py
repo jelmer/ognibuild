@@ -278,6 +278,41 @@ class RPackageRequirement(Requirement):
         raise ValueError(text)
 
 
+class OctavePackageRequirement(Requirement):
+
+    package: str
+    minimum_version: Optional[str]
+
+    def __init__(self, package: str, minimum_version: Optional[str] = None):
+        super(OctavePackageRequirement, self).__init__("octave-package")
+        self.package = package
+        self.minimum_version = minimum_version
+
+    def __repr__(self):
+        return "%s(%r, minimum_version=%r)" % (
+            type(self).__name__,
+            self.package,
+            self.minimum_version,
+        )
+
+    def __str__(self):
+        if self.minimum_version:
+            return "Octave package: %s (>= %s)" % (self.package, self.minimum_version)
+        else:
+            return "Octave package: %s" % (self.package,)
+
+    @classmethod
+    def from_str(cls, text):
+        # TODO(jelmer): More complex parser
+        m = re.fullmatch(r'(.*) \(>= (.*)\)', text)
+        if m:
+            return cls(m.group(1), m.group(2))
+        m = re.fullmatch(r'([^ ]+)', text)
+        if m:
+            return cls(m.group(1))
+        raise ValueError(text)
+
+
 class LibraryRequirement(Requirement):
 
     library: str
