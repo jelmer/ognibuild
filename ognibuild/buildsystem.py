@@ -441,6 +441,38 @@ class SetupPy(BuildSystem):
             return cls(path)
 
 
+class Octave(BuildSystem):
+
+    name = "octave"
+
+    def __init__(self, path):
+        self.path = path
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
+    @classmethod
+    def exists(cls, path):
+        if not (
+                os.path.exists(os.path.join(path, "DESCRIPTION")) and
+                os.path.exists(os.path.join(path, "COPYING"))):
+            return False
+        # Urgh, isn't there a better way to see if this is an octave package?
+        for entry in os.scandir(path):
+            if not entry.is_dir():
+                continue
+            for subentry in os.scandir(entry.path):
+                if subentry.name.endswith('.m'):
+                    return True
+        return False
+
+    @classmethod
+    def probe(cls, path):
+        if cls.exists(path):
+            logging.debug("Found DESCRIPTION and COPYING, assuming octave package.")
+            return cls(path)
+
+
 class Gradle(BuildSystem):
 
     name = "gradle"
@@ -1060,7 +1092,7 @@ class PerlBuildTiny(BuildSystem):
 
 BUILDSYSTEM_CLSES = [
     Pear, SetupPy, Npm, Waf, Cargo, Meson, Cabal, Gradle, Maven,
-    DistInkt, Gem, Make, PerlBuildTiny, Golang, R]
+    DistInkt, Gem, Make, PerlBuildTiny, Golang, R, Octave]
 
 
 def scan_buildsystems(path):
