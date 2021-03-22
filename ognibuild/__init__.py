@@ -31,6 +31,8 @@ class DetailedFailure(Exception):
 
 
 class UnidentifiedError(Exception):
+    """An unidentified error."""
+
     def __init__(self, retcode, argv, lines, secondary=None):
         self.retcode = retcode
         self.argv = argv

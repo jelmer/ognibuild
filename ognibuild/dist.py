@@ -141,7 +141,6 @@ def create_dist(
     session: Session,
     tree: Tree,
     target_dir: str,
-    packaging_tree: Optional[Tree] = None,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
     cleanup: bool = False
@@ -151,11 +150,6 @@ def create_dist(
 
     if subdir is None:
         subdir = "package"
-    if packaging_tree is not None:
-        from .debian import satisfy_build_deps
-
-        satisfy_build_deps(session, packaging_tree)
-
     try:
         export_directory, reldir = session.setup_from_vcs(
             tree, include_controldir=include_controldir, subdir=subdir)
@@ -189,14 +183,18 @@ def create_dist_schroot(
     target_dir: str,
     chroot: str,
     packaging_tree: Optional[Tree] = None,
+    packaging_subpath: Optional[str] = None,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
     cleanup: bool = False
 ) -> Optional[str]:
     with SchrootSession(chroot) as session:
+        if packaging_tree is not None:
+            from .debian import satisfy_build_deps
+
+            satisfy_build_deps(session, packaging_tree, packaging_subpath)
         return create_dist(
             session, tree, target_dir,
-            packaging_tree=packaging_tree,
             include_controldir=include_controldir,
             subdir=subdir,
             cleanup=cleanup)
