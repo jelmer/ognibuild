@@ -140,7 +140,7 @@ class CRANResolver(RResolver):
 
 class BioconductorResolver(RResolver):
 
-    def __init__(self, session):
+    def __init__(self, session, user_local=False):
         super(BioconductorResolver, self).__init__(
             session, 'https://hedgehog.fhcrc.org/bioconductor', user_local=user_local)
 
