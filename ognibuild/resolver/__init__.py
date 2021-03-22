@@ -71,6 +71,8 @@ class CPANResolver(Resolver):
 
         if not self.user_local:
             user = "root"
+        else:
+            user = None
 
         missing = []
         for requirement in requirements:

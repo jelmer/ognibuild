@@ -51,6 +51,7 @@ issues (or lack of support for a particular ecosystem), please file a bug.
 - ninja, including ninja file generators:
     - meson
 - Node
+- Octave
 - Perl
     - Module::Build::Tiny
 - PHP Pear
