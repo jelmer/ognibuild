@@ -994,7 +994,7 @@ class Golang(BuildSystem):
         return "%s()" % (type(self).__name__)
 
     def test(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["go", "test"], fixers)
+        run_with_build_fixers(session, ["go", "test", "./..."], fixers)
 
     def build(self, session, resolver, fixers):
         run_with_build_fixers(session, ["go", "build"], fixers)
