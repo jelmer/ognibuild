@@ -352,10 +352,16 @@ class SetupPy(BuildSystem):
         install_missing_reqs(session, resolver, list(self._setup_requires()))
         interpreter = shebang_binary(os.path.join(self.path, 'setup.py'))
         if interpreter is not None:
-            run_with_build_fixers(session, ["./setup.py"] + args, fixers)
+            argv = ["./setup.py"] + args
         else:
             # Just assume it's Python 3
-            run_with_build_fixers(session, [self.DEFAULT_PYTHON, "./setup.py"] + args, fixers)
+            argv = [self.DEFAULT_PYTHON, "./setup.py"] + args
+        env = {}
+        # Inherit SETUPTOOLS_SCM_PRETEND_VERSION from the current environment
+        if 'SETUPTOOLS_SCM_PRETEND_VERSION' in os.environ:
+            env['SETUPTOOLS_SCM_PRETEND_VERSION'] = (
+                os.environ['SETUPTOOLS_SCM_PRETEND_VERSION'])
+        run_with_build_fixers(session, argv, fixers, env=env)
 
     def _setup_requires(self):
         if self.pyproject:
