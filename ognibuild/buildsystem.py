@@ -524,7 +524,8 @@ class R(BuildSystem):
 
     @classmethod
     def probe(cls, path):
-        if os.path.exists(os.path.join(path, 'DESCRIPTION')):
+        if (os.path.exists(os.path.join(path, 'DESCRIPTION')) and
+                os.path.exists(os.path.join(path, 'NAMESPACE'))):
             return cls(path)
 
     def _read_description(self):
