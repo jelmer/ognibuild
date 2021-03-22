@@ -16,7 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from buildlog_consultant.common import (
     find_build_failure_description,
@@ -63,11 +63,11 @@ class DependencyContext(object):
         raise NotImplementedError(self.add_dependency)
 
 
-def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer]):
+def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer], env: Optional[Dict[str, str]] = None):
     fixed_errors = []
     while True:
         try:
-            retcode, contents = run_with_tee(session, args)
+            retcode, contents = run_with_tee(session, args, env=env)
         except FileNotFoundError:
             error = MissingCommand(args[0])
             retcode = 1
