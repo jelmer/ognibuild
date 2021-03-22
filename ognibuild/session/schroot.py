@@ -32,6 +32,7 @@ class SchrootSession(Session):
     _cwd: Optional[str]
     _location: Optional[str]
     chroot: str
+    session_id: Optional[str]
 
     def __init__(self, chroot: str):
         if not isinstance(chroot, str):
