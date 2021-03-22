@@ -280,6 +280,8 @@ def get_package_for_paths(
         logging.warning(
             "More than 1 packages found that contain %r: %r", path, candidates
         )
+        # TODO(jelmer): Pick package based on what appears most commonly in
+        # build-depends{-indep,-arch}
         try:
             from .udd import UDD
         except ModuleNotFoundError:

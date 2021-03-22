@@ -147,7 +147,7 @@ def main():  # noqa: C901
         if args.resolve == "apt":
             resolver = AptResolver.from_session(session)
         elif args.resolve == "native":
-            resolver = native_resolvers(session)
+            resolver = native_resolvers(session, user_local=args.user)
         elif args.resolve == "auto":
             resolver = auto_resolver(session, explain=args.explain)
         logging.info("Using requirement resolver: %s", resolver)
