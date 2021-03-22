@@ -78,6 +78,7 @@ from .requirements import (
     GnomeCommonRequirement,
     JDKFileRequirement,
     JDKRequirement,
+    JRERequirement,
     PerlModuleRequirement,
     PerlFileRequirement,
     AutoconfMacroRequirement,
