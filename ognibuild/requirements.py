@@ -375,6 +375,12 @@ class JDKRequirement(Requirement):
         super(JDKRequirement, self).__init__("jdk")
 
 
+class JRERequirement(Requirement):
+
+    def __init__(self):
+        super(JRERequirement, self).__init__("jre")
+
+
 class PerlFileRequirement(Requirement):
 
     filename: str

@@ -35,6 +35,7 @@ from buildlog_consultant.common import (
     MissingXmlEntity,
     MissingJDKFile,
     MissingJDK,
+    MissingJRE,
     MissingNodeModule,
     MissingPhpClass,
     MissingRubyGem,
@@ -133,6 +134,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return JDKFileRequirement(problem.jdk_path, problem.filename)
     elif isinstance(problem, MissingJDK):
         return JDKRequirement()
+    elif isinstance(problem, MissingJRE):
+        return JRERequirement()
     elif isinstance(problem, MissingGnomeCommonDependency):
         if problem.package == "glib-gettext":
             return BinaryRequirement("glib-gettextize")
