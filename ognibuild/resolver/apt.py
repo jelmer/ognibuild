@@ -83,6 +83,9 @@ class AptRequirement(Requirement):
     def pkg_relation_str(self):
         return PkgRelation.str(self.relations)
 
+    def __hash__(self):
+        return hash((type(self), self.pkg_relation_str()))
+
     def __eq__(self, other):
         return isinstance(self, type(other)) and self.relations == other.relations
 
