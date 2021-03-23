@@ -163,6 +163,7 @@ def create_dist(
             raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
         raise
 
+    # TODO(jelmer): use scan_buildsystems to also look in subdirectories
     buildsystems = list(detect_buildsystems(export_directory))
     resolver = auto_resolver(session)
     fixers = [InstallFixer(resolver)]
