@@ -39,6 +39,10 @@ class UnidentifiedError(Exception):
         self.lines = lines
         self.secondary = secondary
 
+    def __repr__(self):
+        return "<%s(%r, %r, ..., secondary=%r)>" % (
+            type(self).__name__, self.retcode, self.argv, self.secondary)
+
 
 def shebang_binary(p):
     if not (os.stat(p).st_mode & stat.S_IEXEC):
