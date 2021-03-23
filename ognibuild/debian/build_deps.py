@@ -21,10 +21,7 @@
 class BuildDependencyTieBreaker(object):
 
     def __init__(self, rootdir):
-        import apt_pkg
-        apt_pkg.init()
-        apt_pkg.config.set('Dir', rootdir)
-        self._apt_cache = apt_pkg.SourceRecords()
+        self.rootdir = rootdir
         self._counts = None
 
     @classmethod
@@ -33,10 +30,14 @@ class BuildDependencyTieBreaker(object):
 
     def _count(self):
         counts = {}
-        self._apt_cache.restart()
-        while self._apt_cache.step():
+        import apt_pkg
+        apt_pkg.init()
+        apt_pkg.config.set('Dir', self.rootdir)
+        apt_cache = apt_pkg.SourceRecords()
+        apt_cache.restart()
+        while apt_cache.step():
             try:
-                for d in self._apt_cache.build_depends.values():
+                for d in apt_cache.build_depends.values():
                     for o in d:
                         for p in o:
                             counts.setdefault(p[0], 0)
