@@ -245,6 +245,8 @@ class SetupPy(BuildSystem):
         raise FileNotFoundError(p)
 
     def _extract_setup(self, session=None, fixers=None):
+        if not self.has_setup_py:
+            return {}
         if session is None:
             return self._extract_setup_direct()
         else:
@@ -308,6 +310,8 @@ class SetupPy(BuildSystem):
     def test(self, session, resolver, fixers):
         if os.path.exists(os.path.join(self.path, 'tox.ini')):
             run_with_build_fixers(session, ['tox'], fixers)
+        elif self.pyproject:
+            run_with_build_fixers(session, [self.DEFAULT_PYTHON, "-m", "pep517.check", "."], fixers)
         elif self.has_setup_py:
             # Pre-emptively insall setuptools, since distutils doesn't provide
             # a 'test' subcommand and some packages fall back to distutils
