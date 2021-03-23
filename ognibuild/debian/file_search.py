@@ -259,7 +259,9 @@ GENERATED_FILE_SEARCHER = GeneratedFileSearcher(
     {
         "/etc/locale.gen": "locales",
         # Alternative
-        "/usr/bin/rst2html": "/usr/share/docutils/scripts/python3/rst2html",
+        "/usr/bin/rst2html": "python3-docutils",
+        # aclocal is a symlink to aclocal-1.XY
+        "/usr/bin/aclocal": "automake",
     }
 )
 
