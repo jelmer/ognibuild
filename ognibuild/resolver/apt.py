@@ -83,6 +83,9 @@ class AptRequirement(Requirement):
     def pkg_relation_str(self):
         return PkgRelation.str(self.relations)
 
+    def __eq__(self, other):
+        return isinstance(self, type(other)) and self.relations == other.relations
+
     def __str__(self):
         return "apt requirement: %s" % self.pkg_relation_str()
 
