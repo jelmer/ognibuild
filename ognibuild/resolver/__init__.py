@@ -355,6 +355,11 @@ class NpmResolver(Resolver):
             BinaryRequirement,
             )
 
+        if self.user_local:
+            user = None
+        else:
+            user = "root"
+
         missing = []
         for requirement in requirements:
             if isinstance(requirement, BinaryRequirement):
@@ -370,7 +375,9 @@ class NpmResolver(Resolver):
             if not isinstance(requirement, NodePackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(["npm", "-g", "install", requirement.package])
+            self.session.check_call(
+                ["npm", "-g", "install", requirement.package],
+                user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
