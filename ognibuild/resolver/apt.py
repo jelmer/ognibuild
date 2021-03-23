@@ -58,6 +58,7 @@ from ..requirements import (
     AutoconfMacroRequirement,
     PythonModuleRequirement,
     PythonPackageRequirement,
+    CertificateAuthorityRequirement,
 )
 
 
@@ -557,6 +558,10 @@ def resolve_cargo_crate_req(apt_mgr, req):
     return AptRequirement.simple(pkg_name)
 
 
+def resolve_ca_req(apt_mgr, req):
+    return AptRequirement.simple('ca-certificates')
+
+
 APT_REQUIREMENT_RESOLVERS = [
     (BinaryRequirement, resolve_binary_req),
     (PkgConfigRequirement, resolve_pkg_config_req),
@@ -586,6 +591,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (AutoconfMacroRequirement, resolve_autoconf_macro_req),
     (PythonModuleRequirement, resolve_python_module_req),
     (PythonPackageRequirement, resolve_python_package_req),
+    (CertificateAuthorityRequirement, resolve_ca_req),
     (CargoCrateRequirement, resolve_cargo_crate_req),
 ]
 

@@ -416,6 +416,13 @@ class JRERequirement(Requirement):
         super(JRERequirement, self).__init__("jre")
 
 
+class CertificateAuthorityRequirement(Requirement):
+
+    def __init__(self, url):
+        super(CertificateAuthorityRequirement, self).__init__("ca-cert")
+        self.url = url
+
+
 class PerlFileRequirement(Requirement):
 
     filename: str

@@ -52,6 +52,7 @@ from buildlog_consultant.common import (
     MissingMavenArtifacts,
     GnomeCommonMissing,
     MissingGnomeCommonDependency,
+    UnknownCertificateAuthority,
 )
 
 from .fix_build import BuildFixer
@@ -84,6 +85,7 @@ from .requirements import (
     AutoconfMacroRequirement,
     PythonModuleRequirement,
     PythonPackageRequirement,
+    CertificateAuthorityRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -137,6 +139,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return JDKRequirement()
     elif isinstance(problem, MissingJRE):
         return JRERequirement()
+    elif isinstance(problem, UnknownCertificateAuthority):
+        return CertificateAuthorityRequirement(problem.url)
     elif isinstance(problem, MissingGnomeCommonDependency):
         if problem.package == "glib-gettext":
             return BinaryRequirement("glib-gettextize")
