@@ -92,6 +92,9 @@ class PlainSession(Session):
     def chdir(self, path):
         os.chdir(path)
 
+    def external_path(self, path):
+        return os.path.abspath(path)
+
     def setup_from_vcs(
             self, tree, include_controldir=None, subdir="package"):
         from ..vcs import dupe_vcs_tree, export_vcs_tree

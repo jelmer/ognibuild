@@ -177,17 +177,17 @@ class SchrootSession(Session):
         self.check_call(["mkdir", "-p", home], cwd="/", user="root")
         self.check_call(["chown", user, home], cwd="/", user="root")
 
-    def _fullpath(self, path: str) -> str:
+    def external_path(self, path: str) -> str:
         if self._cwd is None:
             raise ValueError("no cwd set")
         return os.path.join(self.location, os.path.join(self._cwd, path).lstrip("/"))
 
     def exists(self, path: str) -> bool:
-        fullpath = self._fullpath(path)
+        fullpath = self.external_path(path)
         return os.path.exists(fullpath)
 
     def scandir(self, path: str):
-        fullpath = self._fullpath(path)
+        fullpath = self.external_path(path)
         return os.scandir(fullpath)
 
     def setup_from_vcs(

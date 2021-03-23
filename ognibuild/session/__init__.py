@@ -97,6 +97,9 @@ class Session(object):
     def setup_from_directory(self, path, subdir="package") -> Tuple[str, str]:
         raise NotImplementedError(self.setup_from_directory)
 
+    def external_path(self, path: str) -> str:
+        raise NotImplementedError
+
 
 class SessionSetupFailure(Exception):
     """Session failed to be set up."""

@@ -22,6 +22,7 @@ __all__ = [
 from datetime import datetime
 import logging
 import os
+import shutil
 import sys
 from typing import List, Set, Optional, Type, Tuple
 
@@ -543,7 +544,9 @@ class PgBuildExtOutOfDateControlFixer(BuildFixer):
     def _fix(self, error, context):
         logging.info("Running 'pg_buildext updatecontrol'")
         self.session.check_call(["pg_buildext", "updatecontrol"])
-        # TODO(jelmer): Copy control file back
+        shutil.copy(
+            self.session.external_path('debian/control'),
+            context.tree.abspath(os.path.join(context.subpath, 'debian/control')))
         return commit_debian_changes(
             context.tree,
             context.subpath,
@@ -744,6 +747,8 @@ def main(argv=None):
 
     args = parser.parse_args()
     from breezy.workingtree import WorkingTree
+    import breezy.git
+    import breezy.bzr
     from .apt import AptManager
     from ..session.plain import PlainSession
     from ..session.schroot import SchrootSession
