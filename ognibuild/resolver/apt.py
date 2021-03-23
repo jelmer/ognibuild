@@ -249,7 +249,7 @@ def resolve_c_header_req(apt_mgr, req):
         apt_mgr,
         [posixpath.join("/usr/include", req.header)], regex=False)
     if not reqs:
-        reqs = find_package_names(
+        reqs = find_reqs_simple(
             apt_mgr,
             [posixpath.join("/usr/include", ".*", re.escape(req.header))], regex=True
         )
