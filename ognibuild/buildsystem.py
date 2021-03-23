@@ -40,6 +40,14 @@ from .requirements import (
     OctavePackageRequirement,
 )
 from .fix_build import run_with_build_fixers
+from .session import which
+
+
+def guaranteed_which(session, resolver, name):
+    path = which(session, name)
+    if not path:
+        resolver.install([BinaryRequirement(name)])
+    return which(session, name)
 
 
 class NoBuildToolsFound(Exception):
@@ -571,13 +579,16 @@ class R(BuildSystem):
         pass
 
     def dist(self, session, resolver, fixers, quiet=False):
-        run_with_build_fixers(session, ["R", "CMD", "build", "."], fixers)
+        r_path = guaranteed_which(session, resolver, "R")
+        run_with_build_fixers(session, [r_path, "CMD", "build", "."], fixers)
 
     def install(self, session, resolver, fixers, install_target):
-        run_with_build_fixers(session, ["R", "CMD", "INSTALL", "."], fixers)
+        r_path = guaranteed_which(session, resolver, "R")
+        run_with_build_fixers(session, [r_path, "CMD", "INSTALL", "."], fixers)
 
     def test(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["R", "CMD", "check", "."], fixers)
+        r_path = guaranteed_which(session, resolver, "R")
+        run_with_build_fixers(session, [r_path, "CMD", "check", "."], fixers)
 
     @classmethod
     def probe(cls, path):
