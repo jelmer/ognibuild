@@ -348,16 +348,25 @@ class NpmResolver(Resolver):
         return "%s(%r)" % (type(self).__name__, self.session)
 
     def install(self, requirements):
-        from ..requirements import NodePackageRequirement
+        from ..requirements import (
+            NodePackageRequirement,
+            NodeModuleRequirement,
+            BinaryRequirement,
+            )
 
         missing = []
         for requirement in requirements:
+            if isinstance(requirement, BinaryRequirement):
+                try:
+                    package = NPM_COMMAND_PACKAGES[requirement.command]
+                except KeyError:
+                    pass
+                else:
+                    requirement = NodePackageRequirement(package)
+            if isinstance(requirement, NodeModuleRequirement):
+                # TODO: Is this legit?
+                requirement = NodePackageRequirement(requirement.module.split('/')[0])
             if not isinstance(requirement, NodePackageRequirement):
-                missing.append(requirement)
-                continue
-            try:
-                package = NPM_COMMAND_PACKAGES[requirement.command]
-            except KeyError:
                 missing.append(requirement)
                 continue
             self.session.check_call(["npm", "-g", "install", package])
