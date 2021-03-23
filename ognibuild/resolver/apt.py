@@ -119,30 +119,21 @@ def python_spec_to_apt_rels(pkg_name, specs):
         return rels
 
 
-def get_package_for_python_package(apt_mgr, package, python_version, specs=None):
+def get_package_for_python_package(apt_mgr, package, python_version: Optional[str], specs=None):
+    pypy_regex = "/usr/lib/pypy/dist-packages/%s-.*.egg-info" % re.escape(package.replace("-", "_"))
+    cpython2_regex = "/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info" % re.escape(package.replace("-", "_"))
+    cpython3_regex = "/usr/lib/python3/dist-packages/%s-.*.egg-info" % re.escape(package.replace("-", "_"))
     if python_version == "pypy":
-        pkg_name = apt_mgr.get_package_for_paths(
-            ["/usr/lib/pypy/dist-packages/%s-.*.egg-info" % re.escape(package.replace("-", "_"))],
-            regex=True,
-        )
+        paths = [pypy_regex]
     elif python_version == "cpython2":
-        pkg_name = apt_mgr.get_package_for_paths(
-            [
-                "/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info"
-                % re.escape(package.replace("-", "_"))
-            ],
-            regex=True,
-        )
+        paths = [cpython2_regex]
     elif python_version == "cpython3":
-        pkg_name = apt_mgr.get_package_for_paths(
-            [
-                "/usr/lib/python3/dist-packages/%s-.*.egg-info"
-                % re.escape(package.replace("-", "_"))
-            ],
-            regex=True,
-        )
+        paths = [cpython3_regex]
+    elif python_version is None:
+        paths = [cpython3_regex, cpython2_regex, pypy_regex]
     else:
-        raise NotImplementedError
+        raise NotImplementedError('unsupported python version %d' % python_version)
+    pkg_name = apt_mgr.get_package_for_paths(paths, regex=True)
     if pkg_name is None:
         return None
     rels = python_spec_to_apt_rels(pkg_name, specs)
@@ -150,8 +141,7 @@ def get_package_for_python_package(apt_mgr, package, python_version, specs=None)
 
 
 def get_package_for_python_module(apt_mgr, module, python_version, specs):
-    if python_version == "cpython3":
-        paths = [
+    cpython3_regexes = [
             posixpath.join(
                 "/usr/lib/python3/dist-packages",
                 re.escape(module.replace(".", "/")),
@@ -171,8 +161,7 @@ def get_package_for_python_module(apt_mgr, module, python_version, specs):
                 "/usr/lib/python3\\.[0-9]+/", re.escape(module.replace(".", "/")), "__init__.py"
             ),
         ]
-    elif python_version == "cpython2":
-        paths = [
+    cpython2_regexes = [
             posixpath.join(
                 "/usr/lib/python2\\.[0-9]/dist-packages",
                 re.escape(module.replace(".", "/")),
@@ -187,8 +176,7 @@ def get_package_for_python_module(apt_mgr, module, python_version, specs):
                 re.escape(module.replace(".", "/")) + ".so",
             ),
         ]
-    elif python_version == "pypy":
-        paths = [
+    pypy_regexes = [
             posixpath.join(
                 "/usr/lib/pypy/dist-packages", re.escape(module.replace(".", "/")), "__init__.py"
             ),
@@ -200,6 +188,14 @@ def get_package_for_python_module(apt_mgr, module, python_version, specs):
                 re.escape(module.replace(".", "/")) + "\\.pypy-.*\\.so",
             ),
         ]
+    if python_version == "cpython3":
+        paths = cpython3_regexes
+    elif python_version == "cpython2":
+        paths = cpython2_regexes
+    elif python_version == "pypy":
+        paths = pypy_regexes
+    elif python_version is None:
+        paths = cpython3_regexes + cpython2_regexes + pypy_regexes
     else:
         raise AssertionError("unknown python version %r" % python_version)
     pkg_name = apt_mgr.get_package_for_paths(paths, regex=True)
@@ -395,7 +391,6 @@ def resolve_sprockets_file_req(apt_mgr, req):
 def resolve_java_class_req(apt_mgr, req):
     # Unfortunately this only finds classes in jars installed on the host
     # system :(
-    # TODO(jelmer): Call in session
     output = apt_mgr.session.check_output(
         ["java-propose-classpath", "-c" + req.classname]
     )
