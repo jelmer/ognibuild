@@ -34,8 +34,8 @@ class Resolver(object):
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
 
-    def met(self, requirement):
-        raise NotImplementedError(self.met)
+    def env(self):
+        return {}
 
 
 class CPANResolver(Resolver):
@@ -291,7 +291,7 @@ class GoResolver(Resolver):
 
     def __init__(self, session, user_local):
         self.session = session
-        # TODO(jelmer): Handle user_local=False
+        self.user_local = user_local
 
     def __str__(self):
         return "go"
@@ -302,12 +302,18 @@ class GoResolver(Resolver):
     def install(self, requirements):
         from ..requirements import GoPackageRequirement
 
+        if self.user_local:
+            env = {}
+        else:
+            # TODO(jelmer): Isn't this Debian-specific?
+            env = {'GOPATH': '/usr/share/gocode'}
+
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, GoPackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(["go", "get", requirement.package])
+            self.session.check_call(["go", "get", requirement.package], env=env)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -385,6 +391,13 @@ class StackedResolver(Resolver):
 
     def __str__(self):
         return "[" + ", ".join(map(str, self.subs)) + "]"
+
+    def env(self):
+        ret = {}
+        # Reversed so earlier resolvers override later ones
+        for sub in reversed(self.subs):
+            ret.update(sub.env())
+        return ret
 
     def explain(self, requirements):
         for sub in self.subs:
