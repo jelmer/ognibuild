@@ -121,7 +121,12 @@ def get_user(session):
 
 
 def which(session, name):
-    ret = session.check_output(["which", name], cwd="/").decode().strip()
+    try:
+        ret = session.check_output(["which", name], cwd="/").decode().strip()
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 1:
+            return None
+        raise
     if not ret:
         return None
     return ret
