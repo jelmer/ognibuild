@@ -441,28 +441,9 @@ def versioned_package_fixers(session, packaging_context):
     ]
 
 
-def udd_tie_breaker(candidates):
-    # TODO(jelmer): Pick package based on what appears most commonly in
-    # build-depends{-indep,-arch}
-    try:
-        from .udd import UDD
-    except ModuleNotFoundError:
-        logging.warning('Unable to import UDD, not ranking by popcon')
-        return sorted(candidates, key=len)[0]
-    udd = UDD()
-    udd.connect()
-    names = {list(c.package_names())[0]: c for c in candidates}
-    winner = udd.get_most_popular(list(names.keys()))
-    if winner is None:
-        logging.warning(
-            'No relevant popcon information found, not ranking by popcon')
-        return None
-    logging.info('Picked winner using popcon')
-    return names[winner]
-
-
 def apt_fixers(apt, packaging_context) -> List[BuildFixer]:
     from ..resolver.apt import AptResolver
+    from .udd import udd_tie_breaker
     apt_tie_breakers = [
         partial(python_tie_breaker, packaging_context.tree, packaging_context.subpath),
         udd_tie_breaker,

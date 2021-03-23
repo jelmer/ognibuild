@@ -17,6 +17,8 @@
 
 """Support for accessing UDD."""
 
+import logging
+
 
 class UDD(object):
 
@@ -37,3 +39,23 @@ class UDD(object):
             'SELECT package FROM popcon WHERE package IN %s ORDER BY insts DESC LIMIT 1',
             (tuple(packages), ))
         return cursor.fetchone()[0]
+
+
+def udd_tie_breaker(candidates):
+    # TODO(jelmer): Pick package based on what appears most commonly in
+    # build-depends{-indep,-arch}
+    try:
+        from .udd import UDD
+    except ModuleNotFoundError:
+        logging.warning('Unable to import UDD, not ranking by popcon')
+        return sorted(candidates, key=len)[0]
+    udd = UDD()
+    udd.connect()
+    names = {list(c.package_names())[0]: c for c in candidates}
+    winner = udd.get_most_popular(list(names.keys()))
+    if winner is None:
+        logging.warning(
+            'No relevant popcon information found, not ranking by popcon')
+        return None
+    logging.info('Picked winner using popcon')
+    return names[winner]
