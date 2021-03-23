@@ -264,40 +264,14 @@ GENERATED_FILE_SEARCHER = GeneratedFileSearcher(
 )
 
 
-def get_package_for_paths(
+def get_packages_for_paths(
     paths: List[str], searchers: List[FileSearcher], regex: bool = False
-) -> Optional[str]:
-    candidates: Set[str] = set()
+) -> List[str]:
+    candidates: List[str] = list()
     for path in paths:
         for searcher in searchers:
-            candidates.update(searcher.search_files(path, regex=regex))
-        if candidates:
-            break
-    if len(candidates) == 0:
-        logging.debug("No packages found that contain %r", paths)
-        return None
-    if len(candidates) > 1:
-        logging.warning(
-            "More than 1 packages found that contain %r: %r", path, candidates
-        )
-        # TODO(jelmer): Pick package based on what appears most commonly in
-        # build-depends{-indep,-arch}
-        try:
-            from .udd import UDD
-        except ModuleNotFoundError:
-            logging.warning('Unable to import UDD, not ranking by popcon')
-            return sorted(candidates, key=len)[0]
-        udd = UDD()
-        udd.connect()
-        winner = udd.get_most_popular(candidates)
-        if winner is None:
-            logging.warning(
-                'No relevant popcon information found, not ranking by popcon')
-            return sorted(candidates, key=len)[0]
-        logging.info('Picked winner using popcon')
-        return winner
-    else:
-        return candidates.pop()
+            candidates.extend(searcher.search_files(path, regex=regex))
+    return candidates
 
 
 def main(argv):
@@ -317,8 +291,9 @@ def main(argv):
     main_searcher.load_local()
     searchers = [main_searcher, GENERATED_FILE_SEARCHER]
 
-    package = get_package_for_paths(args.path, searchers=searchers, regex=args.regex)
-    print(package)
+    packages = get_packages_for_paths(args.path, searchers=searchers, regex=args.regex)
+    for package in packages:
+        print(package)
 
 
 if __name__ == '__main__':

@@ -20,6 +20,7 @@ __all__ = [
 ]
 
 from datetime import datetime
+from functools import partial
 import logging
 import os
 import shutil
@@ -131,11 +132,12 @@ class CircularDependency(Exception):
 
 class DebianPackagingContext(object):
 
-    def __init__(self, tree, subpath, committer, update_changelog):
+    def __init__(self, tree, subpath, committer, update_changelog, commit_reporter=None):
         self.tree = tree
         self.subpath = subpath
         self.committer = committer
         self.update_changelog = update_changelog
+        self.commit_reporter = commit_reporter
 
     def commit(self, summary: str, update_changelog: Optional[bool] = None) -> bool:
         if update_changelog is None:
@@ -149,7 +151,8 @@ class DebianPackagingContext(object):
                     debcommit(self.tree, committer=self.committer, subpath=self.subpath)
                 else:
                     self.tree.commit(
-                        message=summary, committer=self.committer, specific_files=[self.subpath]
+                        message=summary, committer=self.committer, specific_files=[self.subpath],
+                        reporter=self.commit_reporter
                     )
             except PointlessCommit:
                 return False
@@ -268,134 +271,36 @@ def add_test_dependency(context, testname, requirement):
     )
 
 
-def targeted_python_versions(tree: Tree, subpath: str) -> Set[str]:
+def targeted_python_versions(tree: Tree, subpath: str) -> List[str]:
     with tree.get_file(os.path.join(subpath, "debian/control")) as f:
         control = Deb822(f)
     build_depends = PkgRelation.parse_relations(control.get("Build-Depends", ""))
     all_build_deps: Set[str] = set()
     for or_deps in build_depends:
         all_build_deps.update(or_dep["name"] for or_dep in or_deps)
-    targeted = set()
-    if any(x.startswith("pypy") for x in all_build_deps):
-        targeted.add("pypy")
-    if any(x.startswith("python-") for x in all_build_deps):
-        targeted.add("cpython2")
+    targeted = []
     if any(x.startswith("python3-") for x in all_build_deps):
-        targeted.add("cpython3")
+        targeted.append("python3")
+    if any(x.startswith("pypy") for x in all_build_deps):
+        targeted.append("pypy")
+    if any(x.startswith("python-") for x in all_build_deps):
+        targeted.append("python")
     return targeted
 
 
-def fix_missing_python_distribution(error, phase, apt, context):  # noqa: C901
-    targeted = targeted_python_versions(context.tree, context.subpath)
-    default = not targeted
-
-    pypy_pkg = apt.get_package_for_paths(
-        ["/usr/lib/pypy/dist-packages/%s-.*.egg-info" % error.distribution], regex=True
-    )
-    if pypy_pkg is None:
-        pypy_pkg = "pypy-%s" % error.distribution
-        if not apt.package_exists(pypy_pkg):
-            pypy_pkg = None
-
-    py2_pkg = apt.get_package_for_paths(
-        ["/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info" % error.distribution],
-        regex=True,
-    )
-    if py2_pkg is None:
-        py2_pkg = "python-%s" % error.distribution
-        if not apt.package_exists(py2_pkg):
-            py2_pkg = None
-
-    py3_pkg = apt.get_package_for_paths(
-        ["/usr/lib/python3/dist-packages/%s-.*.egg-info" % error.distribution],
-        regex=True,
-    )
-    if py3_pkg is None:
-        py3_pkg = "python3-%s" % error.distribution
-        if not apt.package_exists(py3_pkg):
-            py3_pkg = None
-
-    extra_build_deps = []
-    if error.python_version == 2:
-        if "pypy" in targeted:
-            if not pypy_pkg:
-                logging.warning("no pypy package found for %s", error.module)
-            else:
-                extra_build_deps.append(pypy_pkg)
-        if "cpython2" in targeted or default:
-            if not py2_pkg:
-                logging.warning("no python 2 package found for %s", error.module)
-                return False
-            extra_build_deps.append(py2_pkg)
-    elif error.python_version == 3:
-        if not py3_pkg:
-            logging.warning("no python 3 package found for %s", error.module)
-            return False
-        extra_build_deps.append(py3_pkg)
-    else:
-        if py3_pkg and ("cpython3" in targeted or default):
-            extra_build_deps.append(py3_pkg)
-        if py2_pkg and ("cpython2" in targeted or default):
-            extra_build_deps.append(py2_pkg)
-        if pypy_pkg and "pypy" in targeted:
-            extra_build_deps.append(pypy_pkg)
-
-    if not extra_build_deps:
-        return False
-
-    for dep_pkg in extra_build_deps:
-        assert dep_pkg is not None
-        if not add_dependency(context, phase, dep_pkg):
-            return False
-    return True
-
-
-def fix_missing_python_module(error, phase, apt, context):
-    targeted = targeted_python_versions(context.tree, context.subpath)
-    default = not targeted
-
-    if error.minimum_version:
-        specs = [(">=", error.minimum_version)]
-    else:
-        specs = []
-
-    pypy_pkg = get_package_for_python_module(apt, error.module, "pypy", specs)
-    py2_pkg = get_package_for_python_module(apt, error.module, "cpython2", specs)
-    py3_pkg = get_package_for_python_module(apt, error.module, "cpython3", specs)
-
-    extra_build_deps = []
-    if error.python_version == 2:
-        if "pypy" in targeted:
-            if not pypy_pkg:
-                logging.warning("no pypy package found for %s", error.module)
-            else:
-                extra_build_deps.append(pypy_pkg)
-        if "cpython2" in targeted or default:
-            if not py2_pkg:
-                logging.warning("no python 2 package found for %s", error.module)
-                return False
-            extra_build_deps.append(py2_pkg)
-    elif error.python_version == 3:
-        if not py3_pkg:
-            logging.warning("no python 3 package found for %s", error.module)
-            return False
-        extra_build_deps.append(py3_pkg)
-    else:
-        if py3_pkg and ("cpython3" in targeted or default):
-            extra_build_deps.append(py3_pkg)
-        if py2_pkg and ("cpython2" in targeted or default):
-            extra_build_deps.append(py2_pkg)
-        if pypy_pkg and "pypy" in targeted:
-            extra_build_deps.append(pypy_pkg)
-
-    if not extra_build_deps:
-        return False
-
-    for dep_pkg in extra_build_deps:
-        assert dep_pkg is not None
-        if not add_dependency(context, phase, dep_pkg):
-            return False
-    return True
+def python_tie_breaker(tree, subpath, reqs):
+    targeted = targeted_python_versions(tree, subpath)
+    if not targeted:
+        return None
+    for prefix in targeted:
+        for req in reqs:
+            if any(name.startswith(prefix + '-') for name in req.package_names()):
+                logging.info(
+                    'Breaking tie between %r to %r, since package already '
+                    'has %r build-dependencies', [str(req) for req in reqs],
+                    str(req), prefix)
+                return req
+    return None
 
 
 def retry_apt_failure(error, phase, apt, context):
@@ -536,12 +441,34 @@ def versioned_package_fixers(session, packaging_context):
     ]
 
 
+def udd_tie_breaker(candidates):
+    # TODO(jelmer): Pick package based on what appears most commonly in
+    # build-depends{-indep,-arch}
+    try:
+        from .udd import UDD
+    except ModuleNotFoundError:
+        logging.warning('Unable to import UDD, not ranking by popcon')
+        return sorted(candidates, key=len)[0]
+    udd = UDD()
+    udd.connect()
+    names = {list(c.package_names())[0]: c for c in candidates}
+    winner = udd.get_most_popular(list(names.keys()))
+    if winner is None:
+        logging.warning(
+            'No relevant popcon information found, not ranking by popcon')
+        return None
+    logging.info('Picked winner using popcon')
+    return names[winner]
+
+
 def apt_fixers(apt, packaging_context) -> List[BuildFixer]:
     from ..resolver.apt import AptResolver
-    resolver = AptResolver(apt)
+    apt_tie_breakers = [
+        partial(python_tie_breaker, packaging_context.tree, packaging_context.subpath),
+        udd_tie_breaker,
+        ]
+    resolver = AptResolver(apt, apt_tie_breakers)
     return [
-        DependencyBuildFixer(packaging_context, apt, MissingPythonModule, fix_missing_python_module),
-        DependencyBuildFixer(packaging_context, apt, MissingPythonDistribution, fix_missing_python_distribution),
         DependencyBuildFixer(packaging_context, apt, AptFetchFailure, retry_apt_failure),
         PackageDependencyFixer(packaging_context, resolver),
     ]

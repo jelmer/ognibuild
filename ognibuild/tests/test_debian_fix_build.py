@@ -37,6 +37,7 @@ from ..debian.fix_build import (
     apt_fixers,
     DebianPackagingContext,
 )
+from breezy.commit import NullCommitReporter
 from breezy.tests import TestCaseWithTransport
 
 
@@ -99,7 +100,8 @@ blah (0.1) UNRELEASED; urgency=medium
         apt._searchers = [DummyAptSearcher(self._apt_files)]
         context = DebianPackagingContext(
             self.tree, subpath="", committer="ognibuild <ognibuild@jelmer.uk>",
-            update_changelog=True)
+            update_changelog=True,
+            commit_reporter=NullCommitReporter())
         fixers = versioned_package_fixers(session, context) + apt_fixers(apt, context)
         return resolve_error(error, ("build", ), fixers)
 
