@@ -150,7 +150,7 @@ def get_package_for_python_package(apt_mgr, package, python_version: Optional[st
     elif python_version is None:
         paths = [cpython3_regex, cpython2_regex, pypy_regex]
     else:
-        raise NotImplementedError('unsupported python version %d' % python_version)
+        raise NotImplementedError('unsupported python version %s' % python_version)
     names = find_package_names(apt_mgr, paths, regex=True)
     return [AptRequirement(python_spec_to_apt_rels(name, specs)) for name in names]
 
@@ -410,7 +410,7 @@ def resolve_maven_artifact_req(apt_mgr, req):
 
 
 def resolve_gnome_common_req(apt_mgr, req):
-    return AptRequirement.simple("gnome-common")
+    return [AptRequirement.simple("gnome-common")]
 
 
 def resolve_jdk_file_req(apt_mgr, req):
@@ -419,11 +419,11 @@ def resolve_jdk_file_req(apt_mgr, req):
 
 
 def resolve_jdk_req(apt_mgr, req):
-    return AptRequirement.simple('default-jdk')
+    return [AptRequirement.simple('default-jdk')]
 
 
 def resolve_jre_req(apt_mgr, req):
-    return AptRequirement.simple('default-jre')
+    return [AptRequirement.simple('default-jre')]
 
 
 def resolve_perl_module_req(apt_mgr, req):
@@ -502,7 +502,7 @@ def resolve_cargo_crate_req(apt_mgr, req):
 
 
 def resolve_ca_req(apt_mgr, req):
-    return AptRequirement.simple('ca-certificates')
+    return [AptRequirement.simple('ca-certificates')]
 
 
 APT_REQUIREMENT_RESOLVERS = [
