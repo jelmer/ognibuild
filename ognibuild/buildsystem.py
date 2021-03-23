@@ -327,7 +327,7 @@ class SetupPy(BuildSystem):
             self._run_setup(session, resolver, preargs + ["sdist"], fixers)
             return
         elif self.pyproject:
-            run_with_build_fixers(session, [self.DEFAULT_PYTHON, "-m", "pep517.build", "--source"], fixers)
+            run_with_build_fixers(session, [self.DEFAULT_PYTHON, "-m", "pep517.build", "--source", "."], fixers)
             return
         raise AssertionError("no setup.py or pyproject.toml")
 
