@@ -16,8 +16,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import logging
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 
+from buildlog_consultant import Problem
 from buildlog_consultant.common import (
     find_build_failure_description,
     MissingCommand,
@@ -32,35 +33,16 @@ from .session import Session, run_with_tee
 class BuildFixer(object):
     """Build fixer."""
 
-    def can_fix(self, problem):
+    def can_fix(self, problem: Problem):
         raise NotImplementedError(self.can_fix)
 
-    def _fix(self, problem, context):
+    def _fix(self, problem: Problem, phase: Tuple[str, ...]):
         raise NotImplementedError(self._fix)
 
-    def fix(self, problem, context):
+    def fix(self, problem: Problem, phase: Tuple[str, ...]):
         if not self.can_fix(problem):
             return None
-        return self._fix(problem, context)
-
-
-class DependencyContext(object):
-    def __init__(
-        self,
-        tree: MutableTree,
-        apt: AptManager,
-        subpath: str = "",
-        committer: Optional[str] = None,
-        update_changelog: bool = True,
-    ):
-        self.tree = tree
-        self.apt = apt
-        self.subpath = subpath
-        self.committer = committer
-        self.update_changelog = update_changelog
-
-    def add_dependency(self, package) -> bool:
-        raise NotImplementedError(self.add_dependency)
+        return self._fix(problem, phase)
 
 
 def run_detecting_problems(session: Session, args: List[str], **kwargs):
@@ -104,7 +86,7 @@ def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildF
             return
 
 
-def resolve_error(error, context, fixers):
+def resolve_error(error, phase, fixers):
     relevant_fixers = []
     for fixer in fixers:
         if fixer.can_fix(error):
@@ -114,7 +96,7 @@ def resolve_error(error, context, fixers):
         return False
     for fixer in relevant_fixers:
         logging.info("Attempting to use fixer %s to address %r", fixer, error)
-        made_changes = fixer.fix(error, context)
+        made_changes = fixer.fix(error, phase)
         if made_changes:
             return True
     return False

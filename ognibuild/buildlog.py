@@ -193,7 +193,7 @@ class InstallFixer(BuildFixer):
         req = problem_to_upstream_requirement(error)
         return req is not None
 
-    def fix(self, error, context):
+    def fix(self, error, phase):
         reqs = problem_to_upstream_requirement(error)
         if reqs is None:
             return False
@@ -228,7 +228,7 @@ class ExplainInstallFixer(BuildFixer):
         req = problem_to_upstream_requirement(error)
         return req is not None
 
-    def fix(self, error, context):
+    def fix(self, error, phase):
         reqs = problem_to_upstream_requirement(error)
         if reqs is None:
             return False

@@ -35,7 +35,7 @@ from ..debian.fix_build import (
     resolve_error,
     versioned_package_fixers,
     apt_fixers,
-    BuildDependencyContext,
+    DebianPackagingContext,
 )
 from breezy.tests import TestCaseWithTransport
 
@@ -97,16 +97,11 @@ blah (0.1) UNRELEASED; urgency=medium
         session = PlainSession()
         apt = AptManager(session)
         apt._searchers = [DummyAptSearcher(self._apt_files)]
-        context = BuildDependencyContext(
-            ("build", ),
-            self.tree,
-            apt,
-            subpath="",
-            committer="ognibuild <ognibuild@jelmer.uk>",
-            update_changelog=True,
-        )
-        fixers = versioned_package_fixers(session) + apt_fixers(apt)
-        return resolve_error(error, context, fixers)
+        context = DebianPackagingContext(
+            self.tree, subpath="", committer="ognibuild <ognibuild@jelmer.uk>",
+            update_changelog=True)
+        fixers = versioned_package_fixers(session, context) + apt_fixers(apt, context)
+        return resolve_error(error, ("build", ), fixers)
 
     def get_build_deps(self):
         with open(self.tree.abspath("debian/control"), "r") as f:
