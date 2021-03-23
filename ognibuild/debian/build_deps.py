@@ -50,8 +50,13 @@ class BuildDependencyTieBreaker(object):
             self._counts = self._count()
         by_count = {}
         for req in reqs:
-            by_count[req] = self._counts.get(list(req.package_names())[0])
-        return max(by_count.items(), key=lambda k: k[1] or 0)[0]
+            try:
+                by_count[req] = self._counts[list(req.package_names())[0]]
+            except KeyError:
+                pass
+        if not by_count:
+            return None
+        return max(by_count.items(), key=lambda k: k[1])[0]
 
 
 if __name__ == '__main__':
