@@ -1129,7 +1129,9 @@ class PerlBuildTiny(BuildSystem):
 
 BUILDSYSTEM_CLSES = [
     Pear, SetupPy, Npm, Waf, Cargo, Meson, Cabal, Gradle, Maven,
-    DistInkt, Gem, Make, PerlBuildTiny, Golang, R, Octave]
+    DistInkt, Gem, PerlBuildTiny, Golang, R, Octave,
+    # Make is intentionally at the end of the list.
+    Make]
 
 
 def scan_buildsystems(path):
