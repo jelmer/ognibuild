@@ -447,7 +447,7 @@ def apt_fixers(apt, packaging_context) -> List[BuildFixer]:
     from .build_deps import BuildDependencyTieBreaker
     apt_tie_breakers = [
         partial(python_tie_breaker, packaging_context.tree, packaging_context.subpath),
-        BuildDependencyTieBreaker.from_session(apt.sesion),
+        BuildDependencyTieBreaker.from_session(apt.session),
         udd_tie_breaker,
         ]
     resolver = AptResolver(apt, apt_tie_breakers)
