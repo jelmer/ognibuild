@@ -421,7 +421,7 @@ class DependencyBuildFixer(BuildFixer):
         self._fn = fn
 
     def __repr__(self):
-        return "%s(%s, %r, %s)" % (
+        return "%s(%s, %s)" % (
             type(self).__name__, self._problem_cls.__name__, self._fn.__name__)
 
     def can_fix(self, problem: Problem):
