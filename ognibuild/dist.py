@@ -111,12 +111,17 @@ class DistCatcher(object):
             logging.info("No tarballs found in dist directory.")
 
         parent_directory = os.path.dirname(self.export_directory)
-        diff = set(os.listdir(parent_directory)) - set([self.export_directory])
+        diff = (set(os.listdir(parent_directory)) -
+                set([os.path.basename(self.export_directory)]))
         if len(diff) == 1:
             fn = diff.pop()
-            logging.info("Found tarball %s in parent directory.", fn)
-            self.files.append(os.path.join(parent_directory, fn))
-            return fn
+            if is_dist_file(fn):
+                logging.info("Found tarball %s in parent directory.", fn)
+                self.files.append(os.path.join(parent_directory, fn))
+                return fn
+            logging.warning(
+                "Found file %s in parent directory, "
+                "but not in supported dist format", fn)
 
         if "dist" in new_files:
             for entry in os.scandir(os.path.join(self.export_directory, "dist")):
