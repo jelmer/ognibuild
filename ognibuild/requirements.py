@@ -281,7 +281,7 @@ class RPackageRequirement(Requirement):
     @classmethod
     def from_str(cls, text):
         # TODO(jelmer): More complex parser
-        m = re.fullmatch(r'(.*) \(>= (.*)\)', text)
+        m = re.fullmatch(r'(.*)\s+\(>= (.*)\)', text)
         if m:
             return cls(m.group(1), m.group(2))
         m = re.fullmatch(r'([^ ]+)', text)
@@ -316,7 +316,7 @@ class OctavePackageRequirement(Requirement):
     @classmethod
     def from_str(cls, text):
         # TODO(jelmer): More complex parser
-        m = re.fullmatch(r'(.*) \(>= (.*)\)', text)
+        m = re.fullmatch(r'(.*)\s+\(>= (.*)\)', text)
         if m:
             return cls(m.group(1), m.group(2))
         m = re.fullmatch(r'([^ ]+)', text)
