@@ -17,7 +17,7 @@
 
 
 import subprocess
-
+from ..fix_build import run_detecting_problems
 
 class UnsatisfiedRequirements(Exception):
     def __init__(self, reqs):
@@ -80,7 +80,7 @@ class CPANResolver(Resolver):
                 missing.append(requirement)
                 continue
             # TODO(jelmer): Specify -T to skip tests?
-            self.session.check_call(
+            run_detecting_problems(self.session,
                 ["cpan", "-i", requirement.module],
                 env=env,
                 user=user,

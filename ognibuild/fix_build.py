@@ -63,41 +63,45 @@ class DependencyContext(object):
         raise NotImplementedError(self.add_dependency)
 
 
-def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer], env: Optional[Dict[str, str]] = None):
+def run_detecting_problems(session: Session, args: List[str], **kwargs):
+    try:
+        retcode, contents = run_with_tee(session, args, **kwargs)
+    except FileNotFoundError:
+        error = MissingCommand(args[0])
+        retcode = 1
+    else:
+        if retcode == 0:
+            return
+        lines = ''.join(contents).splitlines(False)
+        match, error = find_build_failure_description(lines)
+        if error is None:
+            if match:
+                logging.warning("Build failed with unidentified error:")
+                logging.warning("%s", match.line.rstrip("\n"))
+            else:
+                logging.warning("Build failed and unable to find cause. Giving up.")
+            raise UnidentifiedError(retcode, args, lines, secondary=match)
+    raise DetailedFailure(retcode, args, error)
+
+
+def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer], **kwargs):
     fixed_errors = []
     while True:
         try:
-            retcode, contents = run_with_tee(session, args, env=env)
-        except FileNotFoundError:
-            error = MissingCommand(args[0])
-            retcode = 1
+            run_detecting_problems(session, args, **kwargs)
+        except DetailedFailure as e:
+            logging.info("Identified error: %r", e.error)
+            if e.error in fixed_errors:
+                logging.warning(
+                    "Failed to resolve error %r, it persisted. Giving up.", e.error
+                )
+                raise DetailedFailure(e.retcode, args, e.error)
+            if not resolve_error(e.error, None, fixers=fixers):
+                logging.warning("Failed to find resolution for error %r. Giving up.", e.error)
+                raise DetailedFailure(e.retcode, args, e.error)
+            fixed_errors.append(e.error)
         else:
-            if retcode == 0:
-                return
-            lines = ''.join(contents).splitlines(False)
-            match, error = find_build_failure_description(lines)
-            if error is None:
-                if match:
-                    logging.warning("Build failed with unidentified error:")
-                    logging.warning("%s", match.line.rstrip("\n"))
-                else:
-                    logging.warning("Build failed and unable to find cause. Giving up.")
-                raise UnidentifiedError(retcode, args, lines, secondary=match)
-
-        logging.info("Identified error: %r", error)
-        if error in fixed_errors:
-            logging.warning(
-                "Failed to resolve error %r, it persisted. Giving up.", error
-            )
-            raise DetailedFailure(retcode, args, error)
-        if not resolve_error(
-            error,
-            None,
-            fixers=fixers,
-        ):
-            logging.warning("Failed to find resolution for error %r. Giving up.", error)
-            raise DetailedFailure(retcode, args, error)
-        fixed_errors.append(error)
+            return
 
 
 def resolve_error(error, context, fixers):
