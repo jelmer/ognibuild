@@ -20,6 +20,7 @@
 import logging
 import os
 import re
+import stat
 from typing import Optional, Tuple
 import warnings
 
@@ -508,7 +509,7 @@ class Gradle(BuildSystem):
     @classmethod
     def from_path(cls, path):
         if os.path.exists(os.path.join(path, "gradlew")):
-            return cls(path, "./gradlew")
+            return cls(path, './gradlew')
         return cls(path)
 
     @classmethod
@@ -521,28 +522,31 @@ class Gradle(BuildSystem):
         if not self.executable.startswith('./'):
             resolver.install([BinaryRequirement(self.executable)])
 
-    def clean(self, session, resolver, fixers):
+    def _run(self, session, resolver, args, fixers):
         self.setup(resolver)
-        run_with_build_fixers(session, [self.executable, "clean"], fixers)
+        if self.executable.startswith('./') and (
+                not os.access(os.path.join(self.path, self.executable), os.X_OK)):
+            argv = ['sh', self.executable]
+        else:
+            argv = [self.executable]
+        run_with_build_fixers(session, argv + args, fixers)
+
+    def clean(self, session, resolver, fixers):
+        self._run(session, resolver, ['clean'], fixers)
 
     def build(self, session, resolver, fixers):
-        self.setup(resolver)
-        run_with_build_fixers(session, [self.executable, "build"], fixers)
+        self._run(session, resolver, ['build'], fixers)
 
     def test(self, session, resolver, fixers):
-        self.setup(resolver)
-        run_with_build_fixers(session, [self.executable, "test"], fixers)
+        self._run(session, resolver, ['test'], fixers)
 
     def dist(self, session, resolver, fixers, quiet=False):
-        self.setup(resolver)
-        run_with_build_fixers(session, [self.executable, "distTar"], fixers)
+        self._run(session, resolver, ['distTar'], fixers)
 
     def install(self, session, resolver, fixers, install_target):
         raise NotImplementedError
-        self.setup(resolver)
         # TODO(jelmer): installDist just creates files under build/install/...
-        run_with_build_fixers(
-            session, [self.executable, "installDist"], fixers)
+        self._run(session, resolver, ['installDist'], fixers)
 
 
 class R(BuildSystem):
