@@ -309,6 +309,10 @@ class SetupPy(BuildSystem):
         if os.path.exists(os.path.join(self.path, 'tox.ini')):
             run_with_build_fixers(session, ['tox'], fixers)
         elif self.has_setup_py:
+            # Pre-emptively insall setuptools, since distutils doesn't provide
+            # a 'test' subcommand and some packages fall back to distutils
+            # if setuptools is not available.
+            resolver.install([PythonPackageRequirement('setuptools')])
             self._run_setup(session, resolver, ["test"], fixers)
         else:
             raise NotImplementedError
