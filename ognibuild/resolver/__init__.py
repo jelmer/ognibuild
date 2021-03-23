@@ -370,7 +370,7 @@ class NpmResolver(Resolver):
             if not isinstance(requirement, NodePackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(["npm", "-g", "install", package])
+            self.session.check_call(["npm", "-g", "install", requirement.package])
         if missing:
             raise UnsatisfiedRequirements(missing)
 
