@@ -270,7 +270,9 @@ def get_packages_for_paths(
     candidates: List[str] = list()
     for path in paths:
         for searcher in searchers:
-            candidates.extend(searcher.search_files(path, regex=regex))
+            for pkg in searcher.search_files(path, regex=regex):
+                if pkg not in candidates:
+                    candidates.append(pkg)
     return candidates
 
 
