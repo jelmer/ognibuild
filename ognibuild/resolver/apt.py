@@ -569,8 +569,8 @@ class AptResolver(Resolver):
         return "%s()" % (type(self).__name__, )
 
     @classmethod
-    def from_session(cls, session):
-        return cls(AptManager.from_session(session))
+    def from_session(cls, session, tie_breakers=None):
+        return cls(AptManager.from_session(session), tie_breakers=tie_breakers)
 
     def install(self, requirements):
         missing = []
