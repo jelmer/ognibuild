@@ -361,11 +361,9 @@ class SetupPy(BuildSystem):
         # setuptools might fetch eggs instead of our preferred resolver.
         install_missing_reqs(session, resolver, list(self._setup_requires()))
         interpreter = shebang_binary(os.path.join(self.path, 'setup.py'))
-        if interpreter is not None:
-            argv = ["./setup.py"] + args
-        else:
-            # Just assume it's Python 3
-            argv = [self.DEFAULT_PYTHON, "./setup.py"] + args
+        if interpreter is None:
+            interpreter = self.DEFAULT_PYTHON
+        argv = [interpreter, "./setup.py"] + args
         env = {}
         # Inherit SETUPTOOLS_SCM_PRETEND_VERSION from the current environment
         if 'SETUPTOOLS_SCM_PRETEND_VERSION' in os.environ:
