@@ -359,7 +359,7 @@ class NpmResolver(Resolver):
         for requirement in requirements:
             if isinstance(requirement, BinaryRequirement):
                 try:
-                    package = NPM_COMMAND_PACKAGES[requirement.command]
+                    package = NPM_COMMAND_PACKAGES[requirement.binary_name]
                 except KeyError:
                     pass
                 else:
