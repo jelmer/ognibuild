@@ -86,6 +86,9 @@ class AptRequirement(Requirement):
     def __str__(self):
         return "apt requirement: %s" % self.pkg_relation_str()
 
+    def __repr__(self):
+        return "%s.from_str(%r)" % (type(self).__name__, self.pkg_relation_str())
+
     def package_names(self):
         for rel in self.relations:
             for entry in rel:
