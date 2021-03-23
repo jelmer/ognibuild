@@ -131,6 +131,18 @@ class NodePackageRequirement(Requirement):
         return "%s(%r)" % (type(self).__name__, self.package)
 
 
+class NodeModuleRequirement(Requirement):
+
+    module: str
+
+    def __init__(self, module):
+        super(NodeModuleRequirement, self).__init__("npm-module")
+        self.module = module
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.module)
+
+
 class CargoCrateRequirement(Requirement):
 
     crate: str

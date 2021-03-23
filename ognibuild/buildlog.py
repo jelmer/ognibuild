@@ -37,6 +37,7 @@ from buildlog_consultant.common import (
     MissingJDK,
     MissingJRE,
     MissingNodeModule,
+    MissingNodePackage,
     MissingPhpClass,
     MissingRubyGem,
     MissingLibrary,
@@ -86,6 +87,7 @@ from .requirements import (
     PythonModuleRequirement,
     PythonPackageRequirement,
     CertificateAuthorityRequirement,
+    NodeModuleRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -114,7 +116,9 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
     elif isinstance(problem, MissingRPackage):
         return RPackageRequirement(problem.package, problem.minimum_version)
     elif isinstance(problem, MissingNodeModule):
-        return NodePackageRequirement(problem.module)
+        return NodeModuleRequirement(problem.module)
+    elif isinstance(problem, MissingNodePackage):
+        return NodePackageRequirement(problem.package)
     elif isinstance(problem, MissingLibrary):
         return LibraryRequirement(problem.library)
     elif isinstance(problem, MissingRubyFile):

@@ -42,6 +42,7 @@ from ..requirements import (
     DhAddonRequirement,
     PhpClassRequirement,
     RPackageRequirement,
+    NodeModuleRequirement,
     NodePackageRequirement,
     LibraryRequirement,
     RubyFileRequirement,
@@ -293,6 +294,15 @@ def resolve_r_package_req(apt_mgr, req):
     return find_reqs_simple(apt_mgr, paths, regex=True)
 
 
+def resolve_node_module_req(apt_mgr, req):
+    paths = [
+        "/usr/share/nodejs/.*/node_modules/%s/index.js" % re.escape(req.module),
+        "/usr/lib/nodejs/%s/index.js" % re.escape(req.module),
+        "/usr/share/nodejs/%s/index.js" % re.escape(req.module),
+    ]
+    return find_reqs_simple(apt_mgr, paths, regex=True)
+
+
 def resolve_node_package_req(apt_mgr, req):
     paths = [
         "/usr/share/nodejs/.*/node_modules/%s/package\\.json" % re.escape(req.package),
@@ -507,6 +517,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (DhAddonRequirement, resolve_dh_addon_req),
     (PhpClassRequirement, resolve_php_class_req),
     (RPackageRequirement, resolve_r_package_req),
+    (NodeModuleRequirement, resolve_node_module_req),
     (NodePackageRequirement, resolve_node_package_req),
     (LibraryRequirement, resolve_library_req),
     (RubyFileRequirement, resolve_ruby_file_req),
