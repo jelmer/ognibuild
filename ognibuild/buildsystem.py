@@ -254,7 +254,7 @@ class SetupPy(BuildSystem):
 
     def _extract_setup(self, session=None, fixers=None):
         if not self.has_setup_py:
-            return {}
+            return None
         if session is None:
             return self._extract_setup_direct()
         else:
