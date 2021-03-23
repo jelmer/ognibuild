@@ -295,7 +295,7 @@ def resolve_r_package_req(apt_mgr, req):
 
 def resolve_node_package_req(apt_mgr, req):
     paths = [
-        "/usr/share/nodejs/.*/node_modules/%s/package\\.json" % req.package,
+        "/usr/share/nodejs/.*/node_modules/%s/package\\.json" % re.escape(req.package),
         "/usr/lib/nodejs/%s/package\\.json" % re.escape(req.package),
         "/usr/share/nodejs/%s/package\\.json" % re.escape(req.package),
     ]
