@@ -118,3 +118,10 @@ def run_with_tee(session: Session, args: List[str], **kwargs):
 
 def get_user(session):
     return session.check_output(["echo", "$USER"], cwd="/").decode().strip()
+
+
+def which(session, name):
+    ret = session.check_output(["which", name], cwd="/").decode().strip()
+    if not ret:
+        return None
+    return ret
