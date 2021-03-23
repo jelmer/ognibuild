@@ -41,7 +41,7 @@ class UDD(object):
         return cursor.fetchone()[0]
 
 
-def udd_tie_breaker(candidates):
+def popcon_tie_breaker(candidates):
     # TODO(jelmer): Pick package based on what appears most commonly in
     # build-depends{-indep,-arch}
     try:
