@@ -28,7 +28,7 @@ import os
 import shutil
 import sys
 import time
-from typing import Optional
+from typing import Optional, List
 
 from debian.deb822 import Deb822
 
@@ -152,7 +152,8 @@ def create_dist(
 ) -> Optional[str]:
     from .buildsystem import detect_buildsystems
     from .buildlog import InstallFixer
-    from .fixers import GitIdentityFixer
+    from .fix_build import BuildFixer
+    from .fixers import GitIdentityFixer, SecretGpgKeyFixer
 
     if subdir is None:
         subdir = "package"
@@ -167,7 +168,12 @@ def create_dist(
     # TODO(jelmer): use scan_buildsystems to also look in subdirectories
     buildsystems = list(detect_buildsystems(export_directory))
     resolver = auto_resolver(session)
-    fixers = [InstallFixer(resolver), GitIdentityFixer(session)]
+    fixers: List[BuildFixer] = [InstallFixer(resolver)]
+
+    if session.is_temporary:
+        # Only muck about with temporary sessions
+        fixers.extend([
+            GitIdentityFixer(session), SecretGpgKeyFixer(session)])
 
     with DistCatcher(export_directory) as dc:
         session.chdir(reldir)
