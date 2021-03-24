@@ -79,9 +79,9 @@ class PlainSession(Session):
         argv = self._prepend_user(user, argv)
         return subprocess.check_output(argv, cwd=cwd, env=env)
 
-    def Popen(self, args, stdout=None, stderr=None, user=None, cwd=None):
+    def Popen(self, args, stdout=None, stderr=None, user=None, cwd=None, env=None):
         args = self._prepend_user(user, args)
-        return subprocess.Popen(args, stdout=stdout, stderr=stderr, cwd=cwd)
+        return subprocess.Popen(args, stdout=stdout, stderr=stderr, cwd=cwd, env=env)
 
     def exists(self, path):
         return os.path.exists(path)
