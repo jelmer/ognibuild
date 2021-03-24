@@ -152,6 +152,7 @@ def create_dist(
 ) -> Optional[str]:
     from .buildsystem import detect_buildsystems
     from .buildlog import InstallFixer
+    from .fixers import GitIdentityFixer
 
     if subdir is None:
         subdir = "package"
@@ -166,7 +167,7 @@ def create_dist(
     # TODO(jelmer): use scan_buildsystems to also look in subdirectories
     buildsystems = list(detect_buildsystems(export_directory))
     resolver = auto_resolver(session)
-    fixers = [InstallFixer(resolver)]
+    fixers = [InstallFixer(resolver), GitIdentityFixer(session)]
 
     with DistCatcher(export_directory) as dc:
         session.chdir(reldir)
