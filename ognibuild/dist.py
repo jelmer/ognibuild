@@ -272,6 +272,8 @@ if __name__ == "__main__":
         logging.fatal('Unidentified error: %r', e.lines)
     except DetailedFailure as e:
         logging.fatal('Identified error during dist creation: %s', e.error)
+    except DistNoTarball:
+        logging.fatal('dist operation did not create a tarball')
     else:
         logging.info("Created %s", ret)
     sys.exit(0)
