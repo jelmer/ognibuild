@@ -20,6 +20,7 @@
 import logging
 import os
 import re
+import shlex
 import stat
 from typing import Optional, Tuple
 import warnings
@@ -679,8 +680,13 @@ class Npm(BuildSystem):
     def __init__(self, path):
         import json
 
+        self.path = path
+
         with open(path, "r") as f:
             self.package = json.load(f)
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
 
     def get_declared_dependencies(self, session, fixers=None):
         if "devDependencies" in self.package:
@@ -694,6 +700,30 @@ class Npm(BuildSystem):
     def dist(self, session, resolver, fixers, quiet=False):
         self.setup(resolver)
         run_with_build_fixers(session, ["npm", "pack"], fixers)
+
+    def test(self, session, resolver, fixers):
+        self.setup(resolver)
+        test_script = self.package['scripts'].get('test')
+        if test_script:
+            run_with_build_fixers(session, shlex.split(test_script), fixers)
+        else:
+            raise NotImplementedError
+
+    def build(self, session, resolver, fixers):
+        self.setup(resolver)
+        build_script = self.package['scripts'].get('build')
+        if build_script:
+            run_with_build_fixers(session, shlex.split(build_script), fixers)
+        else:
+            raise NotImplementedError
+
+    def clean(self, session, resolver, fixers):
+        self.setup(resolver)
+        clean_script = self.package['scripts'].get('clean')
+        if clean_script:
+            run_with_build_fixers(session, shlex.split(clean_script), fixers)
+        else:
+            raise NotImplementedError
 
     @classmethod
     def probe(cls, path):
