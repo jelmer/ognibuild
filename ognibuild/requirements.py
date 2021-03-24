@@ -459,6 +459,12 @@ class AutoconfMacroRequirement(Requirement):
         self.macro = macro
 
 
+class LibtoolRequirement(Requirement):
+
+    def __init__(self):
+        super(LibtoolRequirement, self).__init__("libtool")
+
+
 class PythonModuleRequirement(Requirement):
 
     module: str

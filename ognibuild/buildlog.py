@@ -54,6 +54,7 @@ from buildlog_consultant.common import (
     GnomeCommonMissing,
     MissingGnomeCommonDependency,
     UnknownCertificateAuthority,
+    MissingLibtool,
     MissingQt,
 )
 
@@ -90,6 +91,7 @@ from .requirements import (
     CertificateAuthorityRequirement,
     NodeModuleRequirement,
     QTRequirement,
+    LibtoolRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -147,6 +149,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return JRERequirement()
     elif isinstance(problem, MissingQt):
         return QTRequirement()
+    elif isinstance(problem, MissingLibtool):
+        return LibtoolRequirement()
     elif isinstance(problem, UnknownCertificateAuthority):
         return CertificateAuthorityRequirement(problem.url)
     elif isinstance(problem, MissingGnomeCommonDependency):
