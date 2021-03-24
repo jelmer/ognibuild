@@ -536,31 +536,39 @@ class Gradle(BuildSystem):
         if not self.executable.startswith('./'):
             resolver.install([BinaryRequirement(self.executable)])
 
-    def _run(self, session, resolver, args, fixers):
+    def _run(self, session, resolver, task, args, fixers):
         self.setup(resolver)
+        argv = []
         if self.executable.startswith('./') and (
                 not os.access(os.path.join(self.path, self.executable), os.X_OK)):
-            argv = ['sh', self.executable]
-        else:
-            argv = [self.executable]
-        run_with_build_fixers(session, argv + args, fixers)
+            argv.append('sh')
+        argv.extend([self.executable, task])
+        argv.extend(args)
+        try:
+            run_with_build_fixers(session, argv, fixers)
+        except UnidentifiedError as e:
+            if any([re.match(
+                    r"Task '" + task + "' not found in root project '.*'\.",
+                    line) for line in e.lines]):
+                raise NotImplementedError
+            raise
 
     def clean(self, session, resolver, fixers):
-        self._run(session, resolver, ['clean'], fixers)
+        self._run(session, resolver, 'clean', [], fixers)
 
     def build(self, session, resolver, fixers):
-        self._run(session, resolver, ['build'], fixers)
+        self._run(session, resolver, 'build', [], fixers)
 
     def test(self, session, resolver, fixers):
-        self._run(session, resolver, ['test'], fixers)
+        self._run(session, resolver, 'test', [], fixers)
 
     def dist(self, session, resolver, fixers, quiet=False):
-        self._run(session, resolver, ['distTar'], fixers)
+        self._run(session, resolver, 'distTar', [], fixers)
 
     def install(self, session, resolver, fixers, install_target):
         raise NotImplementedError
         # TODO(jelmer): installDist just creates files under build/install/...
-        self._run(session, resolver, ['installDist'], fixers)
+        self._run(session, resolver, 'installDist', [], fixers)
 
 
 class R(BuildSystem):
