@@ -753,10 +753,12 @@ class Gem(BuildSystem):
             return cls(gemfiles[0])
 
 
-class DistInkt(BuildSystem):
+class DistZilla(BuildSystem):
+
+    name = "dist-zilla"
+
     def __init__(self, path):
         self.path = path
-        self.name = "dist-zilla"
         self.dist_inkt_class = None
         with open(self.path, "rb") as f:
             for line in f:
@@ -790,7 +792,17 @@ class DistInkt(BuildSystem):
         else:
             # Default to invoking Dist::Zilla
             resolver.install([PerlModuleRequirement("Dist::Zilla")])
-            run_with_build_fixers(session, ["dzil", "build", "--in", "dist"], fixers)
+            run_with_build_fixers(session, ["dzil", "build", "--tgz"], fixers)
+
+    def test(self, session, resolver, fixers):
+        self.setup(resolver)
+        resolver.install([PerlModuleRequirement("Dist::Zilla")])
+        run_with_build_fixers(session, ["dzil", "test"], fixers)
+
+    def build(self, session, resolver, fixers):
+        self.setup(resolver)
+        resolver.install([PerlModuleRequirement("Dist::Zilla")])
+        run_with_build_fixers(session, ["dzil", "build"], fixers)
 
     @classmethod
     def probe(cls, path):
@@ -1137,7 +1149,7 @@ class PerlBuildTiny(BuildSystem):
 
 BUILDSYSTEM_CLSES = [
     Pear, SetupPy, Npm, Waf, Cargo, Meson, Cabal, Gradle, Maven,
-    DistInkt, Gem, PerlBuildTiny, Golang, R, Octave,
+    DistZilla, Gem, PerlBuildTiny, Golang, R, Octave,
     # Make is intentionally at the end of the list.
     Make]
 
