@@ -1103,6 +1103,23 @@ class Maven(BuildSystem):
             logging.debug("Found pom.xml, assuming maven package.")
             return cls(os.path.join(path, "pom.xml"))
 
+    def test(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["maven", "test"], fixers)
+
+    def clean(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["maven", "clean"], fixers)
+
+    def install(self, session, resolver, fixers, install_target):
+        run_with_build_fixers(session, ["maven", "install"], fixers)
+
+    def build(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["maven", "compile"], fixers)
+
+    def dist(self, session, resolver, fixers):
+        # TODO(jelmer): 'mvn generate-sources' creates a jar in target/.
+        # is that what we need?
+        raise NotImplementedError
+
 
 class Cabal(BuildSystem):
 
