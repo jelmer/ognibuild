@@ -215,3 +215,5 @@ class SchrootSession(Session):
         export_directory = os.path.join(directory, subdir)
         shutil.copytree(path, export_directory, dirs_exist_ok=True)
         return export_directory, os.path.join(reldir, subdir)
+
+    is_temporary = True

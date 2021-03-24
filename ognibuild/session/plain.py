@@ -112,3 +112,5 @@ class PlainSession(Session):
 
     def setup_from_directory(self, path):
         return path, path
+
+    is_temporary = False

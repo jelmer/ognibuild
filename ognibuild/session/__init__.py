@@ -100,6 +100,8 @@ class Session(object):
     def external_path(self, path: str) -> str:
         raise NotImplementedError
 
+    is_temporary: bool
+
 
 class SessionSetupFailure(Exception):
     """Session failed to be set up."""
