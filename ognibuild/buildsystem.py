@@ -1104,16 +1104,16 @@ class Maven(BuildSystem):
             return cls(os.path.join(path, "pom.xml"))
 
     def test(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["maven", "test"], fixers)
+        run_with_build_fixers(session, ["mvn", "test"], fixers)
 
     def clean(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["maven", "clean"], fixers)
+        run_with_build_fixers(session, ["mvn", "clean"], fixers)
 
     def install(self, session, resolver, fixers, install_target):
-        run_with_build_fixers(session, ["maven", "install"], fixers)
+        run_with_build_fixers(session, ["mvn", "install"], fixers)
 
     def build(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["maven", "compile"], fixers)
+        run_with_build_fixers(session, ["mvn", "compile"], fixers)
 
     def dist(self, session, resolver, fixers):
         # TODO(jelmer): 'mvn generate-sources' creates a jar in target/.
