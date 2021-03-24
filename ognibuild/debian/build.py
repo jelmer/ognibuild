@@ -36,6 +36,7 @@ from debmutate.changelog import get_maintainer, format_datetime
 from breezy import osutils
 from breezy.mutabletree import MutableTree
 from breezy.plugins.debian.builder import BuildFailedError
+from breezy.tree import Tree
 
 from buildlog_consultant.sbuild import (
     worker_failure_from_sbuild_log,
@@ -71,6 +72,18 @@ def get_build_architecture():
         raise Exception("Could not find the build architecture: %s" % e)
 
 
+def control_files_in_root(tree: Tree, subpath: str) -> bool:
+    debian_path = os.path.join(subpath, "debian")
+    if tree.has_filename(debian_path):
+        return False
+    control_path = os.path.join(subpath, "control")
+    if tree.has_filename(control_path):
+        return True
+    if tree.has_filename(control_path + ".in"):
+        return True
+    return False
+
+
 def add_dummy_changelog_entry(
     tree: MutableTree,
     subpath: str,
@@ -99,7 +112,10 @@ def add_dummy_changelog_entry(
         else:
             return v + suffix + "1"
 
-    path = os.path.join(subpath, "debian", "changelog")
+    if control_files_in_root(tree, subpath):
+        path = os.path.join(subpath, "changelog")
+    else:
+        path = os.path.join(subpath, "debian", "changelog")
     if maintainer is None:
         maintainer = get_maintainer()
     if timestamp is None:
@@ -126,7 +142,10 @@ def add_dummy_changelog_entry(
 
 
 def get_latest_changelog_version(local_tree, subpath=""):
-    path = osutils.pathjoin(subpath, "debian/changelog")
+    if control_files_in_root(local_tree, subpath):
+        path = os.path.join(subpath, "changelog")
+    else:
+        path = os.path.join(subpath, "debian", "changelog")
     with local_tree.get_file(path) as f:
         cl = Changelog(f, max_blocks=1)
         return cl.package, cl.version
