@@ -19,12 +19,13 @@ import subprocess
 from typing import Tuple
 
 from buildlog_consultant import Problem
+from buildlog_consultant.fix_build import BuildFixer
 from buildlog_consultant.common import (
     MissingGitIdentity,
     )
 
 
-class GitIdentityFixer(object):
+class GitIdentityFixer(BuildFixer):
 
     def __init__(self, session):
         self.session = session
