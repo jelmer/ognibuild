@@ -847,6 +847,28 @@ class DistZilla(BuildSystem):
             yield "build", PerlModuleRequirement(entry.decode().strip())
 
 
+class RunTests(BuildSystem):
+
+    name = "runtests"
+
+    def __init__(self, path):
+        self.path = path
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, "runtests.sh")):
+            return cls(path)
+
+    def test(self, session, resolver, fixers):
+        if shebang_binary(os.path.join(self.path, "runtests.sh")) is not None:
+            run_with_build_fixers(session, ["./runtests.sh"], fixers)
+        else:
+            run_with_build_fixers(session, ["/bin/bash", "./runtests.sh"], fixers)
+
+
 class Make(BuildSystem):
 
     name = "make"
@@ -1198,7 +1220,7 @@ BUILDSYSTEM_CLSES = [
     Pear, SetupPy, Npm, Waf, Cargo, Meson, Cabal, Gradle, Maven,
     DistZilla, Gem, PerlBuildTiny, Golang, R, Octave,
     # Make is intentionally at the end of the list.
-    Make]
+    Make, RunTests]
 
 
 def scan_buildsystems(path):
