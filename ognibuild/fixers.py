@@ -39,5 +39,5 @@ class GitIdentityFixer(BuildFixer):
             value = subprocess.check_output(
                 ['git', 'config', '--global', name]).decode().strip()
             self.session.check_call(
-                ['git', 'config', '--global', 'user.email', value])
+                ['git', 'config', '--global', name, value])
         return True
