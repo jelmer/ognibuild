@@ -1115,7 +1115,7 @@ class Maven(BuildSystem):
     def build(self, session, resolver, fixers):
         run_with_build_fixers(session, ["mvn", "compile"], fixers)
 
-    def dist(self, session, resolver, fixers):
+    def dist(self, session, resolver, fixers, quiet=False):
         # TODO(jelmer): 'mvn generate-sources' creates a jar in target/.
         # is that what we need?
         raise NotImplementedError
