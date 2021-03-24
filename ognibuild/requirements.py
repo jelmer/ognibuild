@@ -428,6 +428,12 @@ class JRERequirement(Requirement):
         super(JRERequirement, self).__init__("jre")
 
 
+class QTRequirement(Requirement):
+
+    def __init__(self):
+        super(QTRequirement, self).__init__("qt")
+
+
 class CertificateAuthorityRequirement(Requirement):
 
     def __init__(self, url):

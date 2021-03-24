@@ -55,6 +55,7 @@ from ..requirements import (
     JDKFileRequirement,
     JDKRequirement,
     JRERequirement,
+    QTRequirement,
     PerlModuleRequirement,
     PerlFileRequirement,
     AutoconfMacroRequirement,
@@ -435,6 +436,10 @@ def resolve_jre_req(apt_mgr, req):
     return [AptRequirement.simple('default-jre')]
 
 
+def resolve_qt_req(apt_mgr, req):
+    return find_reqs_simple(apt_mgr, ["/usr/lib/.*/qt[0-9]+/bin/qmake"], regex=True)
+
+
 def resolve_perl_module_req(apt_mgr, req):
     DEFAULT_PERL_PATHS = ["/usr/share/perl5"]
 
@@ -539,6 +544,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (JDKFileRequirement, resolve_jdk_file_req),
     (JDKRequirement, resolve_jdk_req),
     (JRERequirement, resolve_jre_req),
+    (QTRequirement, resolve_qt_req),
     (PerlModuleRequirement, resolve_perl_module_req),
     (PerlFileRequirement, resolve_perl_file_req),
     (AutoconfMacroRequirement, resolve_autoconf_macro_req),
