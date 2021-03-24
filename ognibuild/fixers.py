@@ -21,6 +21,7 @@ from typing import Tuple
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
     MissingGitIdentity,
+    MissingSecretGpgKey,
     )
 
 from .fix_build import BuildFixer
@@ -41,3 +42,31 @@ class GitIdentityFixer(BuildFixer):
             self.session.check_call(
                 ['git', 'config', '--global', name, value])
         return True
+
+
+class SecretGpgKeyFixer(BuildFixer):
+
+    def __init__(self, session):
+        self.session = session
+
+    def can_fix(self, problem: Problem):
+        return isinstance(problem, MissingSecretGpgKey)
+
+    def _fix(self, problem: Problem, phase: Tuple[str, ...]):
+        SCRIPT = b"""\
+Key-Type: 1
+Key-Length: 4096
+Subkey-Type: 1
+Subkey-Length: 4096
+Name-Real: Dummy Key for ognibuild
+Name-Email: dummy@example.com
+Expire-Date: 0
+Passphrase: ""
+"""
+        p = self.session.Popen(
+            ['gpg', '--gen-key', '--batch', '/dev/stdin'],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        p.communicate(SCRIPT)
+        if p.returncode == 0:
+            return True
+        return False
