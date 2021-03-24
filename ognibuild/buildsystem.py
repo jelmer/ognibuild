@@ -782,7 +782,7 @@ class DistInkt(BuildSystem):
         else:
             # Default to invoking Dist::Zilla
             resolver.install([PerlModuleRequirement("Dist::Zilla")])
-            run_with_build_fixers(session, ["dzil", "build", "--in", ".."], fixers)
+            run_with_build_fixers(session, ["dzil", "build", "--in", "dist"], fixers)
 
     @classmethod
     def probe(cls, path):
