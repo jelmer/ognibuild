@@ -115,7 +115,6 @@ from ..buildlog import problem_to_upstream_requirement
 from ..fix_build import BuildFixer, resolve_error
 from ..resolver.apt import (
     AptRequirement,
-    get_package_for_python_module,
 )
 from .build import attempt_build, DEFAULT_BUILDER
 
@@ -292,13 +291,20 @@ def python_tie_breaker(tree, subpath, reqs):
     targeted = targeted_python_versions(tree, subpath)
     if not targeted:
         return None
-    for prefix in targeted:
+
+    def same(pkg, python_version):
+        if pkg.startswith(python_version + '-'):
+            return True
+        if pkg.startswith('lib%s-' % python_version):
+            return True
+        return False
+    for python_version in targeted:
         for req in reqs:
-            if any(name.startswith(prefix + '-') for name in req.package_names()):
+            if any(same(name, python_version) for name in req.package_names()):
                 logging.info(
                     'Breaking tie between %r to %r, since package already '
                     'has %r build-dependencies', [str(req) for req in reqs],
-                    str(req), prefix)
+                    str(req), python_version)
                 return req
     return None
 
