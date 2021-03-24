@@ -244,6 +244,18 @@ class GeneratedFileSearcher(FileSearcher):
     def __init__(self, db):
         self._db = db
 
+    @classmethod
+    def from_path(cls, path):
+        self = cls({})
+        self.load_from_path(path)
+        return self
+
+    def load_from_path(self, path):
+        with open(path, 'r') as f:
+            for line in f:
+                (path, pkg) = line.strip().split(None, 1)
+                self._db[path] = pkg
+
     def search_files(self, path: str, regex: bool = False) -> Iterator[str]:
         for p, pkg in sorted(self._db.items()):
             if regex:
