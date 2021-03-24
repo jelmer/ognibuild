@@ -18,6 +18,9 @@
 """Tie breaking by build deps."""
 
 
+import logging
+
+
 class BuildDependencyTieBreaker(object):
 
     def __init__(self, rootdir):
@@ -57,7 +60,11 @@ class BuildDependencyTieBreaker(object):
                 pass
         if not by_count:
             return None
-        return max(by_count.items(), key=lambda k: k[1])[0]
+        top = max(by_count.items(), key=lambda k: k[1])
+        logging.info(
+            'Breaking tie between %r to %r based on build-depends count',
+            [repr(r) for r in reqs], top[0])
+        return top[0]
 
 
 if __name__ == '__main__':
