@@ -27,6 +27,9 @@ class BuildDependencyTieBreaker(object):
         self.rootdir = rootdir
         self._counts = None
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.rootdir)
+
     @classmethod
     def from_session(cls, session):
         return cls(session.location)
