@@ -458,6 +458,12 @@ class QTRequirement(Requirement):
         super(QTRequirement, self).__init__("qt")
 
 
+class X11Requirement(Requirement):
+
+    def __init__(self):
+        super(X11Requirement, self).__init__("x11")
+
+
 class CertificateAuthorityRequirement(Requirement):
 
     def __init__(self, url):

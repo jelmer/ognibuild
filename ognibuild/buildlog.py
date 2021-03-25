@@ -57,6 +57,7 @@ from buildlog_consultant.common import (
     UnknownCertificateAuthority,
     MissingLibtool,
     MissingQt,
+    MissingX11,
 )
 
 from .fix_build import BuildFixer
@@ -92,6 +93,7 @@ from .requirements import (
     CertificateAuthorityRequirement,
     NodeModuleRequirement,
     QTRequirement,
+    X11Requirement,
     LibtoolRequirement,
     VagueDependencyRequirement,
 )
@@ -153,6 +155,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return JRERequirement()
     elif isinstance(problem, MissingQt):
         return QTRequirement()
+    elif isinstance(problem, MissingX11):
+        return X11Requirement()
     elif isinstance(problem, MissingLibtool):
         return LibtoolRequirement()
     elif isinstance(problem, UnknownCertificateAuthority):

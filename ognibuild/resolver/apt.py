@@ -56,6 +56,7 @@ from ..requirements import (
     JDKRequirement,
     JRERequirement,
     QTRequirement,
+    X11Requirement,
     PerlModuleRequirement,
     PerlFileRequirement,
     AutoconfMacroRequirement,
@@ -451,6 +452,10 @@ def resolve_jre_req(apt_mgr, req):
     return [AptRequirement.simple('default-jre')]
 
 
+def resolve_x11_req(apt_mgr, req):
+    return [AptRequirement.simple('libx11-dev')]
+
+
 def resolve_qt_req(apt_mgr, req):
     return find_reqs_simple(apt_mgr, ["/usr/lib/.*/qt[0-9]+/bin/qmake"], regex=True)
 
@@ -570,6 +575,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (JDKRequirement, resolve_jdk_req),
     (JRERequirement, resolve_jre_req),
     (QTRequirement, resolve_qt_req),
+    (X11Requirement, resolve_x11_req),
     (LibtoolRequirement, resolve_libtool_req),
     (PerlModuleRequirement, resolve_perl_module_req),
     (PerlFileRequirement, resolve_perl_file_req),
