@@ -235,11 +235,18 @@ def get_package_for_python_module(apt_mgr, module, python_version, specs):
     return [AptRequirement(python_spec_to_apt_rels(name, specs)) for name in names]
 
 
+vague_map = {
+    'the Gnu Scientific Library': 'libgsl-dev',
+}
+
+
 def resolve_vague_dep_req(apt_mgr, req):
     name = req.name
+    options = []
+    if name in vague_map:
+        options.append(AptRequirement.simple(vague_map[name]))
     if name.startswith('gnu '):
         name = name[4:]
-    options = []
     for x in req.expand():
         options.extend(resolve_requirement_apt(apt_mgr, x))
     return options
