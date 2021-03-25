@@ -271,10 +271,21 @@ class RubyGemRequirement(Requirement):
 class GoPackageRequirement(Requirement):
 
     package: str
+    version: Optional[str]
 
-    def __init__(self, package: str):
-        super(GoPackageRequirement, self).__init__("go")
+    def __init__(self, package: str, version: Optional[str] = None):
+        super(GoPackageRequirement, self).__init__("go-package")
         self.package = package
+        self.version = version
+
+
+class GoRequirement(Requirement):
+
+    version: Optional[str]
+
+    def __init__(self, version: Optional[str] = None):
+        super(GoPackageRequirement, self).__init__("go")
+        self.version = version
 
 
 class DhAddonRequirement(Requirement):

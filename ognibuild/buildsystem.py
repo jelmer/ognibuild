@@ -42,6 +42,8 @@ from .requirements import (
     OctavePackageRequirement,
     PhpPackageRequirement,
     MavenArtifactRequirement,
+    GoRequirement,
+    GoPackageRequirement,
 )
 from .fix_build import run_with_build_fixers
 from .session import which
@@ -1164,6 +1166,26 @@ class Golang(BuildSystem):
 
     def clean(self, session, resolver, fixers):
         session.check_call(["go", "clean"])
+
+    def get_declared_dependencies(self, session, fixers=None):
+        go_mod_path = os.path.join(self.path, 'go.mod')
+        if not os.path.exists(go_mod_path):
+            with open(go_mod_path, 'r') as f:
+                for line in f:
+                    parts = line.strip().split(' ')
+                    if not parts:
+                        continue
+                    if parts[0] == 'go':
+                        yield "build", GoRequirement(parts[1])
+                    elif parts[0] == 'require':
+                        yield "build", GoPackageRequirement(
+                            parts[1], parts[2] if len(parts) > 2 else None)
+                    elif parts[0] in ('module', 'exclude', 'replace'):
+                        pass
+                    else:
+                        logging.warning(
+                            'Unknown directive %s in go.mod',
+                            parts[0])
 
     @classmethod
     def probe(cls, path):

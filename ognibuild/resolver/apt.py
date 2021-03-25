@@ -39,6 +39,7 @@ from ..requirements import (
     ValaPackageRequirement,
     RubyGemRequirement,
     GoPackageRequirement,
+    GoRequirement,
     DhAddonRequirement,
     PhpClassRequirement,
     PhpPackageRequirement,
@@ -306,6 +307,10 @@ def resolve_go_package_req(apt_mgr, req):
     )
 
 
+def resolve_go_req(apt_mgr, req):
+    return [AptRequirement.simple('golang-%s' % req.version)]
+
+
 def resolve_dh_addon_req(apt_mgr, req):
     paths = [posixpath.join("/usr/share/perl5", req.path)]
     return find_reqs_simple(apt_mgr, paths)
@@ -556,6 +561,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (ValaPackageRequirement, resolve_vala_package_req),
     (RubyGemRequirement, resolve_ruby_gem_req),
     (GoPackageRequirement, resolve_go_package_req),
+    (GoRequirement, resolve_go_req),
     (DhAddonRequirement, resolve_dh_addon_req),
     (PhpClassRequirement, resolve_php_class_req),
     (PhpPackageRequirement, resolve_php_package_req),
