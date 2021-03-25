@@ -429,11 +429,41 @@ class HaskellPackageRequirement(Requirement):
 
 class MavenArtifactRequirement(Requirement):
 
-    artifacts: List[Tuple[str, str, str]]
+    group_id: str
+    artifact_id: str
+    version: Optional[str]
+    kind: Optional[str]
 
-    def __init__(self, artifacts):
+    def __init__(self, group_id, artifact_id, version=None, kind=None):
         super(MavenArtifactRequirement, self).__init__("maven-artifact")
-        self.artifacts = artifacts
+        self.group_id = group_id
+        self.artifact_id = artifact_id
+        self.version = version
+        self.kind = kind
+
+    def __str__(self):
+        return "maven requirement: %s:%s:%s" % (
+            self.group_id, self.artifact_id, self.version)
+
+    @classmethod
+    def from_str(cls, text):
+        return cls.from_tuple(text.split(':'))
+
+    @classmethod
+    def from_tuple(cls, parts):
+        if len(parts) == 4:
+            (group_id, artifact_id, kind, version) = parts
+        elif len(parts) == 3:
+            (group_id, artifact_id, version) = parts
+            kind = "jar"
+        elif len(parts) == 2:
+            version = None
+            (group_id, artifact_id) = parts
+            kind = "jar"
+        else:
+            raise ValueError(
+                "invalid number of parts to artifact %r" % parts)
+        return cls(group_id, artifact_id, version, kind)
 
 
 class GnomeCommonRequirement(Requirement):

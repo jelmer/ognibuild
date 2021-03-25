@@ -412,32 +412,25 @@ def resolve_haskell_package_req(apt_mgr, req):
 
 
 def resolve_maven_artifact_req(apt_mgr, req):
-    artifact = req.artifacts[0]
-    parts = artifact.split(":")
-    if len(parts) == 4:
-        (group_id, artifact_id, kind, version) = parts
-        regex = False
-    elif len(parts) == 3:
-        (group_id, artifact_id, version) = parts
-        kind = "jar"
-        regex = False
-    elif len(parts) == 2:
+    if req.version is None:
         version = ".*"
-        (group_id, artifact_id) = parts
-        kind = "jar"
         regex = True
+        escape = re.escape
     else:
-        raise AssertionError("invalid number of parts to artifact %s" % artifact)
-    paths = [
-        posixpath.join(
-            "/usr/share/maven-repo",
-            group_id.replace(".", "/"),
-            artifact_id,
+        version = req.version
+        regex = False
+        def escape(x):
+            return x
+    kind = req.kind or 'jar'
+    path = posixpath.join(
+            escape("/usr/share/maven-repo"),
+            escape(req.group_id.replace(".", "/")),
+            escape(req.artifact_id),
             version,
-            "%s-%s.%s" % (artifact_id, version, kind),
+            escape("%s-") + version + escape("." + kind)
         )
-    ]
-    return find_reqs_simple(apt_mgr, paths, regex=regex)
+
+    return find_reqs_simple(apt_mgr, [path], regex=regex)
 
 
 def resolve_gnome_common_req(apt_mgr, req):

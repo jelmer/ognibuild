@@ -41,6 +41,7 @@ from .requirements import (
     RPackageRequirement,
     OctavePackageRequirement,
     PhpPackageRequirement,
+    MavenArtifactRequirement,
 )
 from .fix_build import run_with_build_fixers
 from .session import which
@@ -1208,6 +1209,23 @@ class Maven(BuildSystem):
         # TODO(jelmer): 'mvn generate-sources' creates a jar in target/.
         # is that what we need?
         raise NotImplementedError
+
+    def get_declared_dependencies(self, session, fixers=None):
+        import xml.etree.ElementTree as ET
+        try:
+            root = xmlparse_simplify_namespaces(self.path,
+                ['http://maven.apache.org/POM/4.0.0'])
+        except ET.ParseError as e:
+            logging.warning('Unable to parse package.xml: %s', e)
+            return
+        assert root.tag == 'project', 'root tag is %r' % root.tag
+        deps_tag = root.find('dependencies')
+        if deps_tag:
+            for dep in deps_tag.findall('dependency'):
+                yield "core", MavenArtifactRequirement(
+                    dep.find('groupId').text,
+                    dep.find('artifactId').text,
+                    dep.find('version').text)
 
 
 class Cabal(BuildSystem):
