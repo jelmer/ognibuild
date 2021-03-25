@@ -284,7 +284,7 @@ class GoRequirement(Requirement):
     version: Optional[str]
 
     def __init__(self, version: Optional[str] = None):
-        super(GoPackageRequirement, self).__init__("go")
+        super(GoRequirement, self).__init__("go")
         self.version = version
 
 

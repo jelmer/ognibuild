@@ -1146,7 +1146,7 @@ class Cargo(BuildSystem):
 
 def _parse_go_mod(f):
     line = f.readline()
-    while f:
+    while line:
         parts = line.strip().split(' ')
         if not parts:
             continue
@@ -1187,7 +1187,7 @@ class Golang(BuildSystem):
 
     def get_declared_dependencies(self, session, fixers=None):
         go_mod_path = os.path.join(self.path, 'go.mod')
-        if not os.path.exists(go_mod_path):
+        if os.path.exists(go_mod_path):
             with open(go_mod_path, 'r') as f:
                 for parts in _parse_go_mod(f):
                     if parts[0] == 'go':
