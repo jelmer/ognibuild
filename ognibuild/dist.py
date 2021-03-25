@@ -83,52 +83,59 @@ def run_dist(session, buildsystems, resolver, fixers, quiet=False):
 
 
 class DistCatcher(object):
-    def __init__(self, directory):
-        self.export_directory = directory
+    def __init__(self, directories):
+        self.directories = directories
         self.files = []
         self.existing_files = None
         self.start_time = time.time()
 
+    @classmethod
+    def default(cls, directory):
+        return cls([
+            os.path.join(directory, 'dist'),
+            directory,
+            os.path.join(directory, '..')])
+
     def __enter__(self):
-        self.existing_files = os.listdir(self.export_directory)
+        self.existing_files = {}
+        for directory in self.directories:
+            try:
+                self.existing_files[directory] = {
+                    entry.name: entry for entry in os.scandir(directory)}
+            except FileNotFoundError:
+                self.existing_files[directory] = {}
         return self
 
     def find_files(self):
-        new_files = os.listdir(self.export_directory)
-        diff_files = set(new_files) - set(self.existing_files)
-        diff = set([n for n in diff_files if is_dist_file(n)])
-        if len(diff) == 1:
-            fn = diff.pop()
-            logging.info("Found tarball %s in package directory.", fn)
-            self.files.append(os.path.join(self.export_directory, fn))
-            return fn
-        if "dist" in diff_files:
-            for entry in os.scandir(os.path.join(self.export_directory, "dist")):
-                if is_dist_file(entry.name):
-                    logging.info("Found tarball %s in dist directory.", entry.name)
-                    self.files.append(entry.path)
-                    return entry.name
-            logging.info("No tarballs found in dist directory.")
+        for directory in self.directories:
+            old_files = self.existing_files[directory]
+            possible_new = []
+            possible_updated = []
+            for entry in os.scandir(directory):
+                if not entry.is_file() or not is_dist_file(entry.name):
+                    continue
+                old_entry = old_files.get(entry.name)
+                if not old_entry:
+                    possible_new.append(entry)
+                    continue
+                if entry.stat().st_mtime < self.start_time:
+                    possible_updated.append(entry)
+                    continue
+            if len(possible_new) == 1:
+                fn = possible_new[0]
+                logging.info("Found new tarball %s in %s.", fn, directory)
+                self.files.append(os.path.join(directory, fn))
+                return entry.name
+            elif len(possible_new) > 1:
+                logging.warning(
+                    "Found multiple tarballs %r in %s.", possible_new, directory)
+                return
 
-        parent_directory = os.path.dirname(self.export_directory)
-        diff = (set(os.listdir(parent_directory)) -
-                set([os.path.basename(self.export_directory)]))
-        if len(diff) == 1:
-            fn = diff.pop()
-            if is_dist_file(fn):
-                logging.info("Found tarball %s in parent directory.", fn)
-                self.files.append(os.path.join(parent_directory, fn))
-                return fn
-            logging.warning(
-                "Found file %s in parent directory, "
-                "but not in supported dist format", fn)
-
-        if "dist" in new_files:
-            for entry in os.scandir(os.path.join(self.export_directory, "dist")):
-                if is_dist_file(entry.name) and entry.stat().st_mtime > self.start_time:
-                    logging.info("Found tarball %s in dist directory.", entry.name)
-                    self.files.append(entry.path)
-                    return entry.name
+            if len(possible_updated) == 1:
+                fn = possible_updated[0]
+                logging.info("Found updated tarball %s in %s.", fn, directory)
+                self.files.append(os.path.join(directory, fn))
+                return entry.name
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.find_files()
@@ -175,7 +182,7 @@ def create_dist(
         fixers.extend([
             GitIdentityFixer(session), SecretGpgKeyFixer(session)])
 
-    with DistCatcher(export_directory) as dc:
+    with DistCatcher.default(export_directory) as dc:
         session.chdir(reldir)
         run_dist(session, buildsystems, resolver, fixers)
 
