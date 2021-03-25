@@ -1145,21 +1145,26 @@ class Cargo(BuildSystem):
 
 
 def _parse_go_mod(f):
-    line = f.readline()
+    def readline():
+        line = f.readline()
+        if not line:
+            return line
+        return line.split('//')[0] + '\n'
+    line = readline()
     while line:
         parts = line.strip().split(' ')
         if not parts:
             continue
         if len(parts) == 2 and parts[1] == '(':
-            line = f.readline()
+            line = readline()
             while line.strip() != ')':
                 yield [parts[0]] + list(line.strip().split(' '))
-                line = f.readline()
+                line = readline()
                 if not line:
                     raise AssertionError('list of %s interrupted?' % parts[0])
         else:
             yield parts
-        line = f.readline()
+        line = readline()
 
 
 class Golang(BuildSystem):
@@ -1194,7 +1199,7 @@ class Golang(BuildSystem):
                         yield "build", GoRequirement(parts[1])
                     elif parts[0] == 'require':
                         yield "build", GoPackageRequirement(
-                            parts[1], parts[2] if len(parts) > 2 else None)
+                            parts[1], parts[2].lstrip('v') if len(parts) > 2 else None)
                     elif parts[0] == 'exclude':
                         pass  # TODO(jelmer): Create conflicts?
                     elif parts[0] == 'replace':

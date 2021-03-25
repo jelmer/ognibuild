@@ -278,6 +278,11 @@ class GoPackageRequirement(Requirement):
         self.package = package
         self.version = version
 
+    def __str__(self):
+        if self.version:
+            return "go package: %s (= %s)" % (self.package, self.version)
+        return "go package: %s" % self.package
+
 
 class GoRequirement(Requirement):
 
@@ -286,6 +291,9 @@ class GoRequirement(Requirement):
     def __init__(self, version: Optional[str] = None):
         super(GoRequirement, self).__init__("go")
         self.version = version
+
+    def __str__(self):
+        return "go %s" % self.version
 
 
 class DhAddonRequirement(Requirement):
