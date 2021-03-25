@@ -40,6 +40,7 @@ from buildlog_consultant.common import (
 
 
 from . import DetailedFailure, UnidentifiedError
+from .dist_catcher import DistNoTarball
 from .buildsystem import NoBuildToolsFound
 from .resolver import auto_resolver
 from .session import Session
@@ -123,7 +124,6 @@ if __name__ == "__main__":
     import breezy.bzr  # noqa: F401
     import breezy.git  # noqa: F401
     from breezy.export import export
-    from .dist_catcher import DistNoTarball
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
