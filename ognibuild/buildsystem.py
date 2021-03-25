@@ -692,7 +692,7 @@ class Npm(BuildSystem):
         return "%s(%r)" % (type(self).__name__, self.path)
 
     def get_declared_dependencies(self, session, fixers=None):
-        for 'dependencies' in self.package:
+        if 'dependencies' in self.package:
             for name, unused_version in self.package["dependencies"].items():
                 # TODO(jelmer): Look at version
                 yield "core", NodePackageRequirement(name)
