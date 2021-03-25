@@ -41,6 +41,7 @@ from buildlog_consultant.common import (
     MissingPhpClass,
     MissingRubyGem,
     MissingLibrary,
+    MissingSetupPyCommand,
     MissingJavaClass,
     MissingCSharpCompiler,
     MissingRPackage,
@@ -161,6 +162,10 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return LibtoolRequirement()
     elif isinstance(problem, UnknownCertificateAuthority):
         return CertificateAuthorityRequirement(problem.url)
+    elif isinstance(problem, MissingSetupPyCommand):
+        if problem.command == "test":
+            return MissingPythonDistribution("setuptools")
+        return None
     elif isinstance(problem, MissingGnomeCommonDependency):
         if problem.package == "glib-gettext":
             return BinaryRequirement("glib-gettextize")
