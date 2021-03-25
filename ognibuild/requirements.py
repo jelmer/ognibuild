@@ -119,6 +119,18 @@ class PerlModuleRequirement(Requirement):
         return "%s(%r)" % (type(self).__name__, self.module)
 
 
+class VagueDependencyRequirement(Requirement):
+
+    name: str
+
+    def __init__(self, name):
+        super(VagueDependencyRequirement, self).__init__("vague")
+        self.name = name
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.name)
+
+
 class NodePackageRequirement(Requirement):
 
     package: str

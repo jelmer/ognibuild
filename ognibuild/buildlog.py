@@ -49,6 +49,7 @@ from buildlog_consultant.common import (
     MissingValaPackage,
     MissingXfceDependency,
     MissingHaskellDependencies,
+    MissingVagueDependency,
     DhAddonLoadFailure,
     MissingMavenArtifacts,
     GnomeCommonMissing,
@@ -92,6 +93,7 @@ from .requirements import (
     NodeModuleRequirement,
     QTRequirement,
     LibtoolRequirement,
+    VagueDependencyRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -123,6 +125,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return NodeModuleRequirement(problem.module)
     elif isinstance(problem, MissingNodePackage):
         return NodePackageRequirement(problem.package)
+    elif isinstance(problem, MissingVagueDependency):
+        return VagueDependencyRequirement(problem.name)
     elif isinstance(problem, MissingLibrary):
         return LibraryRequirement(problem.library)
     elif isinstance(problem, MissingRubyFile):
