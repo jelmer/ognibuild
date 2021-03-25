@@ -234,8 +234,8 @@ def resolve_vague_dep_req(apt_mgr, req):
     if name.startswith('gnu '):
         name = name[4:]
     options = []
-    options.extend(resolve_binary_req(apt_mgr, [BinaryRequirement(name)]))
-    options.extend(resolve_library_req(apt_mgr, [LibraryRequirement(name)]))
+    for x in req.expand():
+        options.extend(resolve_requirement_apt(apt_mgr, x))
     return options
 
 
@@ -535,7 +535,12 @@ def resolve_ca_req(apt_mgr, req):
     return [AptRequirement.simple('ca-certificates')]
 
 
+def resolve_apt_req(apt_mgr, req):
+    return [req]
+
+
 APT_REQUIREMENT_RESOLVERS = [
+    (AptRequirement, resolve_apt_req),
     (BinaryRequirement, resolve_binary_req),
     (VagueDependencyRequirement, resolve_vague_dep_req),
     (PkgConfigRequirement, resolve_pkg_config_req),

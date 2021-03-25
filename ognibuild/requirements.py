@@ -127,9 +127,15 @@ class VagueDependencyRequirement(Requirement):
         super(VagueDependencyRequirement, self).__init__("vague")
         self.name = name
 
+    def expand(self):
+        yield BinaryRequirement(self.name)
+        yield LibraryRequirement(self.name)
+        from resolver.apt import AptRequirement
+        yield AptRequirement(self.name)
+
     def met(self, session):
-        for cls in [BinaryRequirement, LibraryRequirement]:
-            if cls(self.name).met(session):
+        for x in self.expand():
+            if x.met(session):
                 return True
         return False
 
