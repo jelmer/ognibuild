@@ -110,16 +110,19 @@ class AptRequirement(Requirement):
         return False
 
 
-def find_package_names(apt_mgr: AptManager, paths: List[str], regex: bool = False) -> List[str]:
+def find_package_names(apt_mgr: AptManager, paths: List[str], regex: bool = False, case_insensitive=False) -> List[str]:
     if not isinstance(paths, list):
         raise TypeError(paths)
-    return apt_mgr.get_packages_for_paths(paths, regex)
+    return apt_mgr.get_packages_for_paths(paths, regex, case_insensitive)
 
 
-def find_reqs_simple(apt_mgr: AptManager, paths: List[str], regex: bool = False, minimum_version=None) -> List[str]:
+def find_reqs_simple(
+        apt_mgr: AptManager, paths: List[str], regex: bool = False,
+        minimum_version=None, case_insensitive=False) -> List[str]:
     if not isinstance(paths, list):
         raise TypeError(paths)
-    return [AptRequirement.simple(package, minimum_version=minimum_version) for package in find_package_names(apt_mgr, paths, regex)]
+    return [AptRequirement.simple(package, minimum_version=minimum_version)
+            for package in find_package_names(apt_mgr, paths, regex, case_insensitive)]
 
 
 def python_spec_to_apt_rels(pkg_name, specs):
@@ -163,7 +166,7 @@ def get_package_for_python_package(apt_mgr, package, python_version: Optional[st
         paths = [cpython3_regex, cpython2_regex, pypy_regex]
     else:
         raise NotImplementedError('unsupported python version %s' % python_version)
-    names = find_package_names(apt_mgr, paths, regex=True)
+    names = find_package_names(apt_mgr, paths, regex=True, case_insensitive=True)
     return [AptRequirement(python_spec_to_apt_rels(name, specs)) for name in names]
 
 

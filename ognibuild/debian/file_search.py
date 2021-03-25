@@ -29,7 +29,7 @@ from .. import USER_AGENT
 
 
 class FileSearcher(object):
-    def search_files(self, path: str, regex: bool = False) -> Iterator[str]:
+    def search_files(self, path: str, regex: bool = False, case_insensitive: bool = False) -> Iterator[str]:
         raise NotImplementedError(self.search_files)
 
 
@@ -216,10 +216,16 @@ class AptCachedContentsFileSearcher(FileSearcher):
     def __setitem__(self, path, package):
         self._db[path] = package
 
-    def search_files(self, path, regex=False):
+    def search_files(self, path, regex=False, case_insensitive=False):
         path = path.lstrip('/').encode('utf-8', 'surrogateescape')
+        if case_insensitive and not regex:
+            regex = True
+            path = re.escape(path)
         if regex:
-            c = re.compile(path)
+            flags = 0
+            if case_insensitive:
+                flags |= re.I
+            c = re.compile(path, flags=flags)
             ret = []
             for p, rest in self._db.items():
                 if c.match(p):
@@ -256,10 +262,16 @@ class GeneratedFileSearcher(FileSearcher):
                 (path, pkg) = line.strip().split(None, 1)
                 self._db[path] = pkg
 
-    def search_files(self, path: str, regex: bool = False) -> Iterator[str]:
+    def search_files(self, path: str, regex: bool = False, case_insensitive: bool = False) -> Iterator[str]:
         for p, pkg in sorted(self._db.items()):
             if regex:
-                if re.match(path, p):
+                flags = 0
+                if case_insensitive:
+                    flags |= re.I
+                if re.match(path, p, flags=flags):
+                    yield pkg
+            elif case_insensitive:
+                if path.lower() == p.lower():
                     yield pkg
             else:
                 if path == p:
@@ -281,12 +293,13 @@ GENERATED_FILE_SEARCHER = GeneratedFileSearcher(
 
 
 def get_packages_for_paths(
-    paths: List[str], searchers: List[FileSearcher], regex: bool = False
+    paths: List[str], searchers: List[FileSearcher], regex: bool = False,
+    case_insensitive: bool = False
 ) -> List[str]:
     candidates: List[str] = list()
     for path in paths:
         for searcher in searchers:
-            for pkg in searcher.search_files(path, regex=regex):
+            for pkg in searcher.search_files(path, regex=regex, case_insensitive=case_insensitive):
                 if pkg not in candidates:
                     candidates.append(pkg)
     return candidates
