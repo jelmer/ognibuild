@@ -127,6 +127,12 @@ class VagueDependencyRequirement(Requirement):
         super(VagueDependencyRequirement, self).__init__("vague")
         self.name = name
 
+    def met(self, session):
+        for cls in [BinaryRequirement, LibraryRequirement]:
+            if cls(self.name).met(session):
+                return True
+        return False
+
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.name)
 

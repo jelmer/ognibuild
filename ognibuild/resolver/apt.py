@@ -235,7 +235,7 @@ def resolve_vague_dep_req(apt_mgr, req):
         name = name[4:]
     options = []
     options.extend(resolve_binary_req(apt_mgr, [BinaryRequirement(name)]))
-    options.extend(resolve_binary_req(apt_mgr, [LibraryRequirement(name)]))
+    options.extend(resolve_library_req(apt_mgr, [LibraryRequirement(name)]))
     return options
 
 
@@ -537,6 +537,7 @@ def resolve_ca_req(apt_mgr, req):
 
 APT_REQUIREMENT_RESOLVERS = [
     (BinaryRequirement, resolve_binary_req),
+    (VagueDependencyRequirement, resolve_vague_dep_req),
     (PkgConfigRequirement, resolve_pkg_config_req),
     (PathRequirement, resolve_path_req),
     (CHeaderRequirement, resolve_c_header_req),
