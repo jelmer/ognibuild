@@ -164,7 +164,7 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return CertificateAuthorityRequirement(problem.url)
     elif isinstance(problem, MissingSetupPyCommand):
         if problem.command == "test":
-            return MissingPythonDistribution("setuptools")
+            return PythonPackageRequirement("setuptools")
         return None
     elif isinstance(problem, MissingGnomeCommonDependency):
         if problem.package == "glib-gettext":
