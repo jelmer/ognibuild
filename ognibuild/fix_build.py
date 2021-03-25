@@ -15,8 +15,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from functools import partial
 import logging
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Tuple, Callable, Any
 
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
@@ -66,24 +67,45 @@ def run_detecting_problems(session: Session, args: List[str], **kwargs):
     raise DetailedFailure(retcode, args, error)
 
 
-def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer], **kwargs):
+def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any]):
+    """Call cb() until there are no more DetailedFailures we can fix.
+
+    Args:
+      fixers: List of fixers to use to resolve issues
+    """
     fixed_errors = []
     while True:
+        to_resolve = []
         try:
-            run_detecting_problems(session, args, **kwargs)
+            return cb()
         except DetailedFailure as e:
-            logging.info("Identified error: %r", e.error)
-            if e.error in fixed_errors:
+            to_resolve.append(e)
+        while to_resolve:
+            f = to_resolve.pop(-1)
+            logging.info("Identified error: %r", f.error)
+            if f.error in fixed_errors:
                 logging.warning(
-                    "Failed to resolve error %r, it persisted. Giving up.", e.error
+                    "Failed to resolve error %r, it persisted. Giving up.", f.error
                 )
-                raise DetailedFailure(e.retcode, args, e.error)
-            if not resolve_error(e.error, None, fixers=fixers):
-                logging.warning("Failed to find resolution for error %r. Giving up.", e.error)
-                raise DetailedFailure(e.retcode, args, e.error)
-            fixed_errors.append(e.error)
-        else:
-            return
+                raise f
+            try:
+                if not resolve_error(f.error, None, fixers=fixers):
+                    logging.warning("Failed to find resolution for error %r. Giving up.", f.error)
+                    raise f
+            except DetailedFailure as n:
+                logging.info('New error %r while resolving %r', n, f)
+                if n in to_resolve:
+                    raise
+                to_resolve.append(f)
+                to_resolve.append(n)
+            else:
+                fixed_errors.append(f.error)
+
+
+def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer], **kwargs):
+    return iterate_with_build_fixers(
+        fixers,
+        partial(run_detecting_problems, session, args, **kwargs))
 
 
 def resolve_error(error, phase, fixers):
