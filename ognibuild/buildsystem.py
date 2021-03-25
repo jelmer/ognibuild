@@ -342,6 +342,9 @@ class SetupPy(BuildSystem):
             preargs = []
             if quiet:
                 preargs.append("--quiet")
+            # Preemptively install setuptools since some packages fail in
+            # some way without it.
+            resolver.install([PythonPackageRequirement('setuptools')])
             self._run_setup(session, resolver, preargs + ["sdist"], fixers)
             return
         elif self.pyproject:
