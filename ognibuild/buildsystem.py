@@ -1144,6 +1144,24 @@ class Cargo(BuildSystem):
             return Cargo(os.path.join(path, "Cargo.toml"))
 
 
+def _parse_go_mod(f):
+    line = f.readline()
+    while f:
+        parts = line.strip().split(' ')
+        if not parts:
+            continue
+        if len(parts) == 2 and parts[1] == '(':
+            line = f.readline()
+            while line.strip() != ')':
+                yield [parts[0]] + list(line.strip().split(' '))
+                line = f.readline()
+                if not line:
+                    raise AssertionError('list of %s interrupted?' % parts[0])
+        else:
+            yield parts
+        line = f.readline()
+
+
 class Golang(BuildSystem):
     """Go builds."""
 
@@ -1171,17 +1189,16 @@ class Golang(BuildSystem):
         go_mod_path = os.path.join(self.path, 'go.mod')
         if not os.path.exists(go_mod_path):
             with open(go_mod_path, 'r') as f:
-                for line in f:
-                    parts = line.strip().split(' ')
-                    if not parts:
-                        continue
+                for parts in _parse_go_mod(f):
                     if parts[0] == 'go':
                         yield "build", GoRequirement(parts[1])
                     elif parts[0] == 'require':
                         yield "build", GoPackageRequirement(
                             parts[1], parts[2] if len(parts) > 2 else None)
-                    elif parts[0] in ('module', 'exclude', 'replace'):
-                        pass
+                    elif parts[0] == 'exclude':
+                        pass  # TODO(jelmer): Create conflicts?
+                    elif parts[0] == 'replace':
+                        pass  # TODO(jelmer): do.. something?
                     else:
                         logging.warning(
                             'Unknown directive %s in go.mod',
