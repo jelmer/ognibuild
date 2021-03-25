@@ -40,6 +40,7 @@ from .requirements import (
     CargoCrateRequirement,
     RPackageRequirement,
     OctavePackageRequirement,
+    PhpPackageRequirement,
 )
 from .fix_build import run_with_build_fixers
 from .session import which
@@ -98,6 +99,16 @@ class BuildSystem(object):
         return None
 
 
+def xmlparse_simplify_namespaces(path, namespaces):
+    import xml.etree.ElementTree as ET
+    namespaces = ['{%s}' % ns for ns in namespaces]
+    tree = ET.iterparse(path)
+    for _, el in tree:
+        for namespace in namespaces:
+            el.tag = el.tag.replace(namespace, '')
+    return tree.root
+
+
 class Pear(BuildSystem):
 
     name = "pear"
@@ -129,6 +140,32 @@ class Pear(BuildSystem):
     def install(self, session, resolver, fixers, install_target):
         self.setup(resolver)
         run_with_build_fixers(session, ["pear", "install", self.path], fixers)
+
+    def get_declared_dependencies(self, session, fixers=None):
+        path = os.path.join(self.path, "package.xml")
+        import xml.etree.ElementTree as ET
+        try:
+            root = xmlparse_simplify_namespaces(path, [
+                'http://pear.php.net/dtd/package-2.0',
+                'http://pear.php.net/dtd/package-2.1'])
+        except ET.ParseError as e:
+            logging.warning('Unable to parse package.xml: %s', e)
+            return
+        assert root.tag == 'package', 'root tag is %r' % root.tag
+        dependencies_tag = root.find('dependencies')
+        if dependencies_tag is not None:
+            required_tag = root.find('dependencies')
+            if required_tag is not None:
+                for package_tag in root.findall('package'):
+                    name = package_tag.find('name').text
+                    min_tag = package_tag.find('min')
+                    max_tag = package_tag.find('max')
+                    channel_tag = package_tag.find('channel')
+                    yield "core", PhpPackageRequirement(
+                        name,
+                        channel=(channel_tag.text if channel_tag else None),
+                        min_version=(min_tag.text if min_tag else None),
+                        max_version=(max_tag.text if max_tag else None))
 
     @classmethod
     def probe(cls, path):
@@ -1214,6 +1251,23 @@ class Cabal(BuildSystem):
             return cls(os.path.join(path, "Setup.hs"))
 
 
+class Composer(BuildSystem):
+
+    name = "composer"
+
+    def __init__(self, path):
+        self.path = path
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, "composer.json")):
+            logging.debug("Found composer.json, assuming composer package.")
+            return cls(path)
+
+
 class PerlBuildTiny(BuildSystem):
 
     name = "perl-build-tiny"
@@ -1254,7 +1308,7 @@ BUILDSYSTEM_CLSES = [
     Pear, SetupPy, Npm, Waf, Cargo, Meson, Cabal, Gradle, Maven,
     DistZilla, Gem, PerlBuildTiny, Golang, R, Octave,
     # Make is intentionally at the end of the list.
-    Make, RunTests]
+    Make, Composer, RunTests]
 
 
 def scan_buildsystems(path):

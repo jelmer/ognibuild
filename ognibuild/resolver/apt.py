@@ -41,6 +41,7 @@ from ..requirements import (
     GoPackageRequirement,
     DhAddonRequirement,
     PhpClassRequirement,
+    PhpPackageRequirement,
     RPackageRequirement,
     NodeModuleRequirement,
     NodePackageRequirement,
@@ -315,6 +316,10 @@ def resolve_php_class_req(apt_mgr, req):
     return find_reqs_simple(apt_mgr, [path])
 
 
+def resolve_php_package_req(apt_mgr, req):
+    return [AptRequirement.simple('php-%s' % req.package, minimum_version=req.min_version)]
+
+
 def resolve_r_package_req(apt_mgr, req):
     paths = [posixpath.join("/usr/lib/R/site-library/.*/R/%s$" % re.escape(req.package))]
     return find_reqs_simple(apt_mgr, paths, regex=True)
@@ -560,6 +565,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (GoPackageRequirement, resolve_go_package_req),
     (DhAddonRequirement, resolve_dh_addon_req),
     (PhpClassRequirement, resolve_php_class_req),
+    (PhpPackageRequirement, resolve_php_package_req),
     (RPackageRequirement, resolve_r_package_req),
     (NodeModuleRequirement, resolve_node_module_req),
     (NodePackageRequirement, resolve_node_package_req),

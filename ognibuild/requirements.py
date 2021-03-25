@@ -80,6 +80,22 @@ class PythonPackageRequirement(Requirement):
         return p.returncode == 0
 
 
+class PhpPackageRequirement(Requirement):
+
+    def __init__(self, package: str, channel: Optional[str] = None,
+                 min_version: Optional[str] = None,
+                 max_version: Optional[str] = None):
+        self.package = package
+        self.channel = channel
+        self.min_version = min_version
+        self.max_version = max_version
+
+    def __repr__(self):
+        return "%s(%r, %r, %r, %r)" % (
+            type(self).__name__, self.package, self.channel,
+            self.min_version, self.max_version)
+
+
 class BinaryRequirement(Requirement):
 
     binary_name: str

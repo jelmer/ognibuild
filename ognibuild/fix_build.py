@@ -69,21 +69,34 @@ def run_detecting_problems(session: Session, args: List[str], **kwargs):
 def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer], **kwargs):
     fixed_errors = []
     while True:
+        to_resolve = []
         try:
             run_detecting_problems(session, args, **kwargs)
         except DetailedFailure as e:
+            to_resolve.append(e)
+        else:
+            return
+        while to_resolve:
+            e = to_resolve.pop(-1)
             logging.info("Identified error: %r", e.error)
             if e.error in fixed_errors:
                 logging.warning(
                     "Failed to resolve error %r, it persisted. Giving up.", e.error
                 )
-                raise DetailedFailure(e.retcode, args, e.error)
-            if not resolve_error(e.error, None, fixers=fixers):
-                logging.warning("Failed to find resolution for error %r. Giving up.", e.error)
-                raise DetailedFailure(e.retcode, args, e.error)
-            fixed_errors.append(e.error)
-        else:
-            return
+                raise e
+            try:
+                if not resolve_error(e.error, None, fixers=fixers):
+                    logging.warning("Failed to find resolution for error %r. Giving up.", e.error)
+                    raise e
+            except DetailedFailure as n:
+                logging.info('New error %r while resolving %r', n, e)
+                if n in to_resolve:
+                    raise
+                to_resolve.append(e)
+                to_resolve.append(n)
+            else:
+                fixed_errors.append(e.error)
+
 
 
 def resolve_error(error, phase, fixers):
