@@ -26,6 +26,7 @@ from typing import Optional, Tuple
 import warnings
 
 from . import shebang_binary, UnidentifiedError
+from .dist_catcher import DistCatcher
 from .outputs import (
     BinaryOutput,
     PythonPackageOutput,
@@ -71,7 +72,7 @@ class BuildSystem(object):
     def __str__(self):
         return self.name
 
-    def dist(self, session, resolver, fixers, quiet=False):
+    def dist(self, session, resolver, fixers, target_directory: str, quiet=False) -> str:
         raise NotImplementedError(self.dist)
 
     def test(self, session, resolver, fixers):
@@ -107,9 +108,11 @@ class Pear(BuildSystem):
     def setup(self, resolver):
         resolver.install([BinaryRequirement("pear")])
 
-    def dist(self, session, resolver, fixers, quiet=False):
+    def dist(self, session, resolver, fixers, target_directory: str, quiet=False):
         self.setup(resolver)
-        run_with_build_fixers(session, ["pear", "package"], fixers)
+        with DistCatcher([session.external_path('.')]) as dc:
+            run_with_build_fixers(session, ["pear", "package"], fixers)
+        return dc.copy_single(target_directory)
 
     def test(self, session, resolver, fixers):
         self.setup(resolver)
@@ -336,7 +339,7 @@ class SetupPy(BuildSystem):
         else:
             raise NotImplementedError
 
-    def dist(self, session, resolver, fixers, quiet=False):
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
         # TODO(jelmer): Look at self.build_backend
         if self.has_setup_py:
             preargs = []
@@ -345,11 +348,13 @@ class SetupPy(BuildSystem):
             # Preemptively install setuptools since some packages fail in
             # some way without it.
             resolver.install([PythonPackageRequirement('setuptools')])
-            self._run_setup(session, resolver, preargs + ["sdist"], fixers)
-            return
+            with DistCatcher([session.external_path('dist')]) as dc:
+                self._run_setup(session, resolver, preargs + ["sdist"], fixers)
+            return dc.copy_single(target_directory)
         elif self.pyproject:
-            run_with_build_fixers(session, [self.DEFAULT_PYTHON, "-m", "pep517.build", "--source", "."], fixers)
-            return
+            with DistCatcher([session.external_path('dist')]) as dc:
+                run_with_build_fixers(session, [self.DEFAULT_PYTHON, "-m", "pep517.build", "--source", "."], fixers)
+            return dc.copy_single(target_directory)
         raise AssertionError("no setup.py or pyproject.toml")
 
     def clean(self, session, resolver, fixers):
@@ -566,8 +571,10 @@ class Gradle(BuildSystem):
     def test(self, session, resolver, fixers):
         self._run(session, resolver, 'test', [], fixers)
 
-    def dist(self, session, resolver, fixers, quiet=False):
-        self._run(session, resolver, 'distTar', [], fixers)
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
+        with DistCatcher([session.external_path('.')]) as dc:
+            self._run(session, resolver, 'distTar', [], fixers)
+        return dc.copy_single(target_directory)
 
     def install(self, session, resolver, fixers, install_target):
         raise NotImplementedError
@@ -590,9 +597,11 @@ class R(BuildSystem):
     def build(self, session, resolver, fixers):
         pass
 
-    def dist(self, session, resolver, fixers, quiet=False):
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
         r_path = guaranteed_which(session, resolver, "R")
-        run_with_build_fixers(session, [r_path, "CMD", "build", "."], fixers)
+        with DistCatcher([session.external_path('.')]) as dc:
+            run_with_build_fixers(session, [r_path, "CMD", "build", "."], fixers)
+        return dc.copy_single(target_directory)
 
     def install(self, session, resolver, fixers, install_target):
         r_path = guaranteed_which(session, resolver, "R")
@@ -657,9 +666,11 @@ class Meson(BuildSystem):
         self._setup(session, fixers)
         run_with_build_fixers(session, ["ninja", "-C", "build"], fixers)
 
-    def dist(self, session, resolver, fixers, quiet=False):
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self._setup(session, fixers)
-        run_with_build_fixers(session, ["ninja", "-C", "build", "dist"], fixers)
+        with DistCatcher([session.external_path('build/meson-dist')]) as dc:
+            run_with_build_fixers(session, ["ninja", "-C", "build", "dist"], fixers)
+        return dc.copy_single(target_directory)
 
     def test(self, session, resolver, fixers):
         self._setup(session, fixers)
@@ -704,9 +715,11 @@ class Npm(BuildSystem):
     def setup(self, resolver):
         resolver.install([BinaryRequirement("npm")])
 
-    def dist(self, session, resolver, fixers, quiet=False):
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(resolver)
-        run_with_build_fixers(session, ["npm", "pack"], fixers)
+        with DistCatcher([session.external_path('.')]) as dc:
+            run_with_build_fixers(session, ["npm", "pack"], fixers)
+        return dc.copy_single(target_directory)
 
     def test(self, session, resolver, fixers):
         self.setup(resolver)
@@ -749,9 +762,11 @@ class Waf(BuildSystem):
     def setup(self, session, resolver, fixers):
         resolver.install([BinaryRequirement("python3")])
 
-    def dist(self, session, resolver, fixers, quiet=False):
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(session, resolver, fixers)
-        run_with_build_fixers(session, ["./waf", "dist"], fixers)
+        with DistCatcher.default(session.external_path('.')) as dc:
+            run_with_build_fixers(session, ["./waf", "dist"], fixers)
+        return dc.copy_single(target_directory)
 
     def test(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
@@ -774,14 +789,16 @@ class Gem(BuildSystem):
     def setup(self, resolver):
         resolver.install([BinaryRequirement("gem2deb")])
 
-    def dist(self, session, resolver, fixers, quiet=False):
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(resolver)
         gemfiles = [
             entry.name for entry in session.scandir(".") if entry.name.endswith(".gem")
         ]
         if len(gemfiles) > 1:
             logging.warning("More than one gemfile. Trying the first?")
-        run_with_build_fixers(session, ["gem2tgz", gemfiles[0]], fixers)
+        with DistCatcher.default(session.external_path('.')) as dc:
+            run_with_build_fixers(session, ["gem2tgz", gemfiles[0]], fixers)
+        return dc.copy_single(target_directory)
 
     @classmethod
     def probe(cls, path):
@@ -821,15 +838,19 @@ class DistZilla(BuildSystem):
             ]
         )
 
-    def dist(self, session, resolver, fixers, quiet=False):
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(resolver)
         if self.name == "dist-inkt":
             resolver.install([PerlModuleRequirement(self.dist_inkt_class)])
-            run_with_build_fixers(session, ["distinkt-dist"], fixers)
+            with DistCatcher.default(session.external_path('.')) as dc:
+                run_with_build_fixers(session, ["distinkt-dist"], fixers)
+            return dc.copy_single(target_directory)
         else:
             # Default to invoking Dist::Zilla
             resolver.install([PerlModuleRequirement("Dist::Zilla")])
-            run_with_build_fixers(session, ["dzil", "build", "--tgz"], fixers)
+            with DistCatcher.default(session.external_path('.')) as dc:
+                run_with_build_fixers(session, ["dzil", "build", "--tgz"], fixers)
+            return dc.copy_single(target_directory)
 
     def test(self, session, resolver, fixers):
         self.setup(resolver)
@@ -944,57 +965,59 @@ class Make(BuildSystem):
         self.setup(session, resolver, fixers)
         run_with_build_fixers(session, ["make", "install"], fixers)
 
-    def dist(self, session, resolver, fixers, quiet=False):
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(session, resolver, fixers)
-        try:
-            run_with_build_fixers(session, ["make", "dist"], fixers)
-        except UnidentifiedError as e:
-            if "make: *** No rule to make target 'dist'.  Stop." in e.lines:
-                raise NotImplementedError
-            elif "make[1]: *** No rule to make target 'dist'. Stop." in e.lines:
-                raise NotImplementedError
-            elif (
-                "Reconfigure the source tree "
-                "(via './config' or 'perl Configure'), please."
-            ) in e.lines:
-                run_with_build_fixers(session, ["./config"], fixers)
+        with DistCatcher.default(session.external_path('.')) as dc:
+            try:
                 run_with_build_fixers(session, ["make", "dist"], fixers)
-            elif (
-                "Please try running 'make manifest' and then run "
-                "'make dist' again." in e.lines
-            ):
-                run_with_build_fixers(session, ["make", "manifest"], fixers)
-                run_with_build_fixers(session, ["make", "dist"], fixers)
-            elif "Please run ./configure first" in e.lines:
-                run_with_build_fixers(session, ["./configure"], fixers)
-                run_with_build_fixers(session, ["make", "dist"], fixers)
-            elif any(
-                [
-                    re.match(
-                        r"(Makefile|GNUmakefile|makefile):[0-9]+: "
-                        r"\*\*\* Missing \'Make.inc\' "
-                        r"Run \'./configure \[options\]\' and retry.  Stop.",
-                        line,
-                    )
-                    for line in e.lines
-                ]
-            ):
-                run_with_build_fixers(session, ["./configure"], fixers)
-                run_with_build_fixers(session, ["make", "dist"], fixers)
-            elif any(
-                [
-                    re.match(
-                        r"Problem opening MANIFEST: No such file or directory "
-                        r"at .* line [0-9]+\.",
-                        line,
-                    )
-                    for line in e.lines
-                ]
-            ):
-                run_with_build_fixers(session, ["make", "manifest"], fixers)
-                run_with_build_fixers(session, ["make", "dist"], fixers)
-            else:
-                raise
+            except UnidentifiedError as e:
+                if "make: *** No rule to make target 'dist'.  Stop." in e.lines:
+                    raise NotImplementedError
+                elif "make[1]: *** No rule to make target 'dist'. Stop." in e.lines:
+                    raise NotImplementedError
+                elif (
+                    "Reconfigure the source tree "
+                    "(via './config' or 'perl Configure'), please."
+                ) in e.lines:
+                    run_with_build_fixers(session, ["./config"], fixers)
+                    run_with_build_fixers(session, ["make", "dist"], fixers)
+                elif (
+                    "Please try running 'make manifest' and then run "
+                    "'make dist' again." in e.lines
+                ):
+                    run_with_build_fixers(session, ["make", "manifest"], fixers)
+                    run_with_build_fixers(session, ["make", "dist"], fixers)
+                elif "Please run ./configure first" in e.lines:
+                    run_with_build_fixers(session, ["./configure"], fixers)
+                    run_with_build_fixers(session, ["make", "dist"], fixers)
+                elif any(
+                    [
+                        re.match(
+                            r"(Makefile|GNUmakefile|makefile):[0-9]+: "
+                            r"\*\*\* Missing \'Make.inc\' "
+                            r"Run \'./configure \[options\]\' and retry.  Stop.",
+                            line,
+                        )
+                        for line in e.lines
+                    ]
+                ):
+                    run_with_build_fixers(session, ["./configure"], fixers)
+                    run_with_build_fixers(session, ["make", "dist"], fixers)
+                elif any(
+                    [
+                        re.match(
+                            r"Problem opening MANIFEST: No such file or directory "
+                            r"at .* line [0-9]+\.",
+                            line,
+                        )
+                        for line in e.lines
+                    ]
+                ):
+                    run_with_build_fixers(session, ["make", "manifest"], fixers)
+                    run_with_build_fixers(session, ["make", "dist"], fixers)
+                else:
+                    raise
+        return dc.copy_single(target_directory)
 
     def get_declared_dependencies(self, session, fixers=None):
         # TODO(jelmer): Split out the perl-specific stuff?
@@ -1144,7 +1167,7 @@ class Maven(BuildSystem):
     def build(self, session, resolver, fixers):
         run_with_build_fixers(session, ["mvn", "compile"], fixers)
 
-    def dist(self, session, resolver, fixers, quiet=False):
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
         # TODO(jelmer): 'mvn generate-sources' creates a jar in target/.
         # is that what we need?
         raise NotImplementedError
@@ -1177,8 +1200,12 @@ class Cabal(BuildSystem):
     def test(self, session, resolver, fixers):
         self._run(session, ["test"], fixers)
 
-    def dist(self, session, resolver, fixers, quiet=False):
-        self._run(session, ["sdist"], fixers)
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
+        with DistCatcher([
+                session.external_path('dist-newstyle/sdist'),
+                session.external_path('dist')]) as dc:
+            self._run(session, ["sdist"], fixers)
+        return dc.copy_single(target_directory)
 
     @classmethod
     def probe(cls, path):

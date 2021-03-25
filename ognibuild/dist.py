@@ -27,7 +27,6 @@ import logging
 import os
 import shutil
 import sys
-import time
 from typing import Optional, List
 
 from debian.deb822 import Deb822
@@ -47,106 +46,17 @@ from .session import Session
 from .session.schroot import SchrootSession
 
 
-SUPPORTED_DIST_EXTENSIONS = [
-    ".tar.gz",
-    ".tgz",
-    ".tar.bz2",
-    ".tar.xz",
-    ".tar.lzma",
-    ".tbz2",
-    ".tar",
-    ".zip",
-]
-
-
-def is_dist_file(fn):
-    for ext in SUPPORTED_DIST_EXTENSIONS:
-        if fn.endswith(ext):
-            return True
-    return False
-
-
-class DistNoTarball(Exception):
-    """Dist operation did not create a tarball."""
-
-
-def run_dist(session, buildsystems, resolver, fixers, quiet=False):
+def run_dist(session, buildsystems, resolver, fixers, target_directory, quiet=False):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
     for buildsystem in buildsystems:
-        buildsystem.dist(session, resolver, fixers, quiet=quiet)
-        return
+        filename = buildsystem.dist(
+            session, resolver, fixers, target_directory, quiet=quiet)
+        return filename
 
     raise NoBuildToolsFound()
-
-
-class DistCatcher(object):
-    def __init__(self, directories):
-        self.directories = directories
-        self.files = []
-        self.existing_files = None
-        self.start_time = time.time()
-
-    @classmethod
-    def default(cls, directory):
-        return cls([
-            os.path.join(directory, 'dist'),
-            directory,
-            os.path.join(directory, '..')])
-
-    def __enter__(self):
-        self.existing_files = {}
-        for directory in self.directories:
-            try:
-                self.existing_files[directory] = {
-                    entry.name: entry for entry in os.scandir(directory)}
-            except FileNotFoundError:
-                self.existing_files[directory] = {}
-        return self
-
-    def find_files(self):
-        for directory in self.directories:
-            old_files = self.existing_files[directory]
-            possible_new = []
-            possible_updated = []
-            for entry in os.scandir(directory):
-                if not entry.is_file() or not is_dist_file(entry.name):
-                    continue
-                old_entry = old_files.get(entry.name)
-                if not old_entry:
-                    possible_new.append(entry)
-                    continue
-                if entry.stat().st_mtime < self.start_time:
-                    possible_updated.append(entry)
-                    continue
-            if len(possible_new) == 1:
-                fn = possible_new[0]
-                logging.info("Found new tarball %s in %s.", fn, directory)
-                self.files.append(os.path.join(directory, fn))
-                return entry.name
-            elif len(possible_new) > 1:
-                logging.warning(
-                    "Found multiple tarballs %r in %s.", possible_new, directory)
-                return
-
-            if len(possible_updated) == 1:
-                fn = possible_updated[0]
-                logging.info("Found updated tarball %s in %s.", fn, directory)
-                self.files.append(os.path.join(directory, fn))
-                return entry.name
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.find_files()
-        return False
-
-    def cleanup(self):
-        for path in self.files:
-            if os.path.isdir(path):
-                shutil.rmtree(path)
-            else:
-                os.unlink(path)
 
 
 def create_dist(
@@ -182,20 +92,8 @@ def create_dist(
         fixers.extend([
             GitIdentityFixer(session), SecretGpgKeyFixer(session)])
 
-    with DistCatcher.default(export_directory) as dc:
-        session.chdir(reldir)
-        run_dist(session, buildsystems, resolver, fixers)
-
-    try:
-        for path in dc.files:
-            shutil.copy(path, target_dir)
-            return os.path.join(target_dir, os.path.basename(path))
-    finally:
-        if cleanup:
-            dc.cleanup()
-
-    logging.info("No tarball created :(")
-    raise DistNoTarball()
+    session.chdir(reldir)
+    return run_dist(session, buildsystems, resolver, fixers, target_dir)
 
 
 def create_dist_schroot(
@@ -225,6 +123,7 @@ if __name__ == "__main__":
     import breezy.bzr  # noqa: F401
     import breezy.git  # noqa: F401
     from breezy.export import export
+    from .dist_catcher import DistNoTarball
 
     parser = argparse.ArgumentParser()
     parser.add_argument(

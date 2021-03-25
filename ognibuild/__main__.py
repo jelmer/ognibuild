@@ -170,7 +170,8 @@ def main():  # noqa: C901
                 from .dist import run_dist
 
                 run_dist(
-                    session=session, buildsystems=bss, resolver=resolver, fixers=fixers
+                    session=session, buildsystems=bss, resolver=resolver, fixers=fixers,
+                    target_directory='.'
                 )
             if args.subcommand == "build":
                 from .build import run_build
