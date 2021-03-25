@@ -63,6 +63,7 @@ from ..requirements import (
     PythonPackageRequirement,
     CertificateAuthorityRequirement,
     LibtoolRequirement,
+    VagueDependencyRequirement,
 )
 
 
@@ -226,6 +227,16 @@ def get_package_for_python_module(apt_mgr, module, python_version, specs):
         raise AssertionError("unknown python version %r" % python_version)
     names = find_package_names(apt_mgr, paths, regex=True)
     return [AptRequirement(python_spec_to_apt_rels(name, specs)) for name in names]
+
+
+def resolve_vague_dep_req(apt_mgr, req):
+    name = req.name
+    if name.startswith('gnu '):
+        name = name[4:]
+    options = []
+    options.extend(resolve_binary_req(apt_mgr, [BinaryRequirement(name)]))
+    options.extend(resolve_binary_req(apt_mgr, [LibraryRequirement(name)]))
+    return options
 
 
 def resolve_binary_req(apt_mgr, req):
