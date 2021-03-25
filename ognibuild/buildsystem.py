@@ -1153,7 +1153,7 @@ def _parse_go_mod(f):
     line = readline()
     while line:
         parts = line.strip().split(' ')
-        if not parts:
+        if not parts or parts == ['']:
             continue
         if len(parts) == 2 and parts[1] == '(':
             line = readline()
@@ -1204,6 +1204,8 @@ class Golang(BuildSystem):
                         pass  # TODO(jelmer): Create conflicts?
                     elif parts[0] == 'replace':
                         pass  # TODO(jelmer): do.. something?
+                    elif parts[0] == 'module':
+                        pass
                     else:
                         logging.warning(
                             'Unknown directive %s in go.mod',
