@@ -54,7 +54,7 @@ def run_detecting_problems(session: Session, args: List[str], **kwargs):
         retcode = 1
     else:
         if retcode == 0:
-            return
+            return contents
         lines = ''.join(contents).splitlines(False)
         match, error = find_build_failure_description(lines)
         if error is None:

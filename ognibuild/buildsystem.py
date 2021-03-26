@@ -44,7 +44,7 @@ from .requirements import (
     GoRequirement,
     GoPackageRequirement,
 )
-from .fix_build import run_with_build_fixers
+from .fix_build import run_with_build_fixers, run_detecting_problems
 from .session import which
 
 
@@ -909,9 +909,9 @@ class DistZilla(BuildSystem):
             return cls(os.path.join(path, "dist.ini"))
 
     def get_declared_dependencies(self, session, fixers=None):
-        out = session.check_output(["dzil", "authordeps"])
-        for entry in out.splitlines():
-            yield "build", PerlModuleRequirement(entry.decode().strip())
+        lines = run_with_build_fixers(session, ["dzil", "authordeps"], fixers)
+        for entry in lines:
+            yield "build", PerlModuleRequirement(entry.strip())
         if os.path.exists(os.path.join(os.path.dirname(self.path), "cpanfile")):
             yield from _declared_deps_from_cpanfile(session)
 
