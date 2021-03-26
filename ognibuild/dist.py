@@ -146,6 +146,9 @@ if __name__ == "__main__":
         "--target-directory", type=str, default="..", help="Target directory"
     )
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
+    parser.add_argument(
+        '--include-controldir', action='store_true',
+        help='Clone rather than export.')
 
     args = parser.parse_args()
 
@@ -172,6 +175,7 @@ if __name__ == "__main__":
             target_dir=os.path.abspath(args.target_directory),
             packaging_tree=packaging_tree,
             chroot=args.chroot,
+            include_controldir=args.include_controldir,
         )
     except (NoBuildToolsFound, NotImplementedError):
         logging.info("No build tools found, falling back to simple export.")

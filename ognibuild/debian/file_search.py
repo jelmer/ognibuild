@@ -286,6 +286,7 @@ GENERATED_FILE_SEARCHER = GeneratedFileSearcher(
         "/usr/bin/rst2html": "python3-docutils",
         # aclocal is a symlink to aclocal-1.XY
         "/usr/bin/aclocal": "automake",
+        "/usr/bin/automake": "automake",
         # maven lives in /usr/share
         "/usr/bin/mvn": "maven",
     }
