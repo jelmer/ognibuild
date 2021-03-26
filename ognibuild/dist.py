@@ -71,7 +71,9 @@ def create_dist(
     from .buildsystem import detect_buildsystems
     from .buildlog import InstallFixer
     from .fix_build import BuildFixer
-    from .fixers import GitIdentityFixer, SecretGpgKeyFixer
+    from .fixers import (
+        GitIdentityFixer, SecretGpgKeyFixer,
+        UnexpandedAutoconfMacroFixer, )
 
     if subdir is None:
         subdir = "package"
@@ -86,7 +88,9 @@ def create_dist(
     # TODO(jelmer): use scan_buildsystems to also look in subdirectories
     buildsystems = list(detect_buildsystems(export_directory))
     resolver = auto_resolver(session)
-    fixers: List[BuildFixer] = [InstallFixer(resolver)]
+    fixers: List[BuildFixer] = [UnexpandedAutoconfMacroFixer(session, resolver)]
+
+    fixers.append(InstallFixer(resolver))
 
     if session.is_temporary:
         # Only muck about with temporary sessions

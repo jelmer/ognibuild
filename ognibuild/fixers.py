@@ -22,7 +22,10 @@ from buildlog_consultant import Problem
 from buildlog_consultant.common import (
     MissingGitIdentity,
     MissingSecretGpgKey,
+    MissingAutoconfMacro,
     )
+from ognibuild.requirements import AutoconfMacroRequirement
+from ognibuild.resolver import UnsatisfiedRequirements
 
 from .fix_build import BuildFixer
 
@@ -70,3 +73,30 @@ Passphrase: ""
         if p.returncode == 0:
             return True
         return False
+
+
+class UnexpandedAutoconfMacroFixer(BuildFixer):
+
+    def __init__(self, session, resolver):
+        self.session = session
+        self.resolver = resolver
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.resolver)
+
+    def __str__(self):
+        return "unexpanded m4 macro fixer (%s)" % self.resolver
+
+    def can_fix(self, error):
+        return isinstance(error, MissingAutoconfMacro)
+
+    def _fix(self, error, phase):
+        try:
+            self.resolver.install([AutoconfMacroRequirement(error.macro)])
+        except UnsatisfiedRequirements:
+            return False
+        from .fix_build import run_detecting_problems
+
+        run_detecting_problems(self.session, ['autoconf'])
+
+        return True
