@@ -149,23 +149,25 @@ class PerlModuleRequirement(Requirement):
 class VagueDependencyRequirement(Requirement):
 
     name: str
+    minimum_version: Optional[str] = None
 
-    def __init__(self, name):
+    def __init__(self, name, minimum_version=None):
         super(VagueDependencyRequirement, self).__init__("vague")
         self.name = name
+        self.minimum_version = minimum_version
 
     def expand(self):
         if " " not in self.name:
             yield BinaryRequirement(self.name)
             yield LibraryRequirement(self.name)
-            yield PkgConfigRequirement(self.name)
+            yield PkgConfigRequirement(self.name, minimum_version=self.minimum_version)
             if self.name.lower() != self.name:
                 yield BinaryRequirement(self.name.lower())
                 yield LibraryRequirement(self.name.lower())
-                yield PkgConfigRequirement(self.name.lower())
+                yield PkgConfigRequirement(self.name.lower(), minimum_version=self.minimum_version)
             from .resolver.apt import AptRequirement
 
-            yield AptRequirement.simple(self.name.lower())
+            yield AptRequirement.simple(self.name.lower(), minimum_version=self.minimum_version)
 
     def met(self, session):
         for x in self.expand():

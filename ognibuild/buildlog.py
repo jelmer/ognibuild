@@ -129,7 +129,7 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
     elif isinstance(problem, MissingNodePackage):
         return NodePackageRequirement(problem.package)
     elif isinstance(problem, MissingVagueDependency):
-        return VagueDependencyRequirement(problem.name)
+        return VagueDependencyRequirement(problem.name, minimum_version=problem.minimum_version)
     elif isinstance(problem, MissingLibrary):
         return LibraryRequirement(problem.library)
     elif isinstance(problem, MissingRubyFile):
