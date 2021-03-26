@@ -142,15 +142,16 @@ class DebianPackagingContext(object):
         self.update_changelog = update_changelog
         self.commit_reporter = commit_reporter
 
+    def abspath(self, *parts):
+        return self.tree.abspath(os.path.join(self.subpath, *parts))
+
     def commit(self, summary: str, update_changelog: Optional[bool] = None) -> bool:
         if update_changelog is None:
             update_changelog = self.update_changelog
         with self.tree.lock_write():
             try:
                 if update_changelog:
-                    cl_path = self.tree.abspath(
-                        os.path.join(self.subpath, "debian/changelog")
-                    )
+                    cl_path = self.abspath("debian/changelog")
                     with ChangelogEditor(cl_path) as editor:
                         editor.add_entry([summary])
                     debcommit(self.tree, committer=self.committer, subpath=self.subpath)
@@ -218,7 +219,7 @@ def add_build_dependency(context, requirement: AptRequirement):
     if not isinstance(requirement, AptRequirement):
         raise TypeError(requirement)
 
-    control_path = os.path.join(context.tree.abspath(context.subpath), "debian/control")
+    control_path = context.abspath("debian/control")
     try:
         with ControlEditor(path=control_path) as updater:
             for binary in updater.binaries:
@@ -246,9 +247,7 @@ def add_test_dependency(context, testname, requirement):
     if not isinstance(requirement, AptRequirement):
         raise TypeError(requirement)
 
-    tests_control_path = os.path.join(
-        context.tree.abspath(context.subpath), "debian/tests/control"
-    )
+    tests_control_path = context.abspath("debian/tests/control")
 
     try:
         with Deb822Editor(path=tests_control_path) as updater:
@@ -386,9 +385,10 @@ def fix_missing_config_status_input(error, phase, context):
 
 
 class PgBuildExtOutOfDateControlFixer(BuildFixer):
-    def __init__(self, packaging_context, session):
+    def __init__(self, packaging_context, session, apt):
         self.session = session
         self.context = packaging_context
+        self.apt = apt
 
     def can_fix(self, problem):
         return isinstance(problem, NeedPgBuildExtUpdateControl)
@@ -396,12 +396,17 @@ class PgBuildExtOutOfDateControlFixer(BuildFixer):
     def __repr__(self):
         return "%s()" % (type(self).__name__,)
 
-    def _fix(self, error, context):
+    def _fix(self, error, phase):
         logging.info("Running 'pg_buildext updatecontrol'")
+        self.apt.install(['postgresql-common'])
+        external_dir, internal_dir = self.session.setup_from_vcs(
+            self.context.tree, include_controldir=None,
+            subdir=self.context.subpath)
+        self.session.chdir(internal_dir)
         self.session.check_call(["pg_buildext", "updatecontrol"])
         shutil.copy(
-            self.session.external_path("debian/control"),
-            context.tree.abspath(os.path.join(context.subpath, "debian/control")),
+            os.path.join(external_dir, error.generated_path),
+            self.context.abspath(error.generated_path)
         )
         return self.context.commit(
             "Run 'pgbuildext updatecontrol'.", update_changelog=False
@@ -460,9 +465,9 @@ class DependencyBuildFixer(BuildFixer):
         return self._fn(problem, phase, self.apt_resolver, self.context)
 
 
-def versioned_package_fixers(session, packaging_context):
+def versioned_package_fixers(session, packaging_context, apt):
     return [
-        PgBuildExtOutOfDateControlFixer(packaging_context, session),
+        PgBuildExtOutOfDateControlFixer(packaging_context, session, apt),
         SimpleBuildFixer(packaging_context, MissingConfigure, fix_missing_configure),
         SimpleBuildFixer(
             packaging_context, MissingAutomakeInput, fix_missing_automake_input
@@ -511,7 +516,7 @@ def build_incrementally(
     packaging_context = DebianPackagingContext(
         local_tree, subpath, committer, update_changelog
     )
-    fixers = versioned_package_fixers(apt.session, packaging_context) + apt_fixers(
+    fixers = versioned_package_fixers(apt.session, packaging_context, apt) + apt_fixers(
         apt, packaging_context
     )
     logging.info("Using fixers: %r", fixers)
@@ -642,7 +647,7 @@ def main(argv=None):
         apt = AptManager(session)
 
         try:
-            build_incrementally(
+            (changes_filename, cl_version) = build_incrementally(
                 tree,
                 apt,
                 args.suffix,
@@ -665,6 +670,10 @@ def main(argv=None):
             else:
                 logging.fatal("Error during %s: %s", phase, e.description)
             return 1
+
+        logging.info(
+            'Built %s - changes file at %s.',
+            os.path.join(output_directory, changes_filename))
 
 
 if __name__ == "__main__":
