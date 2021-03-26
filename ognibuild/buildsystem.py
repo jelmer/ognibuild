@@ -21,7 +21,6 @@ import logging
 import os
 import re
 import shlex
-import stat
 from typing import Optional, Tuple
 import warnings
 
@@ -937,6 +936,12 @@ class RunTests(BuildSystem):
             run_with_build_fixers(session, ["/bin/bash", "./runtests.sh"], fixers)
 
 
+def _read_cpanfile(session, args, kind):
+    output = session.check_output(['cpanfile-dump'] + args)
+    for line in output.splitlines(False):
+        yield kind, PerlModuleRequirement(line.decode().strip())
+
+
 class Make(BuildSystem):
 
     name = "make"
@@ -1060,6 +1065,7 @@ class Make(BuildSystem):
         return dc.copy_single(target_directory)
 
     def get_declared_dependencies(self, session, fixers=None):
+        something = False
         # TODO(jelmer): Split out the perl-specific stuff?
         if os.path.exists(os.path.join(self.path, "META.yml")):
             # See http://module-build.sourceforge.net/META-spec-v1.4.html for
@@ -1075,7 +1081,12 @@ class Make(BuildSystem):
                     return
                 for require in data.get("requires", []):
                     yield "build", PerlModuleRequirement(require)
-        else:
+                something = True
+        if os.path.exists(os.path.join(self.path, "cpanfile")):
+            yield from _read_cpanfile(session, ['--configure', '--build'], 'build')
+            yield from _read_cpanfile(session, ['--test'], 'test')
+            something = True
+        if not something:
             raise NotImplementedError
 
     @classmethod
