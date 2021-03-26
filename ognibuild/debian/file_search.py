@@ -21,7 +21,7 @@ from datetime import datetime
 from debian.deb822 import Release
 import os
 import re
-from typing import Iterator, List, Optional, Set
+from typing import Iterator, List
 import logging
 
 
@@ -29,7 +29,9 @@ from .. import USER_AGENT
 
 
 class FileSearcher(object):
-    def search_files(self, path: str, regex: bool = False, case_insensitive: bool = False) -> Iterator[str]:
+    def search_files(
+        self, path: str, regex: bool = False, case_insensitive: bool = False
+    ) -> Iterator[str]:
         raise NotImplementedError(self.search_files)
 
 
@@ -66,14 +68,16 @@ def contents_urls_from_sources_entry(source, arches, load_url):
         try:
             response = load_url(release_url)
         except FileNotFoundError as e:
-            logging.warning('Unable to download %s or %s: %s', inrelease_url, release_url, e)
+            logging.warning(
+                "Unable to download %s or %s: %s", inrelease_url, release_url, e
+            )
             return
 
     existing_names = {}
     release = Release(response.read())
-    for hn in ['MD5Sum', 'SHA1Sum', 'SHA256Sum']:
+    for hn in ["MD5Sum", "SHA1Sum", "SHA256Sum"]:
         for entry in release.get(hn, []):
-            existing_names[os.path.splitext(entry['name'])[0]] = entry['name']
+            existing_names[os.path.splitext(entry["name"])[0]] = entry["name"]
 
     contents_files = set()
     if components:
@@ -117,8 +121,7 @@ def load_direct_url(url):
 
     for ext in [".xz", ".gz", ""]:
         try:
-            request = Request(
-                url + ext, headers={"User-Agent": USER_AGENT})
+            request = Request(url + ext, headers={"User-Agent": USER_AGENT})
             response = urlopen(request)
         except HTTPError as e:
             if e.status == 404:
@@ -141,16 +144,17 @@ def load_url_with_cache(url, cache_dirs):
 
 def load_apt_cache_file(url, cache_dir):
     fn = apt_pkg.uri_to_filename(url)
-    for ext in ['.xz', '.gz', '.lz4', '']:
+    for ext in [".xz", ".gz", ".lz4", ""]:
         p = os.path.join(cache_dir, fn + ext)
         if not os.path.exists(p):
             continue
         # return os.popen('/usr/lib/apt/apt-helper cat-file %s' % p)
         logging.debug("Loading cached contents file %s", p)
-        if ext == '.lz4':
+        if ext == ".lz4":
             import lz4.frame
+
             return lz4.frame.open(p, mode="rb")
-        return _unwrap(open(p, 'rb'), ext)
+        return _unwrap(open(p, "rb"), ext)
     raise FileNotFoundError(url)
 
 
@@ -174,14 +178,15 @@ class AptCachedContentsFileSearcher(FileSearcher):
         sl.load("/etc/apt/sources.list")
 
         from .build import get_build_architecture
+
         cache_dirs = set(["/var/lib/apt/lists"])
 
         def load_url(url):
             return load_url_with_cache(url, cache_dirs)
 
         urls = list(
-            contents_urls_from_sourceslist(
-                sl, get_build_architecture(), load_url))
+            contents_urls_from_sourceslist(sl, get_build_architecture(), load_url)
+        )
         self._load_urls(urls, cache_dirs, load_url)
 
     def load_from_session(self, session):
@@ -193,16 +198,19 @@ class AptCachedContentsFileSearcher(FileSearcher):
 
         from .build import get_build_architecture
 
-        cache_dirs = set([
-            os.path.join(session.location, "var/lib/apt/lists"),
-            "/var/lib/apt/lists",
-        ])
+        cache_dirs = set(
+            [
+                os.path.join(session.location, "var/lib/apt/lists"),
+                "/var/lib/apt/lists",
+            ]
+        )
 
         def load_url(url):
             return load_url_with_cache(url, cache_dirs)
 
         urls = list(
-            contents_urls_from_sourceslist(sl, get_build_architecture(), load_url))
+            contents_urls_from_sourceslist(sl, get_build_architecture(), load_url)
+        )
         self._load_urls(urls, cache_dirs, load_url)
 
     def _load_urls(self, urls, cache_dirs, load_url):
@@ -217,7 +225,7 @@ class AptCachedContentsFileSearcher(FileSearcher):
         self._db[path] = package
 
     def search_files(self, path, regex=False, case_insensitive=False):
-        path = path.lstrip('/').encode('utf-8', 'surrogateescape')
+        path = path.lstrip("/").encode("utf-8", "surrogateescape")
         if case_insensitive and not regex:
             regex = True
             path = re.escape(path)
@@ -230,12 +238,12 @@ class AptCachedContentsFileSearcher(FileSearcher):
             for p, rest in self._db.items():
                 if c.match(p):
                     pkg = rest.split(b"/")[-1]
-                    ret.append((p, pkg.decode('utf-8')))
+                    ret.append((p, pkg.decode("utf-8")))
             for p, pkg in sorted(ret):
                 yield pkg
         else:
             try:
-                yield self._db[path].split(b"/")[-1].decode('utf-8')
+                yield self._db[path].split(b"/")[-1].decode("utf-8")
             except KeyError:
                 pass
 
@@ -243,7 +251,7 @@ class AptCachedContentsFileSearcher(FileSearcher):
         start_time = datetime.now()
         for path, rest in read_contents_file(f.readlines()):
             self[path] = rest
-        logging.debug('Read %s in %s', url, datetime.now() - start_time)
+        logging.debug("Read %s in %s", url, datetime.now() - start_time)
 
 
 class GeneratedFileSearcher(FileSearcher):
@@ -257,12 +265,14 @@ class GeneratedFileSearcher(FileSearcher):
         return self
 
     def load_from_path(self, path):
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             for line in f:
                 (path, pkg) = line.strip().split(None, 1)
                 self._db[path] = pkg
 
-    def search_files(self, path: str, regex: bool = False, case_insensitive: bool = False) -> Iterator[str]:
+    def search_files(
+        self, path: str, regex: bool = False, case_insensitive: bool = False
+    ) -> Iterator[str]:
         for p, pkg in sorted(self._db.items()):
             if regex:
                 flags = 0
@@ -294,13 +304,17 @@ GENERATED_FILE_SEARCHER = GeneratedFileSearcher(
 
 
 def get_packages_for_paths(
-    paths: List[str], searchers: List[FileSearcher], regex: bool = False,
-    case_insensitive: bool = False
+    paths: List[str],
+    searchers: List[FileSearcher],
+    regex: bool = False,
+    case_insensitive: bool = False,
 ) -> List[str]:
     candidates: List[str] = list()
     for path in paths:
         for searcher in searchers:
-            for pkg in searcher.search_files(path, regex=regex, case_insensitive=case_insensitive):
+            for pkg in searcher.search_files(
+                path, regex=regex, case_insensitive=case_insensitive
+            ):
                 if pkg not in candidates:
                     candidates.append(pkg)
     return candidates
@@ -308,10 +322,11 @@ def get_packages_for_paths(
 
 def main(argv):
     import argparse
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('path', help='Path to search for.', type=str, nargs='*')
-    parser.add_argument('--regex', '-x', help='Search for regex.', action='store_true')
-    parser.add_argument('--debug', action='store_true')
+    parser.add_argument("path", help="Path to search for.", type=str, nargs="*")
+    parser.add_argument("--regex", "-x", help="Search for regex.", action="store_true")
+    parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
     if args.debug:
@@ -328,6 +343,7 @@ def main(argv):
         print(package)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
+
     sys.exit(main(sys.argv))

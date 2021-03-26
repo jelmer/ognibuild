@@ -19,7 +19,7 @@
 import posixpath
 import re
 import subprocess
-from typing import Optional, List, Tuple, Set
+from typing import Optional, List, Set
 
 from . import Requirement
 
@@ -72,19 +72,24 @@ class PythonPackageRequirement(Requirement):
             cmd = "python3"
         else:
             raise NotImplementedError
-        text = self.package + ','.join([''.join(spec) for spec in self.specs])
+        text = self.package + ",".join(["".join(spec) for spec in self.specs])
         p = session.Popen(
             [cmd, "-c", "import pkg_resources; pkg_resources.require(%r)" % text],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
         p.communicate()
         return p.returncode == 0
 
 
 class PhpPackageRequirement(Requirement):
-
-    def __init__(self, package: str, channel: Optional[str] = None,
-                 min_version: Optional[str] = None,
-                 max_version: Optional[str] = None):
+    def __init__(
+        self,
+        package: str,
+        channel: Optional[str] = None,
+        min_version: Optional[str] = None,
+        max_version: Optional[str] = None,
+    ):
         self.package = package
         self.channel = channel
         self.min_version = min_version
@@ -92,8 +97,12 @@ class PhpPackageRequirement(Requirement):
 
     def __repr__(self):
         return "%s(%r, %r, %r, %r)" % (
-            type(self).__name__, self.package, self.channel,
-            self.min_version, self.max_version)
+            type(self).__name__,
+            self.package,
+            self.channel,
+            self.min_version,
+            self.max_version,
+        )
 
 
 class BinaryRequirement(Requirement):
@@ -109,8 +118,10 @@ class BinaryRequirement(Requirement):
 
     def met(self, session):
         p = session.Popen(
-            ["which", self.binary_name], stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL)
+            ["which", self.binary_name],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
         p.communicate()
         return p.returncode == 0
 
@@ -144,7 +155,7 @@ class VagueDependencyRequirement(Requirement):
         self.name = name
 
     def expand(self):
-        if ' ' not in self.name:
+        if " " not in self.name:
             yield BinaryRequirement(self.name)
             yield LibraryRequirement(self.name)
             yield PkgConfigRequirement(self.name)
@@ -153,6 +164,7 @@ class VagueDependencyRequirement(Requirement):
                 yield LibraryRequirement(self.name.lower())
                 yield PkgConfigRequirement(self.name.lower())
             from .resolver.apt import AptRequirement
+
             yield AptRequirement.simple(self.name.lower())
 
     def met(self, session):
@@ -208,17 +220,18 @@ class CargoCrateRequirement(Requirement):
             type(self).__name__,
             self.crate,
             self.features,
-            self.version
+            self.version,
         )
 
     def __str__(self):
         if self.features:
             return "cargo crate: %s %s (%s)" % (
-                self.crate, self.version or '',
-                ', '.join(sorted(self.features)))
+                self.crate,
+                self.version or "",
+                ", ".join(sorted(self.features)),
+            )
         else:
-            return "cargo crate: %s %s" % (
-                self.crate, self.version or '')
+            return "cargo crate: %s %s" % (self.crate, self.version or "")
 
 
 class PkgConfigRequirement(Requirement):
@@ -346,10 +359,10 @@ class RPackageRequirement(Requirement):
     @classmethod
     def from_str(cls, text):
         # TODO(jelmer): More complex parser
-        m = re.fullmatch(r'(.*)\s+\(>=\s+(.*)\)', text)
+        m = re.fullmatch(r"(.*)\s+\(>=\s+(.*)\)", text)
         if m:
             return cls(m.group(1), m.group(2))
-        m = re.fullmatch(r'([^ ]+)', text)
+        m = re.fullmatch(r"([^ ]+)", text)
         if m:
             return cls(m.group(1))
         raise ValueError(text)
@@ -381,10 +394,10 @@ class OctavePackageRequirement(Requirement):
     @classmethod
     def from_str(cls, text):
         # TODO(jelmer): More complex parser
-        m = re.fullmatch(r'(.*)\s+\(>=\s+(.*)\)', text)
+        m = re.fullmatch(r"(.*)\s+\(>=\s+(.*)\)", text)
         if m:
             return cls(m.group(1), m.group(2))
-        m = re.fullmatch(r'([^ ]+)', text)
+        m = re.fullmatch(r"([^ ]+)", text)
         if m:
             return cls(m.group(1))
         raise ValueError(text)
@@ -468,11 +481,14 @@ class MavenArtifactRequirement(Requirement):
 
     def __str__(self):
         return "maven requirement: %s:%s:%s" % (
-            self.group_id, self.artifact_id, self.version)
+            self.group_id,
+            self.artifact_id,
+            self.version,
+        )
 
     @classmethod
     def from_str(cls, text):
-        return cls.from_tuple(text.split(':'))
+        return cls.from_tuple(text.split(":"))
 
     @classmethod
     def from_tuple(cls, parts):
@@ -486,8 +502,7 @@ class MavenArtifactRequirement(Requirement):
             (group_id, artifact_id) = parts
             kind = "jar"
         else:
-            raise ValueError(
-                "invalid number of parts to artifact %r" % parts)
+            raise ValueError("invalid number of parts to artifact %r" % parts)
         return cls(group_id, artifact_id, version, kind)
 
 
@@ -512,31 +527,26 @@ class JDKFileRequirement(Requirement):
 
 
 class JDKRequirement(Requirement):
-
     def __init__(self):
         super(JDKRequirement, self).__init__("jdk")
 
 
 class JRERequirement(Requirement):
-
     def __init__(self):
         super(JRERequirement, self).__init__("jre")
 
 
 class QTRequirement(Requirement):
-
     def __init__(self):
         super(QTRequirement, self).__init__("qt")
 
 
 class X11Requirement(Requirement):
-
     def __init__(self):
         super(X11Requirement, self).__init__("x11")
 
 
 class CertificateAuthorityRequirement(Requirement):
-
     def __init__(self, url):
         super(CertificateAuthorityRequirement, self).__init__("ca-cert")
         self.url = url
@@ -561,7 +571,6 @@ class AutoconfMacroRequirement(Requirement):
 
 
 class LibtoolRequirement(Requirement):
-
     def __init__(self):
         super(LibtoolRequirement, self).__init__("libtool")
 
@@ -593,6 +602,8 @@ class PythonModuleRequirement(Requirement):
             raise NotImplementedError
         p = session.Popen(
             [cmd, "-c", "import %s" % self.module],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
         p.communicate()
         return p.returncode == 0

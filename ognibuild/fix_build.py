@@ -17,17 +17,15 @@
 
 from functools import partial
 import logging
-from typing import List, Optional, Tuple, Callable, Any
+from typing import List, Tuple, Callable, Any
 
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
     find_build_failure_description,
     MissingCommand,
 )
-from breezy.mutabletree import MutableTree
 
 from . import DetailedFailure, UnidentifiedError
-from .debian.apt import AptManager
 from .session import Session, run_with_tee
 
 
@@ -55,7 +53,7 @@ def run_detecting_problems(session: Session, args: List[str], **kwargs):
     else:
         if retcode == 0:
             return contents
-        lines = ''.join(contents).splitlines(False)
+        lines = "".join(contents).splitlines(False)
         match, error = find_build_failure_description(lines)
         if error is None:
             if match:
@@ -91,22 +89,26 @@ def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any]):
             try:
                 resolved = resolve_error(f.error, None, fixers=fixers)
             except DetailedFailure as n:
-                logging.info('New error %r while resolving %r', n, f)
+                logging.info("New error %r while resolving %r", n, f)
                 if n in to_resolve:
                     raise
                 to_resolve.append(f)
                 to_resolve.append(n)
             else:
                 if not resolved:
-                    logging.warning("Failed to find resolution for error %r. Giving up.", f.error)
+                    logging.warning(
+                        "Failed to find resolution for error %r. Giving up.", f.error
+                    )
                     raise f
                 fixed_errors.append(f.error)
 
 
-def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer], **kwargs):
+def run_with_build_fixers(
+    session: Session, args: List[str], fixers: List[BuildFixer], **kwargs
+):
     return iterate_with_build_fixers(
-        fixers,
-        partial(run_detecting_problems, session, args, **kwargs))
+        fixers, partial(run_detecting_problems, session, args, **kwargs)
+    )
 
 
 def resolve_error(error, phase, fixers):

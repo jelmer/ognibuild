@@ -26,10 +26,17 @@ from buildlog_consultant.apt import (
 
 from .. import DetailedFailure, UnidentifiedError
 from ..session import Session, run_with_tee, get_user
-from .file_search import FileSearcher, AptCachedContentsFileSearcher, GENERATED_FILE_SEARCHER, get_packages_for_paths
+from .file_search import (
+    FileSearcher,
+    AptCachedContentsFileSearcher,
+    GENERATED_FILE_SEARCHER,
+    get_packages_for_paths,
+)
 
 
-def run_apt(session: Session, args: List[str], prefix: Optional[List[str]] = None) -> None:
+def run_apt(
+    session: Session, args: List[str], prefix: Optional[List[str]] = None
+) -> None:
     """Run apt."""
     if prefix is None:
         prefix = []
@@ -84,7 +91,9 @@ class AptManager(object):
     def get_packages_for_paths(self, paths, regex=False, case_insensitive=False):
         logging.debug("Searching for packages containing %r", paths)
         # TODO(jelmer): Make sure we use whatever is configured in self.session
-        return get_packages_for_paths(paths, self.searchers(), regex=regex, case_insensitive=case_insensitive)
+        return get_packages_for_paths(
+            paths, self.searchers(), regex=regex, case_insensitive=case_insensitive
+        )
 
     def missing(self, packages):
         root = getattr(self.session, "location", "/")

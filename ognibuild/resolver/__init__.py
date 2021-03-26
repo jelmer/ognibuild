@@ -19,6 +19,7 @@
 import subprocess
 from ..fix_build import run_detecting_problems
 
+
 class UnsatisfiedRequirements(Exception):
     def __init__(self, reqs):
         self.requirements = reqs
@@ -53,7 +54,7 @@ class CPANResolver(Resolver):
     def _cmd(self, reqs):
         ret = ["cpan", "-i"]
         if self.skip_tests:
-            ret.append('-T')
+            ret.append("-T")
         ret.extend([req.module for req in reqs])
         return ret
 
@@ -75,7 +76,7 @@ class CPANResolver(Resolver):
             "PERL_MM_USE_DEFAULT": "1",
             "PERL_MM_OPT": "",
             "PERL_MB_OPT": "",
-            }
+        }
 
         if not self.user_local:
             user = "root"
@@ -111,7 +112,11 @@ class RResolver(Resolver):
 
     def _cmd(self, req):
         # TODO(jelmer: Handle self.user_local
-        return ["R", "-e", "install.packages('%s', repos=%r)" % (req.package, self.repos)]
+        return [
+            "R",
+            "-e",
+            "install.packages('%s', repos=%r)" % (req.package, self.repos),
+        ]
 
     def explain(self, requirements):
         from ..requirements import RPackageRequirement
@@ -187,16 +192,17 @@ class OctaveForgeResolver(Resolver):
 
 
 class CRANResolver(RResolver):
-
     def __init__(self, session, user_local=False):
-        super(CRANResolver, self).__init__(session, 'http://cran.r-project.org', user_local=user_local)
+        super(CRANResolver, self).__init__(
+            session, "http://cran.r-project.org", user_local=user_local
+        )
 
 
 class BioconductorResolver(RResolver):
-
     def __init__(self, session, user_local=False):
         super(BioconductorResolver, self).__init__(
-            session, 'https://hedgehog.fhcrc.org/bioconductor', user_local=user_local)
+            session, "https://hedgehog.fhcrc.org/bioconductor", user_local=user_local
+        )
 
 
 class HackageResolver(Resolver):
@@ -213,7 +219,7 @@ class HackageResolver(Resolver):
     def _cmd(self, reqs):
         extra_args = []
         if self.user_local:
-            extra_args.append('--user')
+            extra_args.append("--user")
         return ["cabal", "install"] + extra_args + [req.package for req in reqs]
 
     def install(self, requirements):
@@ -259,7 +265,7 @@ class PypiResolver(Resolver):
     def _cmd(self, reqs):
         extra_args = []
         if self.user_local:
-            extra_args.append('--user')
+            extra_args.append("--user")
         return ["pip", "install"] + extra_args + [req.package for req in reqs]
 
     def install(self, requirements):
@@ -276,8 +282,7 @@ class PypiResolver(Resolver):
                 missing.append(requirement)
                 continue
             try:
-                self.session.check_call(
-                    self._cmd([requirement]), user=user)
+                self.session.check_call(self._cmd([requirement]), user=user)
             except subprocess.CalledProcessError:
                 missing.append(requirement)
         if missing:
@@ -296,7 +301,6 @@ class PypiResolver(Resolver):
 
 
 class GoResolver(Resolver):
-
     def __init__(self, session, user_local):
         self.session = session
         self.user_local = user_local
@@ -314,7 +318,7 @@ class GoResolver(Resolver):
             env = {}
         else:
             # TODO(jelmer): Isn't this Debian-specific?
-            env = {'GOPATH': '/usr/share/gocode'}
+            env = {"GOPATH": "/usr/share/gocode"}
 
         missing = []
         for requirement in requirements:
@@ -334,8 +338,7 @@ class GoResolver(Resolver):
                 continue
             goreqs.append(requirement)
         if goreqs:
-            yield (["go", "get"] + [req.package for req in goreqs],
-                   goreqs)
+            yield (["go", "get"] + [req.package for req in goreqs], goreqs)
 
 
 NPM_COMMAND_PACKAGES = {
@@ -361,7 +364,7 @@ class NpmResolver(Resolver):
             NodePackageRequirement,
             NodeModuleRequirement,
             BinaryRequirement,
-            )
+        )
 
         if self.user_local:
             user = None
@@ -379,13 +382,13 @@ class NpmResolver(Resolver):
                     requirement = NodePackageRequirement(package)
             if isinstance(requirement, NodeModuleRequirement):
                 # TODO: Is this legit?
-                requirement = NodePackageRequirement(requirement.module.split('/')[0])
+                requirement = NodePackageRequirement(requirement.module.split("/")[0])
             if not isinstance(requirement, NodePackageRequirement):
                 missing.append(requirement)
                 continue
             self.session.check_call(
-                ["npm", "-g", "install", requirement.package],
-                user=user)
+                ["npm", "-g", "install", requirement.package], user=user
+            )
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -449,7 +452,7 @@ NATIVE_RESOLVER_CLS = [
     CRANResolver,
     BioconductorResolver,
     OctaveForgeResolver,
-    ]
+]
 
 
 def native_resolvers(session, user_local):

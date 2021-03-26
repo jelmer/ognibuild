@@ -23,7 +23,7 @@ from buildlog_consultant.common import (
     MissingGitIdentity,
     MissingSecretGpgKey,
     MissingAutoconfMacro,
-    )
+)
 from ognibuild.requirements import AutoconfMacroRequirement
 from ognibuild.resolver import UnsatisfiedRequirements
 
@@ -31,7 +31,6 @@ from .fix_build import BuildFixer
 
 
 class GitIdentityFixer(BuildFixer):
-
     def __init__(self, session):
         self.session = session
 
@@ -39,16 +38,17 @@ class GitIdentityFixer(BuildFixer):
         return isinstance(problem, MissingGitIdentity)
 
     def _fix(self, problem: Problem, phase: Tuple[str, ...]):
-        for name in ['user.email', 'user.name']:
-            value = subprocess.check_output(
-                ['git', 'config', '--global', name]).decode().strip()
-            self.session.check_call(
-                ['git', 'config', '--global', name, value])
+        for name in ["user.email", "user.name"]:
+            value = (
+                subprocess.check_output(["git", "config", "--global", name])
+                .decode()
+                .strip()
+            )
+            self.session.check_call(["git", "config", "--global", name, value])
         return True
 
 
 class SecretGpgKeyFixer(BuildFixer):
-
     def __init__(self, session):
         self.session = session
 
@@ -67,8 +67,10 @@ Expire-Date: 0
 Passphrase: ""
 """
         p = self.session.Popen(
-            ['gpg', '--gen-key', '--batch', '/dev/stdin'],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            ["gpg", "--gen-key", "--batch", "/dev/stdin"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        )
         p.communicate(SCRIPT)
         if p.returncode == 0:
             return True
@@ -76,7 +78,6 @@ Passphrase: ""
 
 
 class UnexpandedAutoconfMacroFixer(BuildFixer):
-
     def __init__(self, session, resolver):
         self.session = session
         self.resolver = resolver
@@ -97,6 +98,6 @@ class UnexpandedAutoconfMacroFixer(BuildFixer):
             return False
         from .fix_build import run_detecting_problems
 
-        run_detecting_problems(self.session, ['autoconf', '-f'])
+        run_detecting_problems(self.session, ["autoconf", "-f"])
 
         return True

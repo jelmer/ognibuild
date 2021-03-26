@@ -55,7 +55,7 @@ class Session(object):
         cwd: Optional[str] = None,
         user: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
-        close_fds: bool = True
+        close_fds: bool = True,
     ):
         raise NotImplementedError(self.check_call)
 
@@ -90,8 +90,8 @@ class Session(object):
         raise NotImplementedError(self.scandir)
 
     def setup_from_vcs(
-            self, tree, include_controldir: Optional[bool] = None,
-            subdir="package") -> Tuple[str, str]:
+        self, tree, include_controldir: Optional[bool] = None, subdir="package"
+    ) -> Tuple[str, str]:
         raise NotImplementedError(self.setup_from_vcs)
 
     def setup_from_directory(self, path, subdir="package") -> Tuple[str, str]:
@@ -108,8 +108,8 @@ class SessionSetupFailure(Exception):
 
 
 def run_with_tee(session: Session, args: List[str], **kwargs):
-    if 'stdin' not in kwargs:
-        kwargs['stdin'] = subprocess.DEVNULL
+    if "stdin" not in kwargs:
+        kwargs["stdin"] = subprocess.DEVNULL
     p = session.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs)
     contents = []
     while p.poll() is None:

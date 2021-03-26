@@ -33,7 +33,6 @@ import sys
 from debian.changelog import Changelog
 from debmutate.changelog import get_maintainer, format_datetime
 
-from breezy import osutils
 from breezy.mutabletree import MutableTree
 from breezy.plugins.debian.builder import BuildFailedError
 from breezy.tree import Tree

@@ -99,11 +99,14 @@ blah (0.1) UNRELEASED; urgency=medium
         apt = AptManager(session)
         apt._searchers = [DummyAptSearcher(self._apt_files)]
         context = DebianPackagingContext(
-            self.tree, subpath="", committer="ognibuild <ognibuild@jelmer.uk>",
+            self.tree,
+            subpath="",
+            committer="ognibuild <ognibuild@jelmer.uk>",
             update_changelog=True,
-            commit_reporter=NullCommitReporter())
+            commit_reporter=NullCommitReporter(),
+        )
         fixers = versioned_package_fixers(session, context) + apt_fixers(apt, context)
-        return resolve_error(error, ("build", ), fixers)
+        return resolve_error(error, ("build",), fixers)
 
     def get_build_deps(self):
         with open(self.tree.abspath("debian/control"), "r") as f:

@@ -53,17 +53,17 @@ class DistCatcher(object):
 
     @classmethod
     def default(cls, directory):
-        return cls([
-            os.path.join(directory, 'dist'),
-            directory,
-            os.path.join(directory, '..')])
+        return cls(
+            [os.path.join(directory, "dist"), directory, os.path.join(directory, "..")]
+        )
 
     def __enter__(self):
         self.existing_files = {}
         for directory in self.directories:
             try:
                 self.existing_files[directory] = {
-                    entry.name: entry for entry in os.scandir(directory)}
+                    entry.name: entry for entry in os.scandir(directory)
+                }
             except FileNotFoundError:
                 self.existing_files[directory] = {}
         return self
@@ -92,7 +92,8 @@ class DistCatcher(object):
                 return entry.name
             elif len(possible_new) > 1:
                 logging.warning(
-                    "Found multiple tarballs %r in %s.", possible_new, directory)
+                    "Found multiple tarballs %r in %s.", possible_new, directory
+                )
                 return
 
             if len(possible_updated) == 1:

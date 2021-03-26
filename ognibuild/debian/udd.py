@@ -21,7 +21,6 @@ import logging
 
 
 class UDD(object):
-
     def connect(self):
         import psycopg2
 
@@ -36,8 +35,9 @@ class UDD(object):
     def get_most_popular(self, packages):
         cursor = self._conn.cursor()
         cursor.execute(
-            'SELECT package FROM popcon WHERE package IN %s ORDER BY insts DESC LIMIT 1',
-            (tuple(packages), ))
+            "SELECT package FROM popcon WHERE package IN %s ORDER BY insts DESC LIMIT 1",
+            (tuple(packages),),
+        )
         return cursor.fetchone()[0]
 
 
@@ -47,15 +47,14 @@ def popcon_tie_breaker(candidates):
     try:
         from .udd import UDD
     except ModuleNotFoundError:
-        logging.warning('Unable to import UDD, not ranking by popcon')
+        logging.warning("Unable to import UDD, not ranking by popcon")
         return sorted(candidates, key=len)[0]
     udd = UDD()
     udd.connect()
     names = {list(c.package_names())[0]: c for c in candidates}
     winner = udd.get_most_popular(list(names.keys()))
     if winner is None:
-        logging.warning(
-            'No relevant popcon information found, not ranking by popcon')
+        logging.warning("No relevant popcon information found, not ranking by popcon")
         return None
-    logging.info('Picked winner using popcon')
+    logging.info("Picked winner using popcon")
     return names[winner]

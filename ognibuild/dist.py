@@ -16,16 +16,15 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 __all__ = [
-    'UnidentifiedError',
-    'DetailedFailure',
-    'create_dist',
-    'create_dist_schroot',
-    ]
+    "UnidentifiedError",
+    "DetailedFailure",
+    "create_dist",
+    "create_dist_schroot",
+]
 
 import errno
 import logging
 import os
-import shutil
 import sys
 from typing import Optional, List
 
@@ -54,7 +53,8 @@ def run_dist(session, buildsystems, resolver, fixers, target_directory, quiet=Fa
 
     for buildsystem in buildsystems:
         filename = buildsystem.dist(
-            session, resolver, fixers, target_directory, quiet=quiet)
+            session, resolver, fixers, target_directory, quiet=quiet
+        )
         return filename
 
     raise NoBuildToolsFound()
@@ -66,20 +66,23 @@ def create_dist(
     target_dir: str,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
-    cleanup: bool = False
+    cleanup: bool = False,
 ) -> Optional[str]:
     from .buildsystem import detect_buildsystems
     from .buildlog import InstallFixer
     from .fix_build import BuildFixer
     from .fixers import (
-        GitIdentityFixer, SecretGpgKeyFixer,
-        UnexpandedAutoconfMacroFixer, )
+        GitIdentityFixer,
+        SecretGpgKeyFixer,
+        UnexpandedAutoconfMacroFixer,
+    )
 
     if subdir is None:
         subdir = "package"
     try:
         export_directory, reldir = session.setup_from_vcs(
-            tree, include_controldir=include_controldir, subdir=subdir)
+            tree, include_controldir=include_controldir, subdir=subdir
+        )
     except OSError as e:
         if e.errno == errno.ENOSPC:
             raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
@@ -94,8 +97,7 @@ def create_dist(
 
     if session.is_temporary:
         # Only muck about with temporary sessions
-        fixers.extend([
-            GitIdentityFixer(session), SecretGpgKeyFixer(session)])
+        fixers.extend([GitIdentityFixer(session), SecretGpgKeyFixer(session)])
 
     session.chdir(reldir)
     return run_dist(session, buildsystems, resolver, fixers, target_dir)
@@ -109,7 +111,7 @@ def create_dist_schroot(
     packaging_subpath: Optional[str] = None,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
-    cleanup: bool = False
+    cleanup: bool = False,
 ) -> Optional[str]:
     with SchrootSession(chroot) as session:
         if packaging_tree is not None:
@@ -117,10 +119,13 @@ def create_dist_schroot(
 
             satisfy_build_deps(session, packaging_tree, packaging_subpath)
         return create_dist(
-            session, tree, target_dir,
+            session,
+            tree,
+            target_dir,
             include_controldir=include_controldir,
             subdir=subdir,
-            cleanup=cleanup)
+            cleanup=cleanup,
+        )
 
 
 if __name__ == "__main__":
@@ -151,8 +156,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
     parser.add_argument(
-        '--include-controldir', action='store_true',
-        help='Clone rather than export.')
+        "--include-controldir", action="store_true", help="Clone rather than export."
+    )
 
     args = parser.parse_args()
 
@@ -185,15 +190,17 @@ if __name__ == "__main__":
         logging.info("No build tools found, falling back to simple export.")
         export(tree, "dist.tar.gz", "tgz", None)
     except NotImplementedError:
-        logging.info("Build system does not support dist tarball creation, "
-                     "falling back to simple export.")
+        logging.info(
+            "Build system does not support dist tarball creation, "
+            "falling back to simple export."
+        )
         export(tree, "dist.tar.gz", "tgz", None)
     except UnidentifiedError as e:
-        logging.fatal('Unidentified error: %r', e.lines)
+        logging.fatal("Unidentified error: %r", e.lines)
     except DetailedFailure as e:
-        logging.fatal('Identified error during dist creation: %s', e.error)
+        logging.fatal("Identified error during dist creation: %s", e.error)
     except DistNoTarball:
-        logging.fatal('dist operation did not create a tarball')
+        logging.fatal("dist operation did not create a tarball")
     else:
         logging.info("Created %s", ret)
     sys.exit(0)

@@ -19,13 +19,12 @@ __all__ = [
     "build_incrementally",
 ]
 
-from datetime import datetime
 from functools import partial
 import logging
 import os
 import shutil
 import sys
-from typing import List, Set, Optional, Type, Tuple
+from typing import List, Set, Optional, Type
 
 from debian.deb822 import (
     Deb822,
@@ -33,7 +32,6 @@ from debian.deb822 import (
 )
 
 from breezy.commit import PointlessCommit
-from breezy.mutabletree import MutableTree
 from breezy.tree import Tree
 from debmutate.changelog import ChangelogEditor
 from debmutate.control import (
@@ -54,18 +52,20 @@ from debmutate.reformatting import (
 try:
     from breezy.workspace import reset_tree
 except ImportError:  # breezy < 3.2
+
     def delete_items(deletables, dry_run=False):
         """Delete files in the deletables iterable"""
         import errno
         import shutil
+
         def onerror(function, path, excinfo):
-            """Show warning for errors seen by rmtree.
-            """
+            """Show warning for errors seen by rmtree."""
             # Handle only permission error while removing files.
             # Other errors are re-raised.
             if function is not os.remove or excinfo[1].errno != errno.EACCES:
                 raise
-            logging.warning('unable to remove %s' % path)
+            logging.warning("unable to remove %s" % path)
+
         for path, subp in deletables:
             if os.path.isdir(path):
                 shutil.rmtree(path, onerror=onerror)
@@ -78,13 +78,18 @@ except ImportError:  # breezy < 3.2
                         raise e
                     logging.warning('unable to remove "%s": %s.', path, e.strerror)
 
-    def reset_tree(local_tree, subpath=''):
+    def reset_tree(local_tree, subpath=""):
         from breezy.transform import revert
         from breezy.clean_tree import iter_deletables
-        revert(local_tree, local_tree.branch.basis_tree(),
-               [subpath] if subpath not in ('.', '') else None)
-        deletables = list(iter_deletables(
-            local_tree, unknown=True, ignored=False, detritus=False))
+
+        revert(
+            local_tree,
+            local_tree.branch.basis_tree(),
+            [subpath] if subpath not in (".", "") else None,
+        )
+        deletables = list(
+            iter_deletables(local_tree, unknown=True, ignored=False, detritus=False)
+        )
         delete_items(deletables)
 
 
@@ -103,8 +108,6 @@ from buildlog_consultant.common import (
     MissingAutomakeInput,
     MissingConfigure,
     NeedPgBuildExtUpdateControl,
-    MissingPythonModule,
-    MissingPythonDistribution,
     MissingPerlFile,
 )
 from buildlog_consultant.sbuild import (
@@ -130,8 +133,9 @@ class CircularDependency(Exception):
 
 
 class DebianPackagingContext(object):
-
-    def __init__(self, tree, subpath, committer, update_changelog, commit_reporter=None):
+    def __init__(
+        self, tree, subpath, committer, update_changelog, commit_reporter=None
+    ):
         self.tree = tree
         self.subpath = subpath
         self.committer = committer
@@ -144,14 +148,18 @@ class DebianPackagingContext(object):
         with self.tree.lock_write():
             try:
                 if update_changelog:
-                    cl_path = self.tree.abspath(os.path.join(self.subpath, "debian/changelog"))
+                    cl_path = self.tree.abspath(
+                        os.path.join(self.subpath, "debian/changelog")
+                    )
                     with ChangelogEditor(cl_path) as editor:
                         editor.add_entry([summary])
                     debcommit(self.tree, committer=self.committer, subpath=self.subpath)
                 else:
                     self.tree.commit(
-                        message=summary, committer=self.committer, specific_files=[self.subpath],
-                        reporter=self.commit_reporter
+                        message=summary,
+                        committer=self.committer,
+                        specific_files=[self.subpath],
+                        reporter=self.commit_reporter,
                     )
             except PointlessCommit:
                 return False
@@ -160,7 +168,6 @@ class DebianPackagingContext(object):
 
 
 class PackageDependencyFixer(BuildFixer):
-
     def __init__(self, context, apt_resolver):
         self.apt_resolver = apt_resolver
         self.context = context
@@ -203,7 +210,7 @@ def add_dependency(context, phase, requirement: AptRequirement):
     elif phase[0] == "build":
         return add_build_dependency(context, requirement)
     else:
-        logging.warning('Unknown phase %r', phase)
+        logging.warning("Unknown phase %r", phase)
         return False
 
 
@@ -239,7 +246,9 @@ def add_test_dependency(context, testname, requirement):
     if not isinstance(requirement, AptRequirement):
         raise TypeError(requirement)
 
-    tests_control_path = os.path.join(context.tree.abspath(context.subpath), "debian/tests/control")
+    tests_control_path = os.path.join(
+        context.tree.abspath(context.subpath), "debian/tests/control"
+    )
 
     try:
         with Deb822Editor(path=tests_control_path) as updater:
@@ -293,18 +302,22 @@ def python_tie_breaker(tree, subpath, reqs):
         return None
 
     def same(pkg, python_version):
-        if pkg.startswith(python_version + '-'):
+        if pkg.startswith(python_version + "-"):
             return True
-        if pkg.startswith('lib%s-' % python_version):
+        if pkg.startswith("lib%s-" % python_version):
             return True
         return False
+
     for python_version in targeted:
         for req in reqs:
             if any(same(name, python_version) for name in req.package_names()):
                 logging.info(
-                    'Breaking tie between %r to %r, since package already '
-                    'has %r build-dependencies', [str(req) for req in reqs],
-                    str(req), python_version)
+                    "Breaking tie between %r to %r, since package already "
+                    "has %r build-dependencies",
+                    [str(req) for req in reqs],
+                    str(req),
+                    python_version,
+                )
                 return req
     return None
 
@@ -327,7 +340,9 @@ def enable_dh_autoreconf(context, phase):
             return dh_invoke_add_with(line, b"autoreconf")
 
         if update_rules(command_line_cb=add_with_autoreconf):
-            return add_dependency(context, phase, AptRequirement.simple("dh-autoreconf"))
+            return add_dependency(
+                context, phase, AptRequirement.simple("dh-autoreconf")
+            )
 
     return False
 
@@ -379,16 +394,18 @@ class PgBuildExtOutOfDateControlFixer(BuildFixer):
         return isinstance(problem, NeedPgBuildExtUpdateControl)
 
     def __repr__(self):
-        return "%s()" % (type(self).__name__, )
+        return "%s()" % (type(self).__name__,)
 
     def _fix(self, error, context):
         logging.info("Running 'pg_buildext updatecontrol'")
         self.session.check_call(["pg_buildext", "updatecontrol"])
         shutil.copy(
-            self.session.external_path('debian/control'),
-            context.tree.abspath(os.path.join(context.subpath, 'debian/control')))
+            self.session.external_path("debian/control"),
+            context.tree.abspath(os.path.join(context.subpath, "debian/control")),
+        )
         return self.context.commit(
-            "Run 'pgbuildext updatecontrol'.", update_changelog=False)
+            "Run 'pgbuildext updatecontrol'.", update_changelog=False
+        )
 
 
 def fix_missing_makefile_pl(error, phase, context):
@@ -410,7 +427,10 @@ class SimpleBuildFixer(BuildFixer):
 
     def __repr__(self):
         return "%s(%s, %s)" % (
-            type(self).__name__, self._problem_cls.__name__, self._fn.__name__)
+            type(self).__name__,
+            self._problem_cls.__name__,
+            self._fn.__name__,
+        )
 
     def can_fix(self, problem: Problem):
         return isinstance(problem, self._problem_cls)
@@ -428,7 +448,10 @@ class DependencyBuildFixer(BuildFixer):
 
     def __repr__(self):
         return "%s(%s, %s)" % (
-            type(self).__name__, self._problem_cls.__name__, self._fn.__name__)
+            type(self).__name__,
+            self._problem_cls.__name__,
+            self._fn.__name__,
+        )
 
     def can_fix(self, problem: Problem):
         return isinstance(problem, self._problem_cls)
@@ -441,8 +464,12 @@ def versioned_package_fixers(session, packaging_context):
     return [
         PgBuildExtOutOfDateControlFixer(packaging_context, session),
         SimpleBuildFixer(packaging_context, MissingConfigure, fix_missing_configure),
-        SimpleBuildFixer(packaging_context, MissingAutomakeInput, fix_missing_automake_input),
-        SimpleBuildFixer(packaging_context, MissingConfigStatusInput, fix_missing_config_status_input),
+        SimpleBuildFixer(
+            packaging_context, MissingAutomakeInput, fix_missing_automake_input
+        ),
+        SimpleBuildFixer(
+            packaging_context, MissingConfigStatusInput, fix_missing_config_status_input
+        ),
         SimpleBuildFixer(packaging_context, MissingPerlFile, fix_missing_makefile_pl),
     ]
 
@@ -451,14 +478,17 @@ def apt_fixers(apt, packaging_context) -> List[BuildFixer]:
     from ..resolver.apt import AptResolver
     from .udd import popcon_tie_breaker
     from .build_deps import BuildDependencyTieBreaker
+
     apt_tie_breakers = [
         partial(python_tie_breaker, packaging_context.tree, packaging_context.subpath),
         BuildDependencyTieBreaker.from_session(apt.session),
         popcon_tie_breaker,
-        ]
+    ]
     resolver = AptResolver(apt, apt_tie_breakers)
     return [
-        DependencyBuildFixer(packaging_context, apt, AptFetchFailure, retry_apt_failure),
+        DependencyBuildFixer(
+            packaging_context, apt, AptFetchFailure, retry_apt_failure
+        ),
         PackageDependencyFixer(packaging_context, resolver),
     ]
 
@@ -479,9 +509,11 @@ def build_incrementally(
 ):
     fixed_errors = []
     packaging_context = DebianPackagingContext(
-        local_tree, subpath, committer, update_changelog)
-    fixers = (versioned_package_fixers(apt.session, packaging_context) +
-              apt_fixers(apt, packaging_context))
+        local_tree, subpath, committer, update_changelog
+    )
+    fixers = versioned_package_fixers(apt.session, packaging_context) + apt_fixers(
+        apt, packaging_context
+    )
     logging.info("Using fixers: %r", fixers)
     while True:
         try:
@@ -534,11 +566,8 @@ def build_incrementally(
                 ):
                     i += 1
                 target_path = os.path.join(output_directory, "build.log.%d" % i)
-                os.rename(
-                    os.path.join(output_directory, "build.log"),
-                    target_path
-                )
-                logging.debug('Storing build log at %s', target_path)
+                os.rename(os.path.join(output_directory, "build.log"), target_path)
+                logging.debug("Storing build log at %s", target_path)
 
 
 def main(argv=None):
@@ -577,19 +606,13 @@ def main(argv=None):
         help="force updating of the changelog",
         default=None,
     )
-    parser.add_argument(
-        '--schroot',
-        type=str,
-        help='chroot to use.')
-    parser.add_argument(
-        '--verbose',
-        action='store_true',
-        help='Be verbose')
+    parser.add_argument("--schroot", type=str, help="chroot to use.")
+    parser.add_argument("--verbose", action="store_true", help="Be verbose")
 
     args = parser.parse_args()
     from breezy.workingtree import WorkingTree
-    import breezy.git
-    import breezy.bzr
+    import breezy.git  # noqa: F401
+    import breezy.bzr  # noqa: F401
     from .apt import AptManager
     from ..session.plain import PlainSession
     from ..session.schroot import SchrootSession
@@ -632,15 +655,15 @@ def main(argv=None):
             )
         except SbuildFailure as e:
             if e.phase is None:
-                phase = 'unknown phase'
+                phase = "unknown phase"
             elif len(e.phase) == 1:
                 phase = e.phase[0]
             else:
-                phase = '%s (%s)' % (e.phase[0], e.phase[1])
+                phase = "%s (%s)" % (e.phase[0], e.phase[1])
             if e.error:
-                logging.fatal('Error during %s: %s', phase, e.error)
+                logging.fatal("Error during %s: %s", phase, e.error)
             else:
-                logging.fatal('Error during %s: %s', phase, e.description)
+                logging.fatal("Error during %s: %s", phase, e.description)
             return 1
 
 

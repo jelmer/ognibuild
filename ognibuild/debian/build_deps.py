@@ -22,7 +22,6 @@ import logging
 
 
 class BuildDependencyTieBreaker(object):
-
     def __init__(self, rootdir):
         self.rootdir = rootdir
         self._counts = None
@@ -37,8 +36,9 @@ class BuildDependencyTieBreaker(object):
     def _count(self):
         counts = {}
         import apt_pkg
+
         apt_pkg.init()
-        apt_pkg.config.set('Dir', self.rootdir)
+        apt_pkg.config.set("Dir", self.rootdir)
         apt_cache = apt_pkg.SourceRecords()
         apt_cache.restart()
         while apt_cache.step():
@@ -65,17 +65,20 @@ class BuildDependencyTieBreaker(object):
             return None
         top = max(by_count.items(), key=lambda k: k[1])
         logging.info(
-            'Breaking tie between %r to %r based on build-depends count',
-            [repr(r) for r in reqs], top[0])
+            "Breaking tie between %r to %r based on build-depends count",
+            [repr(r) for r in reqs],
+            top[0],
+        )
         return top[0]
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
     from ..resolver.apt import AptRequirement
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('req', nargs='+')
+    parser.add_argument("req", nargs="+")
     args = parser.parse_args()
     reqs = [AptRequirement.from_str(req) for req in args.req]
-    tie_breaker = BuildDependencyTieBreaker('/')
+    tie_breaker = BuildDependencyTieBreaker("/")
     print(tie_breaker(reqs))

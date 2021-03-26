@@ -38,12 +38,13 @@ class PlainSession(Session):
             raise NoSessionOpen(self)
         if user is not None:
             import getpass
+
             if user != getpass.getuser():
                 args = ["sudo", "-u", user] + args
         return args
 
     def __repr__(self):
-        return "%s()" % (type(self).__name__, )
+        return "%s()" % (type(self).__name__,)
 
     def __enter__(self) -> "Session":
         if self.es is not None:
@@ -63,19 +64,23 @@ class PlainSession(Session):
         pass
 
     def check_call(
-            self, argv: List[str],
-            cwd: Optional[str] = None,
-            user: Optional[str] = None,
-            env: Optional[Dict[str, str]] = None,
-            close_fds: bool = True):
+        self,
+        argv: List[str],
+        cwd: Optional[str] = None,
+        user: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+        close_fds: bool = True,
+    ):
         argv = self._prepend_user(user, argv)
         return subprocess.check_call(argv, cwd=cwd, env=env, close_fds=close_fds)
 
     def check_output(
-            self, argv: List[str],
-            cwd: Optional[str] = None,
-            user: Optional[str] = None,
-            env: Optional[Dict[str, str]] = None) -> bytes:
+        self,
+        argv: List[str],
+        cwd: Optional[str] = None,
+        user: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+    ) -> bytes:
         argv = self._prepend_user(user, argv)
         return subprocess.check_output(argv, cwd=cwd, env=env)
 
@@ -95,15 +100,16 @@ class PlainSession(Session):
     def external_path(self, path):
         return os.path.abspath(path)
 
-    def setup_from_vcs(
-            self, tree, include_controldir=None, subdir="package"):
+    def setup_from_vcs(self, tree, include_controldir=None, subdir="package"):
         from ..vcs import dupe_vcs_tree, export_vcs_tree
+
         if include_controldir is False or (
-                not hasattr(tree, 'base') and include_controldir is None):
+            not hasattr(tree, "base") and include_controldir is None
+        ):
             td = self.es.enter_context(tempfile.TemporaryDirectory())
             export_vcs_tree(tree, td)
             return td, td
-        elif not hasattr(tree, 'base'):
+        elif not hasattr(tree, "base"):
             td = self.es.enter_context(tempfile.TemporaryDirectory())
             dupe_vcs_tree(tree, td)
             return td, td

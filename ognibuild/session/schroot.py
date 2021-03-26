@@ -57,12 +57,17 @@ class SchrootSession(Session):
         if self.session_id is None:
             raise NoSessionOpen(self)
         try:
-            subprocess.check_output(["schroot", "-c", "session:" + self.session_id, "-e"], stderr=subprocess.PIPE)
+            subprocess.check_output(
+                ["schroot", "-c", "session:" + self.session_id, "-e"],
+                stderr=subprocess.PIPE,
+            )
         except subprocess.CalledProcessError as e:
             for line in e.stderr.splitlines(False):
-                if line.startswith(b'E: '):
-                    logging.error('%s', line[3:].decode(errors='replace'))
-            logging.warning('Failed to close schroot session %s, leaving stray.', self.session_id)
+                if line.startswith(b"E: "):
+                    logging.error("%s", line[3:].decode(errors="replace"))
+            logging.warning(
+                "Failed to close schroot session %s, leaving stray.", self.session_id
+            )
             self.session_id = None
             return False
         self.session_id = None
@@ -134,10 +139,12 @@ class SchrootSession(Session):
         cwd: Optional[str] = None,
         user: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
-        close_fds: bool = True
+        close_fds: bool = True,
     ):
         try:
-            subprocess.check_call(self._run_argv(argv, cwd, user, env=env), close_fds=close_fds)
+            subprocess.check_call(
+                self._run_argv(argv, cwd, user, env=env), close_fds=close_fds
+            )
         except subprocess.CalledProcessError as e:
             raise subprocess.CalledProcessError(e.returncode, argv)
 
@@ -191,9 +198,10 @@ class SchrootSession(Session):
         return os.scandir(fullpath)
 
     def setup_from_vcs(
-            self, tree, include_controldir: Optional[bool] = None,
-            subdir="package"):
+        self, tree, include_controldir: Optional[bool] = None, subdir="package"
+    ):
         from ..vcs import dupe_vcs_tree, export_vcs_tree
+
         build_dir = os.path.join(self.location, "build")
 
         directory = tempfile.mkdtemp(dir=build_dir)
@@ -209,6 +217,7 @@ class SchrootSession(Session):
 
     def setup_from_directory(self, path, subdir="package"):
         import shutil
+
         build_dir = os.path.join(self.location, "build")
         directory = tempfile.mkdtemp(dir=build_dir)
         reldir = "/" + os.path.relpath(directory, self.location)

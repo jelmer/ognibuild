@@ -115,19 +115,27 @@ class AptRequirement(Requirement):
         return False
 
 
-def find_package_names(apt_mgr: AptManager, paths: List[str], regex: bool = False, case_insensitive=False) -> List[str]:
+def find_package_names(
+    apt_mgr: AptManager, paths: List[str], regex: bool = False, case_insensitive=False
+) -> List[str]:
     if not isinstance(paths, list):
         raise TypeError(paths)
     return apt_mgr.get_packages_for_paths(paths, regex, case_insensitive)
 
 
 def find_reqs_simple(
-        apt_mgr: AptManager, paths: List[str], regex: bool = False,
-        minimum_version=None, case_insensitive=False) -> List[str]:
+    apt_mgr: AptManager,
+    paths: List[str],
+    regex: bool = False,
+    minimum_version=None,
+    case_insensitive=False,
+) -> List[str]:
     if not isinstance(paths, list):
         raise TypeError(paths)
-    return [AptRequirement.simple(package, minimum_version=minimum_version)
-            for package in find_package_names(apt_mgr, paths, regex, case_insensitive)]
+    return [
+        AptRequirement.simple(package, minimum_version=minimum_version)
+        for package in find_package_names(apt_mgr, paths, regex, case_insensitive)
+    ]
 
 
 def python_spec_to_apt_rels(pkg_name, specs):
@@ -138,36 +146,57 @@ def python_spec_to_apt_rels(pkg_name, specs):
         rels = []
         for spec in specs:
             deb_version = Version(spec[1])
-            if spec[0] == '~=':
+            if spec[0] == "~=":
                 # PEP 440: For a given release identifier V.N , the compatible
                 # release clause is approximately equivalent to the pair of
                 # comparison clauses: >= V.N, == V.*
-                parts = spec[1].split('.')
+                parts = spec[1].split(".")
                 parts.pop(-1)
-                parts[-1] = str(int(parts[-1])+1)
-                next_maj_deb_version = Version('.'.join(parts))
-                rels.extend([{"name": pkg_name, "version": ('>=', deb_version)},
-                             {"name": pkg_name, "version": ('<<', next_maj_deb_version)}])
-            elif spec[0] == '!=':
-                rels.extend([{"name": pkg_name, "version": ('>>', deb_version)},
-                             {"name": pkg_name, "version": ('<<', deb_version)}])
-            elif spec[1].endswith('.*') and spec[0] == '==':
-                s = spec[1].split('.')
+                parts[-1] = str(int(parts[-1]) + 1)
+                next_maj_deb_version = Version(".".join(parts))
+                rels.extend(
+                    [
+                        {"name": pkg_name, "version": (">=", deb_version)},
+                        {"name": pkg_name, "version": ("<<", next_maj_deb_version)},
+                    ]
+                )
+            elif spec[0] == "!=":
+                rels.extend(
+                    [
+                        {"name": pkg_name, "version": (">>", deb_version)},
+                        {"name": pkg_name, "version": ("<<", deb_version)},
+                    ]
+                )
+            elif spec[1].endswith(".*") and spec[0] == "==":
+                s = spec[1].split(".")
                 s.pop(-1)
                 n = list(s)
-                n[-1] = str(int(n[-1])+1)
-                rels.extend([{"name": pkg_name, "version": ('>=', Version('.'.join(s)))},
-                             {"name": pkg_name, "version": ('<<', Version('.'.join(n)))}])
+                n[-1] = str(int(n[-1]) + 1)
+                rels.extend(
+                    [
+                        {"name": pkg_name, "version": (">=", Version(".".join(s)))},
+                        {"name": pkg_name, "version": ("<<", Version(".".join(n)))},
+                    ]
+                )
             else:
                 c = {">=": ">=", "<=": "<=", "<": "<<", ">": ">>", "==": "="}[spec[0]]
                 rels.append([{"name": pkg_name, "version": (c, deb_version)}])
         return rels
 
 
-def get_package_for_python_package(apt_mgr, package, python_version: Optional[str], specs=None):
-    pypy_regex = "/usr/lib/pypy/dist-packages/%s-.*.egg-info" % re.escape(package.replace("-", "_"))
-    cpython2_regex = "/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info" % re.escape(package.replace("-", "_"))
-    cpython3_regex = "/usr/lib/python3/dist-packages/%s-.*.egg-info" % re.escape(package.replace("-", "_"))
+def get_package_for_python_package(
+    apt_mgr, package, python_version: Optional[str], specs=None
+):
+    pypy_regex = "/usr/lib/pypy/dist-packages/%s-.*.egg-info" % re.escape(
+        package.replace("-", "_")
+    )
+    cpython2_regex = (
+        "/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info"
+        % re.escape(package.replace("-", "_"))
+    )
+    cpython3_regex = "/usr/lib/python3/dist-packages/%s-.*.egg-info" % re.escape(
+        package.replace("-", "_")
+    )
     if python_version == "pypy":
         paths = [pypy_regex]
     elif python_version == "cpython2":
@@ -177,59 +206,64 @@ def get_package_for_python_package(apt_mgr, package, python_version: Optional[st
     elif python_version is None:
         paths = [cpython3_regex, cpython2_regex, pypy_regex]
     else:
-        raise NotImplementedError('unsupported python version %s' % python_version)
+        raise NotImplementedError("unsupported python version %s" % python_version)
     names = find_package_names(apt_mgr, paths, regex=True, case_insensitive=True)
     return [AptRequirement(python_spec_to_apt_rels(name, specs)) for name in names]
 
 
 def get_package_for_python_module(apt_mgr, module, python_version, specs):
     cpython3_regexes = [
-            posixpath.join(
-                "/usr/lib/python3/dist-packages",
-                re.escape(module.replace(".", "/")),
-                "__init__.py",
-            ),
-            posixpath.join(
-                "/usr/lib/python3/dist-packages", re.escape(module.replace(".", "/")) + ".py"
-            ),
-            posixpath.join(
-                "/usr/lib/python3\\.[0-9]+/lib-dynload",
-                re.escape(module.replace(".", "/")) + "\\.cpython-.*\\.so",
-            ),
-            posixpath.join(
-                "/usr/lib/python3\\.[0-9]+/", re.escape(module.replace(".", "/")) + ".py"
-            ),
-            posixpath.join(
-                "/usr/lib/python3\\.[0-9]+/", re.escape(module.replace(".", "/")), "__init__.py"
-            ),
-        ]
+        posixpath.join(
+            "/usr/lib/python3/dist-packages",
+            re.escape(module.replace(".", "/")),
+            "__init__.py",
+        ),
+        posixpath.join(
+            "/usr/lib/python3/dist-packages",
+            re.escape(module.replace(".", "/")) + ".py",
+        ),
+        posixpath.join(
+            "/usr/lib/python3\\.[0-9]+/lib-dynload",
+            re.escape(module.replace(".", "/")) + "\\.cpython-.*\\.so",
+        ),
+        posixpath.join(
+            "/usr/lib/python3\\.[0-9]+/", re.escape(module.replace(".", "/")) + ".py"
+        ),
+        posixpath.join(
+            "/usr/lib/python3\\.[0-9]+/",
+            re.escape(module.replace(".", "/")),
+            "__init__.py",
+        ),
+    ]
     cpython2_regexes = [
-            posixpath.join(
-                "/usr/lib/python2\\.[0-9]/dist-packages",
-                re.escape(module.replace(".", "/")),
-                "__init__.py",
-            ),
-            posixpath.join(
-                "/usr/lib/python2\\.[0-9]/dist-packages",
-                re.escape(module.replace(".", "/")) + ".py",
-            ),
-            posixpath.join(
-                "/usr/lib/python2.\\.[0-9]/lib-dynload",
-                re.escape(module.replace(".", "/")) + ".so",
-            ),
-        ]
+        posixpath.join(
+            "/usr/lib/python2\\.[0-9]/dist-packages",
+            re.escape(module.replace(".", "/")),
+            "__init__.py",
+        ),
+        posixpath.join(
+            "/usr/lib/python2\\.[0-9]/dist-packages",
+            re.escape(module.replace(".", "/")) + ".py",
+        ),
+        posixpath.join(
+            "/usr/lib/python2.\\.[0-9]/lib-dynload",
+            re.escape(module.replace(".", "/")) + ".so",
+        ),
+    ]
     pypy_regexes = [
-            posixpath.join(
-                "/usr/lib/pypy/dist-packages", re.escape(module.replace(".", "/")), "__init__.py"
-            ),
-            posixpath.join(
-                "/usr/lib/pypy/dist-packages", re.escape(module.replace(".", "/")) + ".py"
-            ),
-            posixpath.join(
-                "/usr/lib/pypy/dist-packages",
-                re.escape(module.replace(".", "/")) + "\\.pypy-.*\\.so",
-            ),
-        ]
+        posixpath.join(
+            "/usr/lib/pypy/dist-packages",
+            re.escape(module.replace(".", "/")),
+            "__init__.py",
+        ),
+        posixpath.join(
+            "/usr/lib/pypy/dist-packages", re.escape(module.replace(".", "/")) + ".py"
+        ),
+        posixpath.join(
+            "/usr/lib/pypy/dist-packages",
+            re.escape(module.replace(".", "/")) + "\\.pypy-.*\\.so",
+        ),
+    ]
     if python_version == "cpython3":
         paths = cpython3_regexes
     elif python_version == "cpython2":
@@ -245,8 +279,8 @@ def get_package_for_python_module(apt_mgr, module, python_version, specs):
 
 
 vague_map = {
-    'the Gnu Scientific Library': 'libgsl-dev',
-    'the required FreeType library': 'libfreetype-dev',
+    "the Gnu Scientific Library": "libgsl-dev",
+    "the required FreeType library": "libfreetype-dev",
 }
 
 
@@ -255,7 +289,7 @@ def resolve_vague_dep_req(apt_mgr, req):
     options = []
     if name in vague_map:
         options.append(AptRequirement.simple(vague_map[name]))
-    if name.startswith('gnu '):
+    if name.startswith("gnu "):
         name = name[4:]
     for x in req.expand():
         options.extend(resolve_requirement_apt(apt_mgr, x))
@@ -273,13 +307,23 @@ def resolve_binary_req(apt_mgr, req):
 
 
 def resolve_pkg_config_req(apt_mgr, req):
-    names = find_package_names(apt_mgr,
-        [posixpath.join("/usr/lib", ".*", "pkgconfig", re.escape(req.module) + "\\.pc")],
-        regex=True)
+    names = find_package_names(
+        apt_mgr,
+        [
+            posixpath.join(
+                "/usr/lib", ".*", "pkgconfig", re.escape(req.module) + "\\.pc"
+            )
+        ],
+        regex=True,
+    )
     if not names:
         names = find_package_names(
-            apt_mgr, [posixpath.join("/usr/lib/pkgconfig", req.module + ".pc")])
-    return [AptRequirement.simple(name, minimum_version=req.minimum_version) for name in names]
+            apt_mgr, [posixpath.join("/usr/lib/pkgconfig", req.module + ".pc")]
+        )
+    return [
+        AptRequirement.simple(name, minimum_version=req.minimum_version)
+        for name in names
+    ]
 
 
 def resolve_path_req(apt_mgr, req):
@@ -288,12 +332,13 @@ def resolve_path_req(apt_mgr, req):
 
 def resolve_c_header_req(apt_mgr, req):
     reqs = find_reqs_simple(
-        apt_mgr,
-        [posixpath.join("/usr/include", req.header)], regex=False)
+        apt_mgr, [posixpath.join("/usr/include", req.header)], regex=False
+    )
     if not reqs:
         reqs = find_reqs_simple(
             apt_mgr,
-            [posixpath.join("/usr/include", ".*", re.escape(req.header))], regex=True
+            [posixpath.join("/usr/include", ".*", re.escape(req.header))],
+            regex=True,
         )
     return reqs
 
@@ -314,18 +359,21 @@ def resolve_ruby_gem_req(apt_mgr, req):
             "specifications/%s-.*\\.gemspec" % re.escape(req.gem)
         )
     ]
-    return find_reqs_simple(apt_mgr, paths, regex=True, minimum_version=req.minimum_version)
+    return find_reqs_simple(
+        apt_mgr, paths, regex=True, minimum_version=req.minimum_version
+    )
 
 
 def resolve_go_package_req(apt_mgr, req):
     return find_reqs_simple(
         apt_mgr,
-        [posixpath.join("/usr/share/gocode/src", re.escape(req.package), ".*")], regex=True
+        [posixpath.join("/usr/share/gocode/src", re.escape(req.package), ".*")],
+        regex=True,
     )
 
 
 def resolve_go_req(apt_mgr, req):
-    return [AptRequirement.simple('golang-go', minimum_version='2:%s' % req.version)]
+    return [AptRequirement.simple("golang-go", minimum_version="2:%s" % req.version)]
 
 
 def resolve_dh_addon_req(apt_mgr, req):
@@ -339,11 +387,15 @@ def resolve_php_class_req(apt_mgr, req):
 
 
 def resolve_php_package_req(apt_mgr, req):
-    return [AptRequirement.simple('php-%s' % req.package, minimum_version=req.min_version)]
+    return [
+        AptRequirement.simple("php-%s" % req.package, minimum_version=req.min_version)
+    ]
 
 
 def resolve_r_package_req(apt_mgr, req):
-    paths = [posixpath.join("/usr/lib/R/site-library/.*/R/%s$" % re.escape(req.package))]
+    paths = [
+        posixpath.join("/usr/lib/R/site-library/.*/R/%s$" % re.escape(req.package))
+    ]
     return find_reqs_simple(apt_mgr, paths, regex=True)
 
 
@@ -441,16 +493,18 @@ def resolve_maven_artifact_req(apt_mgr, req):
     else:
         version = req.version
         regex = False
+
         def escape(x):
             return x
-    kind = req.kind or 'jar'
+
+    kind = req.kind or "jar"
     path = posixpath.join(
-            escape("/usr/share/maven-repo"),
-            escape(req.group_id.replace(".", "/")),
-            escape(req.artifact_id),
-            version,
-            escape("%s-") + version + escape("." + kind)
-        )
+        escape("/usr/share/maven-repo"),
+        escape(req.group_id.replace(".", "/")),
+        escape(req.artifact_id),
+        version,
+        escape("%s-") + version + escape("." + kind),
+    )
 
     return find_reqs_simple(apt_mgr, [path], regex=regex)
 
@@ -465,15 +519,15 @@ def resolve_jdk_file_req(apt_mgr, req):
 
 
 def resolve_jdk_req(apt_mgr, req):
-    return [AptRequirement.simple('default-jdk')]
+    return [AptRequirement.simple("default-jdk")]
 
 
 def resolve_jre_req(apt_mgr, req):
-    return [AptRequirement.simple('default-jre')]
+    return [AptRequirement.simple("default-jre")]
 
 
 def resolve_x11_req(apt_mgr, req):
-    return [AptRequirement.simple('libx11-dev')]
+    return [AptRequirement.simple("libx11-dev")]
 
 
 def resolve_qt_req(apt_mgr, req):
@@ -554,13 +608,12 @@ def resolve_python_package_req(apt_mgr, req):
 
 
 def resolve_cargo_crate_req(apt_mgr, req):
-    paths = [
-        '/usr/share/cargo/registry/%s-[0-9]+.*/Cargo.toml' % re.escape(req.crate)]
+    paths = ["/usr/share/cargo/registry/%s-[0-9]+.*/Cargo.toml" % re.escape(req.crate)]
     return find_reqs_simple(apt_mgr, paths, regex=True)
 
 
 def resolve_ca_req(apt_mgr, req):
-    return [AptRequirement.simple('ca-certificates')]
+    return [AptRequirement.simple("ca-certificates")]
 
 
 def resolve_apt_req(apt_mgr, req):
@@ -670,7 +723,16 @@ class AptResolver(Resolver):
             if apt_req is not None:
                 apt_requirements.append((r, apt_req))
         if apt_requirements:
-            yield (self.apt.satisfy_command([PkgRelation.str(chain(*[r.relations for o, r in apt_requirements]))]), [o for o, r in apt_requirements])
+            yield (
+                self.apt.satisfy_command(
+                    [
+                        PkgRelation.str(
+                            chain(*[r.relations for o, r in apt_requirements])
+                        )
+                    ]
+                ),
+                [o for o, r in apt_requirements],
+            )
 
     def resolve(self, req: Requirement):
         ret = resolve_requirement_apt(self.apt, req)
@@ -678,14 +740,12 @@ class AptResolver(Resolver):
             return None
         if len(ret) == 1:
             return ret[0]
-        logging.info('Need to break tie between %r with %r', ret, self.tie_breakers)
+        logging.info("Need to break tie between %r with %r", ret, self.tie_breakers)
         for tie_breaker in self.tie_breakers:
             winner = tie_breaker(ret)
             if winner is not None:
                 if not isinstance(winner, AptRequirement):
                     raise TypeError(winner)
                 return winner
-        logging.info(
-            'Unable to break tie over %r, picking first: %r',
-            ret, ret[0])
+        logging.info("Unable to break tie over %r, picking first: %r", ret, ret[0])
         return ret[0]
