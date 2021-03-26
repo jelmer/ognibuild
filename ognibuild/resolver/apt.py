@@ -151,6 +151,13 @@ def python_spec_to_apt_rels(pkg_name, specs):
             elif spec[0] == '!=':
                 rels.extend([{"name": pkg_name, "version": ('>>', deb_version)},
                              {"name": pkg_name, "version": ('<<', deb_version)}])
+            elif spec[1].endswith('.*') and spec[0] == '==':
+                s = spec[1].split('.')
+                s.pop(-1)
+                n = list(s)
+                n[-1] = str(int(n[-1])+1)
+                rels.extend([{"name": pkg_name, "version": ('>=', Version('.'.join(s)))},
+                             {"name": pkg_name, "version": ('<<', Version('.'.join(n)))}])
             else:
                 c = {">=": ">=", "<=": "<=", "<": "<<", ">": ">>", "==": "="}[spec[0]]
                 rels.append([{"name": pkg_name, "version": (c, deb_version)}])
