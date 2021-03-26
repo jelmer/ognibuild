@@ -203,11 +203,7 @@ class PackageDependencyFixer(BuildFixer):
 
 def add_dependency(context, phase, requirement: AptRequirement):
     if phase[0] == "autopkgtest":
-        return add_test_dependency(
-            context,
-            phase[1],
-            requirement,
-        )
+        return add_test_dependency(context, phase[1], requirement)
     elif phase[0] == "build":
         return add_build_dependency(context, requirement)
     else:
@@ -248,6 +244,9 @@ def add_test_dependency(context, testname, requirement):
         raise TypeError(requirement)
 
     tests_control_path = context.abspath("debian/tests/control")
+
+    # TODO(jelmer): If requirement is for one of our binary packages
+    # but "@" is already present then don't do anything.
 
     try:
         with Deb822Editor(path=tests_control_path) as updater:
