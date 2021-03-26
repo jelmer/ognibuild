@@ -364,7 +364,7 @@ def resolve_library_req(apt_mgr, req):
         posixpath.join("/usr/lib/lib%s.a$" % re.escape(req.library)),
         posixpath.join("/usr/lib/.*/lib%s.a$" % re.escape(req.library)),
     ]
-    return find_reqs_simple(apt_mgr, paths)
+    return find_reqs_simple(apt_mgr, paths, regex=True)
 
 
 def resolve_ruby_file_req(apt_mgr, req):
