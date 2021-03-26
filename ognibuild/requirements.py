@@ -147,8 +147,10 @@ class VagueDependencyRequirement(Requirement):
         if ' ' not in self.name:
             yield BinaryRequirement(self.name)
             yield LibraryRequirement(self.name)
+            yield PkgConfigRequirement(self.name)
             if self.name.lower() != self.name:
                 yield LibraryRequirement(self.name.lower())
+                yield PkgConfigRequirement(self.name.lower())
             from .resolver.apt import AptRequirement
             yield AptRequirement(self.name.lower())
 
