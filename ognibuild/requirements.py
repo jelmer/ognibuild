@@ -153,7 +153,7 @@ class VagueDependencyRequirement(Requirement):
                 yield LibraryRequirement(self.name.lower())
                 yield PkgConfigRequirement(self.name.lower())
             from .resolver.apt import AptRequirement
-            yield AptRequirement(self.name.lower())
+            yield AptRequirement.simple(self.name.lower())
 
     def met(self, session):
         for x in self.expand():
