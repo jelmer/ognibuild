@@ -149,6 +149,7 @@ class VagueDependencyRequirement(Requirement):
             yield LibraryRequirement(self.name)
             yield PkgConfigRequirement(self.name)
             if self.name.lower() != self.name:
+                yield BinaryRequirement(self.name.lower())
                 yield LibraryRequirement(self.name.lower())
                 yield PkgConfigRequirement(self.name.lower())
             from .resolver.apt import AptRequirement
