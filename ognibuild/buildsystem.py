@@ -121,30 +121,23 @@ class Pear(BuildSystem):
     def __init__(self, path):
         self.path = path
 
-    def setup(self, resolver):
-        resolver.install([BinaryRequirement("pear")])
-
     def dist(self, session, resolver, fixers, target_directory: str, quiet=False):
-        self.setup(resolver)
         with DistCatcher([session.external_path(".")]) as dc:
-            run_with_build_fixers(session, ["pear", "package"], fixers)
+            run_with_build_fixers(session, [guaranteed_which(session, resolver, "pear"), "package"], fixers)
         return dc.copy_single(target_directory)
 
     def test(self, session, resolver, fixers):
-        self.setup(resolver)
-        run_with_build_fixers(session, ["pear", "run-tests"], fixers)
+        run_with_build_fixers(session, [guaranteed_which(session, resolver, "pear"), "run-tests"], fixers)
 
     def build(self, session, resolver, fixers):
-        self.setup(resolver)
-        run_with_build_fixers(session, ["pear", "build", self.path], fixers)
+        run_with_build_fixers(session, [guaranteed_which(session, resolver, "pear"), "build", self.path], fixers)
 
     def clean(self, session, resolver, fixers):
         self.setup(resolver)
         # TODO
 
     def install(self, session, resolver, fixers, install_target):
-        self.setup(resolver)
-        run_with_build_fixers(session, ["pear", "install", self.path], fixers)
+        run_with_build_fixers(session, [guaranteed_which(session, resolver, "pear"), "install", self.path], fixers)
 
     def get_declared_dependencies(self, session, fixers=None):
         path = os.path.join(self.path, "package.xml")
@@ -387,7 +380,9 @@ class SetupPy(BuildSystem):
             # Pre-emptively insall setuptools, since distutils doesn't provide
             # a 'test' subcommand and some packages fall back to distutils
             # if setuptools is not available.
-            resolver.install([PythonPackageRequirement("setuptools")])
+            setuptools_req = PythonPackageRequirement("setuptools")
+            if not setuptools_req.met(session):
+                resolver.install([setuptools_req])
             self._run_setup(session, resolver, ["test"], fixers)
         else:
             raise NotImplementedError
@@ -406,7 +401,9 @@ class SetupPy(BuildSystem):
                 preargs.append("--quiet")
             # Preemptively install setuptools since some packages fail in
             # some way without it.
-            resolver.install([PythonPackageRequirement("setuptools")])
+            setuptools_req = PythonPackageRequirement("setuptools")
+            if not setuptools_req.met(session):
+                resolver.install([setuptools_req])
             with DistCatcher([session.external_path("dist")]) as dc:
                 self._run_setup(session, resolver, preargs + ["sdist"], fixers)
             return dc.copy_single(target_directory)
@@ -610,12 +607,14 @@ class Gradle(BuildSystem):
             logging.debug("Found build.gradle, assuming gradle package.")
             return cls.from_path(path)
 
-    def setup(self, resolver):
+    def setup(self, session, resolver):
         if not self.executable.startswith("./"):
-            resolver.install([BinaryRequirement(self.executable)])
+            binary_req = BinaryRequirement(self.executable)
+            if not binary_req.met(session):
+                resolver.install([binary_req])
 
     def _run(self, session, resolver, task, args, fixers):
-        self.setup(resolver)
+        self.setup(session, resolver)
         argv = []
         if self.executable.startswith("./") and (
             not os.access(os.path.join(self.path, self.executable), os.X_OK)
@@ -790,17 +789,19 @@ class Npm(BuildSystem):
                 # TODO(jelmer): Look at version
                 yield "build", NodePackageRequirement(name)
 
-    def setup(self, resolver):
-        resolver.install([BinaryRequirement("npm")])
+    def setup(self, session, resolver):
+        binary_req = BinaryRequirement("npm")
+        if not binary_req.met(session):
+            resolver.install([binary_req])
 
     def dist(self, session, resolver, fixers, target_directory, quiet=False):
-        self.setup(resolver)
+        self.setup(session, resolver)
         with DistCatcher([session.external_path(".")]) as dc:
             run_with_build_fixers(session, ["npm", "pack"], fixers)
         return dc.copy_single(target_directory)
 
     def test(self, session, resolver, fixers):
-        self.setup(resolver)
+        self.setup(session, resolver)
         test_script = self.package["scripts"].get("test")
         if test_script:
             run_with_build_fixers(session, shlex.split(test_script), fixers)
@@ -808,7 +809,7 @@ class Npm(BuildSystem):
             raise NotImplementedError
 
     def build(self, session, resolver, fixers):
-        self.setup(resolver)
+        self.setup(session, resolver)
         build_script = self.package["scripts"].get("build")
         if build_script:
             run_with_build_fixers(session, shlex.split(build_script), fixers)
@@ -816,7 +817,7 @@ class Npm(BuildSystem):
             raise NotImplementedError
 
     def clean(self, session, resolver, fixers):
-        self.setup(resolver)
+        self.setup(session, resolver)
         clean_script = self.package["scripts"].get("clean")
         if clean_script:
             run_with_build_fixers(session, shlex.split(clean_script), fixers)
@@ -838,7 +839,9 @@ class Waf(BuildSystem):
         self.path = path
 
     def setup(self, session, resolver, fixers):
-        resolver.install([BinaryRequirement("python3")])
+        binary_req = BinaryRequirement("python3")
+        if not binary_req.met(session):
+            resolver.install([binary_req])
 
     def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(session, resolver, fixers)
@@ -864,18 +867,16 @@ class Gem(BuildSystem):
     def __init__(self, path):
         self.path = path
 
-    def setup(self, resolver):
-        resolver.install([BinaryRequirement("gem2deb")])
-
     def dist(self, session, resolver, fixers, target_directory, quiet=False):
-        self.setup(resolver)
         gemfiles = [
             entry.name for entry in session.scandir(".") if entry.name.endswith(".gem")
         ]
         if len(gemfiles) > 1:
             logging.warning("More than one gemfile. Trying the first?")
         with DistCatcher.default(session.external_path(".")) as dc:
-            run_with_build_fixers(session, ["gem2tgz", gemfiles[0]], fixers)
+            run_with_build_fixers(
+                session,
+                [guaranteed_which(session, resolver, "gem2tgz"), gemfiles[0]], fixers)
         return dc.copy_single(target_directory)
 
     @classmethod
@@ -921,26 +922,22 @@ class DistZilla(BuildSystem):
     def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(resolver)
         if self.name == "dist-inkt":
-            resolver.install([PerlModuleRequirement(self.dist_inkt_class)])
             with DistCatcher.default(session.external_path(".")) as dc:
-                run_with_build_fixers(session, ["distinkt-dist"], fixers)
+                run_with_build_fixers(session, [guaranteed_which(session, resolver, "distinkt-dist")], fixers)
             return dc.copy_single(target_directory)
         else:
             # Default to invoking Dist::Zilla
-            resolver.install([PerlModuleRequirement("Dist::Zilla")])
             with DistCatcher.default(session.external_path(".")) as dc:
-                run_with_build_fixers(session, ["dzil", "build", "--tgz"], fixers)
+                run_with_build_fixers(session, [guaranteed_which(session, resolver, "dzil"), "build", "--tgz"], fixers)
             return dc.copy_single(target_directory)
 
     def test(self, session, resolver, fixers):
         self.setup(resolver)
-        resolver.install([PerlModuleRequirement("Dist::Zilla")])
-        run_with_build_fixers(session, ["dzil", "test"], fixers)
+        run_with_build_fixers(session, [guaranteed_which(session, resolver, "dzil"), "test"], fixers)
 
     def build(self, session, resolver, fixers):
         self.setup(resolver)
-        resolver.install([PerlModuleRequirement("Dist::Zilla")])
-        run_with_build_fixers(session, ["dzil", "build"], fixers)
+        run_with_build_fixers(session, [guaranteed_which(session, resolver, "dzil"), "build"], fixers)
 
     @classmethod
     def probe(cls, path):

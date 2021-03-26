@@ -173,15 +173,19 @@ def main():  # noqa: C901
                         display_explain_commands(e.commands)
                         return 1
             if args.subcommand == "dist":
-                from .dist import run_dist
+                from .dist import run_dist, DistNoTarball
 
-                run_dist(
-                    session=session,
-                    buildsystems=bss,
-                    resolver=resolver,
-                    fixers=fixers,
-                    target_directory=".",
-                )
+                try:
+                    run_dist(
+                        session=session,
+                        buildsystems=bss,
+                        resolver=resolver,
+                        fixers=fixers,
+                        target_directory=".",
+                    )
+                except DistNoTarball:
+                    logging.fatal('No tarball created.')
+                    return 1
             if args.subcommand == "build":
                 from .build import run_build
 
