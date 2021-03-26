@@ -984,14 +984,6 @@ class Make(BuildSystem):
                         raise
 
             elif session.exists("configure.ac") or session.exists("configure.in"):
-                resolver.install(
-                    [
-                        BinaryRequirement("autoconf"),
-                        BinaryRequirement("automake"),
-                        BinaryRequirement("gettextize"),
-                        BinaryRequirement("libtoolize"),
-                    ]
-                )
                 run_with_build_fixers(session, ["autoreconf", "-i"], fixers)
 
         if not makefile_exists() and session.exists("configure"):
