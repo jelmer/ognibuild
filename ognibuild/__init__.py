@@ -55,7 +55,7 @@ def shebang_binary(p):
         firstline = f.readline()
         if not firstline.startswith(b"#!"):
             return None
-        args = firstline[2:].split(b" ")
+        args = firstline[2:].strip().split(b" ")
         if args[0] in (b"/usr/bin/env", b"env"):
             return os.path.basename(args[1].decode()).strip()
         return os.path.basename(args[0].decode()).strip()
