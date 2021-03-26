@@ -147,8 +147,10 @@ class VagueDependencyRequirement(Requirement):
         if ' ' not in self.name:
             yield BinaryRequirement(self.name)
             yield LibraryRequirement(self.name)
+            if self.name.lower() != self.name:
+                yield LibraryRequirement(self.name.lower())
             from .resolver.apt import AptRequirement
-            yield AptRequirement(self.name)
+            yield AptRequirement(self.name.lower())
 
     def met(self, session):
         for x in self.expand():
