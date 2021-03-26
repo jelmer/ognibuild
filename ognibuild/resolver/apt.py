@@ -289,8 +289,6 @@ def resolve_vague_dep_req(apt_mgr, req):
     options = []
     if name in vague_map:
         options.append(AptRequirement.simple(vague_map[name]))
-    if name.startswith("gnu "):
-        name = name[4:]
     for x in req.expand():
         options.extend(resolve_requirement_apt(apt_mgr, x))
     return options
