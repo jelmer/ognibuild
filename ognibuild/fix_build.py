@@ -89,9 +89,7 @@ def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any]):
                 )
                 raise f
             try:
-                if not resolve_error(f.error, None, fixers=fixers):
-                    logging.warning("Failed to find resolution for error %r. Giving up.", f.error)
-                    raise f
+                resolved = resolve_error(f.error, None, fixers=fixers)
             except DetailedFailure as n:
                 logging.info('New error %r while resolving %r', n, f)
                 if n in to_resolve:
@@ -99,6 +97,9 @@ def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any]):
                 to_resolve.append(f)
                 to_resolve.append(n)
             else:
+                if not resolved:
+                    logging.warning("Failed to find resolution for error %r. Giving up.", f.error)
+                    raise f
                 fixed_errors.append(f.error)
 
 

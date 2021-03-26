@@ -73,6 +73,8 @@ from ..requirements import (
 class AptRequirement(Requirement):
     def __init__(self, relations):
         super(AptRequirement, self).__init__("apt")
+        if not isinstance(relations, list):
+            raise TypeError(relations)
         self.relations = relations
 
     @classmethod

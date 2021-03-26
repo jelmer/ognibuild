@@ -436,6 +436,8 @@ class StackedResolver(Resolver):
                 requirements = e.requirements
             else:
                 return
+        if requirements:
+            raise UnsatisfiedRequirements(requirements)
 
 
 NATIVE_RESOLVER_CLS = [
