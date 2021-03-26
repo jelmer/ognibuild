@@ -912,6 +912,8 @@ class DistZilla(BuildSystem):
         out = session.check_output(["dzil", "authordeps"])
         for entry in out.splitlines():
             yield "build", PerlModuleRequirement(entry.decode().strip())
+        if os.path.exists(os.path.join(os.path.dirname(self.path), "cpanfile")):
+            yield from _declared_deps_from_cpanfile(session)
 
 
 class RunTests(BuildSystem):
@@ -940,6 +942,11 @@ def _read_cpanfile(session, args, kind):
     output = session.check_output(['cpanfile-dump'] + args)
     for line in output.splitlines(False):
         yield kind, PerlModuleRequirement(line.decode().strip())
+
+
+def _declared_deps_from_cpanfile(session):
+    yield from _read_cpanfile(session, ['--configure', '--build'], 'build')
+    yield from _read_cpanfile(session, ['--test'], 'test')
 
 
 class Make(BuildSystem):
@@ -1083,8 +1090,7 @@ class Make(BuildSystem):
                     yield "build", PerlModuleRequirement(require)
                 something = True
         if os.path.exists(os.path.join(self.path, "cpanfile")):
-            yield from _read_cpanfile(session, ['--configure', '--build'], 'build')
-            yield from _read_cpanfile(session, ['--test'], 'test')
+            yield from _declared_deps_from_cpanfile(session)
             something = True
         if not something:
             raise NotImplementedError
