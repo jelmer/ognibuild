@@ -146,7 +146,7 @@ class VagueDependencyRequirement(Requirement):
     def expand(self):
         yield BinaryRequirement(self.name)
         yield LibraryRequirement(self.name)
-        from resolver.apt import AptRequirement
+        from .resolver.apt import AptRequirement
         yield AptRequirement(self.name)
 
     def met(self, session):
