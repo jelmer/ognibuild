@@ -108,6 +108,8 @@ class SessionSetupFailure(Exception):
 
 
 def run_with_tee(session: Session, args: List[str], **kwargs):
+    if 'stdin' not in kwargs:
+        kwargs['stdin'] = subprocess.DEVNULL
     p = session.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs)
     contents = []
     while p.poll() is None:

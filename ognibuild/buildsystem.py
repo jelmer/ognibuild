@@ -913,7 +913,7 @@ class DistZilla(BuildSystem):
         for entry in lines:
             yield "build", PerlModuleRequirement(entry.strip())
         if os.path.exists(os.path.join(os.path.dirname(self.path), "cpanfile")):
-            yield from _declared_deps_from_cpanfile(session)
+            yield from _declared_deps_from_cpanfile(session, fixers)
 
 
 class RunTests(BuildSystem):
@@ -938,15 +938,14 @@ class RunTests(BuildSystem):
             run_with_build_fixers(session, ["/bin/bash", "./runtests.sh"], fixers)
 
 
-def _read_cpanfile(session, args, kind):
-    output = session.check_output(['cpanfile-dump'] + args)
-    for line in output.splitlines(False):
-        yield kind, PerlModuleRequirement(line.decode().strip())
+def _read_cpanfile(session, args, kind, fixers):
+    for line in run_with_build_fixers(session, ['cpanfile-dump'] + args, fixers):
+        yield kind, PerlModuleRequirement(line)
 
 
-def _declared_deps_from_cpanfile(session):
-    yield from _read_cpanfile(session, ['--configure', '--build'], 'build')
-    yield from _read_cpanfile(session, ['--test'], 'test')
+def _declared_deps_from_cpanfile(session, fixers):
+    yield from _read_cpanfile(session, ['--configure', '--build'], 'build', fixers)
+    yield from _read_cpanfile(session, ['--test'], 'test', fixers)
 
 
 class Make(BuildSystem):
@@ -1090,7 +1089,7 @@ class Make(BuildSystem):
                     yield "build", PerlModuleRequirement(require)
                 something = True
         if os.path.exists(os.path.join(self.path, "cpanfile")):
-            yield from _declared_deps_from_cpanfile(session)
+            yield from _declared_deps_from_cpanfile(session, fixers)
             something = True
         if not something:
             raise NotImplementedError
