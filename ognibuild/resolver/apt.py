@@ -678,7 +678,7 @@ class AptResolver(Resolver):
             return None
         if len(ret) == 1:
             return ret[0]
-        logging.info('Need to break tie between %r', ret)
+        logging.info('Need to break tie between %r with %r', ret, self.tie_breakers)
         for tie_breaker in self.tie_breakers:
             winner = tie_breaker(ret)
             if winner is not None:
