@@ -39,15 +39,23 @@ class Resolver(object):
 
 
 class CPANResolver(Resolver):
-    def __init__(self, session, user_local=False):
+    def __init__(self, session, user_local=False, skip_tests=True):
         self.session = session
         self.user_local = user_local
+        self.skip_tests = skip_tests
 
     def __str__(self):
         return "cpan"
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.session)
+
+    def _cmd(self, reqs):
+        ret = ["cpan", "-i"]
+        if self.skip_tests:
+            ret.append('-T')
+        ret.extend([req.module for req in reqs])
+        return ret
 
     def explain(self, requirements):
         from ..requirements import PerlModuleRequirement
@@ -58,7 +66,7 @@ class CPANResolver(Resolver):
                 continue
             perlreqs.append(requirement)
         if perlreqs:
-            yield (["cpan", "-i"] + [req.module for req in perlreqs], [perlreqs])
+            yield (self._cmd(perlreqs), [perlreqs])
 
     def install(self, requirements):
         from ..requirements import PerlModuleRequirement
@@ -79,9 +87,9 @@ class CPANResolver(Resolver):
             if not isinstance(requirement, PerlModuleRequirement):
                 missing.append(requirement)
                 continue
-            # TODO(jelmer): Specify -T to skip tests?
-            run_detecting_problems(self.session,
-                ["cpan", "-i", requirement.module],
+            run_detecting_problems(
+                self.session,
+                self._cmd([requirement]),
                 env=env,
                 user=user,
             )
