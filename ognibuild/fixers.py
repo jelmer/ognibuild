@@ -97,6 +97,6 @@ class UnexpandedAutoconfMacroFixer(BuildFixer):
             return False
         from .fix_build import run_detecting_problems
 
-        run_detecting_problems(self.session, ['autoconf'])
+        run_detecting_problems(self.session, ['autoconf', '-f'])
 
         return True
