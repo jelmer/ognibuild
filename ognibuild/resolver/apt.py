@@ -615,6 +615,10 @@ def resolve_ca_req(apt_mgr, req):
 
 
 def resolve_apt_req(apt_mgr, req):
+    # TODO(jelmer): This should be checking whether versions match as well.
+    for package_name in req.package_names():
+        if not apt_mgr.package_exists(package_name):
+            return []
     return [req]
 
 
