@@ -142,7 +142,7 @@ class RResolver(Resolver):
             if not isinstance(requirement, RPackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(self._cmd(requirement), user=user)
+            run_detecting_problems(self.session, self._cmd(requirement), user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -186,7 +186,7 @@ class OctaveForgeResolver(Resolver):
             if not isinstance(requirement, OctavePackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(self._cmd(requirement), user=user)
+            run_detecting_problems(self.session, self._cmd(requirement), user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -235,7 +235,7 @@ class HackageResolver(Resolver):
             if not isinstance(requirement, HaskellPackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(self._cmd([requirement]), user=user)
+            run_detecting_problems(self.session, self._cmd([requirement]), user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -282,7 +282,7 @@ class PypiResolver(Resolver):
                 missing.append(requirement)
                 continue
             try:
-                self.session.check_call(self._cmd([requirement]), user=user)
+                run_detecting_problems(self.session, self._cmd([requirement]), user=user)
             except subprocess.CalledProcessError:
                 missing.append(requirement)
         if missing:
@@ -325,7 +325,7 @@ class GoResolver(Resolver):
             if not isinstance(requirement, GoPackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(["go", "get", requirement.package], env=env)
+            run_detecting_problems(self.session, ["go", "get", requirement.package], env=env)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -386,7 +386,8 @@ class NpmResolver(Resolver):
             if not isinstance(requirement, NodePackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(
+            run_detecting_problems(
+                self.session,
                 ["npm", "-g", "install", requirement.package], user=user
             )
         if missing:
