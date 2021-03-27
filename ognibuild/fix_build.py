@@ -15,60 +15,45 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from functools import partial
 import logging
-from typing import List, Optional
+from typing import List, Tuple, Callable, Any
 
+from buildlog_consultant import Problem
 from buildlog_consultant.common import (
     find_build_failure_description,
+    MissingCommand,
 )
-from breezy.mutabletree import MutableTree
 
 from . import DetailedFailure, UnidentifiedError
-from .debian.apt import AptManager
 from .session import Session, run_with_tee
 
 
 class BuildFixer(object):
     """Build fixer."""
 
-    def can_fix(self, problem):
+    def can_fix(self, problem: Problem):
         raise NotImplementedError(self.can_fix)
 
-    def _fix(self, problem, context):
+    def _fix(self, problem: Problem, phase: Tuple[str, ...]):
         raise NotImplementedError(self._fix)
 
-    def fix(self, problem, context):
+    def fix(self, problem: Problem, phase: Tuple[str, ...]):
         if not self.can_fix(problem):
             return None
-        return self._fix(problem, context)
+        return self._fix(problem, phase)
 
 
-class DependencyContext(object):
-    def __init__(
-        self,
-        tree: MutableTree,
-        apt: AptManager,
-        subpath: str = "",
-        committer: Optional[str] = None,
-        update_changelog: bool = True,
-    ):
-        self.tree = tree
-        self.apt = apt
-        self.subpath = subpath
-        self.committer = committer
-        self.update_changelog = update_changelog
-
-    def add_dependency(self, package) -> bool:
-        raise NotImplementedError(self.add_dependency)
-
-
-def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildFixer]):
-    logging.info("Running %r", args)
-    fixed_errors = []
-    while True:
-        retcode, lines = run_with_tee(session, args)
+def run_detecting_problems(session: Session, args: List[str], **kwargs):
+    try:
+        retcode, contents = run_with_tee(session, args, **kwargs)
+    except FileNotFoundError:
+        error = MissingCommand(args[0])
+        retcode = 1
+    else:
         if retcode == 0:
-            return
+            return contents
+        lines = "".join(contents).splitlines(False)
         match, error = find_build_failure_description(lines)
         if error is None:
             if match:
@@ -77,24 +62,56 @@ def run_with_build_fixers(session: Session, args: List[str], fixers: List[BuildF
             else:
                 logging.warning("Build failed and unable to find cause. Giving up.")
             raise UnidentifiedError(retcode, args, lines, secondary=match)
-
-        logging.info("Identified error: %r", error)
-        if error in fixed_errors:
-            logging.warning(
-                "Failed to resolve error %r, it persisted. Giving up.", error
-            )
-            raise DetailedFailure(retcode, args, error)
-        if not resolve_error(
-            error,
-            None,
-            fixers=fixers,
-        ):
-            logging.warning("Failed to find resolution for error %r. Giving up.", error)
-            raise DetailedFailure(retcode, args, error)
-        fixed_errors.append(error)
+    raise DetailedFailure(retcode, args, error)
 
 
-def resolve_error(error, context, fixers):
+def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any]):
+    """Call cb() until there are no more DetailedFailures we can fix.
+
+    Args:
+      fixers: List of fixers to use to resolve issues
+    """
+    fixed_errors = []
+    while True:
+        to_resolve = []
+        try:
+            return cb()
+        except DetailedFailure as e:
+            to_resolve.append(e)
+        while to_resolve:
+            f = to_resolve.pop(-1)
+            logging.info("Identified error: %r", f.error)
+            if f.error in fixed_errors:
+                logging.warning(
+                    "Failed to resolve error %r, it persisted. Giving up.", f.error
+                )
+                raise f
+            try:
+                resolved = resolve_error(f.error, None, fixers=fixers)
+            except DetailedFailure as n:
+                logging.info("New error %r while resolving %r", n, f)
+                if n in to_resolve:
+                    raise
+                to_resolve.append(f)
+                to_resolve.append(n)
+            else:
+                if not resolved:
+                    logging.warning(
+                        "Failed to find resolution for error %r. Giving up.", f.error
+                    )
+                    raise f
+                fixed_errors.append(f.error)
+
+
+def run_with_build_fixers(
+    session: Session, args: List[str], fixers: List[BuildFixer], **kwargs
+):
+    return iterate_with_build_fixers(
+        fixers, partial(run_detecting_problems, session, args, **kwargs)
+    )
+
+
+def resolve_error(error, phase, fixers):
     relevant_fixers = []
     for fixer in fixers:
         if fixer.can_fix(error):
@@ -104,7 +121,7 @@ def resolve_error(error, context, fixers):
         return False
     for fixer in relevant_fixers:
         logging.info("Attempting to use fixer %s to address %r", fixer, error)
-        made_changes = fixer.fix(error, context)
+        made_changes = fixer.fix(error, phase)
         if made_changes:
             return True
     return False

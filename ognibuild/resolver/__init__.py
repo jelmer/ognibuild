@@ -17,6 +17,7 @@
 
 
 import subprocess
+from ..fix_build import run_detecting_problems
 
 
 class UnsatisfiedRequirements(Exception):
@@ -34,19 +35,28 @@ class Resolver(object):
     def explain(self, requirements):
         raise NotImplementedError(self.explain)
 
-    def met(self, requirement):
-        raise NotImplementedError(self.met)
+    def env(self):
+        return {}
 
 
 class CPANResolver(Resolver):
-    def __init__(self, session):
+    def __init__(self, session, user_local=False, skip_tests=True):
         self.session = session
+        self.user_local = user_local
+        self.skip_tests = skip_tests
 
     def __str__(self):
         return "cpan"
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.session)
+
+    def _cmd(self, reqs):
+        ret = ["cpan", "-i"]
+        if self.skip_tests:
+            ret.append("-T")
+        ret.extend([req.module for req in reqs])
+        return ret
 
     def explain(self, requirements):
         from ..requirements import PerlModuleRequirement
@@ -57,28 +67,148 @@ class CPANResolver(Resolver):
                 continue
             perlreqs.append(requirement)
         if perlreqs:
-            yield (["cpan", "-i"] + [req.module for req in perlreqs], [perlreqs])
+            yield (self._cmd(perlreqs), [perlreqs])
 
     def install(self, requirements):
         from ..requirements import PerlModuleRequirement
+
+        env = {
+            "PERL_MM_USE_DEFAULT": "1",
+            "PERL_MM_OPT": "",
+            "PERL_MB_OPT": "",
+        }
+
+        if not self.user_local:
+            user = "root"
+        else:
+            user = None
 
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, PerlModuleRequirement):
                 missing.append(requirement)
                 continue
-            # TODO(jelmer): Specify -T to skip tests?
-            self.session.check_call(
-                ["cpan", "-i", requirement.module],
-                env={"PERL_MM_USE_DEFAULT": "1"},
+            run_detecting_problems(
+                self.session,
+                self._cmd([requirement]),
+                env=env,
+                user=user,
             )
         if missing:
             raise UnsatisfiedRequirements(missing)
 
 
-class HackageResolver(Resolver):
-    def __init__(self, session):
+class RResolver(Resolver):
+    def __init__(self, session, repos, user_local=False):
         self.session = session
+        self.repos = repos
+        self.user_local = user_local
+
+    def __str__(self):
+        return "cran"
+
+    def __repr__(self):
+        return "%s(%r, %r)" % (type(self).__name__, self.session, self.repos)
+
+    def _cmd(self, req):
+        # TODO(jelmer: Handle self.user_local
+        return [
+            "R",
+            "-e",
+            "install.packages('%s', repos=%r)" % (req.package, self.repos),
+        ]
+
+    def explain(self, requirements):
+        from ..requirements import RPackageRequirement
+
+        rreqs = []
+        for requirement in requirements:
+            if not isinstance(requirement, RPackageRequirement):
+                continue
+            rreqs.append(requirement)
+        if rreqs:
+            yield ([self._cmd(req) for req in rreqs])
+
+    def install(self, requirements):
+        from ..requirements import RPackageRequirement
+
+        if self.user_local:
+            user = None
+        else:
+            user = "root"
+
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, RPackageRequirement):
+                missing.append(requirement)
+                continue
+            self.session.check_call(self._cmd(requirement), user=user)
+        if missing:
+            raise UnsatisfiedRequirements(missing)
+
+
+class OctaveForgeResolver(Resolver):
+    def __init__(self, session, user_local=False):
+        self.session = session
+        self.user_local = user_local
+
+    def __str__(self):
+        return "octave-forge"
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.session)
+
+    def _cmd(self, req):
+        # TODO(jelmer: Handle self.user_local
+        return ["octave-cli", "--eval", "pkg install -forge %s" % req.package]
+
+    def explain(self, requirements):
+        from ..requirements import OctavePackageRequirement
+
+        rreqs = []
+        for requirement in requirements:
+            if not isinstance(requirement, OctavePackageRequirement):
+                continue
+            rreqs.append(requirement)
+        if rreqs:
+            yield ([self._cmd(req) for req in rreqs])
+
+    def install(self, requirements):
+        from ..requirements import OctavePackageRequirement
+
+        if self.user_local:
+            user = None
+        else:
+            user = "root"
+
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, OctavePackageRequirement):
+                missing.append(requirement)
+                continue
+            self.session.check_call(self._cmd(requirement), user=user)
+        if missing:
+            raise UnsatisfiedRequirements(missing)
+
+
+class CRANResolver(RResolver):
+    def __init__(self, session, user_local=False):
+        super(CRANResolver, self).__init__(
+            session, "http://cran.r-project.org", user_local=user_local
+        )
+
+
+class BioconductorResolver(RResolver):
+    def __init__(self, session, user_local=False):
+        super(BioconductorResolver, self).__init__(
+            session, "https://hedgehog.fhcrc.org/bioconductor", user_local=user_local
+        )
+
+
+class HackageResolver(Resolver):
+    def __init__(self, session, user_local=False):
+        self.session = session
+        self.user_local = user_local
 
     def __str__(self):
         return "hackage"
@@ -86,17 +216,26 @@ class HackageResolver(Resolver):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.session)
 
+    def _cmd(self, reqs):
+        extra_args = []
+        if self.user_local:
+            extra_args.append("--user")
+        return ["cabal", "install"] + extra_args + [req.package for req in reqs]
+
     def install(self, requirements):
         from ..requirements import HaskellPackageRequirement
+
+        if self.user_local:
+            user = None
+        else:
+            user = "root"
 
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, HaskellPackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(
-                ["cabal", "install", requirement.package]
-            )
+            self.session.check_call(self._cmd([requirement]), user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -109,13 +248,13 @@ class HackageResolver(Resolver):
                 continue
             haskellreqs.append(requirement)
         if haskellreqs:
-            yield (["cabal", "install"] + [req.package for req in haskellreqs],
-                   haskellreqs)
+            yield (self._cmd(haskellreqs), haskellreqs)
 
 
 class PypiResolver(Resolver):
-    def __init__(self, session):
+    def __init__(self, session, user_local=False):
         self.session = session
+        self.user_local = user_local
 
     def __str__(self):
         return "pypi"
@@ -123,8 +262,19 @@ class PypiResolver(Resolver):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.session)
 
+    def _cmd(self, reqs):
+        extra_args = []
+        if self.user_local:
+            extra_args.append("--user")
+        return ["pip", "install"] + extra_args + [req.package for req in reqs]
+
     def install(self, requirements):
         from ..requirements import PythonPackageRequirement
+
+        if self.user_local:
+            user = None
+        else:
+            user = "root"
 
         missing = []
         for requirement in requirements:
@@ -132,8 +282,7 @@ class PypiResolver(Resolver):
                 missing.append(requirement)
                 continue
             try:
-                self.session.check_call(
-                    ["pip", "install", requirement.package])
+                self.session.check_call(self._cmd([requirement]), user=user)
             except subprocess.CalledProcessError:
                 missing.append(requirement)
         if missing:
@@ -148,14 +297,13 @@ class PypiResolver(Resolver):
                 continue
             pyreqs.append(requirement)
         if pyreqs:
-            yield (["pip", "install"] + [req.package for req in pyreqs],
-                   pyreqs)
+            yield (self._cmd(pyreqs), pyreqs)
 
 
 class GoResolver(Resolver):
-
-    def __init__(self, session):
+    def __init__(self, session, user_local):
         self.session = session
+        self.user_local = user_local
 
     def __str__(self):
         return "go"
@@ -166,12 +314,18 @@ class GoResolver(Resolver):
     def install(self, requirements):
         from ..requirements import GoPackageRequirement
 
+        if self.user_local:
+            env = {}
+        else:
+            # TODO(jelmer): Isn't this Debian-specific?
+            env = {"GOPATH": "/usr/share/gocode"}
+
         missing = []
         for requirement in requirements:
             if not isinstance(requirement, GoPackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(["go", "get", requirement.package])
+            self.session.check_call(["go", "get", requirement.package], env=env)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -184,18 +338,20 @@ class GoResolver(Resolver):
                 continue
             goreqs.append(requirement)
         if goreqs:
-            yield (["go", "get"] + [req.package for req in goreqs],
-                   goreqs)
+            yield (["go", "get"] + [req.package for req in goreqs], goreqs)
 
 
 NPM_COMMAND_PACKAGES = {
     "del-cli": "del-cli",
+    "husky": "husky",
 }
 
 
 class NpmResolver(Resolver):
-    def __init__(self, session):
+    def __init__(self, session, user_local=False):
         self.session = session
+        self.user_local = user_local
+        # TODO(jelmer): Handle user_local
 
     def __str__(self):
         return "npm"
@@ -204,19 +360,35 @@ class NpmResolver(Resolver):
         return "%s(%r)" % (type(self).__name__, self.session)
 
     def install(self, requirements):
-        from ..requirements import NodePackageRequirement
+        from ..requirements import (
+            NodePackageRequirement,
+            NodeModuleRequirement,
+            BinaryRequirement,
+        )
+
+        if self.user_local:
+            user = None
+        else:
+            user = "root"
 
         missing = []
         for requirement in requirements:
+            if isinstance(requirement, BinaryRequirement):
+                try:
+                    package = NPM_COMMAND_PACKAGES[requirement.binary_name]
+                except KeyError:
+                    pass
+                else:
+                    requirement = NodePackageRequirement(package)
+            if isinstance(requirement, NodeModuleRequirement):
+                # TODO: Is this legit?
+                requirement = NodePackageRequirement(requirement.module.split("/")[0])
             if not isinstance(requirement, NodePackageRequirement):
                 missing.append(requirement)
                 continue
-            try:
-                package = NPM_COMMAND_PACKAGES[requirement.command]
-            except KeyError:
-                missing.append(requirement)
-                continue
-            self.session.check_call(["npm", "-g", "install", package])
+            self.session.check_call(
+                ["npm", "-g", "install", requirement.package], user=user
+            )
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -248,6 +420,13 @@ class StackedResolver(Resolver):
     def __str__(self):
         return "[" + ", ".join(map(str, self.subs)) + "]"
 
+    def env(self):
+        ret = {}
+        # Reversed so earlier resolvers override later ones
+        for sub in reversed(self.subs):
+            ret.update(sub.env())
+        return ret
+
     def explain(self, requirements):
         for sub in self.subs:
             yield from sub.explain(requirements)
@@ -260,6 +439,8 @@ class StackedResolver(Resolver):
                 requirements = e.requirements
             else:
                 return
+        if requirements:
+            raise UnsatisfiedRequirements(requirements)
 
 
 NATIVE_RESOLVER_CLS = [
@@ -268,35 +449,31 @@ NATIVE_RESOLVER_CLS = [
     NpmResolver,
     GoResolver,
     HackageResolver,
-    ]
+    CRANResolver,
+    BioconductorResolver,
+    OctaveForgeResolver,
+]
 
 
-def native_resolvers(session):
-    return StackedResolver([kls(session) for kls in NATIVE_RESOLVER_CLS])
+def native_resolvers(session, user_local):
+    return StackedResolver([kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
 
 
-class ExplainResolver(Resolver):
-    def __init__(self, session):
-        self.session = session
-
-    @classmethod
-    def from_session(cls, session):
-        return cls(session)
-
-    def install(self, requirements):
-        raise UnsatisfiedRequirements(requirements)
-
-
-def auto_resolver(session):
+def auto_resolver(session, explain=False):
     # if session is SchrootSession or if we're root, use apt
     from .apt import AptResolver
     from ..session.schroot import SchrootSession
+    from ..session import get_user
 
-    user = session.check_output(["echo", "$USER"]).decode().strip()
+    user = get_user(session)
     resolvers = []
     # TODO(jelmer): Check VIRTUAL_ENV, and prioritize PypiResolver if
     # present?
-    if isinstance(session, SchrootSession) or user == "root":
+    if isinstance(session, SchrootSession) or user == "root" or explain:
+        user_local = False
+    else:
+        user_local = True
+    if not user_local:
         resolvers.append(AptResolver.from_session(session))
-    resolvers.extend([kls(session) for kls in NATIVE_RESOLVER_CLS])
+    resolvers.extend([kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
     return StackedResolver(resolvers)

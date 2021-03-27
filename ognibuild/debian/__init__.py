@@ -15,14 +15,14 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+import os
 from debian.deb822 import Deb822
 
 from ..session import Session
 
 
-# TODO(jelmer): move this to debian/
-def satisfy_build_deps(session: Session, tree):
-    source = Deb822(tree.get_file("debian/control"))
+def satisfy_build_deps(session: Session, tree, debian_path):
+    source = Deb822(tree.get_file(os.path.join(debian_path, "control")))
     deps = []
     for name in ["Build-Depends", "Build-Depends-Indep", "Build-Depends-Arch"]:
         try:

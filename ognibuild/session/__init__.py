@@ -16,9 +16,23 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 import sys
 import subprocess
+
+
+class NoSessionOpen(Exception):
+    """There is no session open."""
+
+    def __init__(self, session):
+        self.session = session
+
+
+class SessionAlreadyOpen(Exception):
+    """There is already a session open."""
+
+    def __init__(self, session):
+        self.session = session
 
 
 class Session(object):
@@ -41,6 +55,7 @@ class Session(object):
         cwd: Optional[str] = None,
         user: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
+        close_fds: bool = True,
     ):
         raise NotImplementedError(self.check_call)
 
@@ -74,12 +89,27 @@ class Session(object):
     def scandir(self, path: str):
         raise NotImplementedError(self.scandir)
 
+    def setup_from_vcs(
+        self, tree, include_controldir: Optional[bool] = None, subdir="package"
+    ) -> Tuple[str, str]:
+        raise NotImplementedError(self.setup_from_vcs)
+
+    def setup_from_directory(self, path, subdir="package") -> Tuple[str, str]:
+        raise NotImplementedError(self.setup_from_directory)
+
+    def external_path(self, path: str) -> str:
+        raise NotImplementedError
+
+    is_temporary: bool
+
 
 class SessionSetupFailure(Exception):
     """Session failed to be set up."""
 
 
 def run_with_tee(session: Session, args: List[str], **kwargs):
+    if "stdin" not in kwargs:
+        kwargs["stdin"] = subprocess.DEVNULL
     p = session.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs)
     contents = []
     while p.poll() is None:
@@ -88,3 +118,19 @@ def run_with_tee(session: Session, args: List[str], **kwargs):
         sys.stdout.buffer.flush()
         contents.append(line.decode("utf-8", "surrogateescape"))
     return p.returncode, contents
+
+
+def get_user(session):
+    return session.check_output(["echo", "$USER"], cwd="/").decode().strip()
+
+
+def which(session, name):
+    try:
+        ret = session.check_output(["which", name], cwd="/").decode().strip()
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 1:
+            return None
+        raise
+    if not ret:
+        return None
+    return ret

@@ -35,8 +35,9 @@ from ..debian.fix_build import (
     resolve_error,
     versioned_package_fixers,
     apt_fixers,
-    BuildDependencyContext,
+    DebianPackagingContext,
 )
+from breezy.commit import NullCommitReporter
 from breezy.tests import TestCaseWithTransport
 
 
@@ -44,10 +45,17 @@ class DummyAptSearcher(FileSearcher):
     def __init__(self, files):
         self._apt_files = files
 
-    def search_files(self, path, regex=False):
+    def search_files(self, path, regex=False, case_insensitive=False):
         for p, pkg in sorted(self._apt_files.items()):
+            if case_insensitive:
+                flags = re.I
+            else:
+                flags = 0
             if regex:
-                if re.match(path, p):
+                if re.match(path, p, flags):
+                    yield pkg
+            elif case_insensitive:
+                if path.lower() == p.lower():
                     yield pkg
             else:
                 if path == p:
@@ -97,16 +105,15 @@ blah (0.1) UNRELEASED; urgency=medium
         session = PlainSession()
         apt = AptManager(session)
         apt._searchers = [DummyAptSearcher(self._apt_files)]
-        context = BuildDependencyContext(
-            ("build", ),
+        context = DebianPackagingContext(
             self.tree,
-            apt,
             subpath="",
             committer="ognibuild <ognibuild@jelmer.uk>",
             update_changelog=True,
+            commit_reporter=NullCommitReporter(),
         )
-        fixers = versioned_package_fixers(session) + apt_fixers(apt)
-        return resolve_error(error, context, fixers)
+        fixers = versioned_package_fixers(session, context, apt) + apt_fixers(apt, context)
+        return resolve_error(error, ("build",), fixers)
 
     def get_build_deps(self):
         with open(self.tree.abspath("debian/control"), "r") as f:

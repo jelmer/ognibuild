@@ -20,12 +20,16 @@ import os
 import shlex
 import sys
 from . import UnidentifiedError, DetailedFailure
-from .buildlog import InstallFixer, ExplainInstallFixer, ExplainInstall
+from .buildlog import (
+    InstallFixer,
+    ExplainInstallFixer,
+    ExplainInstall,
+    install_missing_reqs,
+)
 from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .resolver import (
     auto_resolver,
     native_resolvers,
-    UnsatisfiedRequirements,
 )
 from .resolver.apt import AptResolver
 
@@ -35,8 +39,7 @@ def display_explain_commands(commands):
     for command, reqs in commands:
         if isinstance(command, list):
             command = shlex.join(command)
-        logging.info(
-            '  %s (to install %s)', command, ', '.join(map(str, reqs)))
+        logging.info("  %s (to install %s)", command, ", ".join(map(str, reqs)))
 
 
 def get_necessary_declared_requirements(resolver, requirements, stages):
@@ -47,12 +50,14 @@ def get_necessary_declared_requirements(resolver, requirements, stages):
     return missing
 
 
-def install_necessary_declared_requirements(session, resolver, buildsystems, stages, explain=False):
+def install_necessary_declared_requirements(
+    session, resolver, fixers, buildsystems, stages, explain=False
+):
     relevant = []
     declared_reqs = []
     for buildsystem in buildsystems:
         try:
-            declared_reqs.extend(buildsystem.get_declared_dependencies())
+            declared_reqs.extend(buildsystem.get_declared_dependencies(session, fixers))
         except NotImplementedError:
             logging.warning(
                 "Unable to determine declared dependencies from %r", buildsystem
@@ -60,21 +65,8 @@ def install_necessary_declared_requirements(session, resolver, buildsystems, sta
     relevant.extend(
         get_necessary_declared_requirements(resolver, declared_reqs, stages)
     )
-    missing = []
-    for req in relevant:
-        try:
-            if not req.met(session):
-                missing.append(req)
-        except NotImplementedError:
-            missing.append(req)
-    if missing:
-        if explain:
-            commands = resolver.explain(missing)
-            if not commands:
-                raise UnsatisfiedRequirements(missing)
-            raise ExplainInstall(commands)
-        else:
-            resolver.install(missing)
+
+    install_missing_reqs(session, resolver, relevant, explain=explain)
 
 
 # Types of dependencies:
@@ -154,35 +146,46 @@ def main():  # noqa: C901
 
         session = PlainSession()
     with session:
+        logging.info("Preparing directory %s", args.directory)
+        external_dir, internal_dir = session.setup_from_directory(args.directory)
+        session.chdir(internal_dir)
+        os.chdir(external_dir)
         if args.resolve == "apt":
             resolver = AptResolver.from_session(session)
         elif args.resolve == "native":
-            resolver = native_resolvers(session)
+            resolver = native_resolvers(session, user_local=args.user)
         elif args.resolve == "auto":
-            resolver = auto_resolver(session)
+            resolver = auto_resolver(session, explain=args.explain)
         logging.info("Using requirement resolver: %s", resolver)
-        os.chdir(args.directory)
         try:
             bss = list(detect_buildsystems(args.directory))
-            logging.info(
-                "Detected buildsystems: %s", ', '.join(map(str, bss)))
+            logging.info("Detected buildsystems: %s", ", ".join(map(str, bss)))
+            fixers = determine_fixers(session, resolver, explain=args.explain)
             if not args.ignore_declared_dependencies:
                 stages = STAGE_MAP[args.subcommand]
                 if stages:
                     logging.info("Checking that declared requirements are present")
                     try:
                         install_necessary_declared_requirements(
-                            session, resolver, bss, stages, explain=args.explain)
+                            session, resolver, fixers, bss, stages, explain=args.explain
+                        )
                     except ExplainInstall as e:
                         display_explain_commands(e.commands)
                         return 1
-            fixers = determine_fixers(session, resolver, explain=args.explain)
             if args.subcommand == "dist":
-                from .dist import run_dist
+                from .dist import run_dist, DistNoTarball
 
-                run_dist(
-                    session=session, buildsystems=bss, resolver=resolver, fixers=fixers
-                )
+                try:
+                    run_dist(
+                        session=session,
+                        buildsystems=bss,
+                        resolver=resolver,
+                        fixers=fixers,
+                        target_directory=".",
+                    )
+                except DistNoTarball:
+                    logging.fatal('No tarball created.')
+                    return 1
             if args.subcommand == "build":
                 from .build import run_build
 

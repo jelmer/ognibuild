@@ -1,5 +1,4 @@
-ognibuild
-=========
+# ognibuild
 
 Ognibuild is a simple wrapper with a common interface for invoking any kind of
 build tool.
@@ -10,8 +9,7 @@ parameters.
 
 It can also detect and install missing dependencies.
 
-Goals
------
+## Goals
 
 The goal of ognibuild is to provide a consistent CLI that can be used for any
 software package. It is mostly useful for automated building of
@@ -20,8 +18,7 @@ large sets of diverse packages (e.g. different programming languages).
 It is not meant to expose all functionality that is present in the underlying
 build systems. To use that, invoke those build systems directly.
 
-Usage
------
+## Usage
 
 Ognibuild has a number of subcommands:
 
@@ -34,7 +31,53 @@ Ognibuild has a number of subcommands:
 It also includes a subcommand that can fix up the build dependencies
 for Debian packages, called deb-fix-build.
 
-License
--------
+## Status
+
+Ognibuild is functional, but sometimes rough around the edges. If you run into
+issues (or lack of support for a particular ecosystem), please file a bug.
+
+### Supported Build Systems
+
+- Cabal
+- Cargo
+- Golang
+- Gradle
+- Make, including various makefile generators:
+    - autoconf/automake
+    - CMake
+    - Makefile.PL
+    - qmake
+- Maven
+- ninja, including ninja file generators:
+    - meson
+- Node
+- Octave
+- Perl
+    - Module::Build::Tiny
+- PHP Pear
+- Python - setup.py/setup.cfg/pyproject.toml
+- R
+- Ruby gems
+- Waf
+
+### Supported package repositories
+
+Package repositories are used to install missing dependencies.
+
+The following "native" repositories are supported:
+
+- pypi
+- cpan
+- hackage
+- npm
+- cargo
+- cran
+- golang\*
+
+As well one distribution repository:
+
+- apt
+
+## License
 
 Ognibuild is licensed under the GNU GPL, v2 or later.
