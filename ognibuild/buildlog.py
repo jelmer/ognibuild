@@ -34,10 +34,14 @@ from buildlog_consultant.common import (
     MissingPerlModule,
     MissingXmlEntity,
     MissingJDKFile,
+    MissingJDK,
+    MissingJRE,
     MissingNodeModule,
+    MissingNodePackage,
     MissingPhpClass,
     MissingRubyGem,
     MissingLibrary,
+    MissingSetupPyCommand,
     MissingJavaClass,
     MissingCSharpCompiler,
     MissingRPackage,
@@ -46,10 +50,16 @@ from buildlog_consultant.common import (
     MissingValaPackage,
     MissingXfceDependency,
     MissingHaskellDependencies,
+    MissingVagueDependency,
     DhAddonLoadFailure,
     MissingMavenArtifacts,
     GnomeCommonMissing,
     MissingGnomeCommonDependency,
+    UnknownCertificateAuthority,
+    CMakeFilesMissing,
+    MissingLibtool,
+    MissingQt,
+    MissingX11,
 )
 
 from .fix_build import BuildFixer
@@ -71,15 +81,24 @@ from .requirements import (
     XmlEntityRequirement,
     SprocketsFileRequirement,
     JavaClassRequirement,
+    CMakefileRequirement,
     HaskellPackageRequirement,
     MavenArtifactRequirement,
     GnomeCommonRequirement,
     JDKFileRequirement,
+    JDKRequirement,
+    JRERequirement,
     PerlModuleRequirement,
     PerlFileRequirement,
     AutoconfMacroRequirement,
     PythonModuleRequirement,
     PythonPackageRequirement,
+    CertificateAuthorityRequirement,
+    NodeModuleRequirement,
+    QTRequirement,
+    X11Requirement,
+    LibtoolRequirement,
+    VagueDependencyRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -108,7 +127,11 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
     elif isinstance(problem, MissingRPackage):
         return RPackageRequirement(problem.package, problem.minimum_version)
     elif isinstance(problem, MissingNodeModule):
-        return NodePackageRequirement(problem.module)
+        return NodeModuleRequirement(problem.module)
+    elif isinstance(problem, MissingNodePackage):
+        return NodePackageRequirement(problem.package)
+    elif isinstance(problem, MissingVagueDependency):
+        return VagueDependencyRequirement(problem.name, minimum_version=problem.minimum_version)
     elif isinstance(problem, MissingLibrary):
         return LibraryRequirement(problem.library)
     elif isinstance(problem, MissingRubyFile):
@@ -119,16 +142,37 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return SprocketsFileRequirement(problem.content_type, problem.name)
     elif isinstance(problem, MissingJavaClass):
         return JavaClassRequirement(problem.classname)
+    elif isinstance(problem, CMakeFilesMissing):
+        return [CMakefileRequirement(filename) for filename in problem.filenames]
     elif isinstance(problem, MissingHaskellDependencies):
         return [HaskellPackageRequirement.from_string(dep) for dep in problem.deps]
     elif isinstance(problem, MissingMavenArtifacts):
-        return [MavenArtifactRequirement(artifact) for artifact in problem.artifacts]
+        return [
+            MavenArtifactRequirement.from_str(artifact)
+            for artifact in problem.artifacts
+        ]
     elif isinstance(problem, MissingCSharpCompiler):
         return BinaryRequirement("msc")
     elif isinstance(problem, GnomeCommonMissing):
         return GnomeCommonRequirement()
     elif isinstance(problem, MissingJDKFile):
         return JDKFileRequirement(problem.jdk_path, problem.filename)
+    elif isinstance(problem, MissingJDK):
+        return JDKRequirement()
+    elif isinstance(problem, MissingJRE):
+        return JRERequirement()
+    elif isinstance(problem, MissingQt):
+        return QTRequirement()
+    elif isinstance(problem, MissingX11):
+        return X11Requirement()
+    elif isinstance(problem, MissingLibtool):
+        return LibtoolRequirement()
+    elif isinstance(problem, UnknownCertificateAuthority):
+        return CertificateAuthorityRequirement(problem.url)
+    elif isinstance(problem, MissingSetupPyCommand):
+        if problem.command == "test":
+            return PythonPackageRequirement("setuptools")
+        return None
     elif isinstance(problem, MissingGnomeCommonDependency):
         if problem.package == "glib-gettext":
             return BinaryRequirement("glib-gettextize")
@@ -159,7 +203,7 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         )
     elif isinstance(problem, MissingPythonDistribution):
         return PythonPackageRequirement(
-            problem.module,
+            problem.distribution,
             python_version=problem.python_version,
             minimum_version=problem.minimum_version,
         )
@@ -181,7 +225,7 @@ class InstallFixer(BuildFixer):
         req = problem_to_upstream_requirement(error)
         return req is not None
 
-    def fix(self, error, context):
+    def fix(self, error, phase):
         reqs = problem_to_upstream_requirement(error)
         if reqs is None:
             return False
@@ -197,7 +241,6 @@ class InstallFixer(BuildFixer):
 
 
 class ExplainInstall(Exception):
-
     def __init__(self, commands):
         self.commands = commands
 
@@ -216,7 +259,7 @@ class ExplainInstallFixer(BuildFixer):
         req = problem_to_upstream_requirement(error)
         return req is not None
 
-    def fix(self, error, context):
+    def fix(self, error, phase):
         reqs = problem_to_upstream_requirement(error)
         if reqs is None:
             return False
@@ -228,3 +271,23 @@ class ExplainInstallFixer(BuildFixer):
         if not explanations:
             return False
         raise ExplainInstall(explanations)
+
+
+def install_missing_reqs(session, resolver, reqs, explain=False):
+    if not reqs:
+        return
+    missing = []
+    for req in reqs:
+        try:
+            if not req.met(session):
+                missing.append(req)
+        except NotImplementedError:
+            missing.append(req)
+    if missing:
+        if explain:
+            commands = resolver.explain(missing)
+            if not commands:
+                raise UnsatisfiedRequirements(missing)
+            raise ExplainInstall(commands)
+        else:
+            resolver.install(missing)

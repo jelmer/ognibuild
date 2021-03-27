@@ -6,7 +6,7 @@ from setuptools import setup
 
 setup(name="ognibuild",
       description="Detect and run any build system",
-      version="0.0.2",
+      version="0.0.3",
       maintainer="Jelmer Vernooĳ",
       maintainer_email="jelmer@jelmer.uk",
       license="GNU GPLv2 or later",
@@ -29,12 +29,12 @@ setup(name="ognibuild",
       },
       install_requires=[
           'breezy',
-          'buildlog-consultant',
+          'buildlog-consultant>=0.0.4',
           'requirements-parser',
           ],
       extras_require={
           'debian': ['debmutate', 'python_debian', 'python_apt'],
       },
-      tests_require=['python_debian', 'buildlog-consultant', 'breezy'],
+      tests_require=['python_debian', 'buildlog-consultant', 'breezy', 'testtools'],
       test_suite='ognibuild.tests.test_suite',
       )

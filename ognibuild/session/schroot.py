@@ -19,11 +19,12 @@ import logging
 import os
 import shlex
 import subprocess
+import tempfile
 
 from typing import Optional, List, Dict
 
 
-from . import Session, SessionSetupFailure
+from . import Session, SessionSetupFailure, NoSessionOpen, SessionAlreadyOpen
 
 
 class SchrootSession(Session):
@@ -31,6 +32,7 @@ class SchrootSession(Session):
     _cwd: Optional[str]
     _location: Optional[str]
     chroot: str
+    session_id: Optional[str]
 
     def __init__(self, chroot: str):
         if not isinstance(chroot, str):
@@ -38,8 +40,11 @@ class SchrootSession(Session):
         self.chroot = chroot
         self._location = None
         self._cwd = None
+        self.session_id = None
 
     def _get_location(self) -> str:
+        if self.session_id is None:
+            raise NoSessionOpen(self)
         return (
             subprocess.check_output(
                 ["schroot", "--location", "-c", "session:" + self.session_id]
@@ -48,10 +53,29 @@ class SchrootSession(Session):
             .decode()
         )
 
-    def _end_session(self) -> None:
-        subprocess.check_output(["schroot", "-c", "session:" + self.session_id, "-e"])
+    def _end_session(self) -> bool:
+        if self.session_id is None:
+            raise NoSessionOpen(self)
+        try:
+            subprocess.check_output(
+                ["schroot", "-c", "session:" + self.session_id, "-e"],
+                stderr=subprocess.PIPE,
+            )
+        except subprocess.CalledProcessError as e:
+            for line in e.stderr.splitlines(False):
+                if line.startswith(b"E: "):
+                    logging.error("%s", line[3:].decode(errors="replace"))
+            logging.warning(
+                "Failed to close schroot session %s, leaving stray.", self.session_id
+            )
+            self.session_id = None
+            return False
+        self.session_id = None
+        return True
 
     def __enter__(self) -> "Session":
+        if self.session_id is not None:
+            raise SessionAlreadyOpen(self)
         try:
             self.session_id = (
                 subprocess.check_output(["schroot", "-c", self.chroot, "-b"])
@@ -86,6 +110,8 @@ class SchrootSession(Session):
         user: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
     ):
+        if self.session_id is None:
+            raise NoSessionOpen(self)
         base_argv = ["schroot", "-r", "-c", "session:" + self.session_id]
         if cwd is None:
             cwd = self._cwd
@@ -113,9 +139,12 @@ class SchrootSession(Session):
         cwd: Optional[str] = None,
         user: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
+        close_fds: bool = True,
     ):
         try:
-            subprocess.check_call(self._run_argv(argv, cwd, user, env=env))
+            subprocess.check_call(
+                self._run_argv(argv, cwd, user, env=env), close_fds=close_fds
+            )
         except subprocess.CalledProcessError as e:
             raise subprocess.CalledProcessError(e.returncode, argv)
 
@@ -151,19 +180,49 @@ class SchrootSession(Session):
             .decode()
             .rstrip("\n")
         )
-        logging.info("Creating directory %s", home)
+        logging.info("Creating directory %s in schroot session.", home)
         self.check_call(["mkdir", "-p", home], cwd="/", user="root")
         self.check_call(["chown", user, home], cwd="/", user="root")
 
-    def _fullpath(self, path: str) -> str:
+    def external_path(self, path: str) -> str:
         if self._cwd is None:
             raise ValueError("no cwd set")
         return os.path.join(self.location, os.path.join(self._cwd, path).lstrip("/"))
 
     def exists(self, path: str) -> bool:
-        fullpath = self._fullpath(path)
+        fullpath = self.external_path(path)
         return os.path.exists(fullpath)
 
     def scandir(self, path: str):
-        fullpath = self._fullpath(path)
+        fullpath = self.external_path(path)
         return os.scandir(fullpath)
+
+    def setup_from_vcs(
+        self, tree, include_controldir: Optional[bool] = None, subdir="package"
+    ):
+        from ..vcs import dupe_vcs_tree, export_vcs_tree
+
+        build_dir = os.path.join(self.location, "build")
+
+        directory = tempfile.mkdtemp(dir=build_dir)
+        reldir = "/" + os.path.relpath(directory, self.location)
+
+        export_directory = os.path.join(directory, subdir)
+        if not include_controldir:
+            export_vcs_tree(tree, export_directory)
+        else:
+            dupe_vcs_tree(tree, export_directory)
+
+        return export_directory, os.path.join(reldir, subdir)
+
+    def setup_from_directory(self, path, subdir="package"):
+        import shutil
+
+        build_dir = os.path.join(self.location, "build")
+        directory = tempfile.mkdtemp(dir=build_dir)
+        reldir = "/" + os.path.relpath(directory, self.location)
+        export_directory = os.path.join(directory, subdir)
+        shutil.copytree(path, export_directory, dirs_exist_ok=True)
+        return export_directory, os.path.join(reldir, subdir)
+
+    is_temporary = True

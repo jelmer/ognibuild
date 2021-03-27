@@ -17,8 +17,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import posixpath
+import re
 import subprocess
-from typing import Optional, List, Tuple
+from typing import Optional, List, Set
 
 from . import Requirement
 
@@ -71,12 +72,37 @@ class PythonPackageRequirement(Requirement):
             cmd = "python3"
         else:
             raise NotImplementedError
-        text = self.package + ','.join([''.join(spec) for spec in self.specs])
+        text = self.package + ",".join(["".join(spec) for spec in self.specs])
         p = session.Popen(
             [cmd, "-c", "import pkg_resources; pkg_resources.require(%r)" % text],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
         p.communicate()
         return p.returncode == 0
+
+
+class PhpPackageRequirement(Requirement):
+    def __init__(
+        self,
+        package: str,
+        channel: Optional[str] = None,
+        min_version: Optional[str] = None,
+        max_version: Optional[str] = None,
+    ):
+        self.package = package
+        self.channel = channel
+        self.min_version = min_version
+        self.max_version = max_version
+
+    def __repr__(self):
+        return "%s(%r, %r, %r, %r)" % (
+            type(self).__name__,
+            self.package,
+            self.channel,
+            self.min_version,
+            self.max_version,
+        )
 
 
 class BinaryRequirement(Requirement):
@@ -87,10 +113,15 @@ class BinaryRequirement(Requirement):
         super(BinaryRequirement, self).__init__("binary")
         self.binary_name = binary_name
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.binary_name)
+
     def met(self, session):
         p = session.Popen(
-            ["which", self.binary_name], stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL)
+            ["which", self.binary_name],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
         p.communicate()
         return p.returncode == 0
 
@@ -107,8 +138,46 @@ class PerlModuleRequirement(Requirement):
         self.filename = filename
         self.inc = inc
 
+    @property
     def relfilename(self):
         return self.module.replace("::", "/") + ".pm"
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.module)
+
+
+class VagueDependencyRequirement(Requirement):
+
+    name: str
+    minimum_version: Optional[str] = None
+
+    def __init__(self, name, minimum_version=None):
+        super(VagueDependencyRequirement, self).__init__("vague")
+        self.name = name
+        self.minimum_version = minimum_version
+
+    def expand(self):
+        if " " not in self.name:
+            yield BinaryRequirement(self.name)
+            yield LibraryRequirement(self.name)
+            yield PkgConfigRequirement(self.name, minimum_version=self.minimum_version)
+            if self.name.lower() != self.name:
+                yield BinaryRequirement(self.name.lower())
+                yield LibraryRequirement(self.name.lower())
+                yield PkgConfigRequirement(self.name.lower(), minimum_version=self.minimum_version)
+            from .resolver.apt import AptRequirement
+
+            yield AptRequirement.simple(self.name.lower(), minimum_version=self.minimum_version)
+            yield AptRequirement.simple('lib%s-dev' % self.name.lower(), minimum_version=self.minimum_version)
+
+    def met(self, session):
+        for x in self.expand():
+            if x.met(session):
+                return True
+        return False
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.name)
 
 
 class NodePackageRequirement(Requirement):
@@ -119,23 +188,53 @@ class NodePackageRequirement(Requirement):
         super(NodePackageRequirement, self).__init__("npm-package")
         self.package = package
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.package)
+
+
+class NodeModuleRequirement(Requirement):
+
+    module: str
+
+    def __init__(self, module):
+        super(NodeModuleRequirement, self).__init__("npm-module")
+        self.module = module
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.module)
+
 
 class CargoCrateRequirement(Requirement):
 
     crate: str
+    features: Set[str]
+    version: Optional[str]
 
-    def __init__(self, crate):
+    def __init__(self, crate, features=None, version=None):
         super(CargoCrateRequirement, self).__init__("cargo-crate")
         self.crate = crate
+        if features is None:
+            features = set()
+        self.features = features
+        self.version = version
 
     def __repr__(self):
-        return "%s(%r)" % (
+        return "%s(%r, features=%r, version=%r)" % (
             type(self).__name__,
             self.crate,
+            self.features,
+            self.version,
         )
 
     def __str__(self):
-        return "cargo crate: %s" % self.crate
+        if self.features:
+            return "cargo crate: %s %s (%s)" % (
+                self.crate,
+                self.version or "",
+                ", ".join(sorted(self.features)),
+            )
+        else:
+            return "cargo crate: %s %s" % (self.crate, self.version or "")
 
 
 class PkgConfigRequirement(Requirement):
@@ -194,10 +293,29 @@ class RubyGemRequirement(Requirement):
 class GoPackageRequirement(Requirement):
 
     package: str
+    version: Optional[str]
 
-    def __init__(self, package: str):
-        super(GoPackageRequirement, self).__init__("go")
+    def __init__(self, package: str, version: Optional[str] = None):
+        super(GoPackageRequirement, self).__init__("go-package")
         self.package = package
+        self.version = version
+
+    def __str__(self):
+        if self.version:
+            return "go package: %s (= %s)" % (self.package, self.version)
+        return "go package: %s" % self.package
+
+
+class GoRequirement(Requirement):
+
+    version: Optional[str]
+
+    def __init__(self, version: Optional[str] = None):
+        super(GoRequirement, self).__init__("go")
+        self.version = version
+
+    def __str__(self):
+        return "go %s" % self.version
 
 
 class DhAddonRequirement(Requirement):
@@ -227,6 +345,65 @@ class RPackageRequirement(Requirement):
         super(RPackageRequirement, self).__init__("r-package")
         self.package = package
         self.minimum_version = minimum_version
+
+    def __repr__(self):
+        return "%s(%r, minimum_version=%r)" % (
+            type(self).__name__,
+            self.package,
+            self.minimum_version,
+        )
+
+    def __str__(self):
+        if self.minimum_version:
+            return "R package: %s (>= %s)" % (self.package, self.minimum_version)
+        else:
+            return "R package: %s" % (self.package,)
+
+    @classmethod
+    def from_str(cls, text):
+        # TODO(jelmer): More complex parser
+        m = re.fullmatch(r"(.*)\s+\(>=\s+(.*)\)", text)
+        if m:
+            return cls(m.group(1), m.group(2))
+        m = re.fullmatch(r"([^ ]+)", text)
+        if m:
+            return cls(m.group(1))
+        raise ValueError(text)
+
+
+class OctavePackageRequirement(Requirement):
+
+    package: str
+    minimum_version: Optional[str]
+
+    def __init__(self, package: str, minimum_version: Optional[str] = None):
+        super(OctavePackageRequirement, self).__init__("octave-package")
+        self.package = package
+        self.minimum_version = minimum_version
+
+    def __repr__(self):
+        return "%s(%r, minimum_version=%r)" % (
+            type(self).__name__,
+            self.package,
+            self.minimum_version,
+        )
+
+    def __str__(self):
+        if self.minimum_version:
+            return "Octave package: %s (>= %s)" % (self.package, self.minimum_version)
+        else:
+            return "Octave package: %s" % (self.package,)
+
+    @classmethod
+    def from_str(cls, text):
+        # TODO(jelmer): More complex parser
+        m = re.fullmatch(r"(.*)\s+\(>=\s+(.*)\)", text)
+        if m:
+            return cls(m.group(1), m.group(2))
+        m = re.fullmatch(r"([^ ]+)", text)
+        if m:
+            return cls(m.group(1))
+        raise ValueError(text)
 
 
 class LibraryRequirement(Requirement):
@@ -276,6 +453,15 @@ class JavaClassRequirement(Requirement):
         self.classname = classname
 
 
+class CMakefileRequirement(Requirement):
+
+    filename: str
+
+    def __init__(self, filename: str):
+        super(CMakefileRequirement, self).__init__("cmake-file")
+        self.filename = filename
+
+
 class HaskellPackageRequirement(Requirement):
 
     package: str
@@ -293,11 +479,43 @@ class HaskellPackageRequirement(Requirement):
 
 class MavenArtifactRequirement(Requirement):
 
-    artifacts: List[Tuple[str, str, str]]
+    group_id: str
+    artifact_id: str
+    version: Optional[str]
+    kind: Optional[str]
 
-    def __init__(self, artifacts):
+    def __init__(self, group_id, artifact_id, version=None, kind=None):
         super(MavenArtifactRequirement, self).__init__("maven-artifact")
-        self.artifacts = artifacts
+        self.group_id = group_id
+        self.artifact_id = artifact_id
+        self.version = version
+        self.kind = kind
+
+    def __str__(self):
+        return "maven requirement: %s:%s:%s" % (
+            self.group_id,
+            self.artifact_id,
+            self.version,
+        )
+
+    @classmethod
+    def from_str(cls, text):
+        return cls.from_tuple(text.split(":"))
+
+    @classmethod
+    def from_tuple(cls, parts):
+        if len(parts) == 4:
+            (group_id, artifact_id, kind, version) = parts
+        elif len(parts) == 3:
+            (group_id, artifact_id, version) = parts
+            kind = "jar"
+        elif len(parts) == 2:
+            version = None
+            (group_id, artifact_id) = parts
+            kind = "jar"
+        else:
+            raise ValueError("invalid number of parts to artifact %r" % parts)
+        return cls(group_id, artifact_id, version, kind)
 
 
 class GnomeCommonRequirement(Requirement):
@@ -320,6 +538,32 @@ class JDKFileRequirement(Requirement):
         return posixpath.join(self.jdk_path, self.filename)
 
 
+class JDKRequirement(Requirement):
+    def __init__(self):
+        super(JDKRequirement, self).__init__("jdk")
+
+
+class JRERequirement(Requirement):
+    def __init__(self):
+        super(JRERequirement, self).__init__("jre")
+
+
+class QTRequirement(Requirement):
+    def __init__(self):
+        super(QTRequirement, self).__init__("qt")
+
+
+class X11Requirement(Requirement):
+    def __init__(self):
+        super(X11Requirement, self).__init__("x11")
+
+
+class CertificateAuthorityRequirement(Requirement):
+    def __init__(self, url):
+        super(CertificateAuthorityRequirement, self).__init__("ca-cert")
+        self.url = url
+
+
 class PerlFileRequirement(Requirement):
 
     filename: str
@@ -338,6 +582,11 @@ class AutoconfMacroRequirement(Requirement):
         self.macro = macro
 
 
+class LibtoolRequirement(Requirement):
+    def __init__(self):
+        super(LibtoolRequirement, self).__init__("libtool")
+
+
 class PythonModuleRequirement(Requirement):
 
     module: str
@@ -346,6 +595,7 @@ class PythonModuleRequirement(Requirement):
 
     def __init__(self, module, python_version=None, minimum_version=None):
         super(PythonModuleRequirement, self).__init__("python-module")
+        self.module = module
         self.python_version = python_version
         self.minimum_version = minimum_version
 
@@ -364,6 +614,8 @@ class PythonModuleRequirement(Requirement):
             raise NotImplementedError
         p = session.Popen(
             [cmd, "-c", "import %s" % self.module],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
         p.communicate()
         return p.returncode == 0

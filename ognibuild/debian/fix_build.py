@@ -19,8 +19,10 @@ __all__ = [
     "build_incrementally",
 ]
 
+from functools import partial
 import logging
 import os
+import shutil
 import sys
 from typing import List, Set, Optional, Type
 
@@ -30,8 +32,8 @@ from debian.deb822 import (
 )
 
 from breezy.commit import PointlessCommit
-from breezy.mutabletree import MutableTree
 from breezy.tree import Tree
+from debmutate.changelog import ChangelogEditor
 from debmutate.control import (
     ensure_relation,
     ControlEditor,
@@ -49,12 +51,47 @@ from debmutate.reformatting import (
 
 try:
     from breezy.workspace import reset_tree
-except ImportError:
-    from lintian_brush import reset_tree
+except ImportError:  # breezy < 3.2
 
-from lintian_brush.changelog import (
-    add_changelog_entry,
-)
+    def delete_items(deletables, dry_run=False):
+        """Delete files in the deletables iterable"""
+        import errno
+        import shutil
+
+        def onerror(function, path, excinfo):
+            """Show warning for errors seen by rmtree."""
+            # Handle only permission error while removing files.
+            # Other errors are re-raised.
+            if function is not os.remove or excinfo[1].errno != errno.EACCES:
+                raise
+            logging.warning("unable to remove %s" % path)
+
+        for path, subp in deletables:
+            if os.path.isdir(path):
+                shutil.rmtree(path, onerror=onerror)
+            else:
+                try:
+                    os.unlink(path)
+                except OSError as e:
+                    # We handle only permission error here
+                    if e.errno != errno.EACCES:
+                        raise e
+                    logging.warning('unable to remove "%s": %s.', path, e.strerror)
+
+    def reset_tree(local_tree, subpath=""):
+        from breezy.transform import revert
+        from breezy.clean_tree import iter_deletables
+
+        revert(
+            local_tree,
+            local_tree.branch.basis_tree(),
+            [subpath] if subpath not in (".", "") else None,
+        )
+        deletables = list(
+            iter_deletables(local_tree, unknown=True, ignored=False, detritus=False)
+        )
+        delete_items(deletables)
+
 
 from debmutate._rules import (
     dh_invoke_add_with,
@@ -71,8 +108,6 @@ from buildlog_consultant.common import (
     MissingAutomakeInput,
     MissingConfigure,
     NeedPgBuildExtUpdateControl,
-    MissingPythonModule,
-    MissingPythonDistribution,
     MissingPerlFile,
 )
 from buildlog_consultant.sbuild import (
@@ -80,10 +115,9 @@ from buildlog_consultant.sbuild import (
 )
 
 from ..buildlog import problem_to_upstream_requirement
-from ..fix_build import BuildFixer, resolve_error, DependencyContext
+from ..fix_build import BuildFixer, resolve_error
 from ..resolver.apt import (
     AptRequirement,
-    get_package_for_python_module,
 )
 from .build import attempt_build, DEFAULT_BUILDER
 
@@ -98,10 +132,46 @@ class CircularDependency(Exception):
         self.package = package
 
 
-class PackageDependencyFixer(BuildFixer):
+class DebianPackagingContext(object):
+    def __init__(
+        self, tree, subpath, committer, update_changelog, commit_reporter=None
+    ):
+        self.tree = tree
+        self.subpath = subpath
+        self.committer = committer
+        self.update_changelog = update_changelog
+        self.commit_reporter = commit_reporter
 
-    def __init__(self, apt_resolver):
+    def abspath(self, *parts):
+        return self.tree.abspath(os.path.join(self.subpath, *parts))
+
+    def commit(self, summary: str, update_changelog: Optional[bool] = None) -> bool:
+        if update_changelog is None:
+            update_changelog = self.update_changelog
+        with self.tree.lock_write():
+            try:
+                if update_changelog:
+                    cl_path = self.abspath("debian/changelog")
+                    with ChangelogEditor(cl_path) as editor:
+                        editor.add_entry([summary])
+                    debcommit(self.tree, committer=self.committer, subpath=self.subpath)
+                else:
+                    self.tree.commit(
+                        message=summary,
+                        committer=self.committer,
+                        specific_files=[self.subpath],
+                        reporter=self.commit_reporter,
+                    )
+            except PointlessCommit:
+                return False
+            else:
+                return True
+
+
+class PackageDependencyFixer(BuildFixer):
+    def __init__(self, context, apt_resolver):
         self.apt_resolver = apt_resolver
+        self.context = context
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.apt_resolver)
@@ -113,7 +183,7 @@ class PackageDependencyFixer(BuildFixer):
         req = problem_to_upstream_requirement(error)
         return req is not None
 
-    def fix(self, error, context):
+    def fix(self, error, phase):
         reqs = problem_to_upstream_requirement(error)
         if reqs is None:
             return False
@@ -123,82 +193,29 @@ class PackageDependencyFixer(BuildFixer):
 
         changed = False
         for req in reqs:
-            package = self.apt_resolver.resolve(req)
-            if package is None:
+            apt_req = self.apt_resolver.resolve(req)
+            if apt_req is None:
                 return False
-            if context.phase[0] == "autopkgtest":
-                return add_test_dependency(
-                    context.tree,
-                    context.phase[1],
-                    package,
-                    committer=context.committer,
-                    subpath=context.subpath,
-                    update_changelog=context.update_changelog,
-                )
-            elif context.phase[0] == "build":
-                return add_build_dependency(
-                    context.tree,
-                    package,
-                    committer=context.committer,
-                    subpath=context.subpath,
-                    update_changelog=context.update_changelog,
-                )
-            else:
-                logging.warning('Unknown phase %r', context.phase)
-                return False
+            if add_dependency(self.context, phase, apt_req):
+                changed = True
         return changed
 
 
-class BuildDependencyContext(DependencyContext):
-    def __init__(
-        self, phase, tree, apt, subpath="", committer=None, update_changelog=True
-    ):
-        self.phase = phase
-        super(BuildDependencyContext, self).__init__(
-            tree, apt, subpath, committer, update_changelog
-        )
-
-    def add_dependency(self, requirement: AptRequirement):
-        return add_build_dependency(
-            self.tree,
-            requirement,
-            committer=self.committer,
-            subpath=self.subpath,
-            update_changelog=self.update_changelog,
-        )
+def add_dependency(context, phase, requirement: AptRequirement):
+    if phase[0] == "autopkgtest":
+        return add_test_dependency(context, phase[1], requirement)
+    elif phase[0] == "build":
+        return add_build_dependency(context, requirement)
+    else:
+        logging.warning("Unknown phase %r", phase)
+        return False
 
 
-class AutopkgtestDependencyContext(DependencyContext):
-    def __init__(
-        self, phase, tree, apt, subpath="", committer=None, update_changelog=True
-    ):
-        self.phase = phase
-        super(AutopkgtestDependencyContext, self).__init__(
-            tree, apt, subpath, committer, update_changelog
-        )
-
-    def add_dependency(self, requirement):
-        return add_test_dependency(
-            self.tree,
-            self.testname,
-            requirement,
-            committer=self.committer,
-            subpath=self.subpath,
-            update_changelog=self.update_changelog,
-        )
-
-
-def add_build_dependency(
-    tree: Tree,
-    requirement: AptRequirement,
-    committer: Optional[str] = None,
-    subpath: str = "",
-    update_changelog: bool = True,
-):
+def add_build_dependency(context, requirement: AptRequirement):
     if not isinstance(requirement, AptRequirement):
         raise TypeError(requirement)
 
-    control_path = os.path.join(tree.abspath(subpath), "debian/control")
+    control_path = context.abspath("debian/control")
     try:
         with ControlEditor(path=control_path) as updater:
             for binary in updater.binaries:
@@ -219,27 +236,17 @@ def add_build_dependency(
         return False
 
     logging.info("Adding build dependency: %s", desc)
-    return commit_debian_changes(
-        tree,
-        subpath,
-        "Add missing build dependency on %s." % desc,
-        committer=committer,
-        update_changelog=update_changelog,
-    )
+    return context.commit("Add missing build dependency on %s." % desc)
 
 
-def add_test_dependency(
-    tree,
-    testname,
-    requirement,
-    committer=None,
-    subpath="",
-    update_changelog=True,
-):
+def add_test_dependency(context, testname, requirement):
     if not isinstance(requirement, AptRequirement):
         raise TypeError(requirement)
 
-    tests_control_path = os.path.join(tree.abspath(subpath), "debian/tests/control")
+    tests_control_path = context.abspath("debian/tests/control")
+
+    # TODO(jelmer): If requirement is for one of our binary packages
+    # but "@" is already present then don't do anything.
 
     try:
         with Deb822Editor(path=tests_control_path) as updater:
@@ -265,176 +272,59 @@ def add_test_dependency(
     desc = requirement.pkg_relation_str()
 
     logging.info("Adding dependency to test %s: %s", testname, desc)
-    return commit_debian_changes(
-        tree,
-        subpath,
+    return context.commit(
         "Add missing dependency for test %s on %s." % (testname, desc),
-        update_changelog=update_changelog,
     )
 
 
-def commit_debian_changes(
-    tree: MutableTree,
-    subpath: str,
-    summary: str,
-    committer: Optional[str] = None,
-    update_changelog: bool = True,
-) -> bool:
-    with tree.lock_write():
-        try:
-            if update_changelog:
-                add_changelog_entry(
-                    tree, os.path.join(subpath, "debian/changelog"), [summary]
-                )
-                debcommit(tree, committer=committer, subpath=subpath)
-            else:
-                tree.commit(
-                    message=summary, committer=committer, specific_files=[subpath]
-                )
-        except PointlessCommit:
-            return False
-        else:
-            return True
-
-
-def targeted_python_versions(tree: Tree) -> Set[str]:
-    with tree.get_file("debian/control") as f:
+def targeted_python_versions(tree: Tree, subpath: str) -> List[str]:
+    with tree.get_file(os.path.join(subpath, "debian/control")) as f:
         control = Deb822(f)
     build_depends = PkgRelation.parse_relations(control.get("Build-Depends", ""))
     all_build_deps: Set[str] = set()
     for or_deps in build_depends:
         all_build_deps.update(or_dep["name"] for or_dep in or_deps)
-    targeted = set()
-    if any(x.startswith("pypy") for x in all_build_deps):
-        targeted.add("pypy")
-    if any(x.startswith("python-") for x in all_build_deps):
-        targeted.add("cpython2")
+    targeted = []
     if any(x.startswith("python3-") for x in all_build_deps):
-        targeted.add("cpython3")
+        targeted.append("python3")
+    if any(x.startswith("pypy") for x in all_build_deps):
+        targeted.append("pypy")
+    if any(x.startswith("python-") for x in all_build_deps):
+        targeted.append("python")
     return targeted
 
 
-def fix_missing_python_distribution(error, context):  # noqa: C901
-    targeted = targeted_python_versions(context.tree)
-    default = not targeted
+def python_tie_breaker(tree, subpath, reqs):
+    targeted = targeted_python_versions(tree, subpath)
+    if not targeted:
+        return None
 
-    pypy_pkg = context.apt.get_package_for_paths(
-        ["/usr/lib/pypy/dist-packages/%s-.*.egg-info" % error.distribution], regex=True
-    )
-    if pypy_pkg is None:
-        pypy_pkg = "pypy-%s" % error.distribution
-        if not context.apt.package_exists(pypy_pkg):
-            pypy_pkg = None
-
-    py2_pkg = context.apt.get_package_for_paths(
-        ["/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info" % error.distribution],
-        regex=True,
-    )
-    if py2_pkg is None:
-        py2_pkg = "python-%s" % error.distribution
-        if not context.apt.package_exists(py2_pkg):
-            py2_pkg = None
-
-    py3_pkg = context.apt.get_package_for_paths(
-        ["/usr/lib/python3/dist-packages/%s-.*.egg-info" % error.distribution],
-        regex=True,
-    )
-    if py3_pkg is None:
-        py3_pkg = "python3-%s" % error.distribution
-        if not context.apt.package_exists(py3_pkg):
-            py3_pkg = None
-
-    extra_build_deps = []
-    if error.python_version == 2:
-        if "pypy" in targeted:
-            if not pypy_pkg:
-                logging.warning("no pypy package found for %s", error.module)
-            else:
-                extra_build_deps.append(pypy_pkg)
-        if "cpython2" in targeted or default:
-            if not py2_pkg:
-                logging.warning("no python 2 package found for %s", error.module)
-                return False
-            extra_build_deps.append(py2_pkg)
-    elif error.python_version == 3:
-        if not py3_pkg:
-            logging.warning("no python 3 package found for %s", error.module)
-            return False
-        extra_build_deps.append(py3_pkg)
-    else:
-        if py3_pkg and ("cpython3" in targeted or default):
-            extra_build_deps.append(py3_pkg)
-        if py2_pkg and ("cpython2" in targeted or default):
-            extra_build_deps.append(py2_pkg)
-        if pypy_pkg and "pypy" in targeted:
-            extra_build_deps.append(pypy_pkg)
-
-    if not extra_build_deps:
+    def same(pkg, python_version):
+        if pkg.startswith(python_version + "-"):
+            return True
+        if pkg.startswith("lib%s-" % python_version):
+            return True
         return False
 
-    for dep_pkg in extra_build_deps:
-        assert dep_pkg is not None
-        if not context.add_dependency(dep_pkg):
-            return False
+    for python_version in targeted:
+        for req in reqs:
+            if any(same(name, python_version) for name in req.package_names()):
+                logging.info(
+                    "Breaking tie between %r to %r, since package already "
+                    "has %r build-dependencies",
+                    [str(req) for req in reqs],
+                    str(req),
+                    python_version,
+                )
+                return req
+    return None
+
+
+def retry_apt_failure(error, phase, apt, context):
     return True
 
 
-def fix_missing_python_module(error, context):
-    if getattr(context, "tree", None) is not None:
-        targeted = targeted_python_versions(context.tree)
-    else:
-        targeted = set()
-    default = not targeted
-
-    if error.minimum_version:
-        specs = [(">=", error.minimum_version)]
-    else:
-        specs = []
-
-    pypy_pkg = get_package_for_python_module(context.apt, error.module, "pypy", specs)
-    py2_pkg = get_package_for_python_module(context.apt, error.module, "python2", specs)
-    py3_pkg = get_package_for_python_module(context.apt, error.module, "python3", specs)
-
-    extra_build_deps = []
-    if error.python_version == 2:
-        if "pypy" in targeted:
-            if not pypy_pkg:
-                logging.warning("no pypy package found for %s", error.module)
-            else:
-                extra_build_deps.append(pypy_pkg)
-        if "cpython2" in targeted or default:
-            if not py2_pkg:
-                logging.warning("no python 2 package found for %s", error.module)
-                return False
-            extra_build_deps.append(py2_pkg)
-    elif error.python_version == 3:
-        if not py3_pkg:
-            logging.warning("no python 3 package found for %s", error.module)
-            return False
-        extra_build_deps.append(py3_pkg)
-    else:
-        if py3_pkg and ("cpython3" in targeted or default):
-            extra_build_deps.append(py3_pkg)
-        if py2_pkg and ("cpython2" in targeted or default):
-            extra_build_deps.append(py2_pkg)
-        if pypy_pkg and "pypy" in targeted:
-            extra_build_deps.append(pypy_pkg)
-
-    if not extra_build_deps:
-        return False
-
-    for dep_pkg in extra_build_deps:
-        assert dep_pkg is not None
-        if not context.add_dependency(dep_pkg):
-            return False
-    return True
-
-
-def retry_apt_failure(error, context):
-    return True
-
-
-def enable_dh_autoreconf(context):
+def enable_dh_autoreconf(context, phase):
     # Debhelper >= 10 depends on dh-autoreconf and enables autoreconf by
     # default.
     debhelper_compat_version = get_debhelper_compat_level(context.tree.abspath("."))
@@ -448,28 +338,30 @@ def enable_dh_autoreconf(context):
             return dh_invoke_add_with(line, b"autoreconf")
 
         if update_rules(command_line_cb=add_with_autoreconf):
-            return context.add_dependency(AptRequirement.simple("dh-autoreconf"))
+            return add_dependency(
+                context, phase, AptRequirement.simple("dh-autoreconf")
+            )
 
     return False
 
 
-def fix_missing_configure(error, context):
+def fix_missing_configure(error, phase, context):
     if not context.tree.has_filename("configure.ac") and not context.tree.has_filename(
         "configure.in"
     ):
         return False
 
-    return enable_dh_autoreconf(context)
+    return enable_dh_autoreconf(context, phase)
 
 
-def fix_missing_automake_input(error, context):
+def fix_missing_automake_input(error, phase, context):
     # TODO(jelmer): If it's ./NEWS, ./AUTHORS or ./README that's missing, then
     # try to set 'export AUTOMAKE = automake --foreign' in debian/rules.
     # https://salsa.debian.org/jelmer/debian-janitor/issues/88
-    return enable_dh_autoreconf(context)
+    return enable_dh_autoreconf(context, phase)
 
 
-def fix_missing_config_status_input(error, context):
+def fix_missing_config_status_input(error, phase, context):
     autogen_path = "autogen.sh"
     rules_path = "debian/rules"
     if context.subpath not in (".", ""):
@@ -488,38 +380,39 @@ def fix_missing_config_status_input(error, context):
     if not update_rules(makefile_cb=add_autogen, path=rules_path):
         return False
 
-    if context.update_changelog:
-        commit_debian_changes(
-            context.tree,
-            context.subpath,
-            "Run autogen.sh during build.",
-            committer=context.committer,
-            update_changelog=context.update_changelog,
-        )
-
-    return True
+    return context.commit("Run autogen.sh during build.")
 
 
 class PgBuildExtOutOfDateControlFixer(BuildFixer):
-    def __init__(self, session):
+    def __init__(self, packaging_context, session, apt):
         self.session = session
+        self.context = packaging_context
+        self.apt = apt
 
     def can_fix(self, problem):
         return isinstance(problem, NeedPgBuildExtUpdateControl)
 
-    def _fix(self, error, context):
+    def __repr__(self):
+        return "%s()" % (type(self).__name__,)
+
+    def _fix(self, error, phase):
         logging.info("Running 'pg_buildext updatecontrol'")
+        self.apt.install(['postgresql-common'])
+        external_dir, internal_dir = self.session.setup_from_vcs(
+            self.context.tree, include_controldir=None,
+            subdir=self.context.subpath)
+        self.session.chdir(internal_dir)
         self.session.check_call(["pg_buildext", "updatecontrol"])
-        return commit_debian_changes(
-            context.tree,
-            context.subpath,
-            "Run 'pgbuildext updatecontrol'.",
-            committer=context.committer,
-            update_changelog=False,
+        shutil.copy(
+            os.path.join(external_dir, error.generated_path),
+            self.context.abspath(error.generated_path)
+        )
+        return self.context.commit(
+            "Run 'pgbuildext updatecontrol'.", update_changelog=False
         )
 
 
-def fix_missing_makefile_pl(error, context):
+def fix_missing_makefile_pl(error, phase, context):
     if (
         error.filename == "Makefile.PL"
         and not context.tree.has_filename("Makefile.PL")
@@ -531,38 +424,76 @@ def fix_missing_makefile_pl(error, context):
 
 
 class SimpleBuildFixer(BuildFixer):
-    def __init__(self, problem_cls: Type[Problem], fn):
+    def __init__(self, packaging_context, problem_cls: Type[Problem], fn):
+        self.context = packaging_context
         self._problem_cls = problem_cls
         self._fn = fn
 
     def __repr__(self):
-        return "%s(%r, %r)" % (type(self).__name__, self._problem_cls, self._fn)
+        return "%s(%s, %s)" % (
+            type(self).__name__,
+            self._problem_cls.__name__,
+            self._fn.__name__,
+        )
 
     def can_fix(self, problem: Problem):
         return isinstance(problem, self._problem_cls)
 
-    def _fix(self, problem: Problem, context):
-        return self._fn(problem, context)
+    def _fix(self, problem: Problem, phase):
+        return self._fn(problem, phase, self.context)
 
 
-def versioned_package_fixers(session):
+class DependencyBuildFixer(BuildFixer):
+    def __init__(self, packaging_context, apt_resolver, problem_cls: Type[Problem], fn):
+        self.context = packaging_context
+        self.apt_resolver = apt_resolver
+        self._problem_cls = problem_cls
+        self._fn = fn
+
+    def __repr__(self):
+        return "%s(%s, %s)" % (
+            type(self).__name__,
+            self._problem_cls.__name__,
+            self._fn.__name__,
+        )
+
+    def can_fix(self, problem: Problem):
+        return isinstance(problem, self._problem_cls)
+
+    def _fix(self, problem: Problem, phase):
+        return self._fn(problem, phase, self.apt_resolver, self.context)
+
+
+def versioned_package_fixers(session, packaging_context, apt):
     return [
-        PgBuildExtOutOfDateControlFixer(session),
-        SimpleBuildFixer(MissingConfigure, fix_missing_configure),
-        SimpleBuildFixer(MissingAutomakeInput, fix_missing_automake_input),
-        SimpleBuildFixer(MissingConfigStatusInput, fix_missing_config_status_input),
-        SimpleBuildFixer(MissingPerlFile, fix_missing_makefile_pl),
+        PgBuildExtOutOfDateControlFixer(packaging_context, session, apt),
+        SimpleBuildFixer(packaging_context, MissingConfigure, fix_missing_configure),
+        SimpleBuildFixer(
+            packaging_context, MissingAutomakeInput, fix_missing_automake_input
+        ),
+        SimpleBuildFixer(
+            packaging_context, MissingConfigStatusInput, fix_missing_config_status_input
+        ),
+        SimpleBuildFixer(packaging_context, MissingPerlFile, fix_missing_makefile_pl),
     ]
 
 
-def apt_fixers(apt) -> List[BuildFixer]:
+def apt_fixers(apt, packaging_context) -> List[BuildFixer]:
     from ..resolver.apt import AptResolver
-    resolver = AptResolver(apt)
+    from .udd import popcon_tie_breaker
+    from .build_deps import BuildDependencyTieBreaker
+
+    apt_tie_breakers = [
+        partial(python_tie_breaker, packaging_context.tree, packaging_context.subpath),
+        BuildDependencyTieBreaker.from_session(apt.session),
+        popcon_tie_breaker,
+    ]
+    resolver = AptResolver(apt, apt_tie_breakers)
     return [
-        SimpleBuildFixer(MissingPythonModule, fix_missing_python_module),
-        SimpleBuildFixer(MissingPythonDistribution, fix_missing_python_distribution),
-        SimpleBuildFixer(AptFetchFailure, retry_apt_failure),
-        PackageDependencyFixer(resolver),
+        DependencyBuildFixer(
+            packaging_context, apt, AptFetchFailure, retry_apt_failure
+        ),
+        PackageDependencyFixer(packaging_context, resolver),
     ]
 
 
@@ -581,7 +512,12 @@ def build_incrementally(
     update_changelog=True,
 ):
     fixed_errors = []
-    fixers = versioned_package_fixers(apt.session) + apt_fixers(apt)
+    packaging_context = DebianPackagingContext(
+        local_tree, subpath, committer, update_changelog
+    )
+    fixers = versioned_package_fixers(apt.session, packaging_context, apt) + apt_fixers(
+        apt, packaging_context
+    )
     logging.info("Using fixers: %r", fixers)
     while True:
         try:
@@ -608,30 +544,9 @@ def build_incrementally(
             if max_iterations is not None and len(fixed_errors) > max_iterations:
                 logging.warning("Last fix did not address the issue. Giving up.")
                 raise
-            reset_tree(local_tree, local_tree.basis_tree(), subpath=subpath)
-            if e.phase[0] == "build":
-                context = BuildDependencyContext(
-                    e.phase,
-                    local_tree,
-                    apt,
-                    subpath=subpath,
-                    committer=committer,
-                    update_changelog=update_changelog,
-                )
-            elif e.phase[0] == "autopkgtest":
-                context = AutopkgtestDependencyContext(
-                    e.phase,
-                    local_tree,
-                    apt,
-                    subpath=subpath,
-                    committer=committer,
-                    update_changelog=update_changelog,
-                )
-            else:
-                logging.warning("unable to install for context %r", e.phase)
-                raise
+            reset_tree(local_tree, subpath=subpath)
             try:
-                if not resolve_error(e.error, context, fixers):
+                if not resolve_error(e.error, e.phase, fixers):
                     logging.warning("Failed to resolve error %r. Giving up.", e.error)
                     raise
             except GeneratedFile:
@@ -654,10 +569,9 @@ def build_incrementally(
                     os.path.join(output_directory, "build.log.%d" % i)
                 ):
                     i += 1
-                os.rename(
-                    os.path.join(output_directory, "build.log"),
-                    os.path.join(output_directory, "build.log.%d" % i),
-                )
+                target_path = os.path.join(output_directory, "build.log.%d" % i)
+                os.rename(os.path.join(output_directory, "build.log"), target_path)
+                logging.debug("Storing build log at %s", target_path)
 
 
 def main(argv=None):
@@ -696,17 +610,23 @@ def main(argv=None):
         help="force updating of the changelog",
         default=None,
     )
+    parser.add_argument("--schroot", type=str, help="chroot to use.")
+    parser.add_argument("--verbose", action="store_true", help="Be verbose")
 
     args = parser.parse_args()
     from breezy.workingtree import WorkingTree
+    import breezy.git  # noqa: F401
+    import breezy.bzr  # noqa: F401
     from .apt import AptManager
     from ..session.plain import PlainSession
+    from ..session.schroot import SchrootSession
     import tempfile
     import contextlib
 
-    apt = AptManager(PlainSession())
-
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+    else:
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     with contextlib.ExitStack() as es:
         if args.output_directory is None:
@@ -716,17 +636,43 @@ def main(argv=None):
             output_directory = args.output_directory
 
         tree = WorkingTree.open(".")
-        build_incrementally(
-            tree,
-            apt,
-            args.suffix,
-            args.suite,
-            output_directory,
-            args.build_command,
-            None,
-            committer=args.committer,
-            update_changelog=args.update_changelog,
-        )
+        if args.schroot:
+            session = SchrootSession(args.schroot)
+        else:
+            session = PlainSession()
+
+        es.enter_context(session)
+
+        apt = AptManager(session)
+
+        try:
+            (changes_filename, cl_version) = build_incrementally(
+                tree,
+                apt,
+                args.suffix,
+                args.suite,
+                output_directory,
+                args.build_command,
+                None,
+                committer=args.committer,
+                update_changelog=args.update_changelog,
+            )
+        except SbuildFailure as e:
+            if e.phase is None:
+                phase = "unknown phase"
+            elif len(e.phase) == 1:
+                phase = e.phase[0]
+            else:
+                phase = "%s (%s)" % (e.phase[0], e.phase[1])
+            if e.error:
+                logging.fatal("Error during %s: %s", phase, e.error)
+            else:
+                logging.fatal("Error during %s: %s", phase, e.description)
+            return 1
+
+        logging.info(
+            'Built %s - changes file at %s.',
+            os.path.join(output_directory, changes_filename))
 
 
 if __name__ == "__main__":

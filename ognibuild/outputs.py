@@ -46,3 +46,15 @@ class PythonPackageOutput(UpstreamOutput):
             self.name,
             self.python_version,
         )
+
+
+class RPackageOutput(UpstreamOutput):
+    def __init__(self, name):
+        super(RPackageOutput, self).__init__("r-package")
+        self.name = name
+
+    def __str__(self):
+        return "R package: %s" % self.name
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.name)

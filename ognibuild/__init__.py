@@ -20,6 +20,12 @@ import os
 import stat
 
 
+__version__ = (0, 0, 3)
+
+
+USER_AGENT = "Ognibuild"
+
+
 class DetailedFailure(Exception):
     def __init__(self, retcode, argv, error):
         self.retcode = retcode
@@ -28,11 +34,21 @@ class DetailedFailure(Exception):
 
 
 class UnidentifiedError(Exception):
+    """An unidentified error."""
+
     def __init__(self, retcode, argv, lines, secondary=None):
         self.retcode = retcode
         self.argv = argv
         self.lines = lines
         self.secondary = secondary
+
+    def __repr__(self):
+        return "<%s(%r, %r, ..., secondary=%r)>" % (
+            type(self).__name__,
+            self.retcode,
+            self.argv,
+            self.secondary,
+        )
 
 
 def shebang_binary(p):
@@ -42,7 +58,7 @@ def shebang_binary(p):
         firstline = f.readline()
         if not firstline.startswith(b"#!"):
             return None
-        args = firstline[2:].split(b" ")
+        args = firstline[2:].strip().split(b" ")
         if args[0] in (b"/usr/bin/env", b"env"):
             return os.path.basename(args[1].decode()).strip()
         return os.path.basename(args[0].decode()).strip()
