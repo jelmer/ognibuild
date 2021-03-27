@@ -522,9 +522,6 @@ class SetupPy(BuildSystem):
         if os.path.exists(os.path.join(path, "setup.py")):
             logging.debug("Found setup.py, assuming python project.")
             return cls(path)
-        if os.path.exists(os.path.join(path, "setup.cfg")):
-            logging.debug("Found setup.py, assuming python project.")
-            return cls(path)
         if os.path.exists(os.path.join(path, "pyproject.toml")):
             logging.debug("Found pyproject.toml, assuming python project.")
             return cls(path)
