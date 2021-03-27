@@ -1,11 +1,11 @@
-ognibuild (0.0.3-1) UNRELEASED; urgency=medium
+ognibuild (0.0.3-1) unstable; urgency=medium
 
   * Add missing dependency on python3-lz4.
   * Set upstream metadata fields: Security-Contact.
   * Add upstream signing keys.
   * New upstream release.
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 27 Mar 2021 17:42:06 +0000
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 27 Mar 2021 17:49:29 +0000
 
 ognibuild (0.0.2-1) unstable; urgency=medium
 
