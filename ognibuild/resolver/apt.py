@@ -51,6 +51,7 @@ from ..requirements import (
     XmlEntityRequirement,
     SprocketsFileRequirement,
     JavaClassRequirement,
+    CMakefileRequirement,
     HaskellPackageRequirement,
     MavenArtifactRequirement,
     GnomeCommonRequirement,
@@ -478,6 +479,11 @@ def resolve_java_class_req(apt_mgr, req):
     return find_reqs_simple(apt_mgr, [classpath])
 
 
+def resolve_cmake_file_req(apt_mgr, req):
+    paths = ['/usr/lib/.*/cmake/.*/%s' % re.escape(req.filename)]
+    return find_reqs_simple(apt_mgr, paths, regex=True)
+
+
 def resolve_haskell_package_req(apt_mgr, req):
     path = "/var/lib/ghc/package\\.conf\\.d/%s-.*\\.conf" % re.escape(req.deps[0][0])
     return find_reqs_simple(apt_mgr, [path], regex=True)
@@ -645,6 +651,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (XmlEntityRequirement, resolve_xml_entity_req),
     (SprocketsFileRequirement, resolve_sprockets_file_req),
     (JavaClassRequirement, resolve_java_class_req),
+    (CMakefileRequirement, resolve_cmake_file_req),
     (HaskellPackageRequirement, resolve_haskell_package_req),
     (MavenArtifactRequirement, resolve_maven_artifact_req),
     (GnomeCommonRequirement, resolve_gnome_common_req),

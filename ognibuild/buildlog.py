@@ -56,6 +56,7 @@ from buildlog_consultant.common import (
     GnomeCommonMissing,
     MissingGnomeCommonDependency,
     UnknownCertificateAuthority,
+    CMakeFilesMissing,
     MissingLibtool,
     MissingQt,
     MissingX11,
@@ -80,6 +81,7 @@ from .requirements import (
     XmlEntityRequirement,
     SprocketsFileRequirement,
     JavaClassRequirement,
+    CMakefileRequirement,
     HaskellPackageRequirement,
     MavenArtifactRequirement,
     GnomeCommonRequirement,
@@ -140,6 +142,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return SprocketsFileRequirement(problem.content_type, problem.name)
     elif isinstance(problem, MissingJavaClass):
         return JavaClassRequirement(problem.classname)
+    elif isinstance(problem, CMakeFilesMissing):
+        return [CMakefileRequirement(filename) for filename in problem.filenames]
     elif isinstance(problem, MissingHaskellDependencies):
         return [HaskellPackageRequirement.from_string(dep) for dep in problem.deps]
     elif isinstance(problem, MissingMavenArtifacts):

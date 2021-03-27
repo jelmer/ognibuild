@@ -453,6 +453,15 @@ class JavaClassRequirement(Requirement):
         self.classname = classname
 
 
+class CMakefileRequirement(Requirement):
+
+    filename: str
+
+    def __init__(self, filename: str):
+        super(CMakefileRequirement, self).__init__("cmake-file")
+        self.filename = filename
+
+
 class HaskellPackageRequirement(Requirement):
 
     package: str
