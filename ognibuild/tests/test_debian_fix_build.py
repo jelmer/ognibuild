@@ -45,10 +45,17 @@ class DummyAptSearcher(FileSearcher):
     def __init__(self, files):
         self._apt_files = files
 
-    def search_files(self, path, regex=False):
+    def search_files(self, path, regex=False, case_insensitive=False):
         for p, pkg in sorted(self._apt_files.items()):
+            if case_insensitive:
+                flags = re.I
+            else:
+                flags = 0
             if regex:
-                if re.match(path, p):
+                if re.match(path, p, flags):
+                    yield pkg
+            elif case_insensitive:
+                if path.lower() == p.lower():
                     yield pkg
             else:
                 if path == p:
@@ -105,7 +112,7 @@ blah (0.1) UNRELEASED; urgency=medium
             update_changelog=True,
             commit_reporter=NullCommitReporter(),
         )
-        fixers = versioned_package_fixers(session, context) + apt_fixers(apt, context)
+        fixers = versioned_package_fixers(session, context, apt) + apt_fixers(apt, context)
         return resolve_error(error, ("build",), fixers)
 
     def get_build_deps(self):
