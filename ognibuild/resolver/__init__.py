@@ -344,6 +344,7 @@ class GoResolver(Resolver):
 NPM_COMMAND_PACKAGES = {
     "del-cli": "del-cli",
     "husky": "husky",
+    "cross-env": "cross-env",
 }
 
 
