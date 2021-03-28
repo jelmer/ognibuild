@@ -24,6 +24,7 @@ __all__ = [
 ]
 
 from datetime import datetime
+from debmutate.changelog import ChangelogEditor
 import logging
 import os
 import re
@@ -119,25 +120,16 @@ def add_dummy_changelog_entry(
         maintainer = get_maintainer()
     if timestamp is None:
         timestamp = datetime.now()
-    with tree.get_file(path) as f:
-        cl = Changelog()
-        cl.parse_changelog(f, max_blocks=None, allow_empty_author=True, strict=False)
-        version = cl[0].version
+    with ChangelogEditor(tree.abspath(os.path.join(path))) as editor:
+        version = editor[0].version
         if version.debian_revision:
             version.debian_revision = add_suffix(version.debian_revision, suffix)
         else:
             version.upstream_version = add_suffix(version.upstream_version, suffix)
-        cl.new_block(
-            package=cl[0].package,
-            version=version,
-            urgency="low",
-            distributions=suite,
-            author="%s <%s>" % maintainer,
-            date=format_datetime(timestamp),
-            changes=["", "  * " + message, ""],
-        )
-    cl_str = cl._format(allow_missing_author=True)
-    tree.put_file_bytes_non_atomic(path, cl_str.encode(cl._encoding))
+        editor.auto_version(version)
+        editor.add_entry(
+            summary=[message], maintainer=maintainer, timestamp=timestamp, urgency='low')
+        editor[0].distributions = suite
 
 
 def get_latest_changelog_version(local_tree, subpath=""):
