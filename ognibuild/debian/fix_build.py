@@ -647,7 +647,7 @@ def main(argv=None):
         apt = AptManager(session)
 
         try:
-            (changes_filename, cl_version) = build_incrementally(
+            (changes_filenames, cl_version) = build_incrementally(
                 tree,
                 apt,
                 args.suffix,
@@ -672,8 +672,8 @@ def main(argv=None):
             return 1
 
         logging.info(
-            'Built %s - changes file at %s.',
-            os.path.join(output_directory, changes_filename))
+            'Built %s - changes file at %r.',
+            os.path.join(output_directory, changes_files))
 
 
 if __name__ == "__main__":

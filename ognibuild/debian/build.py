@@ -16,7 +16,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 __all__ = [
-    "changes_filename",
     "get_build_architecture",
     "add_dummy_changelog_entry",
     "build",
@@ -54,11 +53,15 @@ class MissingChangesFile(Exception):
         self.filename = filename
 
 
-def changes_filename(package, version, arch):
+def find_changes_files(path, package, version):
     non_epoch_version = version.upstream_version
     if version.debian_version is not None:
         non_epoch_version += "-%s" % version.debian_version
-    return "%s_%s_%s.changes" % (package, non_epoch_version, arch)
+    c = re.compile('%s_%s_(.*).changes' % (re.escape(package), re.escape(non_epoch_version)))
+    for entry in os.scandir(path):
+        m = c.match(entry.name)
+        if m:
+            yield m.group(1), entry
 
 
 def get_build_architecture():
@@ -126,7 +129,7 @@ def add_dummy_changelog_entry(
             version.debian_revision = add_suffix(version.debian_revision, suffix)
         else:
             version.upstream_version = add_suffix(version.upstream_version, suffix)
-        editor.auto_version(version)
+        editor.auto_version(version, timestamp=timestamp)
         editor.add_entry(
             summary=[message], maintainer=maintainer, timestamp=timestamp, urgency='low')
         editor[0].distributions = suite
@@ -202,11 +205,10 @@ def build_once(
             raise worker_failure_from_sbuild_log(f)
 
     (cl_package, cl_version) = get_latest_changelog_version(local_tree, subpath)
-    changes_name = changes_filename(cl_package, cl_version, get_build_architecture())
-    changes_path = os.path.join(output_directory, changes_name)
-    if not os.path.exists(changes_path):
-        raise MissingChangesFile(changes_name)
-    return (changes_name, cl_version)
+    changes_names = []
+    for kind, entry in find_changes_files(output_directory, cl_package, cl_version):
+        changes_names.append((entry.name))
+    return (changes_names, cl_version)
 
 
 def gbp_dch(path):
