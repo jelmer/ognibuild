@@ -239,7 +239,7 @@ def attempt_build(
       source_date_epoch: Source date epoch to set
     Returns: Tuple with (changes_name, cl_version)
     """
-    if run_gbp_dch:
+    if run_gbp_dch and not subpath:
         gbp_dch(local_tree.abspath(subpath))
     if build_changelog_entry is not None:
         add_dummy_changelog_entry(
