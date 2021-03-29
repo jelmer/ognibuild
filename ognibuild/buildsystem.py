@@ -1115,6 +1115,10 @@ class Make(BuildSystem):
                     warnings.warn("Unable to parse META.yml: %s" % e)
                     return
                 for require in data.get("requires", []):
+                    yield "core", PerlModuleRequirement(require)
+                for require in data.get("build_requires", []):
+                    yield "build", PerlModuleRequirement(require)
+                for require in data.get("configure_requires", []):
                     yield "build", PerlModuleRequirement(require)
                 something = True
         if os.path.exists(os.path.join(self.path, "cpanfile")):
