@@ -210,7 +210,7 @@ def build_once(
 
 
 def gbp_dch(path):
-    subprocess.check_call(["gbp", "dch"], cwd=path)
+    subprocess.check_call(["gbp", "dch", "--ignore_branch"], cwd=path)
 
 
 def attempt_build(
