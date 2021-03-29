@@ -68,6 +68,7 @@ from ..requirements import (
     CertificateAuthorityRequirement,
     LibtoolRequirement,
     VagueDependencyRequirement,
+    IntrospectionTypelibRequirement,
 )
 
 
@@ -620,6 +621,12 @@ def resolve_ca_req(apt_mgr, req):
     return [AptRequirement.simple("ca-certificates")]
 
 
+def resolve_introspection_typelib_req(apt_mgr, req):
+    return find_reqs_simple(
+        apt_mgr, ['/usr/lib/.*/girepository-.*/%s-.*\.typelib' % re.escape(req.library)],
+        regex=True)
+
+
 def resolve_apt_req(apt_mgr, req):
     # TODO(jelmer): This should be checking whether versions match as well.
     for package_name in req.package_names():
@@ -668,6 +675,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (PythonPackageRequirement, resolve_python_package_req),
     (CertificateAuthorityRequirement, resolve_ca_req),
     (CargoCrateRequirement, resolve_cargo_crate_req),
+    (IntrospectionTypelibRequirement, resolve_introspection_typelib_req),
 ]
 
 
@@ -683,11 +691,20 @@ def resolve_requirement_apt(apt_mgr, req: Requirement) -> List[AptRequirement]:
     raise NotImplementedError(type(req))
 
 
+def default_tie_breakers(session):
+    from ..debian.udd import popcon_tie_breaker
+    from ..debian.build_deps import BuildDependencyTieBreaker
+    return [
+        BuildDependencyTieBreaker.from_session(session),
+        popcon_tie_breaker,
+        ]
+
+
 class AptResolver(Resolver):
     def __init__(self, apt, tie_breakers=None):
         self.apt = apt
         if tie_breakers is None:
-            tie_breakers = []
+            tie_breakers = default_tie_breakers(apt.session)
         self.tie_breakers = tie_breakers
 
     def __str__(self):

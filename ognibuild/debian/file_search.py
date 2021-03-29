@@ -170,7 +170,7 @@ class AptFileFileSearcher(FileSearcher):
     @classmethod
     def has_cache(cls, session: Session) -> bool:
         if not os.path.exists(session.external_path(cls.CACHE_IS_EMPTY_PATH)):
-            return True
+            return False
         try:
             session.check_call([cls.CACHE_IS_EMPTY_PATH])
         except subprocess.CalledProcessError as e:

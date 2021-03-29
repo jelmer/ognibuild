@@ -53,6 +53,7 @@ from buildlog_consultant.common import (
     MissingVagueDependency,
     DhAddonLoadFailure,
     MissingMavenArtifacts,
+    MissingIntrospectionTypelib,
     GnomeCommonMissing,
     MissingGnomeCommonDependency,
     UnknownCertificateAuthority,
@@ -99,6 +100,7 @@ from .requirements import (
     X11Requirement,
     LibtoolRequirement,
     VagueDependencyRequirement,
+    IntrospectionTypelibRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -112,6 +114,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return PkgConfigRequirement(problem.module, problem.minimum_version)
     elif isinstance(problem, MissingCHeader):
         return CHeaderRequirement(problem.header)
+    elif isinstance(problem, MissingIntrospectionTypelib):
+        return IntrospectionTypelibRequirement(problem.library)
     elif isinstance(problem, MissingJavaScriptRuntime):
         return JavaScriptRuntimeRequirement()
     elif isinstance(problem, MissingRubyGem):

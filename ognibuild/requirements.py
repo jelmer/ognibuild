@@ -587,6 +587,11 @@ class LibtoolRequirement(Requirement):
         super(LibtoolRequirement, self).__init__("libtool")
 
 
+class IntrospectionTypelibRequirement(Requirement):
+    def __init__(self, library):
+        self.library = library
+
+
 class PythonModuleRequirement(Requirement):
 
     module: str
