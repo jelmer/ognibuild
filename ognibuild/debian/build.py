@@ -222,6 +222,7 @@ def attempt_build(
     build_changelog_entry=None,
     subpath="",
     source_date_epoch=None,
+    run_gbp_dch=False
 ):
     """Attempt a build, with a custom distribution set.
 
@@ -236,6 +237,8 @@ def attempt_build(
       source_date_epoch: Source date epoch to set
     Returns: Tuple with (changes_name, cl_version)
     """
+    if run_gbp_dch:
+        gbp_dch(local_tree.abspath(subpath))
     if build_changelog_entry is not None:
         add_dummy_changelog_entry(
             local_tree, subpath, suffix, build_suite, build_changelog_entry

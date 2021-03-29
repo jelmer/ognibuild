@@ -530,6 +530,7 @@ def build_incrementally(
                 build_changelog_entry,
                 subpath=subpath,
                 source_date_epoch=source_date_epoch,
+                run_gbp_dch=(update_changelog is False)
             )
         except SbuildFailure as e:
             if e.error is None:
