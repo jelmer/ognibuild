@@ -221,7 +221,6 @@ import sys
 
 script_name = %(script_name)s
 
-save_argv = sys.argv.copy()
 g = {"__file__": script_name, "__name__": "__main__"}
 try:
     core._setup_stop_after = "init"
