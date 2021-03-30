@@ -192,6 +192,32 @@ class NodePackageRequirement(Requirement):
         return "%s(%r)" % (type(self).__name__, self.package)
 
 
+class PerlPreDeclaredRequirement(Requirement):
+
+    name: str
+
+    # TODO(jelmer): Can we obtain this information elsewhere?
+    KNOWN_MODULES = {
+        'auto_set_repository': 'Module::Install::Repository',
+        'author_tests': 'Module::Install::AuthorTests',
+        'readme_from': 'Module::Install::ReadmeFromPod',
+        'catalyst': 'Module::Install::Catalyst',
+        'githubmeta': 'Module::Install::GithubMeta',
+        'use_ppport': 'Module::Install::XSUtil',
+        }
+
+    def __init__(self, name):
+        super(PerlPreDeclaredRequirement, self).__init__("perl-predeclared")
+        self.name = name
+
+    def lookup_module(self):
+        module = self.KNOWN_MODULES[self.name]
+        return PerlModuleRequirement(module=module)
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.name)
+
+
 class NodeModuleRequirement(Requirement):
 
     module: str

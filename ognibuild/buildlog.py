@@ -61,6 +61,7 @@ from buildlog_consultant.common import (
     MissingLibtool,
     MissingQt,
     MissingX11,
+    MissingPerlPredeclared,
 )
 
 from .fix_build import BuildFixer
@@ -101,6 +102,7 @@ from .requirements import (
     LibtoolRequirement,
     VagueDependencyRequirement,
     IntrospectionTypelibRequirement,
+    PerlPreDeclaredRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -173,6 +175,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return LibtoolRequirement()
     elif isinstance(problem, UnknownCertificateAuthority):
         return CertificateAuthorityRequirement(problem.url)
+    elif isinstance(problem, MissingPerlPredeclared):
+        return PerlPreDeclaredRequirement(problem.name)
     elif isinstance(problem, MissingSetupPyCommand):
         if problem.command == "test":
             return PythonPackageRequirement("setuptools")

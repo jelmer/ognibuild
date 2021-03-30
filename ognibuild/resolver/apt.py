@@ -68,6 +68,7 @@ from ..requirements import (
     CertificateAuthorityRequirement,
     LibtoolRequirement,
     VagueDependencyRequirement,
+    PerlPreDeclaredRequirement,
     IntrospectionTypelibRequirement,
 )
 
@@ -115,6 +116,16 @@ class AptRequirement(Requirement):
             if name == package:
                 return True
         return False
+
+
+def resolve_perl_predeclared_req(apt_mgr, req):
+    try:
+        req = req.lookup_module()
+    except KeyError:
+        logging.warning(
+            'Unable to map predeclared function %s to a perl module', req.name)
+        return None
+    return resolve_perl_module_req(apt_mgr, req)
 
 
 def find_package_names(
@@ -639,6 +650,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (AptRequirement, resolve_apt_req),
     (BinaryRequirement, resolve_binary_req),
     (VagueDependencyRequirement, resolve_vague_dep_req),
+    (PerlPreDeclaredRequirement, resolve_perl_predeclared_req),
     (PkgConfigRequirement, resolve_pkg_config_req),
     (PathRequirement, resolve_path_req),
     (CHeaderRequirement, resolve_c_header_req),
