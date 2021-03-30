@@ -486,7 +486,7 @@ def resolve_cmake_file_req(apt_mgr, req):
 
 
 def resolve_haskell_package_req(apt_mgr, req):
-    path = "/var/lib/ghc/package\\.conf\\.d/%s-.*\\.conf" % re.escape(req.deps[0][0])
+    path = "/var/lib/ghc/package\\.conf\\.d/%s-.*\\.conf" % re.escape(req.package)
     return find_reqs_simple(apt_mgr, [path], regex=True)
 
 
