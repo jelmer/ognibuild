@@ -985,6 +985,26 @@ def _declared_deps_from_cpanfile(session, fixers):
     yield from _read_cpanfile(session, ["--test"], "test", fixers)
 
 
+def _declared_deps_from_meta_yml(f):
+    # See http://module-build.sourceforge.net/META-spec-v1.4.html for
+    # the specification of the format.
+    import ruamel.yaml
+    import ruamel.yaml.reader
+
+    try:
+        data = ruamel.yaml.load(f, ruamel.yaml.SafeLoader)
+    except ruamel.yaml.reader.ReaderError as e:
+        warnings.warn("Unable to parse META.yml: %s" % e)
+        return
+    for require in data.get("requires", []):
+        yield "core", PerlModuleRequirement(require)
+    for require in data.get("build_requires", []):
+        yield "build", PerlModuleRequirement(require)
+    for require in data.get("configure_requires", []):
+        yield "build", PerlModuleRequirement(require)
+    # TODO(jelmer): recommends
+
+
 class Make(BuildSystem):
 
     name = "make"
@@ -1105,24 +1125,9 @@ class Make(BuildSystem):
         something = False
         # TODO(jelmer): Split out the perl-specific stuff?
         if os.path.exists(os.path.join(self.path, "META.yml")):
-            # See http://module-build.sourceforge.net/META-spec-v1.4.html for
-            # the specification of the format.
-            import ruamel.yaml
-            import ruamel.yaml.reader
-
             with open(os.path.join(self.path, "META.yml"), "rb") as f:
-                try:
-                    data = ruamel.yaml.load(f, ruamel.yaml.SafeLoader)
-                except ruamel.yaml.reader.ReaderError as e:
-                    warnings.warn("Unable to parse META.yml: %s" % e)
-                    return
-                for require in data.get("requires", []):
-                    yield "core", PerlModuleRequirement(require)
-                for require in data.get("build_requires", []):
-                    yield "build", PerlModuleRequirement(require)
-                for require in data.get("configure_requires", []):
-                    yield "build", PerlModuleRequirement(require)
-                something = True
+                yield from _declared_deps_from_meta_yml(f)
+            something = True
         if os.path.exists(os.path.join(self.path, "cpanfile")):
             yield from _declared_deps_from_cpanfile(session, fixers)
             something = True
@@ -1415,9 +1420,28 @@ class PerlBuildTiny(BuildSystem):
         self.setup(session, fixers)
         run_with_build_fixers(session, ["./Build", "clean"], fixers)
 
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
+        self.setup(session, fixers)
+        with DistCatcher([session.external_path('.')]) as dc:
+            try:
+                run_with_build_fixers(session, ["./Build", "dist"], fixers)
+            except UnidentifiedError as e:
+                if "Can't find dist packages without a MANIFEST file" in e.lines:
+                    run_with_build_fixers(session, ["./Build", "manifest"], fixers)
+                    run_with_build_fixers(session, ["./Build", "dist"], fixers)
+                else:
+                    raise
+        return dc.copy_single(target_directory)
+
     def install(self, session, resolver, fixers, install_target):
         self.setup(session, fixers)
         run_with_build_fixers(session, ["./Build", "install"], fixers)
+
+    def get_declared_dependencies(self, session, fixers=None):
+        self.setup(session, fixers)
+        run_with_build_fixers(session, ["./Build", "distmeta"], fixers)
+        with open(os.path.join(self.path, 'META.yml'), 'r') as f:
+            yield from _declared_deps_from_meta_yml(f)
 
     @classmethod
     def probe(cls, path):
