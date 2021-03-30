@@ -22,6 +22,7 @@ __all__ = [
 from functools import partial
 import logging
 import os
+import re
 import shutil
 import sys
 from typing import List, Set, Optional, Type
@@ -303,6 +304,8 @@ def python_tie_breaker(tree, subpath, reqs):
         if pkg.startswith(python_version + "-"):
             return True
         if pkg.startswith("lib%s-" % python_version):
+            return True
+        if re.match('lib%s\.[0-9]-dev' % python_version, pkg):
             return True
         return False
 
