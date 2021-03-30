@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 
+import logging
 import subprocess
 from ..fix_build import run_detecting_problems
 
@@ -88,9 +89,11 @@ class CPANResolver(Resolver):
             if not isinstance(requirement, PerlModuleRequirement):
                 missing.append(requirement)
                 continue
+            cmd = self._cmd([requirement])
+            logging.info("CPAN: running %r", cmd)
             run_detecting_problems(
                 self.session,
-                self._cmd([requirement]),
+                cmd,
                 env=env,
                 user=user,
             )
@@ -142,7 +145,9 @@ class RResolver(Resolver):
             if not isinstance(requirement, RPackageRequirement):
                 missing.append(requirement)
                 continue
-            run_detecting_problems(self.session, self._cmd(requirement), user=user)
+            cmd = self._cmd(requirement)
+            logging.info("RResolver(%r): running %r", self.repos, cmd)
+            run_detecting_problems(self.session, cmd, user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -186,7 +191,9 @@ class OctaveForgeResolver(Resolver):
             if not isinstance(requirement, OctavePackageRequirement):
                 missing.append(requirement)
                 continue
-            run_detecting_problems(self.session, self._cmd(requirement), user=user)
+            cmd = self._cmd(requirement)
+            logging.info("Octave: running %r", cmd)
+            run_detecting_problems(self.session, cmd, user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -235,7 +242,9 @@ class HackageResolver(Resolver):
             if not isinstance(requirement, HaskellPackageRequirement):
                 missing.append(requirement)
                 continue
-            run_detecting_problems(self.session, self._cmd([requirement]), user=user)
+            cmd = self._cmd([requirement])
+            logging.info("Hackage: running %r", cmd)
+            run_detecting_problems(self.session, cmd, user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -281,8 +290,10 @@ class PypiResolver(Resolver):
             if not isinstance(requirement, PythonPackageRequirement):
                 missing.append(requirement)
                 continue
+            cmd = self._cmd([requirement])
+            logging.info("pip: running %r", cmd)
             try:
-                run_detecting_problems(self.session, self._cmd([requirement]), user=user)
+                run_detecting_problems(self.session, cmd, user=user)
             except subprocess.CalledProcessError:
                 missing.append(requirement)
         if missing:
@@ -325,7 +336,9 @@ class GoResolver(Resolver):
             if not isinstance(requirement, GoPackageRequirement):
                 missing.append(requirement)
                 continue
-            run_detecting_problems(self.session, ["go", "get", requirement.package], env=env)
+            cmd = ["go", "get", requirement.package]
+            logging.info("go: running %r", cmd)
+            run_detecting_problems(self.session, cmd, env=env)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -387,10 +400,9 @@ class NpmResolver(Resolver):
             if not isinstance(requirement, NodePackageRequirement):
                 missing.append(requirement)
                 continue
-            run_detecting_problems(
-                self.session,
-                ["npm", "-g", "install", requirement.package], user=user
-            )
+            cmd = ["npm", "-g", "install", requirement.package]
+            logging.info("npm: running %r", cmd)
+            run_detecting_problems(self.session, cmd, user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 

@@ -41,6 +41,7 @@ def run_apt(
     if prefix is None:
         prefix = []
     args = prefix = ["apt", "-y"] + args
+    logging.info('apt: running %r', args)
     retcode, lines = run_with_tee(session, args, cwd="/", user="root")
     if retcode == 0:
         return
