@@ -295,8 +295,11 @@ vague_map = {
     "the Gnu Scientific Library": "libgsl-dev",
     "the required FreeType library": "libfreetype-dev",
     "the Boost C++ libraries": "libboost-dev",
+
+    # TODO(jelmer): Support resolving virtual packages
     "PythonLibs": "libpython3-dev",
     "ZLIB": "libz3-dev",
+    "Osmium": "libosmium2-dev",
 }
 
 
