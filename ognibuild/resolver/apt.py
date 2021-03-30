@@ -396,7 +396,7 @@ def resolve_r_package_req(apt_mgr, req):
     paths = [
         posixpath.join("/usr/lib/R/site-library/.*/R/%s$" % re.escape(req.package))
     ]
-    return find_reqs_simple(apt_mgr, paths, regex=True)
+    return find_reqs_simple(apt_mgr, paths, regex=True, minimum_version=req.minimum_version)
 
 
 def resolve_node_module_req(apt_mgr, req):
