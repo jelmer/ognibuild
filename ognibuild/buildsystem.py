@@ -712,6 +712,7 @@ class R(BuildSystem):
         if "LinkingTo" in description:
             for s in parse_list(description["LinkingTo"]):
                 yield "build", RPackageRequirement.from_str(s)
+        # TODO(jelmer): Suggests
 
     def get_declared_outputs(self, session, fixers=None):
         description = self._read_description()

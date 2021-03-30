@@ -294,6 +294,7 @@ def get_package_for_python_module(apt_mgr, module, python_version, specs):
 vague_map = {
     "the Gnu Scientific Library": "libgsl-dev",
     "the required FreeType library": "libfreetype-dev",
+    "the Boost C++ libraries": "libboost-dev",
     "PythonLibs": "libpython3-dev",
     "ZLIB": "libz3-dev",
 }
