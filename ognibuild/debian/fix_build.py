@@ -608,6 +608,11 @@ def main(argv=None):
         help="do not update the changelog",
     )
     parser.add_argument(
+        '--max-iterations',
+        type=int,
+        default=DEFAULT_MAX_ITERATIONS,
+        help='Maximum number of issues to attempt to fix before giving up.')
+    parser.add_argument(
         "--update-changelog",
         action="store_true",
         dest="update_changelog",
@@ -660,6 +665,7 @@ def main(argv=None):
                 None,
                 committer=args.committer,
                 update_changelog=args.update_changelog,
+                max_iterations=args.max_iterations,
             )
         except SbuildFailure as e:
             if e.phase is None:
@@ -676,7 +682,7 @@ def main(argv=None):
 
         logging.info(
             'Built %s - changes file at %r.',
-            os.path.join(output_directory, changes_files))
+            os.path.join(output_directory, changes_filenames))
 
 
 if __name__ == "__main__":
