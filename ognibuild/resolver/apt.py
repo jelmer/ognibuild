@@ -304,6 +304,7 @@ vague_map = {
 
     # TODO(jelmer): For Python, check minimum_version and map to python 2 or python 3
     "Python": "libpython3-dev",
+    "Lua": "liblua5.4-dev",
 }
 
 
