@@ -300,6 +300,9 @@ vague_map = {
     "PythonLibs": "libpython3-dev",
     "ZLIB": "libz3-dev",
     "Osmium": "libosmium2-dev",
+
+    # TODO(jelmer): For Python, check minimum_version and map to python 2 or python 3
+    "Python": "libpython3-dev",
 }
 
 
@@ -307,7 +310,7 @@ def resolve_vague_dep_req(apt_mgr, req):
     name = req.name
     options = []
     if name in vague_map:
-        options.append(AptRequirement.simple(vague_map[name]))
+        options.append(AptRequirement.simple(vague_map[name], minimum_version=req.minimum_version))
     for x in req.expand():
         options.extend(resolve_requirement_apt(apt_mgr, x))
     return options
