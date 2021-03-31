@@ -300,6 +300,7 @@ vague_map = {
     "PythonLibs": "libpython3-dev",
     "ZLIB": "libz3-dev",
     "Osmium": "libosmium2-dev",
+    "glib": "libglib2.0-dev",
 
     # TODO(jelmer): For Python, check minimum_version and map to python 2 or python 3
     "Python": "libpython3-dev",
