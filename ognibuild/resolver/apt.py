@@ -416,7 +416,7 @@ def resolve_php_package_req(apt_mgr, req):
 
 def resolve_r_package_req(apt_mgr, req):
     paths = [
-        posixpath.join("/usr/lib/R/site-library", req.package)
+        posixpath.join("/usr/lib/R/site-library", req.package, "DESCRIPTION")
     ]
     return find_reqs_simple(apt_mgr, paths, minimum_version=req.minimum_version)
 
