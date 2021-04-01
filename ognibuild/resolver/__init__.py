@@ -398,7 +398,7 @@ class NpmResolver(Resolver):
                 # TODO: Is this legit?
                 parts = requirement.module.split("/")[0]
                 if parts[0].startswith('@'):
-                    requirement = NodePackageRequirement('/'.join(parts:2]))
+                    requirement = NodePackageRequirement('/'.join(parts[:2]))
                 else:
                     requirement = NodePackageRequirement(parts[0])
             if not isinstance(requirement, NodePackageRequirement):
