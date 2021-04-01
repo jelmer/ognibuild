@@ -1403,6 +1403,7 @@ class PerlBuildTiny(BuildSystem):
 
     def __init__(self, path):
         self.path = path
+        self.minilla = os.path.exists(os.path.join(self.path, "minil.toml"))
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
@@ -1412,7 +1413,10 @@ class PerlBuildTiny(BuildSystem):
 
     def test(self, session, resolver, fixers):
         self.setup(session, fixers)
-        run_with_build_fixers(session, ["./Build", "test"], fixers)
+        if self.minilla:
+            run_with_build_fixers(session, ["minil", "test"], fixers)
+        else:
+            run_with_build_fixers(session, ["./Build", "test"], fixers)
 
     def build(self, session, resolver, fixers):
         self.setup(session, fixers)
@@ -1425,21 +1429,27 @@ class PerlBuildTiny(BuildSystem):
     def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(session, fixers)
         with DistCatcher([session.external_path('.')]) as dc:
-            try:
-                run_with_build_fixers(session, ["./Build", "dist"], fixers)
-            except UnidentifiedError as e:
-                if "Can't find dist packages without a MANIFEST file" in e.lines:
-                    run_with_build_fixers(session, ["./Build", "manifest"], fixers)
+            if self.minilla:
+                run_with_build_fixers(session, ["minil", "dist"], fixers)
+            else:
+                try:
                     run_with_build_fixers(session, ["./Build", "dist"], fixers)
-                elif "No such action 'dist'" in e.lines:
-                    raise NotImplementedError
-                else:
-                    raise
+                except UnidentifiedError as e:
+                    if "Can't find dist packages without a MANIFEST file" in e.lines:
+                        run_with_build_fixers(session, ["./Build", "manifest"], fixers)
+                        run_with_build_fixers(session, ["./Build", "dist"], fixers)
+                    elif "No such action 'dist'" in e.lines:
+                        raise NotImplementedError
+                    else:
+                        raise
         return dc.copy_single(target_directory)
 
     def install(self, session, resolver, fixers, install_target):
         self.setup(session, fixers)
-        run_with_build_fixers(session, ["./Build", "install"], fixers)
+        if self.minilla:
+            run_with_build_fixers(session, ["minil", "install"], fixers)
+        else:
+            run_with_build_fixers(session, ["./Build", "install"], fixers)
 
     def get_declared_dependencies(self, session, fixers=None):
         self.setup(session, fixers)
