@@ -175,7 +175,7 @@ class Pear(BuildSystem):
     def probe(cls, path):
         if os.path.exists(os.path.join(path, "package.xml")):
             logging.debug("Found package.xml, assuming pear package.")
-            return cls(os.path.join(path, "package.xml"))
+            return cls(path)
 
 
 # run_setup, but setting __name__
