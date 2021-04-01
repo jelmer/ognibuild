@@ -645,7 +645,7 @@ def resolve_ca_req(apt_mgr, req):
 
 def resolve_introspection_typelib_req(apt_mgr, req):
     return find_reqs_simple(
-        apt_mgr, ['/usr/lib/.*/girepository-.*/%s-.*\.typelib' % re.escape(req.library)],
+        apt_mgr, [r'/usr/lib/.*/girepository-.*/%s-.*\.typelib' % re.escape(req.library)],
         regex=True)
 
 

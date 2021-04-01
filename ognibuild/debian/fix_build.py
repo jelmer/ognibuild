@@ -305,7 +305,7 @@ def python_tie_breaker(tree, subpath, reqs):
             return True
         if pkg.startswith("lib%s-" % python_version):
             return True
-        if re.match('lib%s\.[0-9]-dev' % python_version, pkg):
+        if re.match(r'lib%s\.[0-9]-dev' % python_version, pkg):
             return True
         return False
 
