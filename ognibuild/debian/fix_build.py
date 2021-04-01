@@ -500,6 +500,15 @@ def apt_fixers(apt, packaging_context) -> List[BuildFixer]:
     ]
 
 
+def default_fixers(local_tree, subpath, apt, committer=None, update_changelog=None):
+    packaging_context = DebianPackagingContext(
+        local_tree, subpath, committer, update_changelog
+    )
+    return versioned_package_fixers(apt.session, packaging_context, apt) + apt_fixers(
+        apt, packaging_context
+    )
+
+
 def build_incrementally(
     local_tree,
     apt,
@@ -513,14 +522,13 @@ def build_incrementally(
     subpath="",
     source_date_epoch=None,
     update_changelog=True,
+    fixers=None
 ):
     fixed_errors = []
-    packaging_context = DebianPackagingContext(
-        local_tree, subpath, committer, update_changelog
-    )
-    fixers = versioned_package_fixers(apt.session, packaging_context, apt) + apt_fixers(
-        apt, packaging_context
-    )
+    if fixers is None:
+        fixers = default_fixers(
+            local_tree, subpath, apt, committer=committer,
+            update_changelog=update_changelog)
     logging.info("Using fixers: %r", fixers)
     while True:
         try:
