@@ -1213,6 +1213,7 @@ def _parse_go_mod(f):
     while line:
         parts = line.strip().split(" ")
         if not parts or parts == [""]:
+            line = readline()
             continue
         if len(parts) == 2 and parts[1] == "(":
             line = readline()
