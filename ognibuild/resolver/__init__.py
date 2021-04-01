@@ -396,7 +396,11 @@ class NpmResolver(Resolver):
                     requirement = NodePackageRequirement(package)
             if isinstance(requirement, NodeModuleRequirement):
                 # TODO: Is this legit?
-                requirement = NodePackageRequirement(requirement.module.split("/")[0])
+                parts = requirement.module.split("/")[0]
+                if parts[0].startswith('@'):
+                    requirement = NodePackageRequirement('/'.join(parts:2]))
+                else:
+                    requirement = NodePackageRequirement(parts[0])
             if not isinstance(requirement, NodePackageRequirement):
                 missing.append(requirement)
                 continue
