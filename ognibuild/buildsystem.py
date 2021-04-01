@@ -1431,6 +1431,8 @@ class PerlBuildTiny(BuildSystem):
                 if "Can't find dist packages without a MANIFEST file" in e.lines:
                     run_with_build_fixers(session, ["./Build", "manifest"], fixers)
                     run_with_build_fixers(session, ["./Build", "dist"], fixers)
+                elif "No such action 'dist'" in e.lines:
+                    raise NotImplementedError
                 else:
                     raise
         return dc.copy_single(target_directory)
