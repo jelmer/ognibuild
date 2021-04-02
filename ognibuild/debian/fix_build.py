@@ -544,10 +544,10 @@ def build_incrementally(
                 source_date_epoch=source_date_epoch,
                 run_gbp_dch=(update_changelog is False)
             )
-        except SbuildFailure as e:
-            if e.error is None:
-                logging.warning("Build failed with unidentified error. Giving up.")
-                raise
+        except UnidentifiedDebianBuildError:
+            logging.warning("Build failed with unidentified error. Giving up.")
+            raise
+        except DetailedDebianBuildFailure as e:
             if e.phase is None:
                 logging.info("No relevant context, not making any changes.")
                 raise
