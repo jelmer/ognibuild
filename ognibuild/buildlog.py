@@ -138,7 +138,7 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return NodeModuleRequirement(problem.module)
     elif isinstance(problem, MissingNodePackage):
         return NodePackageRequirement(problem.package)
-    elif isinstance(problem, MissingLaTeXFile):
+    elif isinstance(problem, MissingLatexFile):
         if problem.filename.endswith('.sty'):
             return LatexPackageRequirement(problem.filename[:-4])
         return None
