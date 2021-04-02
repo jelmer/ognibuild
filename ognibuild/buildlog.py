@@ -62,7 +62,7 @@ from buildlog_consultant.common import (
     MissingQt,
     MissingX11,
     MissingPerlPredeclared,
-    MissingLaTeXFile,
+    MissingLatexFile,
 )
 
 from .fix_build import BuildFixer
