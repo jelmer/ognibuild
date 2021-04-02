@@ -111,10 +111,11 @@ from buildlog_consultant.common import (
     NeedPgBuildExtUpdateControl,
     MissingPerlFile,
 )
-from buildlog_consultant.sbuild import (
-    SbuildFailure,
-)
 
+from . import (
+    DetailedDebianBuildFailure,
+    UnidentifiedDebianBuildError,
+    )
 from ..buildlog import problem_to_upstream_requirement
 from ..fix_build import BuildFixer, resolve_error
 from ..resolver.apt import (
@@ -675,17 +676,23 @@ def main(argv=None):
                 update_changelog=args.update_changelog,
                 max_iterations=args.max_iterations,
             )
-        except SbuildFailure as e:
+        except DetailedDebianBuildFailure as e:
             if e.phase is None:
                 phase = "unknown phase"
             elif len(e.phase) == 1:
                 phase = e.phase[0]
             else:
                 phase = "%s (%s)" % (e.phase[0], e.phase[1])
-            if e.error:
-                logging.fatal("Error during %s: %s", phase, e.error)
+            logging.fatal("Error during %s: %s", phase, e.error)
+            return 1
+        except UnidentifiedDebianBuildError as e:
+            if e.phase is None:
+                phase = "unknown phase"
+            elif len(e.phase) == 1:
+                phase = e.phase[0]
             else:
-                logging.fatal("Error during %s: %s", phase, e.description)
+                phase = "%s (%s)" % (e.phase[0], e.phase[1])
+            logging.fatal("Error during %s: %s", phase, e.description)
             return 1
 
         logging.info(

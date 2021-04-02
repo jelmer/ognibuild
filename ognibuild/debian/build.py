@@ -19,7 +19,8 @@ __all__ = [
     "get_build_architecture",
     "add_dummy_changelog_entry",
     "build",
-    "SbuildFailure",
+    "DetailedDebianBuildFailure",
+    "UnidentifiedDebianBuildError",
 ]
 
 from datetime import datetime
@@ -27,6 +28,7 @@ from debmutate.changelog import ChangelogEditor
 import logging
 import os
 import re
+import shlex
 import subprocess
 import sys
 
@@ -39,11 +41,31 @@ from breezy.tree import Tree
 
 from buildlog_consultant.sbuild import (
     worker_failure_from_sbuild_log,
-    SbuildFailure,
 )
+
+from .. import DetailedFailure as DetailedFailure, UnidentifiedError
 
 
 DEFAULT_BUILDER = "sbuild --no-clean-source"
+
+
+class DetailedDebianBuildFailure(DetailedFailure):
+
+    def __init__(self, stage, phase, retcode, argv, error, description):
+        super(DetailedDebianBuildFailure, self).__init__(retcode, argv, error)
+        self.stage = stage
+        self.phase = phase
+        self.description = description
+
+
+class UnidentifiedDebianBuildError(UnidentifiedError):
+
+    def __init__(self, stage, phase, retcode, argv, lines, description, secondary=None):
+        super(UnidentifiedDebianBuildError, self).__init__(
+            retcode, argv, lines, secondary)
+        self.stage = stage
+        self.phase = phase
+        self.description = description
 
 
 class MissingChangesFile(Exception):
@@ -200,9 +222,23 @@ def build_once(
                 subpath=subpath,
                 source_date_epoch=source_date_epoch,
             )
-    except BuildFailedError:
+    except BuildFailedError as e:
         with open(build_log_path, "rb") as f:
-            raise worker_failure_from_sbuild_log(f)
+            sbuild_failure = worker_failure_from_sbuild_log(f)
+            retcode = getattr(e, 'returncode', None)
+            if sbuild_failure.error:
+                raise DetailedDebianBuildFailure(
+                    sbuild_failure.stage,
+                    sbuild_failure.phase, retcode,
+                    shlex.split(build_command),
+                    sbuild_failure.error,
+                    sbuild_failure.description)
+            else:
+                raise UnidentifiedDebianBuildError(
+                    sbuild_failure.stage,
+                    sbuild_failure.phase,
+                    retcode, shlex.split(build_command),
+                    [], sbuild_failure.description)
 
     (cl_package, cl_version) = get_latest_changelog_version(local_tree, subpath)
     changes_names = []
