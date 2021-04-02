@@ -62,6 +62,7 @@ from buildlog_consultant.common import (
     MissingQt,
     MissingX11,
     MissingPerlPredeclared,
+    MissingLaTeXFile,
 )
 
 from .fix_build import BuildFixer
@@ -103,6 +104,7 @@ from .requirements import (
     VagueDependencyRequirement,
     IntrospectionTypelibRequirement,
     PerlPreDeclaredRequirement,
+    LatexPackageRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -136,6 +138,10 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return NodeModuleRequirement(problem.module)
     elif isinstance(problem, MissingNodePackage):
         return NodePackageRequirement(problem.package)
+    elif isinstance(problem, MissingLaTeXFile):
+        if problem.filename.endswith('.sty'):
+            return LatexPackageRequirement(problem.filename[:-4])
+        return None
     elif isinstance(problem, MissingVagueDependency):
         return VagueDependencyRequirement(problem.name, minimum_version=problem.minimum_version)
     elif isinstance(problem, MissingLibrary):
