@@ -1456,8 +1456,11 @@ class PerlBuildTiny(BuildSystem):
     def get_declared_dependencies(self, session, fixers=None):
         self.setup(session, fixers)
         run_with_build_fixers(session, ["./Build", "distmeta"], fixers)
-        with open(os.path.join(self.path, 'META.yml'), 'r') as f:
-            yield from _declared_deps_from_meta_yml(f)
+        try:
+            with open(os.path.join(self.path, 'META.yml'), 'r') as f:
+                yield from _declared_deps_from_meta_yml(f)
+        except FileNotFoundError:
+            pass
 
     @classmethod
     def probe(cls, path):
