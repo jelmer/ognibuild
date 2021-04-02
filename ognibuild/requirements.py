@@ -82,6 +82,15 @@ class PythonPackageRequirement(Requirement):
         return p.returncode == 0
 
 
+class LatexPackageRequirement(Requirement):
+
+    def __init__(self, package: str):
+        self.package = package
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.package)
+
+
 class PhpPackageRequirement(Requirement):
     def __init__(
         self,

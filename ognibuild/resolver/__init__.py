@@ -18,6 +18,7 @@
 
 import logging
 import subprocess
+from .. import UnidentifiedError 
 from ..fix_build import run_detecting_problems
 
 
@@ -68,7 +69,7 @@ class CPANResolver(Resolver):
                 continue
             perlreqs.append(requirement)
         if perlreqs:
-            yield (self._cmd(perlreqs), [perlreqs])
+            yield (self._cmd(perlreqs), perlreqs)
 
     def install(self, requirements):
         from ..requirements import PerlModuleRequirement
@@ -99,6 +100,73 @@ class CPANResolver(Resolver):
             )
         if missing:
             raise UnsatisfiedRequirements(missing)
+
+
+class TlmgrResolver(Resolver):
+    def __init__(self, session, repository: str, user_local=False):
+        self.session = session
+        self.user_local = user_local
+        self.repository = repository
+
+    def __str__(self):
+        if self.repository.startswith('http://') or self.repository.startswith('https://'):
+            return 'tlmgr(%r)' % self.repository
+        else:
+            return self.repository
+
+    def __repr__(self):
+        return "%s(%r, %r)" % (
+            type(self).__name__, self.session, self.repository)
+
+    def _cmd(self, reqs):
+        ret = ["tlmgr", "--repository=%s" % self.repository, "install"]
+        if self.user_local:
+            ret.append("--usermode")
+        ret.extend([req.package for req in reqs])
+        return ret
+
+    def explain(self, requirements):
+        from ..requirements import LatexPackageRequirement
+
+        latexreqs = []
+        for requirement in requirements:
+            if not isinstance(requirement, LatexPackageRequirement):
+                continue
+            latexreqs.append(requirement)
+        if latexreqs:
+            yield (self._cmd(latexreqs), latexreqs)
+
+    def install(self, requirements):
+        from ..requirements import LatexPackageRequirement
+
+        if not self.user_local:
+            user = "root"
+        else:
+            user = None
+
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, LatexPackageRequirement):
+                missing.append(requirement)
+                continue
+            cmd = self._cmd([requirement])
+            logging.info("tlmgr: running %r", cmd)
+            try:
+                run_detecting_problems(self.session, cmd, user=user)
+            except UnidentifiedError as e:
+                if "tlmgr: user mode not initialized, please read the documentation!" in e.lines:
+                    self.session.check_call(['tlmgr', 'init-usertree'])
+                else:
+                    raise
+        if missing:
+            raise UnsatisfiedRequirements(missing)
+
+
+class CTANResolver(TlmgrResolver):
+
+    def __init__(self, session, user_local=False):
+        super(CTANResolver, self).__init__(
+            session, "ctan", user_local=user_local)
 
 
 class RResolver(Resolver):
@@ -463,6 +531,7 @@ class StackedResolver(Resolver):
 
 NATIVE_RESOLVER_CLS = [
     CPANResolver,
+    CTANResolver,
     PypiResolver,
     NpmResolver,
     GoResolver,
