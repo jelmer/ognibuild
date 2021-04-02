@@ -978,7 +978,7 @@ class RunTests(BuildSystem):
 
 def _read_cpanfile(session, args, kind, fixers):
     for line in run_with_build_fixers(session, ["cpanfile-dump"] + args, fixers):
-        yield kind, PerlModuleRequirement(line)
+        yield kind, PerlModuleRequirement(line.strip())
 
 
 def _declared_deps_from_cpanfile(session, fixers):
