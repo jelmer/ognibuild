@@ -175,6 +175,7 @@ def build(
     distribution=None,
     subpath="",
     source_date_epoch=None,
+    extra_repositories=None,
 ):
     args = [
         sys.executable,
@@ -193,6 +194,8 @@ def build(
         env["DISTRIBUTION"] = distribution
     if source_date_epoch is not None:
         env["SOURCE_DATE_EPOCH"] = "%d" % source_date_epoch
+    for repo in extra_repositories or []:
+        build_command += " --extra-repository=" + shlex.quote(repo)
     logging.info("Building debian packages, running %r.", build_command)
     try:
         subprocess.check_call(
@@ -209,6 +212,7 @@ def build_once(
     build_command,
     subpath="",
     source_date_epoch=None,
+    extra_repositories=None
 ):
     build_log_path = os.path.join(output_directory, "build.log")
     try:
@@ -221,6 +225,7 @@ def build_once(
                 distribution=build_suite,
                 subpath=subpath,
                 source_date_epoch=source_date_epoch,
+                extra_repositories=extra_repositories,
             )
     except BuildFailedError as e:
         with open(build_log_path, "rb") as f:
@@ -260,7 +265,8 @@ def attempt_build(
     build_changelog_entry=None,
     subpath="",
     source_date_epoch=None,
-    run_gbp_dch=False
+    run_gbp_dch=False,
+    extra_repositories=None
 ):
     """Attempt a build, with a custom distribution set.
 
@@ -288,4 +294,5 @@ def attempt_build(
         build_command,
         subpath,
         source_date_epoch=source_date_epoch,
+        extra_repositories=extra_repositories,
     )

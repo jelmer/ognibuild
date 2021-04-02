@@ -523,6 +523,7 @@ def build_incrementally(
     subpath="",
     source_date_epoch=None,
     update_changelog=True,
+    extra_repositories=None,
     fixers=None
 ):
     fixed_errors = []
@@ -542,7 +543,8 @@ def build_incrementally(
                 build_changelog_entry,
                 subpath=subpath,
                 source_date_epoch=source_date_epoch,
-                run_gbp_dch=(update_changelog is False)
+                run_gbp_dch=(update_changelog is False),
+                extra_repositories=extra_repositories,
             )
         except UnidentifiedDebianBuildError:
             logging.warning("Build failed with unidentified error. Giving up.")
