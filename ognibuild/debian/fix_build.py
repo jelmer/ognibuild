@@ -112,7 +112,7 @@ from buildlog_consultant.common import (
     MissingPerlFile,
 )
 
-from . import (
+from .build import (
     DetailedDebianBuildFailure,
     UnidentifiedDebianBuildError,
     )
