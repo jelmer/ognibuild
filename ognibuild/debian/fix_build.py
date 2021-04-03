@@ -111,6 +111,9 @@ from buildlog_consultant.common import (
     NeedPgBuildExtUpdateControl,
     MissingPerlFile,
 )
+from buildlog_consultant.sbuild import (
+    DebcargoUnacceptablePredicate,
+    )
 
 from .build import (
     DetailedDebianBuildFailure,
@@ -427,6 +430,13 @@ def fix_missing_makefile_pl(error, phase, context):
     return False
 
 
+def coerce_unaccpetable_predicate(error, phase, context):
+    from debmutate.debcargo import DebcargoEditor
+    with DebcargoEditor(context.abspath('debian/debcargo.toml')) as editor:
+        editor['allow_prerelease_deps'] = True
+    return context.commit('Enable allow_prerelease_deps.')
+
+
 class SimpleBuildFixer(BuildFixer):
     def __init__(self, packaging_context, problem_cls: Type[Problem], fn):
         self.context = packaging_context
@@ -479,6 +489,7 @@ def versioned_package_fixers(session, packaging_context, apt):
             packaging_context, MissingConfigStatusInput, fix_missing_config_status_input
         ),
         SimpleBuildFixer(packaging_context, MissingPerlFile, fix_missing_makefile_pl),
+        SimpleBuildFixer(packaging_context, DebcargoUnacceptablePredicate, coerce_unaccpetable_predicate),
     ]
 
 
