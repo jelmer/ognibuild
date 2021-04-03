@@ -117,6 +117,26 @@ class AptRequirement(Requirement):
                 return True
         return False
 
+    def satisfied_by(self, binaries, version):
+        def binary_pkg_matches(entry, binary):
+            # TODO(jelmer): check versions
+            if entry['name'] == binary['Package']:
+                return True
+            for provides_top in PkgRelation.parse_relations(
+                    binary.get('Provides', '')):
+                for provides in provides_top:
+                    if entry['name'] == provides['name']:
+                        return True
+            return False
+
+        for rel in self.relations:
+            for entry in rel:
+                if any(binary_pkg_matches(entry, binary) for binary in binaries):
+                    break
+            else:
+                return False
+        return True
+
 
 def resolve_perl_predeclared_req(apt_mgr, req):
     try:
