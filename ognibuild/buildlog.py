@@ -65,7 +65,7 @@ from buildlog_consultant.common import (
     MissingLatexFile,
     MissingCargoCrate,
 )
-from buildlog_consultant.apt import UnsatisfiedDependencies
+from buildlog_consultant.apt import UnsatisfiedAptDependencies
 
 from .fix_build import BuildFixer
 from .requirements import (
@@ -227,7 +227,7 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
             python_version=problem.python_version,
             minimum_version=problem.minimum_version,
         )
-    elif isinstance(problem, UnsatisfiedDependencies):
+    elif isinstance(problem, UnsatisfiedAptDependencies):
         from .resolver.apt import AptRequirement
         return AptRequirement(problem.relations)
     else:

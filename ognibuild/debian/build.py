@@ -215,6 +215,7 @@ def build_once(
     extra_repositories=None
 ):
     build_log_path = os.path.join(output_directory, "build.log")
+    logging.debug("Writing build log to %s", build_log_path)
     try:
         with open(build_log_path, "w") as f:
             build(
