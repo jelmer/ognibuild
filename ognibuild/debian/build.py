@@ -177,6 +177,8 @@ def build(
     source_date_epoch=None,
     extra_repositories=None,
 ):
+    for repo in extra_repositories or []:
+        build_command += " --extra-repository=" + shlex.quote(repo)
     args = [
         sys.executable,
         "-m",
@@ -194,8 +196,6 @@ def build(
         env["DISTRIBUTION"] = distribution
     if source_date_epoch is not None:
         env["SOURCE_DATE_EPOCH"] = "%d" % source_date_epoch
-    for repo in extra_repositories or []:
-        build_command += " --extra-repository=" + shlex.quote(repo)
     logging.info("Building debian packages, running %r.", build_command)
     try:
         subprocess.check_call(
@@ -214,7 +214,8 @@ def build_once(
     source_date_epoch=None,
     extra_repositories=None
 ):
-    build_log_path = os.path.join(output_directory, "build.log")
+    pkg, version = get_latest_changelog_version(local_tree, subpath)
+    build_log_path = os.path.join(output_directory, pkg + ".build.log")
     try:
         with open(build_log_path, "w") as f:
             build(
