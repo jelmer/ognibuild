@@ -63,7 +63,9 @@ from buildlog_consultant.common import (
     MissingX11,
     MissingPerlPredeclared,
     MissingLatexFile,
+    MissingCargoCrate,
 )
+from buildlog_consultant.apt import UnsatisfiedDependencies
 
 from .fix_build import BuildFixer
 from .requirements import (
@@ -105,6 +107,7 @@ from .requirements import (
     IntrospectionTypelibRequirement,
     PerlPreDeclaredRequirement,
     LatexPackageRequirement,
+    CargoCrateRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -183,6 +186,9 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return CertificateAuthorityRequirement(problem.url)
     elif isinstance(problem, MissingPerlPredeclared):
         return PerlPreDeclaredRequirement(problem.name)
+    elif isinstance(problem, MissingCargoCrate):
+        # TODO(jelmer): handle problem.requirements
+        return CargoCrateRequirement(problem.name)
     elif isinstance(problem, MissingSetupPyCommand):
         if problem.command == "test":
             return PythonPackageRequirement("setuptools")
@@ -221,6 +227,9 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
             python_version=problem.python_version,
             minimum_version=problem.minimum_version,
         )
+    elif isinstance(problem, UnsatisfiedDependencies):
+        from .resolver.apt import AptRequirement
+        return AptRequirement(problem.relations)
     else:
         return None
 

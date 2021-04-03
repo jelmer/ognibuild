@@ -214,8 +214,7 @@ def build_once(
     source_date_epoch=None,
     extra_repositories=None
 ):
-    pkg, version = get_latest_changelog_version(local_tree, subpath)
-    build_log_path = os.path.join(output_directory, pkg + ".build.log")
+    build_log_path = os.path.join(output_directory, "build.log")
     try:
         with open(build_log_path, "w") as f:
             build(
