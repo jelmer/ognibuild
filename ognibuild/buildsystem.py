@@ -175,12 +175,13 @@ class Pear(BuildSystem):
 
     @classmethod
     def probe(cls, path):
-        if not os.path.exists(os.path.join(path, "package.xml")):
+        package_xml_path = os.path.join(path, "package.xml")
+        if not os.path.exists(package_xml_path):
             return
 
         import xml.etree.ElementTree as ET
         try:
-            tree = ET.iterparse(path)
+            tree = ET.iterparse(package_xml_path)
         except ET.ParseError as e:
             logging.warning("Unable to parse package.xml: %s", e)
             return
