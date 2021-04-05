@@ -118,6 +118,11 @@ class Pear(BuildSystem):
 
     name = "pear"
 
+    PEAR_NAMESPACES = [
+        "http://pear.php.net/dtd/package-2.0",
+        "http://pear.php.net/dtd/package-2.1",
+        ]
+
     def __init__(self, path):
         self.path = path
 
@@ -146,10 +151,7 @@ class Pear(BuildSystem):
         try:
             root = xmlparse_simplify_namespaces(
                 path,
-                [
-                    "http://pear.php.net/dtd/package-2.0",
-                    "http://pear.php.net/dtd/package-2.1",
-                ],
+                self.PEAR_NAMESPACES
             )
         except ET.ParseError as e:
             logging.warning("Unable to parse package.xml: %s", e)
@@ -173,9 +175,20 @@ class Pear(BuildSystem):
 
     @classmethod
     def probe(cls, path):
-        if os.path.exists(os.path.join(path, "package.xml")):
-            logging.debug("Found package.xml, assuming pear package.")
-            return cls(path)
+        if not os.path.exists(os.path.join(path, "package.xml")):
+            return
+
+        import xml.etree.ElementTree as ET
+        try:
+            tree = ET.iterparse(path)
+        except ET.ParseError as e:
+            logging.warning("Unable to parse package.xml: %s", e)
+            return
+
+        for ns in cls.PEAR_NAMESPACES:
+            if tree.root.tag == '{%s}package' % ns:
+                logging.debug("Found package.xml with namespace %s, assuming pear package.")
+                return cls(path)
 
 
 # run_setup, but setting __name__
