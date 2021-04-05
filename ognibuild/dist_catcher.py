@@ -94,7 +94,8 @@ class DistCatcher(object):
                 logging.warning(
                     "Found multiple tarballs %r in %s.", possible_new, directory
                 )
-                return
+                self.files.extend([entry.path for entry in possible_new])
+                return possible_new[0].name
 
             if len(possible_updated) == 1:
                 entry = possible_updated[0]
