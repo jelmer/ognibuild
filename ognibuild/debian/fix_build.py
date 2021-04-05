@@ -32,7 +32,7 @@ from debian.deb822 import (
     PkgRelation,
 )
 
-from breezy.commit import PointlessCommit
+from breezy.commit import PointlessCommit, NullCommitReporter
 from breezy.tree import Tree
 from debmutate.changelog import ChangelogEditor
 from debmutate.control import (
@@ -159,7 +159,10 @@ class DebianPackagingContext(object):
                     cl_path = self.abspath("debian/changelog")
                     with ChangelogEditor(cl_path) as editor:
                         editor.add_entry([summary])
-                    debcommit(self.tree, committer=self.committer, subpath=self.subpath)
+                    debcommit(
+                        self.tree, committer=self.committer,
+                        subpath=self.subpath,
+                        reporter=self.commit_reporter)
                 else:
                     self.tree.commit(
                         message=summary,
@@ -514,7 +517,8 @@ def apt_fixers(apt, packaging_context) -> List[BuildFixer]:
 
 def default_fixers(local_tree, subpath, apt, committer=None, update_changelog=None):
     packaging_context = DebianPackagingContext(
-        local_tree, subpath, committer, update_changelog
+        local_tree, subpath, committer, update_changelog,
+        commit_reporter=NullCommitReporter()
     )
     return versioned_package_fixers(apt.session, packaging_context, apt) + apt_fixers(
         apt, packaging_context
@@ -710,7 +714,7 @@ def main(argv=None):
 
         logging.info(
             'Built %s - changes file at %r.',
-            os.path.join(output_directory, changes_filenames))
+            cl_version, changes_filenames)
 
 
 if __name__ == "__main__":
