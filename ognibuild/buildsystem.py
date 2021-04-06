@@ -186,6 +186,10 @@ class Pear(BuildSystem):
             logging.warning("Unable to parse package.xml: %s", e)
             return
 
+        if not tree.root:
+            # No root?
+            return
+
         for ns in cls.PEAR_NAMESPACES:
             if tree.root.tag == '{%s}package' % ns:
                 logging.debug("Found package.xml with namespace %s, assuming pear package.")
