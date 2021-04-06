@@ -82,6 +82,15 @@ class PythonPackageRequirement(Requirement):
         return p.returncode == 0
 
 
+class LatexPackageRequirement(Requirement):
+
+    def __init__(self, package: str):
+        self.package = package
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.package)
+
+
 class PhpPackageRequirement(Requirement):
     def __init__(
         self,
@@ -192,6 +201,32 @@ class NodePackageRequirement(Requirement):
         return "%s(%r)" % (type(self).__name__, self.package)
 
 
+class PerlPreDeclaredRequirement(Requirement):
+
+    name: str
+
+    # TODO(jelmer): Can we obtain this information elsewhere?
+    KNOWN_MODULES = {
+        'auto_set_repository': 'Module::Install::Repository',
+        'author_tests': 'Module::Install::AuthorTests',
+        'readme_from': 'Module::Install::ReadmeFromPod',
+        'catalyst': 'Module::Install::Catalyst',
+        'githubmeta': 'Module::Install::GithubMeta',
+        'use_ppport': 'Module::Install::XSUtil',
+        }
+
+    def __init__(self, name):
+        super(PerlPreDeclaredRequirement, self).__init__("perl-predeclared")
+        self.name = name
+
+    def lookup_module(self):
+        module = self.KNOWN_MODULES[self.name]
+        return PerlModuleRequirement(module=module)
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.name)
+
+
 class NodeModuleRequirement(Requirement):
 
     module: str
@@ -246,6 +281,10 @@ class PkgConfigRequirement(Requirement):
         self.module = module
         self.minimum_version = minimum_version
 
+    def __repr__(self):
+        return "%s(%r, minimum_version=%r)" % (
+            type(self).__name__, self.module, self.minimum_version)
+
 
 class PathRequirement(Requirement):
 
@@ -255,6 +294,9 @@ class PathRequirement(Requirement):
         super(PathRequirement, self).__init__("path")
         self.path = path
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
 
 class CHeaderRequirement(Requirement):
 
@@ -263,6 +305,9 @@ class CHeaderRequirement(Requirement):
     def __init__(self, header):
         super(CHeaderRequirement, self).__init__("c-header")
         self.header = header
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.header)
 
 
 class JavaScriptRuntimeRequirement(Requirement):
@@ -587,6 +632,11 @@ class LibtoolRequirement(Requirement):
         super(LibtoolRequirement, self).__init__("libtool")
 
 
+class IntrospectionTypelibRequirement(Requirement):
+    def __init__(self, library):
+        self.library = library
+
+
 class PythonModuleRequirement(Requirement):
 
     module: str
@@ -619,3 +669,8 @@ class PythonModuleRequirement(Requirement):
         )
         p.communicate()
         return p.returncode == 0
+
+    def __repr__(self):
+        return "%s(%r, python_version=%r, minimum_version=%r)" % (
+            type(self).__name__, self.module, self.python_version,
+            self.minimum_version)

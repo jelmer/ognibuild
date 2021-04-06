@@ -53,6 +53,7 @@ from buildlog_consultant.common import (
     MissingVagueDependency,
     DhAddonLoadFailure,
     MissingMavenArtifacts,
+    MissingIntrospectionTypelib,
     GnomeCommonMissing,
     MissingGnomeCommonDependency,
     UnknownCertificateAuthority,
@@ -60,7 +61,11 @@ from buildlog_consultant.common import (
     MissingLibtool,
     MissingQt,
     MissingX11,
+    MissingPerlPredeclared,
+    MissingLatexFile,
+    MissingCargoCrate,
 )
+from buildlog_consultant.apt import UnsatisfiedAptDependencies
 
 from .fix_build import BuildFixer
 from .requirements import (
@@ -99,6 +104,10 @@ from .requirements import (
     X11Requirement,
     LibtoolRequirement,
     VagueDependencyRequirement,
+    IntrospectionTypelibRequirement,
+    PerlPreDeclaredRequirement,
+    LatexPackageRequirement,
+    CargoCrateRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -112,6 +121,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return PkgConfigRequirement(problem.module, problem.minimum_version)
     elif isinstance(problem, MissingCHeader):
         return CHeaderRequirement(problem.header)
+    elif isinstance(problem, MissingIntrospectionTypelib):
+        return IntrospectionTypelibRequirement(problem.library)
     elif isinstance(problem, MissingJavaScriptRuntime):
         return JavaScriptRuntimeRequirement()
     elif isinstance(problem, MissingRubyGem):
@@ -130,6 +141,10 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return NodeModuleRequirement(problem.module)
     elif isinstance(problem, MissingNodePackage):
         return NodePackageRequirement(problem.package)
+    elif isinstance(problem, MissingLatexFile):
+        if problem.filename.endswith('.sty'):
+            return LatexPackageRequirement(problem.filename[:-4])
+        return None
     elif isinstance(problem, MissingVagueDependency):
         return VagueDependencyRequirement(problem.name, minimum_version=problem.minimum_version)
     elif isinstance(problem, MissingLibrary):
@@ -169,6 +184,11 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return LibtoolRequirement()
     elif isinstance(problem, UnknownCertificateAuthority):
         return CertificateAuthorityRequirement(problem.url)
+    elif isinstance(problem, MissingPerlPredeclared):
+        return PerlPreDeclaredRequirement(problem.name)
+    elif isinstance(problem, MissingCargoCrate):
+        # TODO(jelmer): handle problem.requirements
+        return CargoCrateRequirement(problem.crate)
     elif isinstance(problem, MissingSetupPyCommand):
         if problem.command == "test":
             return PythonPackageRequirement("setuptools")
@@ -207,6 +227,9 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
             python_version=problem.python_version,
             minimum_version=problem.minimum_version,
         )
+    elif isinstance(problem, UnsatisfiedAptDependencies):
+        from .resolver.apt import AptRequirement
+        return AptRequirement(problem.relations)
     else:
         return None
 

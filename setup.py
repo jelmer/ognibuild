@@ -6,12 +6,12 @@ from setuptools import setup
 
 setup(name="ognibuild",
       description="Detect and run any build system",
-      version="0.0.3",
+      version="0.0.4",
       maintainer="Jelmer Vernooĳ",
       maintainer_email="jelmer@jelmer.uk",
       license="GNU GPLv2 or later",
       url="https://jelmer.uk/code/ognibuild",
-      packages=['ognibuild'],
+      packages=['ognibuild', 'ognibuild.tests', 'ognibuild.debian', 'ognibuild.resolver', 'ognibuild.session'],
       classifiers=[
           'Development Status :: 4 - Beta',
           'License :: OSI Approved :: '

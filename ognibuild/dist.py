@@ -51,6 +51,8 @@ def run_dist(session, buildsystems, resolver, fixers, target_directory, quiet=Fa
     # e.g. pip caches in ~/.cache
     session.create_home()
 
+    logging.info('Using dependency resolver: %s', resolver)
+
     for buildsystem in buildsystems:
         filename = buildsystem.dist(
             session, resolver, fixers, target_directory, quiet=quiet

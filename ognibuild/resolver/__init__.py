@@ -16,7 +16,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 
+import logging
 import subprocess
+from .. import UnidentifiedError 
 from ..fix_build import run_detecting_problems
 
 
@@ -67,7 +69,7 @@ class CPANResolver(Resolver):
                 continue
             perlreqs.append(requirement)
         if perlreqs:
-            yield (self._cmd(perlreqs), [perlreqs])
+            yield (self._cmd(perlreqs), perlreqs)
 
     def install(self, requirements):
         from ..requirements import PerlModuleRequirement
@@ -88,14 +90,83 @@ class CPANResolver(Resolver):
             if not isinstance(requirement, PerlModuleRequirement):
                 missing.append(requirement)
                 continue
+            cmd = self._cmd([requirement])
+            logging.info("CPAN: running %r", cmd)
             run_detecting_problems(
                 self.session,
-                self._cmd([requirement]),
+                cmd,
                 env=env,
                 user=user,
             )
         if missing:
             raise UnsatisfiedRequirements(missing)
+
+
+class TlmgrResolver(Resolver):
+    def __init__(self, session, repository: str, user_local=False):
+        self.session = session
+        self.user_local = user_local
+        self.repository = repository
+
+    def __str__(self):
+        if self.repository.startswith('http://') or self.repository.startswith('https://'):
+            return 'tlmgr(%r)' % self.repository
+        else:
+            return self.repository
+
+    def __repr__(self):
+        return "%s(%r, %r)" % (
+            type(self).__name__, self.session, self.repository)
+
+    def _cmd(self, reqs):
+        ret = ["tlmgr", "--repository=%s" % self.repository, "install"]
+        if self.user_local:
+            ret.append("--usermode")
+        ret.extend([req.package for req in reqs])
+        return ret
+
+    def explain(self, requirements):
+        from ..requirements import LatexPackageRequirement
+
+        latexreqs = []
+        for requirement in requirements:
+            if not isinstance(requirement, LatexPackageRequirement):
+                continue
+            latexreqs.append(requirement)
+        if latexreqs:
+            yield (self._cmd(latexreqs), latexreqs)
+
+    def install(self, requirements):
+        from ..requirements import LatexPackageRequirement
+
+        if not self.user_local:
+            user = "root"
+        else:
+            user = None
+
+        missing = []
+        for requirement in requirements:
+            if not isinstance(requirement, LatexPackageRequirement):
+                missing.append(requirement)
+                continue
+            cmd = self._cmd([requirement])
+            logging.info("tlmgr: running %r", cmd)
+            try:
+                run_detecting_problems(self.session, cmd, user=user)
+            except UnidentifiedError as e:
+                if "tlmgr: user mode not initialized, please read the documentation!" in e.lines:
+                    self.session.check_call(['tlmgr', 'init-usertree'])
+                else:
+                    raise
+        if missing:
+            raise UnsatisfiedRequirements(missing)
+
+
+class CTANResolver(TlmgrResolver):
+
+    def __init__(self, session, user_local=False):
+        super(CTANResolver, self).__init__(
+            session, "ctan", user_local=user_local)
 
 
 class RResolver(Resolver):
@@ -142,7 +213,9 @@ class RResolver(Resolver):
             if not isinstance(requirement, RPackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(self._cmd(requirement), user=user)
+            cmd = self._cmd(requirement)
+            logging.info("RResolver(%r): running %r", self.repos, cmd)
+            run_detecting_problems(self.session, cmd, user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -186,7 +259,9 @@ class OctaveForgeResolver(Resolver):
             if not isinstance(requirement, OctavePackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(self._cmd(requirement), user=user)
+            cmd = self._cmd(requirement)
+            logging.info("Octave: running %r", cmd)
+            run_detecting_problems(self.session, cmd, user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -235,7 +310,9 @@ class HackageResolver(Resolver):
             if not isinstance(requirement, HaskellPackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(self._cmd([requirement]), user=user)
+            cmd = self._cmd([requirement])
+            logging.info("Hackage: running %r", cmd)
+            run_detecting_problems(self.session, cmd, user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -281,8 +358,10 @@ class PypiResolver(Resolver):
             if not isinstance(requirement, PythonPackageRequirement):
                 missing.append(requirement)
                 continue
+            cmd = self._cmd([requirement])
+            logging.info("pip: running %r", cmd)
             try:
-                self.session.check_call(self._cmd([requirement]), user=user)
+                run_detecting_problems(self.session, cmd, user=user)
             except subprocess.CalledProcessError:
                 missing.append(requirement)
         if missing:
@@ -325,7 +404,9 @@ class GoResolver(Resolver):
             if not isinstance(requirement, GoPackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(["go", "get", requirement.package], env=env)
+            cmd = ["go", "get", requirement.package]
+            logging.info("go: running %r", cmd)
+            run_detecting_problems(self.session, cmd, env=env)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -344,6 +425,7 @@ class GoResolver(Resolver):
 NPM_COMMAND_PACKAGES = {
     "del-cli": "del-cli",
     "husky": "husky",
+    "cross-env": "cross-env",
 }
 
 
@@ -382,13 +464,17 @@ class NpmResolver(Resolver):
                     requirement = NodePackageRequirement(package)
             if isinstance(requirement, NodeModuleRequirement):
                 # TODO: Is this legit?
-                requirement = NodePackageRequirement(requirement.module.split("/")[0])
+                parts = requirement.module.split("/")
+                if parts[0].startswith('@'):
+                    requirement = NodePackageRequirement('/'.join(parts[:2]))
+                else:
+                    requirement = NodePackageRequirement(parts[0])
             if not isinstance(requirement, NodePackageRequirement):
                 missing.append(requirement)
                 continue
-            self.session.check_call(
-                ["npm", "-g", "install", requirement.package], user=user
-            )
+            cmd = ["npm", "-g", "install", requirement.package]
+            logging.info("npm: running %r", cmd)
+            run_detecting_problems(self.session, cmd, user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
@@ -445,6 +531,7 @@ class StackedResolver(Resolver):
 
 NATIVE_RESOLVER_CLS = [
     CPANResolver,
+    CTANResolver,
     PypiResolver,
     NpmResolver,
     GoResolver,

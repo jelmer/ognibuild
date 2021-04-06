@@ -20,7 +20,7 @@ import os
 import stat
 
 
-__version__ = (0, 0, 3)
+__version__ = (0, 0, 4)
 
 
 USER_AGENT = "Ognibuild"

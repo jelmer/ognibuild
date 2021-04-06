@@ -53,17 +53,12 @@ janitor (0.1-1) UNRELEASED; urgency=medium
         )
         self.assertFileEqual(
             """\
-janitor (0.1-1jan+some1) some-fixes; urgency=low
+janitor (0.1-1jan+some1) some-fixes; urgency=medium
 
+  * Initial release. (Closes: #XXXXXX)
   * Dummy build.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 05 Sep 2020 12:35:04 -0000
-
-janitor (0.1-1) UNRELEASED; urgency=medium
-
-  * Initial release. (Closes: #XXXXXX)
-
- -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 04 Apr 2020 14:12:13 +0000
 """,
             "debian/changelog",
         )
@@ -97,17 +92,12 @@ janitor (0.1) UNRELEASED; urgency=medium
         )
         self.assertFileEqual(
             """\
-janitor (0.1jan+some1) some-fixes; urgency=low
+janitor (0.1jan+some1) some-fixes; urgency=medium
 
+  * Initial release. (Closes: #XXXXXX)
   * Dummy build.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 05 Sep 2020 12:35:04 -0000
-
-janitor (0.1) UNRELEASED; urgency=medium
-
-  * Initial release. (Closes: #XXXXXX)
-
- -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 04 Apr 2020 14:12:13 +0000
 """,
             "debian/changelog",
         )
@@ -141,17 +131,12 @@ janitor (0.1-1jan+some1) UNRELEASED; urgency=medium
         )
         self.assertFileEqual(
             """\
-janitor (0.1-1jan+some2) some-fixes; urgency=low
+janitor (0.1-1jan+some2) some-fixes; urgency=medium
 
+  * Initial release. (Closes: #XXXXXX)
   * Dummy build.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 05 Sep 2020 12:35:04 -0000
-
-janitor (0.1-1jan+some1) UNRELEASED; urgency=medium
-
-  * Initial release. (Closes: #XXXXXX)
-
- -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 04 Apr 2020 14:12:13 +0000
 """,
             "debian/changelog",
         )

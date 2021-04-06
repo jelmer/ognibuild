@@ -68,6 +68,8 @@ from ..requirements import (
     CertificateAuthorityRequirement,
     LibtoolRequirement,
     VagueDependencyRequirement,
+    PerlPreDeclaredRequirement,
+    IntrospectionTypelibRequirement,
 )
 
 
@@ -114,6 +116,36 @@ class AptRequirement(Requirement):
             if name == package:
                 return True
         return False
+
+    def satisfied_by(self, binaries, version):
+        def binary_pkg_matches(entry, binary):
+            # TODO(jelmer): check versions
+            if entry['name'] == binary['Package']:
+                return True
+            for provides_top in PkgRelation.parse_relations(
+                    binary.get('Provides', '')):
+                for provides in provides_top:
+                    if entry['name'] == provides['name']:
+                        return True
+            return False
+
+        for rel in self.relations:
+            for entry in rel:
+                if any(binary_pkg_matches(entry, binary) for binary in binaries):
+                    break
+            else:
+                return False
+        return True
+
+
+def resolve_perl_predeclared_req(apt_mgr, req):
+    try:
+        req = req.lookup_module()
+    except KeyError:
+        logging.warning(
+            'Unable to map predeclared function %s to a perl module', req.name)
+        return None
+    return resolve_perl_module_req(apt_mgr, req)
 
 
 def find_package_names(
@@ -282,6 +314,17 @@ def get_package_for_python_module(apt_mgr, module, python_version, specs):
 vague_map = {
     "the Gnu Scientific Library": "libgsl-dev",
     "the required FreeType library": "libfreetype-dev",
+    "the Boost C++ libraries": "libboost-dev",
+
+    # TODO(jelmer): Support resolving virtual packages
+    "PythonLibs": "libpython3-dev",
+    "ZLIB": "libz3-dev",
+    "Osmium": "libosmium2-dev",
+    "glib": "libglib2.0-dev",
+
+    # TODO(jelmer): For Python, check minimum_version and map to python 2 or python 3
+    "Python": "libpython3-dev",
+    "Lua": "liblua5.4-dev",
 }
 
 
@@ -289,7 +332,7 @@ def resolve_vague_dep_req(apt_mgr, req):
     name = req.name
     options = []
     if name in vague_map:
-        options.append(AptRequirement.simple(vague_map[name]))
+        options.append(AptRequirement.simple(vague_map[name], minimum_version=req.minimum_version))
     for x in req.expand():
         options.extend(resolve_requirement_apt(apt_mgr, x))
     return options
@@ -393,9 +436,9 @@ def resolve_php_package_req(apt_mgr, req):
 
 def resolve_r_package_req(apt_mgr, req):
     paths = [
-        posixpath.join("/usr/lib/R/site-library/.*/R/%s$" % re.escape(req.package))
+        posixpath.join("/usr/lib/R/site-library", req.package, "DESCRIPTION")
     ]
-    return find_reqs_simple(apt_mgr, paths, regex=True)
+    return find_reqs_simple(apt_mgr, paths, minimum_version=req.minimum_version)
 
 
 def resolve_node_module_req(apt_mgr, req):
@@ -485,7 +528,7 @@ def resolve_cmake_file_req(apt_mgr, req):
 
 
 def resolve_haskell_package_req(apt_mgr, req):
-    path = "/var/lib/ghc/package\\.conf\\.d/%s-.*\\.conf" % re.escape(req.deps[0][0])
+    path = "/var/lib/ghc/package\\.conf\\.d/%s-.*\\.conf" % re.escape(req.package)
     return find_reqs_simple(apt_mgr, [path], regex=True)
 
 
@@ -620,6 +663,12 @@ def resolve_ca_req(apt_mgr, req):
     return [AptRequirement.simple("ca-certificates")]
 
 
+def resolve_introspection_typelib_req(apt_mgr, req):
+    return find_reqs_simple(
+        apt_mgr, [r'/usr/lib/.*/girepository-.*/%s-.*\.typelib' % re.escape(req.library)],
+        regex=True)
+
+
 def resolve_apt_req(apt_mgr, req):
     # TODO(jelmer): This should be checking whether versions match as well.
     for package_name in req.package_names():
@@ -632,6 +681,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (AptRequirement, resolve_apt_req),
     (BinaryRequirement, resolve_binary_req),
     (VagueDependencyRequirement, resolve_vague_dep_req),
+    (PerlPreDeclaredRequirement, resolve_perl_predeclared_req),
     (PkgConfigRequirement, resolve_pkg_config_req),
     (PathRequirement, resolve_path_req),
     (CHeaderRequirement, resolve_c_header_req),
@@ -668,6 +718,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (PythonPackageRequirement, resolve_python_package_req),
     (CertificateAuthorityRequirement, resolve_ca_req),
     (CargoCrateRequirement, resolve_cargo_crate_req),
+    (IntrospectionTypelibRequirement, resolve_introspection_typelib_req),
 ]
 
 
@@ -683,11 +734,20 @@ def resolve_requirement_apt(apt_mgr, req: Requirement) -> List[AptRequirement]:
     raise NotImplementedError(type(req))
 
 
+def default_tie_breakers(session):
+    from ..debian.udd import popcon_tie_breaker
+    from ..debian.build_deps import BuildDependencyTieBreaker
+    return [
+        BuildDependencyTieBreaker.from_session(session),
+        popcon_tie_breaker,
+        ]
+
+
 class AptResolver(Resolver):
     def __init__(self, apt, tie_breakers=None):
         self.apt = apt
         if tie_breakers is None:
-            tie_breakers = []
+            tie_breakers = default_tie_breakers(apt.session)
         self.tie_breakers = tie_breakers
 
     def __str__(self):

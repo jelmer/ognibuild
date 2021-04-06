@@ -17,7 +17,7 @@
 
 from functools import partial
 import logging
-from typing import List, Tuple, Callable, Any
+from typing import List, Tuple, Callable, Any, Optional
 
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
@@ -104,8 +104,10 @@ def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any]):
 
 
 def run_with_build_fixers(
-    session: Session, args: List[str], fixers: List[BuildFixer], **kwargs
+    session: Session, args: List[str], fixers: Optional[List[BuildFixer]], **kwargs
 ):
+    if fixers is None:
+        fixers = []
     return iterate_with_build_fixers(
         fixers, partial(run_detecting_problems, session, args, **kwargs)
     )
