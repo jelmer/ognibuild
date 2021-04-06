@@ -82,12 +82,19 @@ class AptManager(object):
             ]
         return self._searchers
 
-    def package_exists(self, package):
+    @property
+    def apt_cache(self):
         if self._apt_cache is None:
             import apt
 
             self._apt_cache = apt.Cache(rootdir=self.session.location)
-        return package in self._apt_cache
+        return self._apt_cache
+
+    def package_exists(self, package):
+        return package in self.apt_cache
+
+    def package_versions(self, package):
+        return list(self.apt_cache[package].versions)
 
     def get_packages_for_paths(self, paths, regex=False, case_insensitive=False):
         logging.debug("Searching for packages containing %r", paths)

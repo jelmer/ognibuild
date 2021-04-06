@@ -188,7 +188,7 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return PerlPreDeclaredRequirement(problem.name)
     elif isinstance(problem, MissingCargoCrate):
         # TODO(jelmer): handle problem.requirements
-        return CargoCrateRequirement(problem.name)
+        return CargoCrateRequirement(problem.crate)
     elif isinstance(problem, MissingSetupPyCommand):
         if problem.command == "test":
             return PythonPackageRequirement("setuptools")

@@ -281,6 +281,10 @@ class PkgConfigRequirement(Requirement):
         self.module = module
         self.minimum_version = minimum_version
 
+    def __repr__(self):
+        return "%s(%r, minimum_version=%r)" % (
+            type(self).__name__, self.module, self.minimum_version)
+
 
 class PathRequirement(Requirement):
 
@@ -290,6 +294,9 @@ class PathRequirement(Requirement):
         super(PathRequirement, self).__init__("path")
         self.path = path
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
 
 class CHeaderRequirement(Requirement):
 
@@ -298,6 +305,9 @@ class CHeaderRequirement(Requirement):
     def __init__(self, header):
         super(CHeaderRequirement, self).__init__("c-header")
         self.header = header
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.header)
 
 
 class JavaScriptRuntimeRequirement(Requirement):
@@ -659,3 +669,8 @@ class PythonModuleRequirement(Requirement):
         )
         p.communicate()
         return p.returncode == 0
+
+    def __repr__(self):
+        return "%s(%r, python_version=%r, minimum_version=%r)" % (
+            type(self).__name__, self.module, self.python_version,
+            self.minimum_version)
