@@ -16,22 +16,24 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 __all__ = [
-    "changes_filename",
     "get_build_architecture",
     "add_dummy_changelog_entry",
     "build",
-    "SbuildFailure",
+    "DetailedDebianBuildFailure",
+    "UnidentifiedDebianBuildError",
 ]
 
 from datetime import datetime
+from debmutate.changelog import ChangelogEditor
 import logging
 import os
 import re
+import shlex
 import subprocess
 import sys
 
 from debian.changelog import Changelog
-from debmutate.changelog import get_maintainer, format_datetime
+from debmutate.changelog import get_maintainer
 
 from breezy.mutabletree import MutableTree
 from breezy.plugins.debian.builder import BuildFailedError
@@ -39,11 +41,31 @@ from breezy.tree import Tree
 
 from buildlog_consultant.sbuild import (
     worker_failure_from_sbuild_log,
-    SbuildFailure,
 )
+
+from .. import DetailedFailure as DetailedFailure, UnidentifiedError
 
 
 DEFAULT_BUILDER = "sbuild --no-clean-source"
+
+
+class DetailedDebianBuildFailure(DetailedFailure):
+
+    def __init__(self, stage, phase, retcode, argv, error, description):
+        super(DetailedDebianBuildFailure, self).__init__(retcode, argv, error)
+        self.stage = stage
+        self.phase = phase
+        self.description = description
+
+
+class UnidentifiedDebianBuildError(UnidentifiedError):
+
+    def __init__(self, stage, phase, retcode, argv, lines, description, secondary=None):
+        super(UnidentifiedDebianBuildError, self).__init__(
+            retcode, argv, lines, secondary)
+        self.stage = stage
+        self.phase = phase
+        self.description = description
 
 
 class MissingChangesFile(Exception):
@@ -53,11 +75,15 @@ class MissingChangesFile(Exception):
         self.filename = filename
 
 
-def changes_filename(package, version, arch):
+def find_changes_files(path, package, version):
     non_epoch_version = version.upstream_version
     if version.debian_version is not None:
         non_epoch_version += "-%s" % version.debian_version
-    return "%s_%s_%s.changes" % (package, non_epoch_version, arch)
+    c = re.compile('%s_%s_(.*).changes' % (re.escape(package), re.escape(non_epoch_version)))
+    for entry in os.scandir(path):
+        m = c.match(entry.name)
+        if m:
+            yield m.group(1), entry
 
 
 def get_build_architecture():
@@ -119,25 +145,16 @@ def add_dummy_changelog_entry(
         maintainer = get_maintainer()
     if timestamp is None:
         timestamp = datetime.now()
-    with tree.get_file(path) as f:
-        cl = Changelog()
-        cl.parse_changelog(f, max_blocks=None, allow_empty_author=True, strict=False)
-        version = cl[0].version
+    with ChangelogEditor(tree.abspath(os.path.join(path))) as editor:
+        version = editor[0].version
         if version.debian_revision:
             version.debian_revision = add_suffix(version.debian_revision, suffix)
         else:
             version.upstream_version = add_suffix(version.upstream_version, suffix)
-        cl.new_block(
-            package=cl[0].package,
-            version=version,
-            urgency="low",
-            distributions=suite,
-            author="%s <%s>" % maintainer,
-            date=format_datetime(timestamp),
-            changes=["", "  * " + message, ""],
-        )
-    cl_str = cl._format(allow_missing_author=True)
-    tree.put_file_bytes_non_atomic(path, cl_str.encode(cl._encoding))
+        editor.auto_version(version, timestamp=timestamp)
+        editor.add_entry(
+            summary=[message], maintainer=maintainer, timestamp=timestamp, urgency='low')
+        editor[0].distributions = suite
 
 
 def get_latest_changelog_version(local_tree, subpath=""):
@@ -158,7 +175,10 @@ def build(
     distribution=None,
     subpath="",
     source_date_epoch=None,
+    extra_repositories=None,
 ):
+    for repo in extra_repositories or []:
+        build_command += " --extra-repository=" + shlex.quote(repo)
     args = [
         sys.executable,
         "-m",
@@ -192,8 +212,10 @@ def build_once(
     build_command,
     subpath="",
     source_date_epoch=None,
+    extra_repositories=None
 ):
     build_log_path = os.path.join(output_directory, "build.log")
+    logging.debug("Writing build log to %s", build_log_path)
     try:
         with open(build_log_path, "w") as f:
             build(
@@ -204,21 +226,35 @@ def build_once(
                 distribution=build_suite,
                 subpath=subpath,
                 source_date_epoch=source_date_epoch,
+                extra_repositories=extra_repositories,
             )
-    except BuildFailedError:
+    except BuildFailedError as e:
         with open(build_log_path, "rb") as f:
-            raise worker_failure_from_sbuild_log(f)
+            sbuild_failure = worker_failure_from_sbuild_log(f)
+            retcode = getattr(e, 'returncode', None)
+            if sbuild_failure.error:
+                raise DetailedDebianBuildFailure(
+                    sbuild_failure.stage,
+                    sbuild_failure.phase, retcode,
+                    shlex.split(build_command),
+                    sbuild_failure.error,
+                    sbuild_failure.description)
+            else:
+                raise UnidentifiedDebianBuildError(
+                    sbuild_failure.stage,
+                    sbuild_failure.phase,
+                    retcode, shlex.split(build_command),
+                    [], sbuild_failure.description)
 
     (cl_package, cl_version) = get_latest_changelog_version(local_tree, subpath)
-    changes_name = changes_filename(cl_package, cl_version, get_build_architecture())
-    changes_path = os.path.join(output_directory, changes_name)
-    if not os.path.exists(changes_path):
-        raise MissingChangesFile(changes_name)
-    return (changes_name, cl_version)
+    changes_names = []
+    for kind, entry in find_changes_files(output_directory, cl_package, cl_version):
+        changes_names.append((entry.name))
+    return (changes_names, cl_version)
 
 
 def gbp_dch(path):
-    subprocess.check_call(["gbp", "dch"], cwd=path)
+    subprocess.check_call(["gbp", "dch", "--ignore-branch"], cwd=path)
 
 
 def attempt_build(
@@ -230,6 +266,8 @@ def attempt_build(
     build_changelog_entry=None,
     subpath="",
     source_date_epoch=None,
+    run_gbp_dch=False,
+    extra_repositories=None
 ):
     """Attempt a build, with a custom distribution set.
 
@@ -244,6 +282,8 @@ def attempt_build(
       source_date_epoch: Source date epoch to set
     Returns: Tuple with (changes_name, cl_version)
     """
+    if run_gbp_dch and not subpath:
+        gbp_dch(local_tree.abspath(subpath))
     if build_changelog_entry is not None:
         add_dummy_changelog_entry(
             local_tree, subpath, suffix, build_suite, build_changelog_entry
@@ -255,4 +295,5 @@ def attempt_build(
         build_command,
         subpath,
         source_date_epoch=source_date_epoch,
+        extra_repositories=extra_repositories,
     )

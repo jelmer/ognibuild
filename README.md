@@ -54,6 +54,8 @@ issues (or lack of support for a particular ecosystem), please file a bug.
 - Octave
 - Perl
     - Module::Build::Tiny
+    - Dist::Zilla
+    - Minilla
 - PHP Pear
 - Python - setup.py/setup.cfg/pyproject.toml
 - R

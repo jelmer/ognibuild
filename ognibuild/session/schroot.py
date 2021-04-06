@@ -185,6 +185,8 @@ class SchrootSession(Session):
         self.check_call(["chown", user, home], cwd="/", user="root")
 
     def external_path(self, path: str) -> str:
+        if os.path.isabs(path):
+            return os.path.join(self.location, path.lstrip("/"))
         if self._cwd is None:
             raise ValueError("no cwd set")
         return os.path.join(self.location, os.path.join(self._cwd, path).lstrip("/"))

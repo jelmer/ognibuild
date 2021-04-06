@@ -28,7 +28,7 @@ from .. import DetailedFailure, UnidentifiedError
 from ..session import Session, run_with_tee, get_user
 from .file_search import (
     FileSearcher,
-    AptCachedContentsFileSearcher,
+    get_apt_contents_file_searcher,
     GENERATED_FILE_SEARCHER,
     get_packages_for_paths,
 )
@@ -41,6 +41,7 @@ def run_apt(
     if prefix is None:
         prefix = []
     args = prefix = ["apt", "-y"] + args
+    logging.info('apt: running %r', args)
     retcode, lines = run_with_tee(session, args, cwd="/", user="root")
     if retcode == 0:
         return
@@ -76,21 +77,27 @@ class AptManager(object):
     def searchers(self):
         if self._searchers is None:
             self._searchers = [
-                AptCachedContentsFileSearcher.from_session(self.session),
+                get_apt_contents_file_searcher(self.session),
                 GENERATED_FILE_SEARCHER,
             ]
         return self._searchers
 
-    def package_exists(self, package):
+    @property
+    def apt_cache(self):
         if self._apt_cache is None:
             import apt
 
             self._apt_cache = apt.Cache(rootdir=self.session.location)
-        return package in self._apt_cache
+        return self._apt_cache
+
+    def package_exists(self, package):
+        return package in self.apt_cache
+
+    def package_versions(self, package):
+        return list(self.apt_cache[package].versions)
 
     def get_packages_for_paths(self, paths, regex=False, case_insensitive=False):
         logging.debug("Searching for packages containing %r", paths)
-        # TODO(jelmer): Make sure we use whatever is configured in self.session
         return get_packages_for_paths(
             paths, self.searchers(), regex=regex, case_insensitive=case_insensitive
         )

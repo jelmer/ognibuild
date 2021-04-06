@@ -22,6 +22,7 @@ __all__ = [
 from functools import partial
 import logging
 import os
+import re
 import shutil
 import sys
 from typing import List, Set, Optional, Type
@@ -31,7 +32,7 @@ from debian.deb822 import (
     PkgRelation,
 )
 
-from breezy.commit import PointlessCommit
+from breezy.commit import PointlessCommit, NullCommitReporter
 from breezy.tree import Tree
 from debmutate.changelog import ChangelogEditor
 from debmutate.control import (
@@ -111,9 +112,13 @@ from buildlog_consultant.common import (
     MissingPerlFile,
 )
 from buildlog_consultant.sbuild import (
-    SbuildFailure,
-)
+    DebcargoUnacceptablePredicate,
+    )
 
+from .build import (
+    DetailedDebianBuildFailure,
+    UnidentifiedDebianBuildError,
+    )
 from ..buildlog import problem_to_upstream_requirement
 from ..fix_build import BuildFixer, resolve_error
 from ..resolver.apt import (
@@ -154,7 +159,10 @@ class DebianPackagingContext(object):
                     cl_path = self.abspath("debian/changelog")
                     with ChangelogEditor(cl_path) as editor:
                         editor.add_entry([summary])
-                    debcommit(self.tree, committer=self.committer, subpath=self.subpath)
+                    debcommit(
+                        self.tree, committer=self.committer,
+                        subpath=self.subpath,
+                        reporter=self.commit_reporter)
                 else:
                     self.tree.commit(
                         message=summary,
@@ -304,6 +312,8 @@ def python_tie_breaker(tree, subpath, reqs):
             return True
         if pkg.startswith("lib%s-" % python_version):
             return True
+        if re.match(r'lib%s\.[0-9]-dev' % python_version, pkg):
+            return True
         return False
 
     for python_version in targeted:
@@ -423,6 +433,13 @@ def fix_missing_makefile_pl(error, phase, context):
     return False
 
 
+def coerce_unaccpetable_predicate(error, phase, context):
+    from debmutate.debcargo import DebcargoEditor
+    with DebcargoEditor(context.abspath('debian/debcargo.toml')) as editor:
+        editor['allow_prerelease_deps'] = True
+    return context.commit('Enable allow_prerelease_deps.')
+
+
 class SimpleBuildFixer(BuildFixer):
     def __init__(self, packaging_context, problem_cls: Type[Problem], fn):
         self.context = packaging_context
@@ -475,6 +492,7 @@ def versioned_package_fixers(session, packaging_context, apt):
             packaging_context, MissingConfigStatusInput, fix_missing_config_status_input
         ),
         SimpleBuildFixer(packaging_context, MissingPerlFile, fix_missing_makefile_pl),
+        SimpleBuildFixer(packaging_context, DebcargoUnacceptablePredicate, coerce_unaccpetable_predicate),
     ]
 
 
@@ -497,6 +515,16 @@ def apt_fixers(apt, packaging_context) -> List[BuildFixer]:
     ]
 
 
+def default_fixers(local_tree, subpath, apt, committer=None, update_changelog=None):
+    packaging_context = DebianPackagingContext(
+        local_tree, subpath, committer, update_changelog,
+        commit_reporter=NullCommitReporter()
+    )
+    return versioned_package_fixers(apt.session, packaging_context, apt) + apt_fixers(
+        apt, packaging_context
+    )
+
+
 def build_incrementally(
     local_tree,
     apt,
@@ -510,14 +538,14 @@ def build_incrementally(
     subpath="",
     source_date_epoch=None,
     update_changelog=True,
+    extra_repositories=None,
+    fixers=None
 ):
     fixed_errors = []
-    packaging_context = DebianPackagingContext(
-        local_tree, subpath, committer, update_changelog
-    )
-    fixers = versioned_package_fixers(apt.session, packaging_context, apt) + apt_fixers(
-        apt, packaging_context
-    )
+    if fixers is None:
+        fixers = default_fixers(
+            local_tree, subpath, apt, committer=committer,
+            update_changelog=update_changelog)
     logging.info("Using fixers: %r", fixers)
     while True:
         try:
@@ -530,11 +558,13 @@ def build_incrementally(
                 build_changelog_entry,
                 subpath=subpath,
                 source_date_epoch=source_date_epoch,
+                run_gbp_dch=(update_changelog is False),
+                extra_repositories=extra_repositories,
             )
-        except SbuildFailure as e:
-            if e.error is None:
-                logging.warning("Build failed with unidentified error. Giving up.")
-                raise
+        except UnidentifiedDebianBuildError:
+            logging.warning("Build failed with unidentified error. Giving up.")
+            raise
+        except DetailedDebianBuildFailure as e:
             if e.phase is None:
                 logging.info("No relevant context, not making any changes.")
                 raise
@@ -604,6 +634,11 @@ def main(argv=None):
         help="do not update the changelog",
     )
     parser.add_argument(
+        '--max-iterations',
+        type=int,
+        default=DEFAULT_MAX_ITERATIONS,
+        help='Maximum number of issues to attempt to fix before giving up.')
+    parser.add_argument(
         "--update-changelog",
         action="store_true",
         dest="update_changelog",
@@ -646,7 +681,7 @@ def main(argv=None):
         apt = AptManager(session)
 
         try:
-            (changes_filename, cl_version) = build_incrementally(
+            (changes_filenames, cl_version) = build_incrementally(
                 tree,
                 apt,
                 args.suffix,
@@ -656,23 +691,30 @@ def main(argv=None):
                 None,
                 committer=args.committer,
                 update_changelog=args.update_changelog,
+                max_iterations=args.max_iterations,
             )
-        except SbuildFailure as e:
+        except DetailedDebianBuildFailure as e:
             if e.phase is None:
                 phase = "unknown phase"
             elif len(e.phase) == 1:
                 phase = e.phase[0]
             else:
                 phase = "%s (%s)" % (e.phase[0], e.phase[1])
-            if e.error:
-                logging.fatal("Error during %s: %s", phase, e.error)
+            logging.fatal("Error during %s: %s", phase, e.error)
+            return 1
+        except UnidentifiedDebianBuildError as e:
+            if e.phase is None:
+                phase = "unknown phase"
+            elif len(e.phase) == 1:
+                phase = e.phase[0]
             else:
-                logging.fatal("Error during %s: %s", phase, e.description)
+                phase = "%s (%s)" % (e.phase[0], e.phase[1])
+            logging.fatal("Error during %s: %s", phase, e.description)
             return 1
 
         logging.info(
-            'Built %s - changes file at %s.',
-            os.path.join(output_directory, changes_filename))
+            'Built %s - changes file at %r.',
+            cl_version, changes_filenames)
 
 
 if __name__ == "__main__":

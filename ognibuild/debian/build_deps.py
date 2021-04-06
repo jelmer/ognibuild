@@ -65,9 +65,9 @@ class BuildDependencyTieBreaker(object):
             return None
         top = max(by_count.items(), key=lambda k: k[1])
         logging.info(
-            "Breaking tie between %r to %r based on build-depends count",
-            [repr(r) for r in reqs],
-            top[0],
+            "Breaking tie between [%s] to %s based on build-depends count",
+            ', '.join([repr(r.pkg_relation_str()) for r in reqs]),
+            repr(top[0].pkg_relation_str()),
         )
         return top[0]
 

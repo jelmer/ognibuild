@@ -118,6 +118,11 @@ class Pear(BuildSystem):
 
     name = "pear"
 
+    PEAR_NAMESPACES = [
+        "http://pear.php.net/dtd/package-2.0",
+        "http://pear.php.net/dtd/package-2.1",
+        ]
+
     def __init__(self, path):
         self.path = path
 
@@ -146,10 +151,7 @@ class Pear(BuildSystem):
         try:
             root = xmlparse_simplify_namespaces(
                 path,
-                [
-                    "http://pear.php.net/dtd/package-2.0",
-                    "http://pear.php.net/dtd/package-2.1",
-                ],
+                self.PEAR_NAMESPACES
             )
         except ET.ParseError as e:
             logging.warning("Unable to parse package.xml: %s", e)
@@ -173,9 +175,25 @@ class Pear(BuildSystem):
 
     @classmethod
     def probe(cls, path):
-        if os.path.exists(os.path.join(path, "package.xml")):
-            logging.debug("Found package.xml, assuming pear package.")
-            return cls(os.path.join(path, "package.xml"))
+        package_xml_path = os.path.join(path, "package.xml")
+        if not os.path.exists(package_xml_path):
+            return
+
+        import xml.etree.ElementTree as ET
+        try:
+            tree = ET.iterparse(package_xml_path)
+        except ET.ParseError as e:
+            logging.warning("Unable to parse package.xml: %s", e)
+            return
+
+        if not tree.root:
+            # No root?
+            return
+
+        for ns in cls.PEAR_NAMESPACES:
+            if tree.root.tag == '{%s}package' % ns:
+                logging.debug("Found package.xml with namespace %s, assuming pear package.")
+                return cls(path)
 
 
 # run_setup, but setting __name__
@@ -221,7 +239,6 @@ import sys
 
 script_name = %(script_name)s
 
-save_argv = sys.argv.copy()
 g = {"__file__": script_name, "__name__": "__main__"}
 try:
     core._setup_stop_after = "init"
@@ -522,9 +539,6 @@ class SetupPy(BuildSystem):
         if os.path.exists(os.path.join(path, "setup.py")):
             logging.debug("Found setup.py, assuming python project.")
             return cls(path)
-        if os.path.exists(os.path.join(path, "setup.cfg")):
-            logging.debug("Found setup.py, assuming python project.")
-            return cls(path)
         if os.path.exists(os.path.join(path, "pyproject.toml")):
             logging.debug("Found pyproject.toml, assuming python project.")
             return cls(path)
@@ -713,6 +727,10 @@ class R(BuildSystem):
         if "Imports" in description:
             for s in parse_list(description["Imports"]):
                 yield "build", RPackageRequirement.from_str(s)
+        if "LinkingTo" in description:
+            for s in parse_list(description["LinkingTo"]):
+                yield "build", RPackageRequirement.from_str(s)
+        # TODO(jelmer): Suggests
 
     def get_declared_outputs(self, session, fixers=None):
         description = self._read_description()
@@ -978,12 +996,34 @@ class RunTests(BuildSystem):
 
 def _read_cpanfile(session, args, kind, fixers):
     for line in run_with_build_fixers(session, ["cpanfile-dump"] + args, fixers):
-        yield kind, PerlModuleRequirement(line)
+        line = line.strip()
+        if line:
+            yield kind, PerlModuleRequirement(line)
 
 
 def _declared_deps_from_cpanfile(session, fixers):
     yield from _read_cpanfile(session, ["--configure", "--build"], "build", fixers)
     yield from _read_cpanfile(session, ["--test"], "test", fixers)
+
+
+def _declared_deps_from_meta_yml(f):
+    # See http://module-build.sourceforge.net/META-spec-v1.4.html for
+    # the specification of the format.
+    import ruamel.yaml
+    import ruamel.yaml.reader
+
+    try:
+        data = ruamel.yaml.load(f, ruamel.yaml.SafeLoader)
+    except ruamel.yaml.reader.ReaderError as e:
+        warnings.warn("Unable to parse META.yml: %s" % e)
+        return
+    for require in data.get("requires", []):
+        yield "core", PerlModuleRequirement(require)
+    for require in data.get("build_requires", []):
+        yield "build", PerlModuleRequirement(require)
+    for require in data.get("configure_requires", []):
+        yield "build", PerlModuleRequirement(require)
+    # TODO(jelmer): recommends
 
 
 class Make(BuildSystem):
@@ -1106,20 +1146,9 @@ class Make(BuildSystem):
         something = False
         # TODO(jelmer): Split out the perl-specific stuff?
         if os.path.exists(os.path.join(self.path, "META.yml")):
-            # See http://module-build.sourceforge.net/META-spec-v1.4.html for
-            # the specification of the format.
-            import ruamel.yaml
-            import ruamel.yaml.reader
-
             with open(os.path.join(self.path, "META.yml"), "rb") as f:
-                try:
-                    data = ruamel.yaml.load(f, ruamel.yaml.SafeLoader)
-                except ruamel.yaml.reader.ReaderError as e:
-                    warnings.warn("Unable to parse META.yml: %s" % e)
-                    return
-                for require in data.get("requires", []):
-                    yield "build", PerlModuleRequirement(require)
-                something = True
+                yield from _declared_deps_from_meta_yml(f)
+            something = True
         if os.path.exists(os.path.join(self.path, "cpanfile")):
             yield from _declared_deps_from_cpanfile(session, fixers)
             something = True
@@ -1204,6 +1233,7 @@ def _parse_go_mod(f):
     while line:
         parts = line.strip().split(" ")
         if not parts or parts == [""]:
+            line = readline()
             continue
         if len(parts) == 2 and parts[1] == "(":
             line = readline()
@@ -1393,6 +1423,7 @@ class PerlBuildTiny(BuildSystem):
 
     def __init__(self, path):
         self.path = path
+        self.minilla = os.path.exists(os.path.join(self.path, "minil.toml"))
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
@@ -1402,7 +1433,10 @@ class PerlBuildTiny(BuildSystem):
 
     def test(self, session, resolver, fixers):
         self.setup(session, fixers)
-        run_with_build_fixers(session, ["./Build", "test"], fixers)
+        if self.minilla:
+            run_with_build_fixers(session, ["minil", "test"], fixers)
+        else:
+            run_with_build_fixers(session, ["./Build", "test"], fixers)
 
     def build(self, session, resolver, fixers):
         self.setup(session, fixers)
@@ -1412,9 +1446,45 @@ class PerlBuildTiny(BuildSystem):
         self.setup(session, fixers)
         run_with_build_fixers(session, ["./Build", "clean"], fixers)
 
+    def dist(self, session, resolver, fixers, target_directory, quiet=False):
+        self.setup(session, fixers)
+        with DistCatcher([session.external_path('.')]) as dc:
+            if self.minilla:
+                run_with_build_fixers(session, ["minil", "dist"], fixers)
+            else:
+                try:
+                    run_with_build_fixers(session, ["./Build", "dist"], fixers)
+                except UnidentifiedError as e:
+                    if "Can't find dist packages without a MANIFEST file" in e.lines:
+                        run_with_build_fixers(session, ["./Build", "manifest"], fixers)
+                        run_with_build_fixers(session, ["./Build", "dist"], fixers)
+                    elif "No such action 'dist'" in e.lines:
+                        raise NotImplementedError
+                    else:
+                        raise
+        return dc.copy_single(target_directory)
+
     def install(self, session, resolver, fixers, install_target):
         self.setup(session, fixers)
-        run_with_build_fixers(session, ["./Build", "install"], fixers)
+        if self.minilla:
+            run_with_build_fixers(session, ["minil", "install"], fixers)
+        else:
+            run_with_build_fixers(session, ["./Build", "install"], fixers)
+
+    def get_declared_dependencies(self, session, fixers=None):
+        self.setup(session, fixers)
+        try:
+            run_with_build_fixers(session, ["./Build", "distmeta"], fixers)
+        except UnidentifiedError as e:
+            if "No such action 'distmeta'" in e.lines:
+                pass
+            else:
+                raise
+        try:
+            with open(os.path.join(self.path, 'META.yml'), 'r') as f:
+                yield from _declared_deps_from_meta_yml(f)
+        except FileNotFoundError:
+            pass
 
     @classmethod
     def probe(cls, path):

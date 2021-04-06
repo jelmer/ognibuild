@@ -150,6 +150,10 @@ def main():  # noqa: C901
         external_dir, internal_dir = session.setup_from_directory(args.directory)
         session.chdir(internal_dir)
         os.chdir(external_dir)
+
+        if not session.is_temporary and args.subcommand == 'info':
+            args.explain = True
+
         if args.resolve == "apt":
             resolver = AptResolver.from_session(session)
         elif args.resolve == "native":
@@ -211,7 +215,7 @@ def main():  # noqa: C901
             if args.subcommand == "info":
                 from .info import run_info
 
-                run_info(session, buildsystems=bss)
+                run_info(session, buildsystems=bss, fixers=fixers)
         except ExplainInstall as e:
             display_explain_commands(e.commands)
         except (UnidentifiedError, DetailedFailure):

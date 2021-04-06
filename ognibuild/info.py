@@ -16,12 +16,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 
-def run_info(session, buildsystems):
+def run_info(session, buildsystems, fixers=None):
     for buildsystem in buildsystems:
         print("%r:" % buildsystem)
         deps = {}
         try:
-            for kind, dep in buildsystem.get_declared_dependencies(session):
+            for kind, dep in buildsystem.get_declared_dependencies(session, fixers=fixers):
                 deps.setdefault(kind, []).append(dep)
         except NotImplementedError:
             print(
@@ -35,7 +35,7 @@ def run_info(session, buildsystems):
                     print("\t\t\t%s" % dep)
             print("")
         try:
-            outputs = list(buildsystem.get_declared_outputs(session))
+            outputs = list(buildsystem.get_declared_outputs(session, fixers=fixers))
         except NotImplementedError:
             print("\tUnable to detect declared outputs for this type of build system")
             outputs = []
