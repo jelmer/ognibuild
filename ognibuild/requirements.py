@@ -460,6 +460,18 @@ class LibraryRequirement(Requirement):
         self.library = library
 
 
+
+class StaticLibraryRequirement(Requirement):
+
+    library: str
+    filename: str
+
+    def __init__(self, library: str, filename: str):
+        super(StaticLibraryRequirement, self).__init__("static-lib")
+        self.library = library
+        self.filename = filename
+
+
 class RubyFileRequirement(Requirement):
 
     filename: str

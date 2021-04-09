@@ -47,6 +47,7 @@ from ..requirements import (
     NodeModuleRequirement,
     NodePackageRequirement,
     LibraryRequirement,
+    StaticLibraryRequirement,
     RubyFileRequirement,
     XmlEntityRequirement,
     SprocketsFileRequirement,
@@ -335,6 +336,19 @@ def resolve_vague_dep_req(apt_mgr, req):
         options.append(AptRequirement.simple(vague_map[name], minimum_version=req.minimum_version))
     for x in req.expand():
         options.extend(resolve_requirement_apt(apt_mgr, x))
+    # Try even harder
+    if not options:
+        options.extend(find_reqs_simple(
+            apt_mgr,
+            [
+                posixpath.join("/usr/lib", ".*", "pkgconfig", re.escape(req.module) + ".*\\.pc"),
+                posixpath.join("/usr/lib/pkgconfig", re.escape(req.module) + "-.*\\.pc")
+            ],
+            regex=True,
+            case_insensitive=True,
+            minimum_version=req.minimum_version
+        ))
+
     return options
 
 
@@ -465,6 +479,14 @@ def resolve_library_req(apt_mgr, req):
         posixpath.join("/usr/lib/.*/lib%s.so$" % re.escape(req.library)),
         posixpath.join("/usr/lib/lib%s.a$" % re.escape(req.library)),
         posixpath.join("/usr/lib/.*/lib%s.a$" % re.escape(req.library)),
+    ]
+    return find_reqs_simple(apt_mgr, paths, regex=True)
+
+
+def resolve_static_library_req(apt_mgr, req):
+    paths = [
+        posixpath.join("/usr/lib/%s$" % re.escape(req.filename)),
+        posixpath.join("/usr/lib/.*/%s$" % re.escape(req.filename)),
     ]
     return find_reqs_simple(apt_mgr, paths, regex=True)
 
@@ -697,6 +719,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (NodeModuleRequirement, resolve_node_module_req),
     (NodePackageRequirement, resolve_node_package_req),
     (LibraryRequirement, resolve_library_req),
+    (StaticLibraryRequirement, resolve_static_library_req),
     (RubyFileRequirement, resolve_ruby_file_req),
     (XmlEntityRequirement, resolve_xml_entity_req),
     (SprocketsFileRequirement, resolve_sprockets_file_req),

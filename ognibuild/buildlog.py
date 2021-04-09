@@ -64,6 +64,7 @@ from buildlog_consultant.common import (
     MissingPerlPredeclared,
     MissingLatexFile,
     MissingCargoCrate,
+    MissingStaticLibrary,
 )
 from buildlog_consultant.apt import UnsatisfiedAptDependencies
 
@@ -108,6 +109,7 @@ from .requirements import (
     PerlPreDeclaredRequirement,
     LatexPackageRequirement,
     CargoCrateRequirement,
+    StaticLibraryRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -139,6 +141,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return RPackageRequirement(problem.package, problem.minimum_version)
     elif isinstance(problem, MissingNodeModule):
         return NodeModuleRequirement(problem.module)
+    elif isinstance(problem, MissingStaticLibrary):
+        return StaticLibraryRequirement(problem.library, problem.filename)
     elif isinstance(problem, MissingNodePackage):
         return NodePackageRequirement(problem.package)
     elif isinstance(problem, MissingLatexFile):
