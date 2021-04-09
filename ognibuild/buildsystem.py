@@ -764,7 +764,12 @@ class Meson(BuildSystem):
     def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self._setup(session, fixers)
         with DistCatcher([session.external_path("build/meson-dist")]) as dc:
-            run_with_build_fixers(session, ["ninja", "-C", "build", "dist"], fixers)
+            try:
+                run_with_build_fixers(session, ["ninja", "-C", "build", "dist"], fixers)
+            except UnidentifiedError as e:
+                if "ninja: error: unknown target 'dist', did you mean 'dino'?" in e.lines:
+                    raise NotImplementedError
+                raise
         return dc.copy_single(target_directory)
 
     def test(self, session, resolver, fixers):
