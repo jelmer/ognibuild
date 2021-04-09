@@ -1079,44 +1079,57 @@ class Make(BuildSystem):
 
     def build(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
-        run_with_build_fixers(session, ["make", "all"], fixers)
+        self._run_make(session, ["all"], fixers)
 
     def clean(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
-        run_with_build_fixers(session, ["make", "clean"], fixers)
+        self._run_make(session, ["clean"], fixers)
+
+    def _run_make(self, session, args, fixers):
+        try:
+            run_with_build_fixers(session, ["make"] + args, fixers)
+        except UnidentifiedError as e:
+            if len(e.lines) < 5 and any([line.startswith("Run ./configure") for line in e.lines]):
+                run_with_build_fixers(session, ["./configure"], fixers)
+                run_with_build_fixers(session, ["make"] + args, fixers)
+            elif (
+                "Reconfigure the source tree "
+                "(via './config' or 'perl Configure'), please."
+            ) in e.lines:
+                run_with_build_fixers(session, ["./config"], fixers)
+                run_with_build_fixers(session, ["make"] + args, fixers)
+            elif "Please run ./configure first" in e.lines:
+                run_with_build_fixers(session, ["./configure"], fixers)
+                run_with_build_fixers(session, ["make"] + args, fixers)
+            else:
+                raise
+
 
     def test(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
-        run_with_build_fixers(session, ["make", "check"], fixers)
+        self._run_make(session, ["check"], fixers)
 
     def install(self, session, resolver, fixers, install_target):
         self.setup(session, resolver, fixers)
-        run_with_build_fixers(session, ["make", "install"], fixers)
+        self._run_make(session, ["install"], fixers)
 
     def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(session, resolver, fixers)
         with DistCatcher.default(session.external_path(".")) as dc:
             try:
-                run_with_build_fixers(session, ["make", "dist"], fixers)
+                self._run_make(session, ["dist"], fixers)
             except UnidentifiedError as e:
                 if "make: *** No rule to make target 'dist'.  Stop." in e.lines:
                     raise NotImplementedError
                 elif "make[1]: *** No rule to make target 'dist'. Stop." in e.lines:
                     raise NotImplementedError
-                elif (
-                    "Reconfigure the source tree "
-                    "(via './config' or 'perl Configure'), please."
-                ) in e.lines:
-                    run_with_build_fixers(session, ["./config"], fixers)
-                    run_with_build_fixers(session, ["make", "dist"], fixers)
+                elif "ninja: error: unknown target 'dist', did you mean 'dino'?" in e.lines:
+                    raise NotImplementedError
                 elif (
                     "Please try running 'make manifest' and then run "
                     "'make dist' again." in e.lines
                 ):
                     run_with_build_fixers(session, ["make", "manifest"], fixers)
-                    run_with_build_fixers(session, ["make", "dist"], fixers)
-                elif "Please run ./configure first" in e.lines:
-                    run_with_build_fixers(session, ["./configure"], fixers)
                     run_with_build_fixers(session, ["make", "dist"], fixers)
                 elif any(
                     [
