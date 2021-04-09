@@ -341,7 +341,7 @@ def resolve_vague_dep_req(apt_mgr, req):
         options.extend(find_reqs_simple(
             apt_mgr,
             [
-                posixpath.join("/usr/lib", ".*", "pkgconfig", re.escape(req.name) + ".*\\.pc"),
+                posixpath.join("/usr/lib", ".*", "pkgconfig", re.escape(req.name) + "-.*\\.pc"),
                 posixpath.join("/usr/lib/pkgconfig", re.escape(req.name) + "-.*\\.pc")
             ],
             regex=True,
