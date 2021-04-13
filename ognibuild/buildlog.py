@@ -189,7 +189,11 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
     elif isinstance(problem, UnknownCertificateAuthority):
         return CertificateAuthorityRequirement(problem.url)
     elif isinstance(problem, MissingPerlPredeclared):
-        return PerlPreDeclaredRequirement(problem.name)
+        ret = PerlPreDeclaredRequirement(problem.name)
+        try:
+            return ret.lookup_module()
+        except KeyError:
+            return ret
     elif isinstance(problem, MissingCargoCrate):
         # TODO(jelmer): handle problem.requirements
         return CargoCrateRequirement(problem.crate)
