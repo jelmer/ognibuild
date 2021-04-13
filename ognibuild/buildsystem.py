@@ -24,7 +24,7 @@ import shlex
 from typing import Optional, Tuple
 import warnings
 
-from . import shebang_binary, UnidentifiedError
+from . import shebang_binary, UnidentifiedError, DetailedFailure
 from .dist_catcher import DistCatcher
 from .outputs import (
     BinaryOutput,
@@ -44,7 +44,7 @@ from .requirements import (
     GoRequirement,
     GoPackageRequirement,
 )
-from .fix_build import run_with_build_fixers
+from .fix_build import run_with_build_fixers, find_build_failure_description
 from .session import which
 
 
@@ -1468,7 +1468,14 @@ class PerlBuildTiny(BuildSystem):
         self.setup(session, fixers)
         with DistCatcher([session.external_path('.')]) as dc:
             if self.minilla:
-                run_with_build_fixers(session, ["minil", "dist"], fixers)
+                lines = run_with_build_fixers(session, ["minil", "dist"], fixers)
+                # minil seems to return 0 even if it didn't produce a tarball :(
+                if not dc.find_files():
+                    match, error = find_build_failure_description(lines)
+                    if error:
+                        raise DetailedFailure(0, ["minil", "dist"], error)
+                    else:
+                        raise UnidentifiedError(0, ["minil", "dist"], lines, match)
             else:
                 try:
                     run_with_build_fixers(session, ["./Build", "dist"], fixers)
