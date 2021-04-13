@@ -1468,14 +1468,10 @@ class PerlBuildTiny(BuildSystem):
         self.setup(session, fixers)
         with DistCatcher([session.external_path('.')]) as dc:
             if self.minilla:
-                lines = run_with_build_fixers(session, ["minil", "dist"], fixers)
                 # minil seems to return 0 even if it didn't produce a tarball :(
-                if not dc.find_files():
-                    match, error = find_build_failure_description(lines)
-                    if error:
-                        raise DetailedFailure(0, ["minil", "dist"], error)
-                    else:
-                        raise UnidentifiedError(0, ["minil", "dist"], lines, match)
+                run_with_build_fixers(
+                    session, ["minil", "dist"], fixers,
+                    check_success=lambda retcode, lines: bool(dc.find_files()))
             else:
                 try:
                     run_with_build_fixers(session, ["./Build", "dist"], fixers)
