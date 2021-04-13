@@ -608,18 +608,22 @@ def resolve_libtool_req(apt_mgr, req):
 
 
 def resolve_perl_module_req(apt_mgr, req):
-    DEFAULT_PERL_PATHS = ["/usr/share/perl5"]
+    DEFAULT_PERL_PATHS = ["/usr/share/perl5", "/usr/lib/.*/perl5/.*"]
 
     if req.inc is None:
         if req.filename is None:
-            paths = [posixpath.join(inc, req.relfilename) for inc in DEFAULT_PERL_PATHS]
+            paths = [posixpath.join(inc, re.escape(req.module.replace('::', '/') + '.pm')) for inc in DEFAULT_PERL_PATHS]
+            regex = True
         elif not posixpath.isabs(req.filename):
-            return False
+            paths = [posixpath.join(inc, re.escape(req.filename)) for inc in DEFAULT_PERL_PATHS]
+            regex = True
         else:
             paths = [req.filename]
+            regex = False
     else:
+        regex = False
         paths = [posixpath.join(inc, req.filename) for inc in req.inc]
-    return find_reqs_simple(apt_mgr, paths, regex=False)
+    return find_reqs_simple(apt_mgr, paths, regex=regex)
 
 
 def resolve_perl_file_req(apt_mgr, req):
