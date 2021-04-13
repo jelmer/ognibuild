@@ -24,7 +24,7 @@ import shlex
 from typing import Optional, Tuple
 import warnings
 
-from . import shebang_binary, UnidentifiedError, DetailedFailure
+from . import shebang_binary, UnidentifiedError
 from .dist_catcher import DistCatcher
 from .outputs import (
     BinaryOutput,
@@ -1495,7 +1495,7 @@ class PerlBuildTiny(BuildSystem):
     def get_declared_dependencies(self, session, fixers=None):
         self.setup(session, fixers)
         if self.minilla:
-            pass # Minilla doesn't seem to have a way to just regenerate the metadata :(
+            pass  # Minilla doesn't seem to have a way to just regenerate the metadata :(
         else:
             try:
                 run_with_build_fixers(session, ["./Build", "distmeta"], fixers)
