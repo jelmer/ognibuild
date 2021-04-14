@@ -690,3 +690,12 @@ class PythonModuleRequirement(Requirement):
         return "%s(%r, python_version=%r, minimum_version=%r)" % (
             type(self).__name__, self.module, self.python_version,
             self.minimum_version)
+
+
+class BoostComponentRequirement(Requirement):
+
+    name: str
+
+    def __init__(self, name):
+        super(BoostComponentRequirement, self).__init__("boost-component")
+        self.name = name

@@ -47,6 +47,7 @@ from ..requirements import (
     NodeModuleRequirement,
     NodePackageRequirement,
     LibraryRequirement,
+    BoostComponentRequirement,
     StaticLibraryRequirement,
     RubyFileRequirement,
     XmlEntityRequirement,
@@ -703,6 +704,12 @@ def resolve_apt_req(apt_mgr, req):
     return [req]
 
 
+def resolve_boost_component_req(apt_mgr, req):
+    return find_reqs_simple(
+        apt_mgr, ["/usr/lib/.*/libboost_%s" % re.escape(req.name)],
+        regex=True)
+
+
 APT_REQUIREMENT_RESOLVERS = [
     (AptRequirement, resolve_apt_req),
     (BinaryRequirement, resolve_binary_req),
@@ -746,6 +753,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (CertificateAuthorityRequirement, resolve_ca_req),
     (CargoCrateRequirement, resolve_cargo_crate_req),
     (IntrospectionTypelibRequirement, resolve_introspection_typelib_req),
+    (BoostComponentRequirement, resolve_boost_component_req),
 ]
 
 

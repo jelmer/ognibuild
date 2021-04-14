@@ -48,6 +48,7 @@ from buildlog_consultant.common import (
     MissingRubyFile,
     MissingAutoconfMacro,
     MissingValaPackage,
+    MissingBoostComponents,
     MissingXfceDependency,
     MissingHaskellDependencies,
     MissingVagueDependency,
@@ -90,6 +91,7 @@ from .requirements import (
     CMakefileRequirement,
     HaskellPackageRequirement,
     MavenArtifactRequirement,
+    BoostComponentRequirement,
     GnomeCommonRequirement,
     JDKFileRequirement,
     JDKRequirement,
@@ -133,6 +135,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return ValaPackageRequirement(problem.package)
     elif isinstance(problem, MissingGoPackage):
         return GoPackageRequirement(problem.package)
+    elif isinstance(problem, MissingBoostComponents):
+        return [BoostComponentRequirement(name) for name in problem.components]
     elif isinstance(problem, DhAddonLoadFailure):
         return DhAddonRequirement(problem.path)
     elif isinstance(problem, MissingPhpClass):
