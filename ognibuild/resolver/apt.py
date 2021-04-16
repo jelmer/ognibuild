@@ -608,7 +608,7 @@ def resolve_libtool_req(apt_mgr, req):
 
 
 def resolve_perl_module_req(apt_mgr, req):
-    DEFAULT_PERL_PATHS = ["/usr/share/perl5", "/usr/lib/.*/perl5/.*"]
+    DEFAULT_PERL_PATHS = ["/usr/share/perl5", "/usr/lib/.*/perl5/.*", "/usr/lib/.*/perl-base"]
 
     if req.inc is None:
         if req.filename is None:

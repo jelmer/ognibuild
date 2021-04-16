@@ -1033,10 +1033,17 @@ def _declared_deps_from_meta_yml(f):
 
 class Make(BuildSystem):
 
-    name = "make"
-
     def __init__(self, path):
         self.path = path
+        if os.path.exists(os.path.join(path, 'Makefile.PL')):
+            self.name = 'makefile.pl'
+        elif os.path.exists(os.path.join(path, 'Makefile.am')):
+            self.name = 'automake'
+        elif any([os.path.exists(os.path.join(path, n))
+                 for n in ['configure.ac', 'configure.in', 'autogen.sh']]):
+            self.name = 'autoconf'
+        else:
+            self.name = "make"
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
@@ -1103,7 +1110,6 @@ class Make(BuildSystem):
                 run_with_build_fixers(session, ["make"] + args, fixers)
             else:
                 raise
-
 
     def test(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
@@ -1502,6 +1508,8 @@ class PerlBuildTiny(BuildSystem):
             except UnidentifiedError as e:
                 if "No such action 'distmeta'" in e.lines:
                     pass
+                if "Do not run distmeta. Install Minilla and `minil install` instead." in e.lines:
+                    self.minilla = True
                 else:
                     raise
         try:

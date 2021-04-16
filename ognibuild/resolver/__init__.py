@@ -18,7 +18,7 @@
 
 import logging
 import subprocess
-from .. import UnidentifiedError 
+from .. import UnidentifiedError
 from ..fix_build import run_detecting_problems
 
 
