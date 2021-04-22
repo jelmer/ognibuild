@@ -213,10 +213,12 @@ class PerlPreDeclaredRequirement(Requirement):
     KNOWN_MODULES = {
         'auto_set_repository': 'Module::Install::Repository',
         'author_tests': 'Module::Install::AuthorTests',
+        'author_requires': 'Module::Install::AuthorRequires',
         'readme_from': 'Module::Install::ReadmeFromPod',
         'catalyst': 'Module::Install::Catalyst',
         'githubmeta': 'Module::Install::GithubMeta',
         'use_ppport': 'Module::Install::XSUtil',
+        'pod_from': 'Module::Install::PodFromEuclid',
         }
 
     def __init__(self, name):

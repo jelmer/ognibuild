@@ -1373,10 +1373,11 @@ class Maven(BuildSystem):
         deps_tag = root.find("dependencies")
         if deps_tag:
             for dep in deps_tag.findall("dependency"):
+                version_tag = dep.find("version")
                 yield "core", MavenArtifactRequirement(
                     dep.find("groupId").text,
                     dep.find("artifactId").text,
-                    dep.find("version").text,
+                    version_tag.text if version_tag else None,
                 )
 
 
