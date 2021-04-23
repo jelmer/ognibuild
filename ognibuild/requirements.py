@@ -219,6 +219,10 @@ class PerlPreDeclaredRequirement(Requirement):
         'githubmeta': 'Module::Install::GithubMeta',
         'use_ppport': 'Module::Install::XSUtil',
         'pod_from': 'Module::Install::PodFromEuclid',
+        'write_doap_changes': 'Module::Install::DOAPChangeSets',
+        'use_test_base': 'Module::Install::TestBase',
+        'jsonmeta': 'Module::Install::JSONMETA',
+        'extra_tests': 'Module::Install::ExtraTests',
         }
 
     def __init__(self, name):
