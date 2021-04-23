@@ -1022,11 +1022,11 @@ def _declared_deps_from_meta_yml(f):
     except ruamel.yaml.reader.ReaderError as e:
         warnings.warn("Unable to parse META.yml: %s" % e)
         return
-    for require in data.get("requires", []):
+    for require in data.get("requires", None) or []:
         yield "core", PerlModuleRequirement(require)
-    for require in data.get("build_requires", []):
+    for require in data.get("build_requires", None) or []:
         yield "build", PerlModuleRequirement(require)
-    for require in data.get("configure_requires", []):
+    for require in data.get("configure_requires", None) or []:
         yield "build", PerlModuleRequirement(require)
     # TODO(jelmer): recommends
 
