@@ -213,6 +213,7 @@ class PerlPreDeclaredRequirement(Requirement):
     KNOWN_MODULES = {
         'auto_set_repository': 'Module::Install::Repository',
         'author_tests': 'Module::Install::AuthorTests',
+        'recursive_author_tests': 'Module::Install::AuthorTests',
         'author_requires': 'Module::Install::AuthorRequires',
         'readme_from': 'Module::Install::ReadmeFromPod',
         'catalyst': 'Module::Install::Catalyst',
@@ -223,6 +224,7 @@ class PerlPreDeclaredRequirement(Requirement):
         'use_test_base': 'Module::Install::TestBase',
         'jsonmeta': 'Module::Install::JSONMETA',
         'extra_tests': 'Module::Install::ExtraTests',
+        'auto_set_bugtracker': 'Module::Install::Bugtracker',
         }
 
     def __init__(self, name):
