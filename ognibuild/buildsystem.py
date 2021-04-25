@@ -544,6 +544,35 @@ class SetupPy(BuildSystem):
             return cls(path)
 
 
+class Bazel(BuildSystem):
+
+    name = "bazel"
+
+    def __init__(self, path):
+        self.path = path
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
+    @classmethod
+    def exists(cls, path):
+        if not os.path.exists(os.path.join(path, "BUILD")):
+            return False
+        return True
+
+    @classmethod
+    def probe(cls, path):
+        if cls.exists(path):
+            logging.debug("Found BUILD, assuming bazel package.")
+            return cls(path)
+
+    def build(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["bazel", "build", "//..."], fixers)
+
+    def test(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["bazel", "test", "//..."], fixers)
+
+
 class Octave(BuildSystem):
 
     name = "octave"
@@ -1542,6 +1571,7 @@ BUILDSYSTEM_CLSES = [
     Golang,
     R,
     Octave,
+    Bazel,
     # Make is intentionally at the end of the list.
     Make,
     Composer,
