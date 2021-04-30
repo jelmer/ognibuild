@@ -180,7 +180,6 @@ def python_spec_to_apt_rels(pkg_name, specs):
     else:
         rels = []
         for spec in specs:
-            deb_version = Version(spec[1])
             if spec[0] == "~=":
                 # PEP 440: For a given release identifier V.N , the compatible
                 # release clause is approximately equivalent to the pair of
@@ -189,32 +188,26 @@ def python_spec_to_apt_rels(pkg_name, specs):
                 parts.pop(-1)
                 parts[-1] = str(int(parts[-1]) + 1)
                 next_maj_deb_version = Version(".".join(parts))
+                deb_version = Version(spec[1])
                 rels.extend(
-                    [
-                        {"name": pkg_name, "version": (">=", deb_version)},
-                        {"name": pkg_name, "version": ("<<", next_maj_deb_version)},
-                    ]
-                )
+                    [[{"name": pkg_name, "version": (">=", deb_version)}],
+                     [{"name": pkg_name, "version": ("<<", next_maj_deb_version)}]])
             elif spec[0] == "!=":
-                rels.extend(
-                    [
-                        {"name": pkg_name, "version": (">>", deb_version)},
-                        {"name": pkg_name, "version": ("<<", deb_version)},
-                    ]
-                )
+                deb_version = Version(spec[1])
+                rels.extend([
+                    [{"name": pkg_name, "version": (">>", deb_version)}],
+                    [{"name": pkg_name, "version": ("<<", deb_version)}]])
             elif spec[1].endswith(".*") and spec[0] == "==":
                 s = spec[1].split(".")
                 s.pop(-1)
                 n = list(s)
                 n[-1] = str(int(n[-1]) + 1)
                 rels.extend(
-                    [
-                        {"name": pkg_name, "version": (">=", Version(".".join(s)))},
-                        {"name": pkg_name, "version": ("<<", Version(".".join(n)))},
-                    ]
-                )
+                    [[{"name": pkg_name, "version": (">=", Version(".".join(s)))}],
+                     [{"name": pkg_name, "version": ("<<", Version(".".join(n)))}]])
             else:
                 c = {">=": ">=", "<=": "<=", "<": "<<", ">": ">>", "==": "="}[spec[0]]
+                deb_version = Version(spec[1])
                 rels.append([{"name": pkg_name, "version": (c, deb_version)}])
         return rels
 
