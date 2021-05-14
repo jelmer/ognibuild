@@ -44,7 +44,7 @@ from .requirements import (
     GoRequirement,
     GoPackageRequirement,
 )
-from .fix_build import run_with_build_fixers, find_build_failure_description
+from .fix_build import run_with_build_fixers
 from .session import which
 
 
@@ -63,6 +63,8 @@ class InstallTarget(object):
 
     # Whether to prefer user-specific installation
     user: Optional[bool]
+
+    prefix: Optional[str]
 
     # TODO(jelmer): Add information about target directory, layout, etc.
 
@@ -445,6 +447,8 @@ class SetupPy(BuildSystem):
             extra_args = []
             if install_target.user:
                 extra_args.append("--user")
+            if install_target.prefix:
+                extra_args.append("--prefix=%s" % install_target.prefix)
             self._run_setup(session, resolver, ["install"] + extra_args, fixers)
         else:
             raise NotImplementedError
@@ -721,6 +725,7 @@ class R(BuildSystem):
         return dc.copy_single(target_directory)
 
     def install(self, session, resolver, fixers, install_target):
+        extra_args.append("--prefix=%s" % install_target.prefix)
         r_path = guaranteed_which(session, resolver, "R")
         run_with_build_fixers(session, [r_path, "CMD", "INSTALL", "."], fixers)
 
@@ -1078,7 +1083,7 @@ class Make(BuildSystem):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
 
-    def setup(self, session, resolver, fixers):
+    def setup(self, session, resolver, fixers, prefix=None):
         def makefile_exists():
             return any(
                 [session.exists(p) for p in ["Makefile", "GNUmakefile", "makefile"]]
@@ -1107,7 +1112,10 @@ class Make(BuildSystem):
                 run_with_build_fixers(session, ["autoreconf", "-i"], fixers)
 
         if not makefile_exists() and session.exists("configure"):
-            run_with_build_fixers(session, ["./configure"], fixers)
+            extra_args = []
+            if prefix is not None:
+                extra_args.append('--prefix=%s' % prefix)
+            run_with_build_fixers(session, ["./configure"] + extra_args, fixers)
 
         if not makefile_exists() and any(
             [n.name.endswith(".pro") for n in session.scandir(".")]
@@ -1122,21 +1130,31 @@ class Make(BuildSystem):
         self.setup(session, resolver, fixers)
         self._run_make(session, ["clean"], fixers)
 
-    def _run_make(self, session, args, fixers):
+    def _run_make(self, session, args, fixers, prefix=None):
+        def _wants_configure(line):
+            if line.startswith("Run ./configure"):
+                return True
+            if line == "Please run ./configure first":
+                return True
+            if line.startswith("Project not configured"):
+                return True
+            if line.startswith("The project was not configured"):
+                return True
+            return False
         try:
             run_with_build_fixers(session, ["make"] + args, fixers)
         except UnidentifiedError as e:
-            if len(e.lines) < 5 and any([line.startswith("Run ./configure") for line in e.lines]):
-                run_with_build_fixers(session, ["./configure"], fixers)
+            if len(e.lines) < 5 and any([_wants_configure(line) for line in e.lines]):
+                extra_args = []
+                if prefix is not None:
+                    extra_args.append("--prefix=%s" % prefix)
+                run_with_build_fixers(session, ["./configure"] + extra_args, fixers)
                 run_with_build_fixers(session, ["make"] + args, fixers)
             elif (
                 "Reconfigure the source tree "
                 "(via './config' or 'perl Configure'), please."
             ) in e.lines:
                 run_with_build_fixers(session, ["./config"], fixers)
-                run_with_build_fixers(session, ["make"] + args, fixers)
-            elif "Please run ./configure first" in e.lines:
-                run_with_build_fixers(session, ["./configure"], fixers)
                 run_with_build_fixers(session, ["make"] + args, fixers)
             else:
                 raise
@@ -1146,8 +1164,8 @@ class Make(BuildSystem):
         self._run_make(session, ["check"], fixers)
 
     def install(self, session, resolver, fixers, install_target):
-        self.setup(session, resolver, fixers)
-        self._run_make(session, ["install"], fixers)
+        self.setup(session, resolver, fixers, prefix=install_target.prefix)
+        self._run_make(session, ["install"], fixers, prefix=install_target.prefix)
 
     def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(session, resolver, fixers)

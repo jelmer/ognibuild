@@ -472,7 +472,6 @@ class LibraryRequirement(Requirement):
         self.library = library
 
 
-
 class StaticLibraryRequirement(Requirement):
 
     library: str

@@ -136,6 +136,8 @@ def main():  # noqa: C901
     install_parser.add_argument(
         "--user", action="store_true", help="Install in local-user directories."
     )
+    install_parser.add_argument(
+        "--prefix", type=str, help='Prefix to install in')
 
     args = parser.parse_args()
     if not args.subcommand:
@@ -219,6 +221,7 @@ def main():  # noqa: C901
                     resolver=resolver,
                     fixers=fixers,
                     user=args.user,
+                    prefix=args.prefix,
                 )
             if args.subcommand == "test":
                 from .test import run_test
