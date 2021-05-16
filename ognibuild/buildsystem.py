@@ -463,7 +463,8 @@ class SetupPy(BuildSystem):
         if interpreter is None:
             interpreter = self.DEFAULT_PYTHON
         argv = [interpreter, "./setup.py"] + args
-        env = {}
+        # TODO(jelmer): Perhaps this should be additive?
+        env = dict(os.environ)
         # Inherit SETUPTOOLS_SCM_PRETEND_VERSION from the current environment
         if "SETUPTOOLS_SCM_PRETEND_VERSION" in os.environ:
             env["SETUPTOOLS_SCM_PRETEND_VERSION"] = os.environ[
