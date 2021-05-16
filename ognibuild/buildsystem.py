@@ -1126,7 +1126,8 @@ class Make(BuildSystem):
             run_with_build_fixers(session, ["qmake"], fixers)
 
         if not makefile_exists() and session.exists('CMakeLists.txt'):
-            session.mkdir('build')
+            if not session.exists("build"):
+                session.mkdir('build')
             run_with_build_fixers(session, ["cmake", '..'], fixers, cwd='build')
 
     def build(self, session, resolver, fixers):
