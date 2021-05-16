@@ -16,15 +16,17 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 from .buildsystem import NoBuildToolsFound, InstallTarget
+from typing import Optional
 
 
-def run_install(session, buildsystems, resolver, fixers, user: bool = False):
+def run_install(session, buildsystems, resolver, fixers, user: bool = False, prefix: Optional[str] = None):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
     install_target = InstallTarget()
     install_target.user = user
+    install_target.prefix = prefix
 
     for buildsystem in buildsystems:
         buildsystem.install(session, resolver, fixers, install_target)

@@ -433,7 +433,7 @@ def fix_missing_makefile_pl(error, phase, context):
     return False
 
 
-def coerce_unaccpetable_predicate(error, phase, context):
+def coerce_unacceptable_predicate(error, phase, context):
     from debmutate.debcargo import DebcargoEditor
     with DebcargoEditor(context.abspath('debian/debcargo.toml')) as editor:
         editor['allow_prerelease_deps'] = True
@@ -492,7 +492,7 @@ def versioned_package_fixers(session, packaging_context, apt):
             packaging_context, MissingConfigStatusInput, fix_missing_config_status_input
         ),
         SimpleBuildFixer(packaging_context, MissingPerlFile, fix_missing_makefile_pl),
-        SimpleBuildFixer(packaging_context, DebcargoUnacceptablePredicate, coerce_unaccpetable_predicate),
+        SimpleBuildFixer(packaging_context, DebcargoUnacceptablePredicate, coerce_unacceptable_predicate),
     ]
 
 

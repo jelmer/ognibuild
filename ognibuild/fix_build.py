@@ -44,14 +44,17 @@ class BuildFixer(object):
         return self._fix(problem, phase)
 
 
-def run_detecting_problems(session: Session, args: List[str], **kwargs):
+def run_detecting_problems(session: Session, args: List[str], check_success=None, **kwargs):
+    if check_success is None:
+        def check_success(retcode, contents):
+            return (retcode == 0)
     try:
         retcode, contents = run_with_tee(session, args, **kwargs)
     except FileNotFoundError:
         error = MissingCommand(args[0])
         retcode = 1
     else:
-        if retcode == 0:
+        if check_success(retcode, contents):
             return contents
         lines = "".join(contents).splitlines(False)
         match, error = find_build_failure_description(lines)

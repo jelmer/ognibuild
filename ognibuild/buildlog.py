@@ -48,6 +48,7 @@ from buildlog_consultant.common import (
     MissingRubyFile,
     MissingAutoconfMacro,
     MissingValaPackage,
+    MissingBoostComponents,
     MissingXfceDependency,
     MissingHaskellDependencies,
     MissingVagueDependency,
@@ -64,6 +65,7 @@ from buildlog_consultant.common import (
     MissingPerlPredeclared,
     MissingLatexFile,
     MissingCargoCrate,
+    MissingStaticLibrary,
 )
 from buildlog_consultant.apt import UnsatisfiedAptDependencies
 
@@ -89,6 +91,7 @@ from .requirements import (
     CMakefileRequirement,
     HaskellPackageRequirement,
     MavenArtifactRequirement,
+    BoostComponentRequirement,
     GnomeCommonRequirement,
     JDKFileRequirement,
     JDKRequirement,
@@ -108,6 +111,7 @@ from .requirements import (
     PerlPreDeclaredRequirement,
     LatexPackageRequirement,
     CargoCrateRequirement,
+    StaticLibraryRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -131,6 +135,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return ValaPackageRequirement(problem.package)
     elif isinstance(problem, MissingGoPackage):
         return GoPackageRequirement(problem.package)
+    elif isinstance(problem, MissingBoostComponents):
+        return [BoostComponentRequirement(name) for name in problem.components]
     elif isinstance(problem, DhAddonLoadFailure):
         return DhAddonRequirement(problem.path)
     elif isinstance(problem, MissingPhpClass):
@@ -139,6 +145,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return RPackageRequirement(problem.package, problem.minimum_version)
     elif isinstance(problem, MissingNodeModule):
         return NodeModuleRequirement(problem.module)
+    elif isinstance(problem, MissingStaticLibrary):
+        return StaticLibraryRequirement(problem.library, problem.filename)
     elif isinstance(problem, MissingNodePackage):
         return NodePackageRequirement(problem.package)
     elif isinstance(problem, MissingLatexFile):
@@ -185,7 +193,11 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
     elif isinstance(problem, UnknownCertificateAuthority):
         return CertificateAuthorityRequirement(problem.url)
     elif isinstance(problem, MissingPerlPredeclared):
-        return PerlPreDeclaredRequirement(problem.name)
+        ret = PerlPreDeclaredRequirement(problem.name)
+        try:
+            return ret.lookup_module()
+        except KeyError:
+            return ret
     elif isinstance(problem, MissingCargoCrate):
         # TODO(jelmer): handle problem.requirements
         return CargoCrateRequirement(problem.crate)
