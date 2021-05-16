@@ -11,7 +11,8 @@ Build-Depends: debhelper-compat (= 12),
                python3-debmutate,
                python3-lz4,
                python3-setuptools,
-               brz-debian
+               brz-debian,
+               python3-dulwich (>= 0.19.12)
 Source: ognibuild
 Priority: optional
 Section: devel
