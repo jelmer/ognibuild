@@ -177,7 +177,11 @@ class VagueDependencyRequirement(Requirement):
             from .resolver.apt import AptRequirement
 
             yield AptRequirement.simple(self.name.lower(), minimum_version=self.minimum_version)
-            yield AptRequirement.simple('lib%s-dev' % self.name.lower(), minimum_version=self.minimum_version)
+            if self.name.lower().startswith('lib'):
+                devname = '%s-dev' % self.name.lower()
+            else:
+                devname = 'lib%s-dev' % self.name.lower()
+            yield AptRequirement.simple(devname, minimum_version=self.minimum_version)
 
     def met(self, session):
         for x in self.expand():
@@ -209,10 +213,18 @@ class PerlPreDeclaredRequirement(Requirement):
     KNOWN_MODULES = {
         'auto_set_repository': 'Module::Install::Repository',
         'author_tests': 'Module::Install::AuthorTests',
+        'recursive_author_tests': 'Module::Install::AuthorTests',
+        'author_requires': 'Module::Install::AuthorRequires',
         'readme_from': 'Module::Install::ReadmeFromPod',
         'catalyst': 'Module::Install::Catalyst',
         'githubmeta': 'Module::Install::GithubMeta',
         'use_ppport': 'Module::Install::XSUtil',
+        'pod_from': 'Module::Install::PodFromEuclid',
+        'write_doap_changes': 'Module::Install::DOAPChangeSets',
+        'use_test_base': 'Module::Install::TestBase',
+        'jsonmeta': 'Module::Install::JSONMETA',
+        'extra_tests': 'Module::Install::ExtraTests',
+        'auto_set_bugtracker': 'Module::Install::Bugtracker',
         }
 
     def __init__(self, name):
@@ -460,6 +472,17 @@ class LibraryRequirement(Requirement):
         self.library = library
 
 
+class StaticLibraryRequirement(Requirement):
+
+    library: str
+    filename: str
+
+    def __init__(self, library: str, filename: str):
+        super(StaticLibraryRequirement, self).__init__("static-lib")
+        self.library = library
+        self.filename = filename
+
+
 class RubyFileRequirement(Requirement):
 
     filename: str
@@ -674,3 +697,12 @@ class PythonModuleRequirement(Requirement):
         return "%s(%r, python_version=%r, minimum_version=%r)" % (
             type(self).__name__, self.module, self.python_version,
             self.minimum_version)
+
+
+class BoostComponentRequirement(Requirement):
+
+    name: str
+
+    def __init__(self, name):
+        super(BoostComponentRequirement, self).__init__("boost-component")
+        self.name = name

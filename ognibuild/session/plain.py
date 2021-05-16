@@ -97,6 +97,9 @@ class PlainSession(Session):
     def chdir(self, path):
         os.chdir(path)
 
+    def mkdir(self, path):
+        os.mkdir(path)
+
     def external_path(self, path):
         return os.path.abspath(path)
 

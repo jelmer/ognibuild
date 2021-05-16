@@ -38,6 +38,7 @@ issues (or lack of support for a particular ecosystem), please file a bug.
 
 ### Supported Build Systems
 
+- Bazel
 - Cabal
 - Cargo
 - Golang

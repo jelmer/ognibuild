@@ -107,6 +107,12 @@ def main():  # noqa: C901
         help="What to do about missing dependencies",
     )
     parser.add_argument(
+        '--apt', help=argparse.SUPPRESS,
+        dest='resolve', action='store_const', const='apt')
+    parser.add_argument(
+        '--native', help=argparse.SUPPRESS,
+        dest='native', action='store_const', const='native')
+    parser.add_argument(
         "--explain",
         action="store_true",
         help="Explain what needs to be done rather than making changes",
@@ -124,10 +130,14 @@ def main():  # noqa: C901
     subparsers.add_parser("clean")
     subparsers.add_parser("test")
     subparsers.add_parser("info")
+    exec_parser = subparsers.add_parser("exec")
+    exec_parser.add_argument('subargv', nargs=argparse.REMAINDER, help='Command to run.')
     install_parser = subparsers.add_parser("install")
     install_parser.add_argument(
         "--user", action="store_true", help="Install in local-user directories."
     )
+    install_parser.add_argument(
+        "--prefix", type=str, help='Prefix to install in')
 
     args = parser.parse_args()
     if not args.subcommand:
@@ -161,10 +171,14 @@ def main():  # noqa: C901
         elif args.resolve == "auto":
             resolver = auto_resolver(session, explain=args.explain)
         logging.info("Using requirement resolver: %s", resolver)
+        fixers = determine_fixers(session, resolver, explain=args.explain)
         try:
+            if args.subcommand == "exec":
+                from .fix_build import run_with_build_fixers
+                run_with_build_fixers(session, args.subargv, fixers)
+                return 0
             bss = list(detect_buildsystems(args.directory))
             logging.info("Detected buildsystems: %s", ", ".join(map(str, bss)))
-            fixers = determine_fixers(session, resolver, explain=args.explain)
             if not args.ignore_declared_dependencies:
                 stages = STAGE_MAP[args.subcommand]
                 if stages:
@@ -207,6 +221,7 @@ def main():  # noqa: C901
                     resolver=resolver,
                     fixers=fixers,
                     user=args.user,
+                    prefix=args.prefix,
                 )
             if args.subcommand == "test":
                 from .test import run_test

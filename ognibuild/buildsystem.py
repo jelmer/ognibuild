@@ -64,6 +64,8 @@ class InstallTarget(object):
     # Whether to prefer user-specific installation
     user: Optional[bool]
 
+    prefix: Optional[str]
+
     # TODO(jelmer): Add information about target directory, layout, etc.
 
 
@@ -445,6 +447,8 @@ class SetupPy(BuildSystem):
             extra_args = []
             if install_target.user:
                 extra_args.append("--user")
+            if install_target.prefix:
+                extra_args.append("--prefix=%s" % install_target.prefix)
             self._run_setup(session, resolver, ["install"] + extra_args, fixers)
         else:
             raise NotImplementedError
@@ -459,7 +463,8 @@ class SetupPy(BuildSystem):
         if interpreter is None:
             interpreter = self.DEFAULT_PYTHON
         argv = [interpreter, "./setup.py"] + args
-        env = {}
+        # TODO(jelmer): Perhaps this should be additive?
+        env = dict(os.environ)
         # Inherit SETUPTOOLS_SCM_PRETEND_VERSION from the current environment
         if "SETUPTOOLS_SCM_PRETEND_VERSION" in os.environ:
             env["SETUPTOOLS_SCM_PRETEND_VERSION"] = os.environ[
@@ -542,6 +547,35 @@ class SetupPy(BuildSystem):
         if os.path.exists(os.path.join(path, "pyproject.toml")):
             logging.debug("Found pyproject.toml, assuming python project.")
             return cls(path)
+
+
+class Bazel(BuildSystem):
+
+    name = "bazel"
+
+    def __init__(self, path):
+        self.path = path
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
+    @classmethod
+    def exists(cls, path):
+        if not os.path.exists(os.path.join(path, "BUILD")):
+            return False
+        return True
+
+    @classmethod
+    def probe(cls, path):
+        if cls.exists(path):
+            logging.debug("Found BUILD, assuming bazel package.")
+            return cls(path)
+
+    def build(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["bazel", "build", "//..."], fixers)
+
+    def test(self, session, resolver, fixers):
+        run_with_build_fixers(session, ["bazel", "test", "//..."], fixers)
 
 
 class Octave(BuildSystem):
@@ -692,6 +726,7 @@ class R(BuildSystem):
         return dc.copy_single(target_directory)
 
     def install(self, session, resolver, fixers, install_target):
+        extra_args.append("--prefix=%s" % install_target.prefix)
         r_path = guaranteed_which(session, resolver, "R")
         run_with_build_fixers(session, [r_path, "CMD", "INSTALL", "."], fixers)
 
@@ -750,7 +785,7 @@ class Meson(BuildSystem):
 
     def _setup(self, session, fixers):
         if not session.exists("build"):
-            session.check_call(["mkdir", "build"])
+            session.mkdir("build")
         run_with_build_fixers(session, ["meson", "setup", "build"], fixers)
 
     def clean(self, session, resolver, fixers):
@@ -764,7 +799,12 @@ class Meson(BuildSystem):
     def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self._setup(session, fixers)
         with DistCatcher([session.external_path("build/meson-dist")]) as dc:
-            run_with_build_fixers(session, ["ninja", "-C", "build", "dist"], fixers)
+            try:
+                run_with_build_fixers(session, ["ninja", "-C", "build", "dist"], fixers)
+            except UnidentifiedError as e:
+                if "ninja: error: unknown target 'dist', did you mean 'dino'?" in e.lines:
+                    raise NotImplementedError
+                raise
         return dc.copy_single(target_directory)
 
     def test(self, session, resolver, fixers):
@@ -965,9 +1005,10 @@ class DistZilla(BuildSystem):
             return cls(os.path.join(path, "dist.ini"))
 
     def get_declared_dependencies(self, session, fixers=None):
-        lines = run_with_build_fixers(session, ["dzil", "authordeps"], fixers)
-        for entry in lines:
-            yield "build", PerlModuleRequirement(entry.strip())
+        if os.path.exists(os.path.join(self.path, "dist.ini")):
+            lines = run_with_build_fixers(session, ["dzil", "authordeps"], fixers)
+            for entry in lines:
+                yield "build", PerlModuleRequirement(entry.strip())
         if os.path.exists(os.path.join(os.path.dirname(self.path), "cpanfile")):
             yield from _declared_deps_from_cpanfile(session, fixers)
 
@@ -1017,26 +1058,35 @@ def _declared_deps_from_meta_yml(f):
     except ruamel.yaml.reader.ReaderError as e:
         warnings.warn("Unable to parse META.yml: %s" % e)
         return
-    for require in data.get("requires", []):
+    for require in data.get("requires", None) or []:
         yield "core", PerlModuleRequirement(require)
-    for require in data.get("build_requires", []):
+    for require in data.get("build_requires", None) or []:
         yield "build", PerlModuleRequirement(require)
-    for require in data.get("configure_requires", []):
+    for require in data.get("configure_requires", None) or []:
         yield "build", PerlModuleRequirement(require)
     # TODO(jelmer): recommends
 
 
 class Make(BuildSystem):
 
-    name = "make"
-
     def __init__(self, path):
         self.path = path
+        if os.path.exists(os.path.join(path, 'Makefile.PL')):
+            self.name = 'makefile.pl'
+        elif os.path.exists(os.path.join(path, 'Makefile.am')):
+            self.name = 'automake'
+        elif any([os.path.exists(os.path.join(path, n))
+                 for n in ['configure.ac', 'configure.in', 'autogen.sh']]):
+            self.name = 'autoconf'
+        elif os.path.exists(os.path.join(path, "CMakeLists.txt")):
+            self.name = 'cmake'
+        else:
+            self.name = "make"
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
 
-    def setup(self, session, resolver, fixers):
+    def setup(self, session, resolver, fixers, prefix=None):
         def makefile_exists():
             return any(
                 [session.exists(p) for p in ["Makefile", "GNUmakefile", "makefile"]]
@@ -1065,53 +1115,86 @@ class Make(BuildSystem):
                 run_with_build_fixers(session, ["autoreconf", "-i"], fixers)
 
         if not makefile_exists() and session.exists("configure"):
-            run_with_build_fixers(session, ["./configure"], fixers)
+            extra_args = []
+            if prefix is not None:
+                extra_args.append('--prefix=%s' % prefix)
+            run_with_build_fixers(session, ["./configure"] + extra_args, fixers)
 
         if not makefile_exists() and any(
             [n.name.endswith(".pro") for n in session.scandir(".")]
         ):
             run_with_build_fixers(session, ["qmake"], fixers)
 
+        if not makefile_exists() and session.exists('CMakeLists.txt'):
+            session.mkdir('build')
+            run_with_build_fixers(session, ["cmake", '..'], fixers, cwd='build')
+
     def build(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
-        run_with_build_fixers(session, ["make", "all"], fixers)
+        self._run_make(session, ["all"], fixers)
 
     def clean(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
-        run_with_build_fixers(session, ["make", "clean"], fixers)
+        self._run_make(session, ["clean"], fixers)
+
+    def _run_make(self, session, args, fixers, prefix=None):
+        def _wants_configure(line):
+            if line.startswith("Run ./configure"):
+                return True
+            if line == "Please run ./configure first":
+                return True
+            if line.startswith("Project not configured"):
+                return True
+            if line.startswith("The project was not configured"):
+                return True
+            return False
+        if session.exists('build'):
+            cwd = 'build'
+        else:
+            cwd = None
+        try:
+            run_with_build_fixers(session, ["make"] + args, fixers, cwd=cwd)
+        except UnidentifiedError as e:
+            if len(e.lines) < 5 and any([_wants_configure(line) for line in e.lines]):
+                extra_args = []
+                if prefix is not None:
+                    extra_args.append("--prefix=%s" % prefix)
+                run_with_build_fixers(session, ["./configure"] + extra_args, fixers)
+                run_with_build_fixers(session, ["make"] + args, fixers)
+            elif (
+                "Reconfigure the source tree "
+                "(via './config' or 'perl Configure'), please."
+            ) in e.lines:
+                run_with_build_fixers(session, ["./config"], fixers)
+                run_with_build_fixers(session, ["make"] + args, fixers)
+            else:
+                raise
 
     def test(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
-        run_with_build_fixers(session, ["make", "check"], fixers)
+        self._run_make(session, ["check"], fixers)
 
     def install(self, session, resolver, fixers, install_target):
-        self.setup(session, resolver, fixers)
-        run_with_build_fixers(session, ["make", "install"], fixers)
+        self.setup(session, resolver, fixers, prefix=install_target.prefix)
+        self._run_make(session, ["install"], fixers, prefix=install_target.prefix)
 
     def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(session, resolver, fixers)
         with DistCatcher.default(session.external_path(".")) as dc:
             try:
-                run_with_build_fixers(session, ["make", "dist"], fixers)
+                self._run_make(session, ["dist"], fixers)
             except UnidentifiedError as e:
                 if "make: *** No rule to make target 'dist'.  Stop." in e.lines:
                     raise NotImplementedError
                 elif "make[1]: *** No rule to make target 'dist'. Stop." in e.lines:
                     raise NotImplementedError
-                elif (
-                    "Reconfigure the source tree "
-                    "(via './config' or 'perl Configure'), please."
-                ) in e.lines:
-                    run_with_build_fixers(session, ["./config"], fixers)
-                    run_with_build_fixers(session, ["make", "dist"], fixers)
+                elif "ninja: error: unknown target 'dist', did you mean 'dino'?" in e.lines:
+                    raise NotImplementedError
                 elif (
                     "Please try running 'make manifest' and then run "
                     "'make dist' again." in e.lines
                 ):
                     run_with_build_fixers(session, ["make", "manifest"], fixers)
-                    run_with_build_fixers(session, ["make", "dist"], fixers)
-                elif "Please run ./configure first" in e.lines:
-                    run_with_build_fixers(session, ["./configure"], fixers)
                     run_with_build_fixers(session, ["make", "dist"], fixers)
                 elif any(
                     [
@@ -1349,10 +1432,11 @@ class Maven(BuildSystem):
         deps_tag = root.find("dependencies")
         if deps_tag:
             for dep in deps_tag.findall("dependency"):
+                version_tag = dep.find("version")
                 yield "core", MavenArtifactRequirement(
                     dep.find("groupId").text,
                     dep.find("artifactId").text,
-                    dep.find("version").text,
+                    version_tag.text if version_tag else None,
                 )
 
 
@@ -1450,7 +1534,10 @@ class PerlBuildTiny(BuildSystem):
         self.setup(session, fixers)
         with DistCatcher([session.external_path('.')]) as dc:
             if self.minilla:
-                run_with_build_fixers(session, ["minil", "dist"], fixers)
+                # minil seems to return 0 even if it didn't produce a tarball :(
+                run_with_build_fixers(
+                    session, ["minil", "dist"], fixers,
+                    check_success=lambda retcode, lines: bool(dc.find_files()))
             else:
                 try:
                     run_with_build_fixers(session, ["./Build", "dist"], fixers)
@@ -1473,13 +1560,18 @@ class PerlBuildTiny(BuildSystem):
 
     def get_declared_dependencies(self, session, fixers=None):
         self.setup(session, fixers)
-        try:
-            run_with_build_fixers(session, ["./Build", "distmeta"], fixers)
-        except UnidentifiedError as e:
-            if "No such action 'distmeta'" in e.lines:
-                pass
-            else:
-                raise
+        if self.minilla:
+            pass  # Minilla doesn't seem to have a way to just regenerate the metadata :(
+        else:
+            try:
+                run_with_build_fixers(session, ["./Build", "distmeta"], fixers)
+            except UnidentifiedError as e:
+                if "No such action 'distmeta'" in e.lines:
+                    pass
+                if "Do not run distmeta. Install Minilla and `minil install` instead." in e.lines:
+                    self.minilla = True
+                else:
+                    raise
         try:
             with open(os.path.join(self.path, 'META.yml'), 'r') as f:
                 yield from _declared_deps_from_meta_yml(f)
@@ -1498,8 +1590,8 @@ BUILDSYSTEM_CLSES = [
     SetupPy,
     Npm,
     Waf,
-    Cargo,
     Meson,
+    Cargo,
     Cabal,
     Gradle,
     Maven,
@@ -1509,6 +1601,7 @@ BUILDSYSTEM_CLSES = [
     Golang,
     R,
     Octave,
+    Bazel,
     # Make is intentionally at the end of the list.
     Make,
     Composer,

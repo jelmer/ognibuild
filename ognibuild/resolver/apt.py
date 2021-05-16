@@ -47,6 +47,8 @@ from ..requirements import (
     NodeModuleRequirement,
     NodePackageRequirement,
     LibraryRequirement,
+    BoostComponentRequirement,
+    StaticLibraryRequirement,
     RubyFileRequirement,
     XmlEntityRequirement,
     SprocketsFileRequirement,
@@ -178,7 +180,6 @@ def python_spec_to_apt_rels(pkg_name, specs):
     else:
         rels = []
         for spec in specs:
-            deb_version = Version(spec[1])
             if spec[0] == "~=":
                 # PEP 440: For a given release identifier V.N , the compatible
                 # release clause is approximately equivalent to the pair of
@@ -187,32 +188,26 @@ def python_spec_to_apt_rels(pkg_name, specs):
                 parts.pop(-1)
                 parts[-1] = str(int(parts[-1]) + 1)
                 next_maj_deb_version = Version(".".join(parts))
+                deb_version = Version(spec[1])
                 rels.extend(
-                    [
-                        {"name": pkg_name, "version": (">=", deb_version)},
-                        {"name": pkg_name, "version": ("<<", next_maj_deb_version)},
-                    ]
-                )
+                    [[{"name": pkg_name, "version": (">=", deb_version)}],
+                     [{"name": pkg_name, "version": ("<<", next_maj_deb_version)}]])
             elif spec[0] == "!=":
-                rels.extend(
-                    [
-                        {"name": pkg_name, "version": (">>", deb_version)},
-                        {"name": pkg_name, "version": ("<<", deb_version)},
-                    ]
-                )
+                deb_version = Version(spec[1])
+                rels.extend([
+                    [{"name": pkg_name, "version": (">>", deb_version)}],
+                    [{"name": pkg_name, "version": ("<<", deb_version)}]])
             elif spec[1].endswith(".*") and spec[0] == "==":
                 s = spec[1].split(".")
                 s.pop(-1)
                 n = list(s)
                 n[-1] = str(int(n[-1]) + 1)
                 rels.extend(
-                    [
-                        {"name": pkg_name, "version": (">=", Version(".".join(s)))},
-                        {"name": pkg_name, "version": ("<<", Version(".".join(n)))},
-                    ]
-                )
+                    [[{"name": pkg_name, "version": (">=", Version(".".join(s)))}],
+                     [{"name": pkg_name, "version": ("<<", Version(".".join(n)))}]])
             else:
                 c = {">=": ">=", "<=": "<=", "<": "<<", ">": ">>", "==": "="}[spec[0]]
+                deb_version = Version(spec[1])
                 rels.append([{"name": pkg_name, "version": (c, deb_version)}])
         return rels
 
@@ -335,6 +330,19 @@ def resolve_vague_dep_req(apt_mgr, req):
         options.append(AptRequirement.simple(vague_map[name], minimum_version=req.minimum_version))
     for x in req.expand():
         options.extend(resolve_requirement_apt(apt_mgr, x))
+    # Try even harder
+    if not options:
+        options.extend(find_reqs_simple(
+            apt_mgr,
+            [
+                posixpath.join("/usr/lib", ".*", "pkgconfig", re.escape(req.name) + "-.*\\.pc"),
+                posixpath.join("/usr/lib/pkgconfig", re.escape(req.name) + "-.*\\.pc")
+            ],
+            regex=True,
+            case_insensitive=True,
+            minimum_version=req.minimum_version
+        ))
+
     return options
 
 
@@ -469,6 +477,14 @@ def resolve_library_req(apt_mgr, req):
     return find_reqs_simple(apt_mgr, paths, regex=True)
 
 
+def resolve_static_library_req(apt_mgr, req):
+    paths = [
+        posixpath.join("/usr/lib/%s$" % re.escape(req.filename)),
+        posixpath.join("/usr/lib/.*/%s$" % re.escape(req.filename)),
+    ]
+    return find_reqs_simple(apt_mgr, paths, regex=True)
+
+
 def resolve_ruby_file_req(apt_mgr, req):
     paths = [posixpath.join("/usr/lib/ruby/vendor_ruby/%s.rb" % req.filename)]
     reqs = find_reqs_simple(apt_mgr, paths, regex=False)
@@ -586,18 +602,22 @@ def resolve_libtool_req(apt_mgr, req):
 
 
 def resolve_perl_module_req(apt_mgr, req):
-    DEFAULT_PERL_PATHS = ["/usr/share/perl5"]
+    DEFAULT_PERL_PATHS = ["/usr/share/perl5", "/usr/lib/.*/perl5/.*", "/usr/lib/.*/perl-base"]
 
     if req.inc is None:
         if req.filename is None:
-            paths = [posixpath.join(inc, req.relfilename) for inc in DEFAULT_PERL_PATHS]
+            paths = [posixpath.join(inc, re.escape(req.module.replace('::', '/') + '.pm')) for inc in DEFAULT_PERL_PATHS]
+            regex = True
         elif not posixpath.isabs(req.filename):
-            return False
+            paths = [posixpath.join(inc, re.escape(req.filename)) for inc in DEFAULT_PERL_PATHS]
+            regex = True
         else:
             paths = [req.filename]
+            regex = False
     else:
+        regex = False
         paths = [posixpath.join(inc, req.filename) for inc in req.inc]
-    return find_reqs_simple(apt_mgr, paths, regex=False)
+    return find_reqs_simple(apt_mgr, paths, regex=regex)
 
 
 def resolve_perl_file_req(apt_mgr, req):
@@ -677,6 +697,12 @@ def resolve_apt_req(apt_mgr, req):
     return [req]
 
 
+def resolve_boost_component_req(apt_mgr, req):
+    return find_reqs_simple(
+        apt_mgr, ["/usr/lib/.*/libboost_%s" % re.escape(req.name)],
+        regex=True)
+
+
 APT_REQUIREMENT_RESOLVERS = [
     (AptRequirement, resolve_apt_req),
     (BinaryRequirement, resolve_binary_req),
@@ -697,6 +723,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (NodeModuleRequirement, resolve_node_module_req),
     (NodePackageRequirement, resolve_node_package_req),
     (LibraryRequirement, resolve_library_req),
+    (StaticLibraryRequirement, resolve_static_library_req),
     (RubyFileRequirement, resolve_ruby_file_req),
     (XmlEntityRequirement, resolve_xml_entity_req),
     (SprocketsFileRequirement, resolve_sprockets_file_req),
@@ -719,6 +746,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (CertificateAuthorityRequirement, resolve_ca_req),
     (CargoCrateRequirement, resolve_cargo_crate_req),
     (IntrospectionTypelibRequirement, resolve_introspection_typelib_req),
+    (BoostComponentRequirement, resolve_boost_component_req),
 ]
 
 
