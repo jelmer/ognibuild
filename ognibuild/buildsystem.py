@@ -784,7 +784,7 @@ class Meson(BuildSystem):
 
     def _setup(self, session, fixers):
         if not session.exists("build"):
-            session.check_call(["mkdir", "build"])
+            session.mkdir("build")
         run_with_build_fixers(session, ["meson", "setup", "build"], fixers)
 
     def clean(self, session, resolver, fixers):
@@ -1077,6 +1077,8 @@ class Make(BuildSystem):
         elif any([os.path.exists(os.path.join(path, n))
                  for n in ['configure.ac', 'configure.in', 'autogen.sh']]):
             self.name = 'autoconf'
+        elif os.path.exists(os.path.join(path, "CMakeLists.txt")):
+            self.name = 'cmake'
         else:
             self.name = "make"
 
@@ -1122,6 +1124,10 @@ class Make(BuildSystem):
         ):
             run_with_build_fixers(session, ["qmake"], fixers)
 
+        if not makefile_exists() and session.exists('CMakeLists.txt'):
+            session.mkdir('build')
+            run_with_build_fixers(session, ["cmake", '..'], fixers, cwd='build')
+
     def build(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
         self._run_make(session, ["all"], fixers)
@@ -1141,8 +1147,12 @@ class Make(BuildSystem):
             if line.startswith("The project was not configured"):
                 return True
             return False
+        if session.exists('build'):
+            cwd = 'build'
+        else:
+            cwd = None
         try:
-            run_with_build_fixers(session, ["make"] + args, fixers)
+            run_with_build_fixers(session, ["make"] + args, fixers, cwd=cwd)
         except UnidentifiedError as e:
             if len(e.lines) < 5 and any([_wants_configure(line) for line in e.lines]):
                 extra_args = []
