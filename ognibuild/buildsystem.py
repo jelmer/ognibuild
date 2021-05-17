@@ -726,9 +726,11 @@ class R(BuildSystem):
         return dc.copy_single(target_directory)
 
     def install(self, session, resolver, fixers, install_target):
-        extra_args.append("--prefix=%s" % install_target.prefix)
+        extra_args = []
+        if install_target.prefix:
+            extra_args.append("--prefix=%s" % install_target.prefix)
         r_path = guaranteed_which(session, resolver, "R")
-        run_with_build_fixers(session, [r_path, "CMD", "INSTALL", "."], fixers)
+        run_with_build_fixers(session, [r_path, "CMD", "INSTALL", "."] + extra_args, fixers)
 
     def test(self, session, resolver, fixers):
         r_path = guaranteed_which(session, resolver, "R")
