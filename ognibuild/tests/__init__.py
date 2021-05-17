@@ -17,14 +17,16 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301, USA.
 
+import os
 import unittest
 
 
 def test_suite():
     names = [
         "debian_build",
-        "debian_fix_build",
     ]
+    if os.path.exists("/usr/bin/dpkg-architecture"):
+        names.append("debian_fix_build")
     module_names = ["ognibuild.tests.test_" + name for name in names]
     loader = unittest.TestLoader()
     return loader.loadTestsFromNames(module_names)

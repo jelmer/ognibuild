@@ -65,8 +65,6 @@ class DummyAptSearcher(FileSearcher):
 class ResolveErrorTests(TestCaseWithTransport):
     def setUp(self):
         super(ResolveErrorTests, self).setUp()
-        if not os.path.exists("/usr/bin/dpkg-architecture"):
-            self.skipTest("not a debian system")
         self.tree = self.make_branch_and_tree(".")
         self.build_tree_contents(
             [
