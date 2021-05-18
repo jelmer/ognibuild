@@ -15,7 +15,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import os
 import re
 
 from debian.deb822 import Deb822
@@ -65,8 +64,6 @@ class DummyAptSearcher(FileSearcher):
 class ResolveErrorTests(TestCaseWithTransport):
     def setUp(self):
         super(ResolveErrorTests, self).setUp()
-        if not os.path.exists("/usr/bin/dpkg-architecture"):
-            self.skipTest("not a debian system")
         self.tree = self.make_branch_and_tree(".")
         self.build_tree_contents(
             [

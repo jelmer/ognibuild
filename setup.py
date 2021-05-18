@@ -6,7 +6,7 @@ from setuptools import setup
 
 setup(name="ognibuild",
       description="Detect and run any build system",
-      version="0.0.5",
+      version="0.0.6",
       maintainer="Jelmer Vernooĳ",
       maintainer_email="jelmer@jelmer.uk",
       license="GNU GPLv2 or later",
@@ -29,7 +29,7 @@ setup(name="ognibuild",
       },
       install_requires=[
           'breezy',
-          'buildlog-consultant>=0.0.4',
+          'buildlog-consultant>=0.0.10',
           'requirements-parser',
           ],
       extras_require={

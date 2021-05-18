@@ -156,7 +156,12 @@ def load_apt_cache_file(url, cache_dir):
             import lz4.frame
 
             return lz4.frame.open(p, mode="rb")
-        return _unwrap(open(p, "rb"), ext)
+        try:
+            f = open(p, "rb")
+        except PermissionError as e:
+            logging.warning('Unable to open %s: %s', p, e)
+            raise FileNotFoundError(url)
+        return _unwrap(f, ext)
     raise FileNotFoundError(url)
 
 
