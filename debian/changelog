@@ -1,10 +1,10 @@
-ognibuild (0.0.5-1) UNRELEASED; urgency=low
+ognibuild (0.0.5-1) unstable; urgency=low
 
   * New upstream release.
    + Fixes cmake support. Closes: #988572
    + Preserve environment when building Python packages. Closes: #988571
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Sun, 16 May 2021 17:08:54 -0000
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Tue, 18 May 2021 01:34:11 +0100
 
 ognibuild (0.0.4-1) unstable; urgency=low
 
