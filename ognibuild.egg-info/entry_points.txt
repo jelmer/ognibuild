@@ -1,4 +1,0 @@
-[console_scripts]
-deb-fix-build = ognibuild.debian.fix_build:main
-ogni = ognibuild.__main__:main
-
