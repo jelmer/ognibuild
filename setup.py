@@ -6,7 +6,7 @@ from setuptools import setup
 
 setup(name="ognibuild",
       description="Detect and run any build system",
-      version="0.0.7",
+      version="0.0.6",
       maintainer="Jelmer Vernooĳ",
       maintainer_email="jelmer@jelmer.uk",
       license="GNU GPLv2 or later",
