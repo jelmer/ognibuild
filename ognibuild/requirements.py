@@ -174,14 +174,17 @@ class VagueDependencyRequirement(Requirement):
                 yield BinaryRequirement(self.name.lower())
                 yield LibraryRequirement(self.name.lower())
                 yield PkgConfigRequirement(self.name.lower(), minimum_version=self.minimum_version)
-            from .resolver.apt import AptRequirement
-
-            yield AptRequirement.simple(self.name.lower(), minimum_version=self.minimum_version)
-            if self.name.lower().startswith('lib'):
-                devname = '%s-dev' % self.name.lower()
+            try:
+                from .resolver.apt import AptRequirement
+            except ModuleNotFoundError:
+                pass
             else:
-                devname = 'lib%s-dev' % self.name.lower()
-            yield AptRequirement.simple(devname, minimum_version=self.minimum_version)
+                yield AptRequirement.simple(self.name.lower(), minimum_version=self.minimum_version)
+                if self.name.lower().startswith('lib'):
+                    devname = '%s-dev' % self.name.lower()
+                else:
+                    devname = 'lib%s-dev' % self.name.lower()
+                yield AptRequirement.simple(devname, minimum_version=self.minimum_version)
 
     def met(self, session):
         for x in self.expand():

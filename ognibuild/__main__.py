@@ -31,7 +31,6 @@ from .resolver import (
     auto_resolver,
     native_resolvers,
 )
-from .resolver.apt import AptResolver
 
 
 def display_explain_commands(commands):
@@ -165,6 +164,7 @@ def main():  # noqa: C901
             args.explain = True
 
         if args.resolve == "apt":
+            from .resolver.apt import AptResolver
             resolver = AptResolver.from_session(session)
         elif args.resolve == "native":
             resolver = native_resolvers(session, user_local=args.user)
