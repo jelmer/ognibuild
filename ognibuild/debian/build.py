@@ -164,7 +164,7 @@ def get_latest_changelog_entry(local_tree, subpath=""):
         path = os.path.join(subpath, "debian", "changelog")
     with local_tree.get_file(path) as f:
         cl = Changelog(f, max_blocks=1)
-        return cl.package, cl.version
+        return cl[0]
 
 
 def build(
