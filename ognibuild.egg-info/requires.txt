@@ -1,0 +1,8 @@
+breezy
+buildlog-consultant>=0.0.10
+requirements-parser
+
+[debian]
+debmutate
+python_apt
+python_debian
