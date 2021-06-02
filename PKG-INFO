@@ -1,0 +1,17 @@
+Metadata-Version: 2.1
+Name: ognibuild
+Version: 0.0.7
+Summary: Detect and run any build system
+Home-page: https://jelmer.uk/code/ognibuild
+Maintainer: Jelmer Vernooĳ
+Maintainer-email: jelmer@jelmer.uk
+License: GNU GPLv2 or later
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Operating System :: POSIX
+Provides-Extra: debian
