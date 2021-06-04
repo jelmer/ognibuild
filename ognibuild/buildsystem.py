@@ -295,6 +295,9 @@ class SetupPy(BuildSystem):
             self.config = self.load_setup_cfg()
         except FileNotFoundError:
             self.config = None
+        except ModuleNotFoundError as e:
+            logging.warning('Error parsing setup.cfg: %s', e)
+            self.config = None
 
         try:
             self.pyproject = self.load_toml()
