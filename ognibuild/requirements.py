@@ -571,6 +571,11 @@ class MavenArtifactRequirement(Requirement):
             self.version,
         )
 
+    def __repr__(self):
+        return "%s(group_id=%r, artifact_id=%r, version=%r, kind=%r)" % (
+            type(self).__name__, self.group_id, self.artifact_id,
+            self.version, self.kind)
+
     @classmethod
     def from_str(cls, text):
         return cls.from_tuple(text.split(":"))
