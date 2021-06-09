@@ -1224,7 +1224,7 @@ class Make(BuildSystem):
             except UnidentifiedError as e:
                 if "make: *** No rule to make target 'dist'.  Stop." in e.lines:
                     raise NotImplementedError
-                elif "make[1]: *** No rule to make target 'dist'. Stop." in e.lines:
+                elif "make[1]: *** No rule to make target 'dist'.  Stop." in e.lines:
                     raise NotImplementedError
                 elif "ninja: error: unknown target 'dist', did you mean 'dino'?" in e.lines:
                     raise NotImplementedError
