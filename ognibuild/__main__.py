@@ -30,6 +30,7 @@ from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .resolver import (
     auto_resolver,
     native_resolvers,
+    UnsatisfiedRequirements,
 )
 
 
@@ -187,6 +188,11 @@ def main():  # noqa: C901
                         install_necessary_declared_requirements(
                             session, resolver, fixers, bss, stages, explain=args.explain
                         )
+                    except UnsatisfiedRequirements as e:
+                        logging.info('Unable to install declared dependencies:')
+                        for req in e.requirements:
+                            logging.info(' * %s', req)
+                        return 1
                     except ExplainInstall as e:
                         display_explain_commands(e.commands)
                         return 1
