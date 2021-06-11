@@ -157,14 +157,14 @@ def add_dummy_changelog_entry(
         editor[0].distributions = suite
 
 
-def get_latest_changelog_version(local_tree, subpath=""):
+def get_latest_changelog_entry(local_tree, subpath=""):
     if control_files_in_root(local_tree, subpath):
         path = os.path.join(subpath, "changelog")
     else:
         path = os.path.join(subpath, "debian", "changelog")
     with local_tree.get_file(path) as f:
         cl = Changelog(f, max_blocks=1)
-        return cl.package, cl.version
+        return cl[0]
 
 
 def build(
@@ -246,11 +246,11 @@ def build_once(
                     retcode, shlex.split(build_command),
                     [], sbuild_failure.description)
 
-    (cl_package, cl_version) = get_latest_changelog_version(local_tree, subpath)
+    cl_entry = get_latest_changelog_entry(local_tree, subpath)
     changes_names = []
-    for kind, entry in find_changes_files(output_directory, cl_package, cl_version):
+    for kind, entry in find_changes_files(output_directory, cl_entry.package, cl_entry.version):
         changes_names.append((entry.name))
-    return (changes_names, cl_version)
+    return (changes_names, cl_entry)
 
 
 def gbp_dch(path):

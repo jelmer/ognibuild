@@ -548,7 +548,6 @@ def native_resolvers(session, user_local):
 
 def auto_resolver(session, explain=False):
     # if session is SchrootSession or if we're root, use apt
-    from .apt import AptResolver
     from ..session.schroot import SchrootSession
     from ..session import get_user
 
@@ -561,6 +560,11 @@ def auto_resolver(session, explain=False):
     else:
         user_local = True
     if not user_local:
-        resolvers.append(AptResolver.from_session(session))
+        try:
+            from .apt import AptResolver
+        except ModuleNotFoundError:
+            pass
+        else:
+            resolvers.append(AptResolver.from_session(session))
     resolvers.extend([kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
     return StackedResolver(resolvers)

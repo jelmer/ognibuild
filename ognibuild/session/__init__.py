@@ -100,6 +100,9 @@ class Session(object):
     def external_path(self, path: str) -> str:
         raise NotImplementedError
 
+    def rmtree(self, path: str) -> str:
+        raise NotImplementedError
+
     is_temporary: bool
 
 

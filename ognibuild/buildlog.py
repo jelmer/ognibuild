@@ -67,7 +67,6 @@ from buildlog_consultant.common import (
     MissingCargoCrate,
     MissingStaticLibrary,
 )
-from buildlog_consultant.apt import UnsatisfiedAptDependencies
 
 from .fix_build import BuildFixer
 from .requirements import (
@@ -166,7 +165,7 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
     elif isinstance(problem, MissingJavaClass):
         return JavaClassRequirement(problem.classname)
     elif isinstance(problem, CMakeFilesMissing):
-        return [CMakefileRequirement(filename) for filename in problem.filenames]
+        return [CMakefileRequirement(filename, problem.version) for filename in problem.filenames]
     elif isinstance(problem, MissingHaskellDependencies):
         return [HaskellPackageRequirement.from_string(dep) for dep in problem.deps]
     elif isinstance(problem, MissingMavenArtifacts):
@@ -239,7 +238,7 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
             python_version=problem.python_version,
             minimum_version=problem.minimum_version,
         )
-    elif isinstance(problem, UnsatisfiedAptDependencies):
+    elif problem.kind == 'unsatisfied-apt-dependencies':
         from .resolver.apt import AptRequirement
         return AptRequirement(problem.relations)
     else:
