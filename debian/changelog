@@ -1,8 +1,8 @@
-ognibuild (0.0.8-1) UNRELEASED; urgency=low
+ognibuild (0.0.8-1) unstable; urgency=low
 
   * New upstream release.
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Fri, 11 Jun 2021 20:20:09 -0000
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Fri, 11 Jun 2021 20:21:58 +0100
 
 ognibuild (0.0.6+git20210517.1.8189e91-1) unstable; urgency=low
 
