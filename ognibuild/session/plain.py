@@ -20,6 +20,7 @@ from . import Session, NoSessionOpen, SessionAlreadyOpen
 
 import contextlib
 import os
+import shutil
 import subprocess
 import tempfile
 from typing import Optional, Dict, List
@@ -90,6 +91,9 @@ class PlainSession(Session):
 
     def exists(self, path):
         return os.path.exists(path)
+
+    def rmtree(self, path):
+        return shutil.rmtree(path)
 
     def scandir(self, path):
         return os.scandir(path)

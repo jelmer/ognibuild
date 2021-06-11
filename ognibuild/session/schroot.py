@@ -203,6 +203,11 @@ class SchrootSession(Session):
         fullpath = self.external_path(path)
         return os.mkdir(fullpath)
 
+    def rmtree(self, path: str):
+        import shutil
+        fullpath = self.external_path(path)
+        return shutil.rmtree(fullpath)
+
     def setup_from_vcs(
         self, tree, include_controldir: Optional[bool] = None, subdir="package"
     ):

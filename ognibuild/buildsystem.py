@@ -295,6 +295,9 @@ class SetupPy(BuildSystem):
             self.config = self.load_setup_cfg()
         except FileNotFoundError:
             self.config = None
+        except ModuleNotFoundError as e:
+            logging.warning('Error parsing setup.cfg: %s', e)
+            self.config = None
 
         try:
             self.pyproject = self.load_toml()
@@ -1069,6 +1072,45 @@ def _declared_deps_from_meta_yml(f):
     # TODO(jelmer): recommends
 
 
+class CMake(BuildSystem):
+
+    name = "cmake"
+
+    def __init__(self, path):
+        self.path = path
+        self.builddir = 'build'
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
+    def setup(self, session, resolver, fixers):
+        if not session.exists(self.builddir):
+            session.mkdir(self.builddir)
+        try:
+            run_with_build_fixers(session, ["cmake", '.', '-B%s' % self.builddir], fixers)
+        except Exception:
+            session.rmtree(self.builddir)
+            raise
+
+    @classmethod
+    def probe(cls, path):
+        if os.path.exists(os.path.join(path, 'CMakeLists.txt')):
+            return cls(path)
+        return None
+
+    def build(self, session, resolver, fixers):
+        self.setup(session, resolver, fixers)
+        run_with_build_fixers(session, ["cmake", "--build", self.builddir], fixers)
+
+    def install(self, session, resolver, fixers, install_target):
+        self.setup(session, resolver, fixers)
+        run_with_build_fixers(session, ["cmake", "--install", self.builddir], fixers)
+
+    def clean(self, session, resolver, fixers):
+        self.setup(session, resolver, fixers)
+        run_with_build_fixers(session, ["cmake", "--build %s" % self.builddir, ".", "--target", "clean"], fixers)
+
+
 class Make(BuildSystem):
 
     def __init__(self, path):
@@ -1080,8 +1122,6 @@ class Make(BuildSystem):
         elif any([os.path.exists(os.path.join(path, n))
                  for n in ['configure.ac', 'configure.in', 'autogen.sh']]):
             self.name = 'autoconf'
-        elif os.path.exists(os.path.join(path, "CMakeLists.txt")):
-            self.name = 'cmake'
         else:
             self.name = "make"
 
@@ -1126,11 +1166,6 @@ class Make(BuildSystem):
             [n.name.endswith(".pro") for n in session.scandir(".")]
         ):
             run_with_build_fixers(session, ["qmake"], fixers)
-
-        if not makefile_exists() and session.exists('CMakeLists.txt'):
-            if not session.exists("build"):
-                session.mkdir('build')
-            run_with_build_fixers(session, ["cmake", '..'], fixers, cwd='build')
 
     def build(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
@@ -1189,7 +1224,7 @@ class Make(BuildSystem):
             except UnidentifiedError as e:
                 if "make: *** No rule to make target 'dist'.  Stop." in e.lines:
                     raise NotImplementedError
-                elif "make[1]: *** No rule to make target 'dist'. Stop." in e.lines:
+                elif "make[1]: *** No rule to make target 'dist'.  Stop." in e.lines:
                     raise NotImplementedError
                 elif "ninja: error: unknown target 'dist', did you mean 'dino'?" in e.lines:
                     raise NotImplementedError
@@ -1251,7 +1286,6 @@ class Make(BuildSystem):
                     "GNUmakefile",
                     "makefile",
                     "Makefile.PL",
-                    "CMakeLists.txt",
                     "autogen.sh",
                     "configure.ac",
                     "configure.in",
@@ -1605,6 +1639,7 @@ BUILDSYSTEM_CLSES = [
     R,
     Octave,
     Bazel,
+    CMake,
     # Make is intentionally at the end of the list.
     Make,
     Composer,

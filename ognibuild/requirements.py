@@ -174,14 +174,17 @@ class VagueDependencyRequirement(Requirement):
                 yield BinaryRequirement(self.name.lower())
                 yield LibraryRequirement(self.name.lower())
                 yield PkgConfigRequirement(self.name.lower(), minimum_version=self.minimum_version)
-            from .resolver.apt import AptRequirement
-
-            yield AptRequirement.simple(self.name.lower(), minimum_version=self.minimum_version)
-            if self.name.lower().startswith('lib'):
-                devname = '%s-dev' % self.name.lower()
+            try:
+                from .resolver.apt import AptRequirement
+            except ModuleNotFoundError:
+                pass
             else:
-                devname = 'lib%s-dev' % self.name.lower()
-            yield AptRequirement.simple(devname, minimum_version=self.minimum_version)
+                yield AptRequirement.simple(self.name.lower(), minimum_version=self.minimum_version)
+                if self.name.lower().startswith('lib'):
+                    devname = '%s-dev' % self.name.lower()
+                else:
+                    devname = 'lib%s-dev' % self.name.lower()
+                yield AptRequirement.simple(devname, minimum_version=self.minimum_version)
 
     def met(self, session):
         for x in self.expand():
@@ -524,10 +527,12 @@ class JavaClassRequirement(Requirement):
 class CMakefileRequirement(Requirement):
 
     filename: str
+    version: Optional[str]
 
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, version=None):
         super(CMakefileRequirement, self).__init__("cmake-file")
         self.filename = filename
+        self.version = version
 
 
 class HaskellPackageRequirement(Requirement):
@@ -565,6 +570,11 @@ class MavenArtifactRequirement(Requirement):
             self.artifact_id,
             self.version,
         )
+
+    def __repr__(self):
+        return "%s(group_id=%r, artifact_id=%r, version=%r, kind=%r)" % (
+            type(self).__name__, self.group_id, self.artifact_id,
+            self.version, self.kind)
 
     @classmethod
     def from_str(cls, text):

@@ -566,7 +566,7 @@ def resolve_maven_artifact_req(apt_mgr, req):
         escape(req.group_id.replace(".", "/")),
         escape(req.artifact_id),
         version,
-        escape("%s-") + version + escape("." + kind),
+        escape("%s-" % req.artifact_id) + version + escape("." + kind),
     )
 
     return find_reqs_simple(apt_mgr, [path], regex=regex)
