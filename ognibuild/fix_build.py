@@ -121,8 +121,10 @@ def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any], l
 
 
 def run_with_build_fixers(
-    session: Session, args: List[str], fixers: Optional[List[BuildFixer]], **kwargs
+    session: Session, args: List[str], fixers: Optional[List[BuildFixer]], quiet=False, **kwargs
 ):
+    if not quiet:
+        logging.info('Running %r', args)
     if fixers is None:
         fixers = []
     return iterate_with_build_fixers(
