@@ -1,6 +1,8 @@
 ognibuild (0.0.9-1) UNRELEASED; urgency=low
 
   * New upstream release.
+   + Improve maven requirements output. Closes: #989542
+   + Print upstream commands run. Closes: #989454
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 12 Jun 2021 14:39:04 -0000
 
