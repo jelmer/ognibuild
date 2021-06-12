@@ -379,7 +379,7 @@ class SetupPy(BuildSystem):
             ]
             try:
                 if fixers is not None:
-                    run_with_build_fixers(session, argv, fixers)
+                    run_with_build_fixers(session, argv, fixers, quiet=True)
                 else:
                     session.check_call(argv, close_fds=False)
             except RuntimeError as e:

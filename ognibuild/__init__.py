@@ -20,7 +20,7 @@ import os
 import stat
 
 
-__version__ = (0, 0, 8)
+__version__ = (0, 0, 9)
 
 
 USER_AGENT = "Ognibuild"
@@ -32,6 +32,12 @@ class DetailedFailure(Exception):
         self.argv = argv
         self.error = error
 
+    def __eq__(self, other):
+        return (isinstance(other, type(self)) and
+                self.retcode == other.retcode and
+                self.argv == other.argv and
+                self.error == other.error)
+
 
 class UnidentifiedError(Exception):
     """An unidentified error."""
@@ -41,6 +47,13 @@ class UnidentifiedError(Exception):
         self.argv = argv
         self.lines = lines
         self.secondary = secondary
+
+    def __eq__(self, other):
+        return (isinstance(other, type(self)) and
+                self.retcode == other.retcode and
+                self.argv == other.argv and
+                self.lines == other.lines and
+                self.secondary == other.secondary)
 
     def __repr__(self):
         return "<%s(%r, %r, ..., secondary=%r)>" % (
