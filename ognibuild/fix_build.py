@@ -29,6 +29,14 @@ from . import DetailedFailure, UnidentifiedError
 from .session import Session, run_with_tee
 
 
+# Number of attempts to fix a build before giving up.
+DEFAULT_LIMIT = 200
+
+
+class FixerLimitReached(Exception):
+    """The maximum number of fixes has been reached."""
+
+
 class BuildFixer(object):
     """Build fixer."""
 
@@ -68,12 +76,15 @@ def run_detecting_problems(session: Session, args: List[str], check_success=None
     raise DetailedFailure(retcode, args, error)
 
 
-def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any]):
+def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any], limit=DEFAULT_LIMIT):
     """Call cb() until there are no more DetailedFailures we can fix.
 
     Args:
       fixers: List of fixers to use to resolve issues
+      cb: Callable to run the build
+      limit: Maximum number of fixing attempts before giving up
     """
+    attempts = 0
     fixed_errors = []
     while True:
         to_resolve = []
@@ -89,6 +100,9 @@ def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any]):
                     "Failed to resolve error %r, it persisted. Giving up.", f.error
                 )
                 raise f
+            attempts += 1
+            if limit is not None and limit <= attempts:
+                raise FixerLimitReached(limit)
             try:
                 resolved = resolve_error(f.error, None, fixers=fixers)
             except DetailedFailure as n:
