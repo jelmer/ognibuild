@@ -360,9 +360,7 @@ class SetupPy(BuildSystem):
         import tempfile
         import json
 
-        interpreter = shebang_binary(os.path.join(self.path, "setup.py"))
-        if interpreter is None:
-            interpreter = self.DEFAULT_PYTHON
+        interpreter = self._determine_interpreter()
         output_f = tempfile.NamedTemporaryFile(
             dir=os.path.join(session.location, "tmp"), mode="w+t"
         )
@@ -396,7 +394,7 @@ class SetupPy(BuildSystem):
             run_with_build_fixers(session, ["tox"], fixers)
         elif self.pyproject:
             run_with_build_fixers(
-                session, [self.DEFAULT_PYTHON, "-m", "pep517.check", "."], fixers
+                session, ["python3", "-m", "pep517.check", "."], fixers
             )
         elif self.has_setup_py:
             # Pre-emptively insall setuptools, since distutils doesn't provide
@@ -433,7 +431,7 @@ class SetupPy(BuildSystem):
             with DistCatcher([session.external_path("dist")]) as dc:
                 run_with_build_fixers(
                     session,
-                    [self.DEFAULT_PYTHON, "-m", "pep517.build", "--source", "."],
+                    ["python3", "-m", "pep517.build", "--source", "."],
                     fixers,
                 )
             return dc.copy_single(target_directory)
@@ -456,15 +454,25 @@ class SetupPy(BuildSystem):
         else:
             raise NotImplementedError
 
+    def _determine_interpreter(self):
+        interpreter = None
+        python_requires = self.config.get('options', {}).get('python_requires')
+        if python_requires:
+            if not python_requires.contains('2.7'):
+                interpreter = 'python3'
+        if interpreter is None:
+            interpreter = shebang_binary(os.path.join(self.path, "setup.py"))
+        if interpreter is None:
+            interpreter = self.DEFAULT_PYTHON
+        return interpreter
+
     def _run_setup(self, session, resolver, args, fixers):
         from .buildlog import install_missing_reqs
 
         # Install the setup_requires beforehand, since otherwise
         # setuptools might fetch eggs instead of our preferred resolver.
         install_missing_reqs(session, resolver, list(self._setup_requires()))
-        interpreter = shebang_binary(os.path.join(self.path, "setup.py"))
-        if interpreter is None:
-            interpreter = self.DEFAULT_PYTHON
+        interpreter = self._determine_interpreter()
         argv = [interpreter, "./setup.py"] + args
         # TODO(jelmer): Perhaps this should be additive?
         env = dict(os.environ)
