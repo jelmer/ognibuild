@@ -456,10 +456,11 @@ class SetupPy(BuildSystem):
 
     def _determine_interpreter(self):
         interpreter = None
-        python_requires = self.config.get('options', {}).get('python_requires')
-        if python_requires:
-            if not python_requires.contains('2.7'):
-                interpreter = 'python3'
+        if self.config:
+            python_requires = self.config.get('options', {}).get('python_requires')
+            if python_requires:
+                if not python_requires.contains('2.7'):
+                    interpreter = 'python3'
         if interpreter is None:
             interpreter = shebang_binary(os.path.join(self.path, "setup.py"))
         if interpreter is None:
