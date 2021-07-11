@@ -28,6 +28,7 @@ jobs:
           python setup.py develop
       - name: Install Debian-specific dependencies
         run: |
+          sudo apt update
           sudo apt install libapt-pkg-dev
           python -m pip install wheel
           python -m pip install git+https://salsa.debian.org/apt-team/python-apt
