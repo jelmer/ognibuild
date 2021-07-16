@@ -1194,6 +1194,10 @@ class Make(BuildSystem):
                 return True
             if line.startswith("The project was not configured"):
                 return True
+            if re.match(
+                    'Makefile:[0-9]+: \*\*\* You need to run \.\/configure .*',
+                    line):
+                return True
             return False
         if session.exists('build'):
             cwd = 'build'
