@@ -1195,7 +1195,7 @@ class Make(BuildSystem):
             if line.startswith("The project was not configured"):
                 return True
             if re.match(
-                    'Makefile:[0-9]+: \*\*\* You need to run \.\/configure .*',
+                    r'Makefile:[0-9]+: \*\*\* You need to run \.\/configure .*',
                     line):
                 return True
             return False

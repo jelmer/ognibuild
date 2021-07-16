@@ -286,6 +286,7 @@ class RemoteContentsFileSearcher(FileSearcher):
             try:
                 f = load_url(url)
                 self.load_file(f, url)
+            # TODO(jelmer): Handle ConnectionReset; 
             except ContentsFileNotFound:
                 logging.warning("Unable to fetch contents file %s", url)
 
