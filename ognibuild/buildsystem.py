@@ -1348,6 +1348,12 @@ class Cargo(BuildSystem):
     def build(self, session, resolver, fixers):
         run_with_build_fixers(session, ["cargo", "build"], fixers)
 
+    def install(self, session, resolver, fixers, install_target):
+        args = []
+        if install_target.prefix:
+            args.append('-root=%s' % install_target.prefix)
+        run_with_build_fixers(session, ["cargo", "install", "--path=."] + args, fixers)
+
     @classmethod
     def probe(cls, path):
         if os.path.exists(os.path.join(path, "Cargo.toml")):
@@ -1397,7 +1403,7 @@ class Golang(BuildSystem):
     def build(self, session, resolver, fixers):
         run_with_build_fixers(session, ["go", "build"], fixers)
 
-    def install(self, session, resolver, fixers):
+    def install(self, session, resolver, fixers, install_target):
         run_with_build_fixers(session, ["go", "install"], fixers)
 
     def clean(self, session, resolver, fixers):
