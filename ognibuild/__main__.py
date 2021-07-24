@@ -44,31 +44,26 @@ def display_explain_commands(commands):
         logging.info("  %s (to install %s)", command, ", ".join(map(str, reqs)))
 
 
-def get_necessary_declared_requirements(resolver, requirements, stages):
-    missing = []
-    for stage, req in requirements:
-        if stage in stages:
-            missing.append(req)
-    return missing
-
-
 def install_necessary_declared_requirements(
     session, resolver, fixers, buildsystems, stages, explain=False
 ):
-    relevant = []
-    declared_reqs = []
-    for buildsystem in buildsystems:
-        try:
-            declared_reqs.extend(buildsystem.get_declared_dependencies(session, fixers))
-        except NotImplementedError:
-            logging.warning(
-                "Unable to determine declared dependencies from %r", buildsystem
-            )
-    relevant.extend(
-        get_necessary_declared_requirements(resolver, declared_reqs, stages)
-    )
 
-    install_missing_reqs(session, resolver, relevant, explain=explain)
+    if explain:
+        relevant = []
+        for buildsystem in buildsystems:
+            declared_reqs = buildsystem.get_declared_dependencies(session, fixers)
+            for stage, req in declared_reqs:
+                if stage in stages:
+                    relevant.append(req)
+        install_missing_reqs(session, resolver, relevant, explain=True)
+    else:
+        for buildsystem in buildsystems:
+            try:
+                buildsystem.install_declared_requirements(stages, session, resolver, fixers)
+            except NotImplementedError:
+                logging.warning(
+                    "Unable to determine declared dependencies from %r", buildsystem
+                )
 
 
 # Types of dependencies:

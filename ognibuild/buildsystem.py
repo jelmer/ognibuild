@@ -69,6 +69,14 @@ class InstallTarget(object):
     # TODO(jelmer): Add information about target directory, layout, etc.
 
 
+def get_necessary_declared_requirements(resolver, requirements, stages):
+    missing = []
+    for stage, req in requirements:
+        if stage in stages:
+            missing.append(req)
+    return missing
+
+
 class BuildSystem(object):
     """A particular buildsystem."""
 
@@ -81,6 +89,12 @@ class BuildSystem(object):
         self, session, resolver, fixers, target_directory: str, quiet=False
     ) -> str:
         raise NotImplementedError(self.dist)
+
+    def install_declared_requirements(self, stages, session, resolver, fixers):
+        from .buildlog import install_missing_reqs
+        declared_reqs = self.get_declared_dependencies(session, fixers)
+        relevant = get_necessary_declared_requirements(resolver, declared_reqs, stages)
+        install_missing_reqs(session, resolver, relevant, explain=False)
 
     def test(self, session, resolver, fixers):
         raise NotImplementedError(self.test)
@@ -1326,6 +1340,9 @@ class Cargo(BuildSystem):
 
         with open(path, "r") as f:
             self.cargo = load(f)
+
+    def install_declared_requirements(self, stages, session, resolver, fixers):
+        run_with_build_fixers(session, ["cargo", "fetch"], fixers)
 
     def get_declared_dependencies(self, session, fixers=None):
         if "dependencies" in self.cargo:
