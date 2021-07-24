@@ -161,8 +161,8 @@ def main():  # noqa: C901
     with ExitStack() as es:
         es.enter_context(session)
 
-        # TODO(jelmer): If directory is a URL, clone it
         parsed_url = urlparse(args.directory)
+        # TODO(jelmer): Get a list of supported schemes from breezy?
         if parsed_url.scheme in ('git', 'http', 'https', 'ssh'):
             import breezy.git
             import breezy.bzr

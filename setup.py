@@ -34,6 +34,7 @@ setup(name="ognibuild",
           ],
       extras_require={
           'debian': ['debmutate', 'python_debian', 'python_apt'],
+          'remote': ['breezy', 'dulwich'],
       },
       tests_require=['python_debian', 'buildlog-consultant', 'breezy', 'testtools'],
       test_suite='ognibuild.tests.test_suite',
