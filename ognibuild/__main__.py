@@ -15,10 +15,12 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from contextlib import ExitStack
 import logging
 import os
 import shlex
 import sys
+from urllib.parse import urlparse
 from . import UnidentifiedError, DetailedFailure
 from .buildlog import (
     InstallFixer,
@@ -155,9 +157,28 @@ def main():  # noqa: C901
         from .session.plain import PlainSession
 
         session = PlainSession()
-    with session:
-        logging.info("Preparing directory %s", args.directory)
-        external_dir, internal_dir = session.setup_from_directory(args.directory)
+
+    with ExitStack() as es:
+        es.enter_context(session)
+
+        # TODO(jelmer): If directory is a URL, clone it
+        parsed_url = urlparse(args.directory)
+        if parsed_url.scheme in ('git', 'http', 'https', 'ssh'):
+            import breezy.git
+            import breezy.bzr
+            from breezy.branch import Branch
+            from silver_platter.utils import TemporarySprout
+            b = Branch.open(args.directory)
+            logging.info("Cloning %s", args.directory)
+            wt = es.enter_context(TemporarySprout(b))
+            external_dir, internal_dir = session.setup_from_vcs(wt)
+        else:
+            if parsed_url.scheme == 'file':
+                directory = parsed_url.path
+            else:
+                directory = args.directory
+            logging.info("Preparing directory %s", directory)
+            external_dir, internal_dir = session.setup_from_directory(directory)
         session.chdir(internal_dir)
         os.chdir(external_dir)
 
@@ -178,7 +199,7 @@ def main():  # noqa: C901
                 from .fix_build import run_with_build_fixers
                 run_with_build_fixers(session, args.subargv, fixers)
                 return 0
-            bss = list(detect_buildsystems(args.directory))
+            bss = list(detect_buildsystems(external_dir))
             logging.info("Detected buildsystems: %s", ", ".join(map(str, bss)))
             if not args.ignore_declared_dependencies:
                 stages = STAGE_MAP[args.subcommand]
