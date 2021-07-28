@@ -159,8 +159,8 @@ def main():  # noqa: C901
         parsed_url = urlparse(args.directory)
         # TODO(jelmer): Get a list of supported schemes from breezy?
         if parsed_url.scheme in ('git', 'http', 'https', 'ssh'):
-            import breezy.git
-            import breezy.bzr
+            import breezy.git  # noqa: F401
+            import breezy.bzr  # noqa: F401
             from breezy.branch import Branch
             from silver_platter.utils import TemporarySprout
             b = Branch.open(args.directory)
