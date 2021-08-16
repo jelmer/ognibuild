@@ -704,7 +704,7 @@ def resolve_boost_component_req(apt_mgr, req):
 
 
 def resolve_list_req(apt_mgr, reqs):
-    options = [resolve_requirement_apt(req) for req in reqs]
+    options = [resolve_requirement_apt(apt_mgr, req) for req in reqs]
     ret = []
     for option in options:
         if not option:
