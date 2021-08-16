@@ -703,6 +703,16 @@ def resolve_boost_component_req(apt_mgr, req):
         regex=True)
 
 
+def resolve_list_req(apt_mgr, reqs):
+    options = [resolve_requirement_apt(req) for req in reqs]
+    ret = []
+    for option in options:
+        if not option:
+            return False
+        ret.append(option[0])
+    return ret
+
+
 APT_REQUIREMENT_RESOLVERS = [
     (AptRequirement, resolve_apt_req),
     (BinaryRequirement, resolve_binary_req),
@@ -747,6 +757,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (CargoCrateRequirement, resolve_cargo_crate_req),
     (IntrospectionTypelibRequirement, resolve_introspection_typelib_req),
     (BoostComponentRequirement, resolve_boost_component_req),
+    (list, resolve_list_req),
 ]
 
 
