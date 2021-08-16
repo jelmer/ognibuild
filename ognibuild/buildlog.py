@@ -19,8 +19,10 @@
 """
 
 import logging
+from typing import Optional, List, Union
 
 from buildlog_consultant.common import (
+    Problem,
     MissingPythonModule,
     MissingPythonDistribution,
     MissingCHeader,
@@ -70,6 +72,7 @@ from buildlog_consultant.common import (
 
 from .fix_build import BuildFixer
 from .requirements import (
+    Requirement,
     BinaryRequirement,
     PathRequirement,
     PkgConfigRequirement,
@@ -115,7 +118,7 @@ from .requirements import (
 from .resolver import UnsatisfiedRequirements
 
 
-def problem_to_upstream_requirement(problem):  # noqa: C901
+def problem_to_upstream_requirement(problem: Problem) -> Optional[Union[Requirement, List[Requirement]]]:  # noqa: C901
     if isinstance(problem, MissingFile):
         return PathRequirement(problem.path)
     elif isinstance(problem, MissingCommand):
