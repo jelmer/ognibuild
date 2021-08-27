@@ -96,7 +96,7 @@ def create_dist(
     resolver = auto_resolver(session)
     fixers: List[BuildFixer] = [
         UnexpandedAutoconfMacroFixer(session, resolver),
-        GnulibDirectoryFixer(session, resolver)]
+        GnulibDirectoryFixer(session)]
 
     fixers.append(InstallFixer(resolver))
 
