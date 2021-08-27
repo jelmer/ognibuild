@@ -716,3 +716,12 @@ class BoostComponentRequirement(Requirement):
     def __init__(self, name):
         super(BoostComponentRequirement, self).__init__("boost-component")
         self.name = name
+
+
+class GnulibDirectoryRequirement(Requirement):
+
+    directory: str
+
+    def __init__(self, directory):
+        super(GnulibDirectoryRequirement, self).__init__("gnulib")
+        self.directory = directory

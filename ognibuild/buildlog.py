@@ -68,6 +68,7 @@ from buildlog_consultant.common import (
     MissingLatexFile,
     MissingCargoCrate,
     MissingStaticLibrary,
+    MissingGnulibDirectory,
 )
 
 from .fix_build import BuildFixer
@@ -114,6 +115,7 @@ from .requirements import (
     LatexPackageRequirement,
     CargoCrateRequirement,
     StaticLibraryRequirement,
+    GnulibDirectoryRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -180,6 +182,8 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Union[Requirem
         return BinaryRequirement("msc")
     elif isinstance(problem, GnomeCommonMissing):
         return GnomeCommonRequirement()
+    elif isinstance(problem, MissingGnulibDirectory):
+        return GnulibDirectoryRequirement(problem.directory)
     elif isinstance(problem, MissingJDKFile):
         return JDKFileRequirement(problem.jdk_path, problem.filename)
     elif isinstance(problem, MissingJDK):

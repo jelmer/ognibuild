@@ -51,6 +51,7 @@ from ..requirements import (
     StaticLibraryRequirement,
     RubyFileRequirement,
     XmlEntityRequirement,
+    OctavePackageRequirement,
     SprocketsFileRequirement,
     JavaClassRequirement,
     CMakefileRequirement,
@@ -344,6 +345,10 @@ def resolve_vague_dep_req(apt_mgr, req):
         ))
 
     return options
+
+
+def resolve_octave_pkg_req(apt_mgr, req):
+    return AptRequirement.simple("octave-s" % req.package, minimum_version=req.minimum_version)
 
 
 def resolve_binary_req(apt_mgr, req):
@@ -757,6 +762,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (CargoCrateRequirement, resolve_cargo_crate_req),
     (IntrospectionTypelibRequirement, resolve_introspection_typelib_req),
     (BoostComponentRequirement, resolve_boost_component_req),
+    (OctavePackageRequirement, resolve_octave_pkg_req),
     (list, resolve_list_req),
 ]
 
