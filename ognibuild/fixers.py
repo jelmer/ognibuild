@@ -23,11 +23,24 @@ from buildlog_consultant.common import (
     MissingGitIdentity,
     MissingSecretGpgKey,
     MissingAutoconfMacro,
+    MissingGnulibDirectory,
 )
 from ognibuild.requirements import AutoconfMacroRequirement
 from ognibuild.resolver import UnsatisfiedRequirements
 
 from .fix_build import BuildFixer
+
+
+class GnulibDirectoryFixer(BuildFixer):
+    def __init__(self, session):
+        self.session = session
+
+    def can_fix(self, problem: Problem):
+        return isinstance(problem, MissingGnulibDirectory)
+
+    def _fix(self, problem: Problem, phase: Tuple[str, ...]):
+        self.session.check_call(["./gnulib.sh"])
+        return True
 
 
 class GitIdentityFixer(BuildFixer):

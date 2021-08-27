@@ -77,6 +77,7 @@ def create_dist(
         GitIdentityFixer,
         SecretGpgKeyFixer,
         UnexpandedAutoconfMacroFixer,
+        GnulibDirectoryFixer,
     )
 
     if subdir is None:
@@ -93,7 +94,9 @@ def create_dist(
     # TODO(jelmer): use scan_buildsystems to also look in subdirectories
     buildsystems = list(detect_buildsystems(export_directory))
     resolver = auto_resolver(session)
-    fixers: List[BuildFixer] = [UnexpandedAutoconfMacroFixer(session, resolver)]
+    fixers: List[BuildFixer] = [
+        UnexpandedAutoconfMacroFixer(session, resolver),
+        GnulibDirectoryFixer(session, resolver)]
 
     fixers.append(InstallFixer(resolver))
 
