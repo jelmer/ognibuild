@@ -208,6 +208,18 @@ class NodePackageRequirement(Requirement):
         return "%s(%r)" % (type(self).__name__, self.package)
 
 
+class LuaModuleRequirement(Requirement):
+
+    module: str
+
+    def __init__(self, module):
+        super(LuaModuleRequirement, self).__init__("lua-module")
+        self.module = module
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.module)
+
+
 class PerlPreDeclaredRequirement(Requirement):
 
     name: str

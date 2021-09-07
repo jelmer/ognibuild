@@ -69,6 +69,7 @@ from buildlog_consultant.common import (
     MissingCargoCrate,
     MissingStaticLibrary,
     MissingGnulibDirectory,
+    MissingLuaModule,
 )
 
 from .fix_build import BuildFixer
@@ -116,6 +117,7 @@ from .requirements import (
     CargoCrateRequirement,
     StaticLibraryRequirement,
     GnulibDirectoryRequirement,
+    LuaModuleRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -153,6 +155,8 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Union[Requirem
         return StaticLibraryRequirement(problem.library, problem.filename)
     elif isinstance(problem, MissingNodePackage):
         return NodePackageRequirement(problem.package)
+    elif isinstance(problem, MissingLuaModule):
+        return LuaModuleRequirement(problem.module)
     elif isinstance(problem, MissingLatexFile):
         if problem.filename.endswith('.sty'):
             return LatexPackageRequirement(problem.filename[:-4])
