@@ -233,7 +233,7 @@ class SchrootSession(Session):
         directory = tempfile.mkdtemp(dir=build_dir)
         reldir = "/" + os.path.relpath(directory, self.location)
         export_directory = os.path.join(directory, subdir)
-        shutil.copytree(path, export_directory)
+        shutil.copytree(path, export_directory, symlinks=True)
         return export_directory, os.path.join(reldir, subdir)
 
     is_temporary = True
