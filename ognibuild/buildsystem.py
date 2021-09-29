@@ -866,14 +866,12 @@ class Npm(BuildSystem):
         return "%s(%r)" % (type(self).__name__, self.path)
 
     def get_declared_dependencies(self, session, fixers=None):
-        if "dependencies" in self.package:
-            for name, unused_version in self.package["dependencies"].items():
-                # TODO(jelmer): Look at version
-                yield "core", NodePackageRequirement(name)
-        if "devDependencies" in self.package:
-            for name, unused_version in self.package["devDependencies"].items():
-                # TODO(jelmer): Look at version
-                yield "build", NodePackageRequirement(name)
+        for name, unused_version in self.package.get("dependencies", {}).items():
+            # TODO(jelmer): Look at version
+            yield "core", NodePackageRequirement(name)
+        for name, unused_version in self.package.get("devDependencies", {}).items():
+            # TODO(jelmer): Look at version
+            yield "build", NodePackageRequirement(name)
 
     def setup(self, session, resolver):
         binary_req = BinaryRequirement("npm")
@@ -888,11 +886,11 @@ class Npm(BuildSystem):
 
     def test(self, session, resolver, fixers):
         self.setup(session, resolver)
-        test_script = self.package["scripts"].get("test")
+        test_script = self.package.get("scripts", {}).get("test")
         if test_script:
             run_with_build_fixers(session, shlex.split(test_script), fixers)
         else:
-            raise NotImplementedError
+            logging.info('No test command defined in package.json')
 
     def build(self, session, resolver, fixers):
         self.setup(session, resolver)
@@ -900,15 +898,15 @@ class Npm(BuildSystem):
         if build_script:
             run_with_build_fixers(session, shlex.split(build_script), fixers)
         else:
-            raise NotImplementedError
+            logging.info('No build command defined in package.json')
 
     def clean(self, session, resolver, fixers):
         self.setup(session, resolver)
-        clean_script = self.package["scripts"].get("clean")
+        clean_script = self.package.get("scripts", {}).get("clean")
         if clean_script:
             run_with_build_fixers(session, shlex.split(clean_script), fixers)
         else:
-            raise NotImplementedError
+            logging.info('No clean command defined in package.json')
 
     @classmethod
     def probe(cls, path):
