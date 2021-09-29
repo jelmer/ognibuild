@@ -896,7 +896,7 @@ class Npm(BuildSystem):
 
     def build(self, session, resolver, fixers):
         self.setup(session, resolver)
-        build_script = self.package["scripts"].get("build")
+        build_script = self.package.get("scripts", {}).get("build")
         if build_script:
             run_with_build_fixers(session, shlex.split(build_script), fixers)
         else:
