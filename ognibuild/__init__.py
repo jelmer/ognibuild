@@ -94,6 +94,8 @@ class OneOfRequirement(Requirement):
 
     elements: List[Requirement]
 
+    family = 'or'
+
     def __init__(self, elements):
         self.elements = elements
 
