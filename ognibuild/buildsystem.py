@@ -1131,6 +1131,9 @@ class CMake(BuildSystem):
         self.setup(session, resolver, fixers)
         run_with_build_fixers(session, ["cmake", "--build %s" % self.builddir, ".", "--target", "clean"], fixers)
 
+    def test(self, session, resolver, fixers):
+        raise NotImplementedError(self.test)
+
 
 class Make(BuildSystem):
 
