@@ -18,6 +18,7 @@
 
 import os
 import stat
+from typing import List
 
 
 __version__ = (0, 0, 9)
@@ -87,6 +88,23 @@ class Requirement(object):
 
     def met(self, session):
         raise NotImplementedError(self)
+
+
+class OneOfRequirement(Requirement):
+
+    elements: List[Requirement]
+
+    def __init__(self, elements):
+        self.elements = elements
+
+    def met(self, session):
+        for req in self.elements:
+            if req.met(session):
+                return True
+        return False
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.elements)
 
 
 class UpstreamOutput(object):
