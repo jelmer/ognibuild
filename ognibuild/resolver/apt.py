@@ -28,6 +28,7 @@ from debian.deb822 import PkgRelation
 from ..debian.apt import AptManager
 
 from . import Resolver, UnsatisfiedRequirements
+from .. import OneOfRequirement
 from ..requirements import (
     Requirement,
     CargoCrateRequirement,
@@ -708,8 +709,8 @@ def resolve_boost_component_req(apt_mgr, req):
         regex=True)
 
 
-def resolve_list_req(apt_mgr, reqs):
-    options = [resolve_requirement_apt(apt_mgr, req) for req in reqs]
+def resolve_oneof_req(apt_mgr, req):
+    options = [resolve_requirement_apt(apt_mgr, req) for req in req.elements]
     ret = []
     for option in options:
         if not option:
@@ -763,7 +764,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (IntrospectionTypelibRequirement, resolve_introspection_typelib_req),
     (BoostComponentRequirement, resolve_boost_component_req),
     (OctavePackageRequirement, resolve_octave_pkg_req),
-    (list, resolve_list_req),
+    (OneOfRequirement, resolve_oneof_req),
 ]
 
 
