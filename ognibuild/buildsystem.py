@@ -1016,6 +1016,8 @@ class DistZilla(BuildSystem):
             return dc.copy_single(target_directory)
 
     def test(self, session, resolver, fixers):
+        # see also
+        # https://perlmaven.com/how-to-run-the-tests-of-a-typical-perl-module
         self.setup(resolver)
         run_with_build_fixers(session, [guaranteed_which(session, resolver, "dzil"), "test"], fixers)
 
@@ -1238,7 +1240,23 @@ class Make(BuildSystem):
 
     def test(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
-        self._run_make(session, ["check"], fixers)
+        for target in ["check", "test"]:
+            try:
+                self._run_make(session, [target], fixers)
+            except UnidentifiedError as e:
+                if ("make: *** No rule to make target '%s'.  Stop." % target) in e.lines:
+                    pass
+                else:
+                    raise
+            else:
+                break
+        else:
+            if os.path.isdir('t'):
+                # See
+                # https://perlmaven.com/how-to-run-the-tests-of-a-typical-perl-module
+                run_with_build_fixers(session, ["prove", "-b", "t/"], fixers)
+            else:
+                logging.warning('No test target found')
 
     def install(self, session, resolver, fixers, install_target):
         self.setup(session, resolver, fixers, prefix=install_target.prefix)
