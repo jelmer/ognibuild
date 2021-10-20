@@ -76,15 +76,20 @@ class SchrootSession(Session):
     def __enter__(self) -> "Session":
         if self.session_id is not None:
             raise SessionAlreadyOpen(self)
+        stderr = tempfile.TemporaryFile()
         try:
             self.session_id = (
-                subprocess.check_output(["schroot", "-c", self.chroot, "-b"])
+                subprocess.check_output(["schroot", "-c", self.chroot, "-b"], stderr=stderr)
                 .strip()
                 .decode()
             )
         except subprocess.CalledProcessError:
-            # TODO(jelmer): Capture stderr and forward in SessionSetupFailure
-            raise SessionSetupFailure()
+            stderr.seek(0)
+            errlines = stderr.readlines()
+            if len(errlines) == 1:
+                raise SessionSetupFailure(errlines[0].rstrip().decode())
+            else:
+                raise SessionSetupFailure(errlines[-1].decode())
         logging.info(
             "Opened schroot session %s (from %s)", self.session_id, self.chroot
         )

@@ -34,6 +34,7 @@ from .resolver import (
     native_resolvers,
     UnsatisfiedRequirements,
 )
+from .session import SessionSetupFailure
 
 
 def display_explain_commands(commands):
@@ -154,7 +155,11 @@ def main():  # noqa: C901
         session = PlainSession()
 
     with ExitStack() as es:
-        es.enter_context(session)
+        try:
+            es.enter_context(session)
+        except SessionSetupFailure as e:
+            logging.fatal('Failed to set up session: %s', e)
+            return 1
 
         parsed_url = urlparse(args.directory)
         # TODO(jelmer): Get a list of supported schemes from breezy?
