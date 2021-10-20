@@ -429,7 +429,7 @@ def resolve_go_package_req(apt_mgr, req):
 
 
 def resolve_go_req(apt_mgr, req):
-    return [AptRequirement.simple("golang-go", minimum_version="2:%s" % req.version)]
+    return [AptRequirement.simple("golang-go", minimum_version="2:%s~" % req.version)]
 
 
 def resolve_dh_addon_req(apt_mgr, req):
