@@ -888,7 +888,7 @@ class Npm(BuildSystem):
         self.setup(session, resolver)
         test_script = self.package.get("scripts", {}).get("test")
         if test_script:
-            run_with_build_fixers(session, shlex.split(test_script), fixers)
+            run_with_build_fixers(session, ['bash', '-c', test_script], fixers)
         else:
             logging.info('No test command defined in package.json')
 
@@ -896,7 +896,7 @@ class Npm(BuildSystem):
         self.setup(session, resolver)
         build_script = self.package.get("scripts", {}).get("build")
         if build_script:
-            run_with_build_fixers(session, shlex.split(build_script), fixers)
+            run_with_build_fixers(session, ['bash', '-c', build_script], fixers)
         else:
             logging.info('No build command defined in package.json')
 
@@ -904,7 +904,7 @@ class Npm(BuildSystem):
         self.setup(session, resolver)
         clean_script = self.package.get("scripts", {}).get("clean")
         if clean_script:
-            run_with_build_fixers(session, shlex.split(clean_script), fixers)
+            run_with_build_fixers(session, ['bash', '-c', clean_script], fixers)
         else:
             logging.info('No clean command defined in package.json')
 
