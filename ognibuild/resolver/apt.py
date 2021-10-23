@@ -349,7 +349,7 @@ def resolve_vague_dep_req(apt_mgr, req):
 
 
 def resolve_octave_pkg_req(apt_mgr, req):
-    return AptRequirement.simple("octave-s" % req.package, minimum_version=req.minimum_version)
+    return AptRequirement.simple("octave-%s" % req.package, minimum_version=req.minimum_version)
 
 
 def resolve_binary_req(apt_mgr, req):
