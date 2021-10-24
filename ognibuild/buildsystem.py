@@ -760,6 +760,13 @@ class R(BuildSystem):
 
     def test(self, session, resolver, fixers):
         r_path = guaranteed_which(session, resolver, "R")
+        if session.exists("run_tests.sh"):
+            run_with_build_fixers(session, ["./run_tests.sh"], fixers)
+        elif session.exists("tests"):
+            run_with_build_fixers(session, [r_path, "-e", "testthat::test_dir('tests')"], fixers)
+
+    def lint(self, session, resolver, fixers):
+        r_path = guaranteed_which(session, resolver, "R")
         run_with_build_fixers(session, [r_path, "CMD", "check", "."], fixers)
 
     @classmethod
