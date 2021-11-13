@@ -294,7 +294,9 @@ class RemoteContentsFileSearcher(FileSearcher):
             try:
                 f = load_url(url)
                 self.load_file(f, url)
-            # TODO(jelmer): Handle ConnectionReset; 
+            except ConnectionResetError:
+                logging.warning("Connection reset error retrieving %s", url)
+                # TODO(jelmer): Retry?
             except ContentsFileNotFound:
                 logging.warning("Unable to fetch contents file %s", url)
 
