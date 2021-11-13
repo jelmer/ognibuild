@@ -767,7 +767,7 @@ class R(BuildSystem):
 
     def lint(self, session, resolver, fixers):
         r_path = guaranteed_which(session, resolver, "R")
-        run_with_build_fixers(session, [r_path, "CMD", "check", "."], fixers)
+        run_with_build_fixers(session, [r_path, "CMD", "check"], fixers)
 
     @classmethod
     def probe(cls, path):
