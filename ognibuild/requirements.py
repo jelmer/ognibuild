@@ -372,6 +372,10 @@ class GoPackageRequirement(Requirement):
         self.package = package
         self.version = version
 
+    def __repr__(self):
+        return "%s(%r, version=%r)" % (
+            type(self).__name__, self.package, self.version)
+
     def __str__(self):
         if self.version:
             return "go package: %s (= %s)" % (self.package, self.version)
