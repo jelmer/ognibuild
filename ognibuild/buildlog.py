@@ -19,7 +19,7 @@
 """
 
 import logging
-from typing import Optional, List, Union
+from typing import Optional
 
 from buildlog_consultant.common import (
     Problem,
