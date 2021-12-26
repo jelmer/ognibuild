@@ -15,10 +15,12 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from contextlib import ExitStack
 import logging
 import os
 import shlex
 import sys
+from urllib.parse import urlparse
 from . import UnidentifiedError, DetailedFailure
 from .buildlog import (
     InstallFixer,
@@ -32,6 +34,7 @@ from .resolver import (
     native_resolvers,
     UnsatisfiedRequirements,
 )
+from .session import SessionSetupFailure
 
 
 def display_explain_commands(commands):
@@ -42,31 +45,26 @@ def display_explain_commands(commands):
         logging.info("  %s (to install %s)", command, ", ".join(map(str, reqs)))
 
 
-def get_necessary_declared_requirements(resolver, requirements, stages):
-    missing = []
-    for stage, req in requirements:
-        if stage in stages:
-            missing.append(req)
-    return missing
-
-
 def install_necessary_declared_requirements(
     session, resolver, fixers, buildsystems, stages, explain=False
 ):
-    relevant = []
-    declared_reqs = []
-    for buildsystem in buildsystems:
-        try:
-            declared_reqs.extend(buildsystem.get_declared_dependencies(session, fixers))
-        except NotImplementedError:
-            logging.warning(
-                "Unable to determine declared dependencies from %r", buildsystem
-            )
-    relevant.extend(
-        get_necessary_declared_requirements(resolver, declared_reqs, stages)
-    )
 
-    install_missing_reqs(session, resolver, relevant, explain=explain)
+    if explain:
+        relevant = []
+        for buildsystem in buildsystems:
+            declared_reqs = buildsystem.get_declared_dependencies(session, fixers)
+            for stage, req in declared_reqs:
+                if stage in stages:
+                    relevant.append(req)
+        install_missing_reqs(session, resolver, relevant, explain=True)
+    else:
+        for buildsystem in buildsystems:
+            try:
+                buildsystem.install_declared_requirements(stages, session, resolver, fixers)
+            except NotImplementedError:
+                logging.warning(
+                    "Unable to determine declared dependencies from %r", buildsystem
+                )
 
 
 # Types of dependencies:
@@ -155,9 +153,32 @@ def main():  # noqa: C901
         from .session.plain import PlainSession
 
         session = PlainSession()
-    with session:
-        logging.info("Preparing directory %s", args.directory)
-        external_dir, internal_dir = session.setup_from_directory(args.directory)
+
+    with ExitStack() as es:
+        try:
+            es.enter_context(session)
+        except SessionSetupFailure as e:
+            logging.fatal('Failed to set up session: %s', e)
+            return 1
+
+        parsed_url = urlparse(args.directory)
+        # TODO(jelmer): Get a list of supported schemes from breezy?
+        if parsed_url.scheme in ('git', 'http', 'https', 'ssh'):
+            import breezy.git  # noqa: F401
+            import breezy.bzr  # noqa: F401
+            from breezy.branch import Branch
+            from silver_platter.utils import TemporarySprout
+            b = Branch.open(args.directory)
+            logging.info("Cloning %s", args.directory)
+            wt = es.enter_context(TemporarySprout(b))
+            external_dir, internal_dir = session.setup_from_vcs(wt)
+        else:
+            if parsed_url.scheme == 'file':
+                directory = parsed_url.path
+            else:
+                directory = args.directory
+            logging.info("Preparing directory %s", directory)
+            external_dir, internal_dir = session.setup_from_directory(directory)
         session.chdir(internal_dir)
         os.chdir(external_dir)
 
@@ -178,7 +199,7 @@ def main():  # noqa: C901
                 from .fix_build import run_with_build_fixers
                 run_with_build_fixers(session, args.subargv, fixers)
                 return 0
-            bss = list(detect_buildsystems(args.directory))
+            bss = list(detect_buildsystems(external_dir))
             logging.info("Detected buildsystems: %s", ", ".join(map(str, bss)))
             if not args.ignore_declared_dependencies:
                 stages = STAGE_MAP[args.subcommand]

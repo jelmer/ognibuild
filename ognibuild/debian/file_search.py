@@ -37,6 +37,10 @@ class FileSearcher(object):
         raise NotImplementedError(self.search_files)
 
 
+class AptFileAccessError(Exception):
+    """Apt file access error."""
+
+
 class ContentsFileNotFound(Exception):
     """The contents file was not found."""
 
@@ -118,7 +122,7 @@ def _unwrap(f, ext):
 
 
 def load_direct_url(url):
-    from urllib.error import HTTPError
+    from urllib.error import HTTPError, URLError
     from urllib.request import urlopen, Request
 
     for ext in [".xz", ".gz", ""]:
@@ -128,7 +132,11 @@ def load_direct_url(url):
         except HTTPError as e:
             if e.status == 404:
                 continue
-            raise
+            raise AptFileAccessError(
+                'Unable to access apt URL %s: %s' % (url + ext, e))
+        except URLError as e:
+            raise AptFileAccessError(
+                'Unable to access apt URL %s: %s' % (url + ext, e))
         break
     else:
         raise FileNotFoundError(url)
@@ -286,6 +294,9 @@ class RemoteContentsFileSearcher(FileSearcher):
             try:
                 f = load_url(url)
                 self.load_file(f, url)
+            except ConnectionResetError:
+                logging.warning("Connection reset error retrieving %s", url)
+                # TODO(jelmer): Retry?
             except ContentsFileNotFound:
                 logging.warning("Unable to fetch contents file %s", url)
 

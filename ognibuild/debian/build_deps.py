@@ -21,6 +21,10 @@
 import logging
 
 
+class NoAptSources(Exception):
+    """No apt sources."""
+
+
 class BuildDependencyTieBreaker(object):
     def __init__(self, rootdir):
         self.rootdir = rootdir
@@ -39,7 +43,13 @@ class BuildDependencyTieBreaker(object):
 
         apt_pkg.init()
         apt_pkg.config.set("Dir", self.rootdir)
-        apt_cache = apt_pkg.SourceRecords()
+        try:
+            apt_cache = apt_pkg.SourceRecords()
+        except apt_pkg.Error as e:
+            if (e.args[0] ==
+                    "E:You must put some 'deb-src' URIs in your sources.list"):
+                raise NoAptSources()
+            raise
         apt_cache.restart()
         while apt_cache.step():
             try:
@@ -54,7 +64,13 @@ class BuildDependencyTieBreaker(object):
 
     def __call__(self, reqs):
         if self._counts is None:
-            self._counts = self._count()
+            try:
+                self._counts = self._count()
+            except NoAptSources:
+                logging.warning(
+                    "No 'deb-src' in sources.list, "
+                    "unable to break build-depends")
+                return None
         by_count = {}
         for req in reqs:
             try:

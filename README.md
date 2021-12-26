@@ -31,6 +31,12 @@ Ognibuild has a number of subcommands:
 It also includes a subcommand that can fix up the build dependencies
 for Debian packages, called deb-fix-build.
 
+### Examples
+
+```
+ogni -d https://gitlab.gnome.org/GNOME/fractal install
+```
+
 ## Status
 
 Ognibuild is functional, but sometimes rough around the edges. If you run into

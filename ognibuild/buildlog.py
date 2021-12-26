@@ -19,8 +19,10 @@
 """
 
 import logging
+from typing import Optional
 
 from buildlog_consultant.common import (
+    Problem,
     MissingPythonModule,
     MissingPythonDistribution,
     MissingCHeader,
@@ -66,10 +68,14 @@ from buildlog_consultant.common import (
     MissingLatexFile,
     MissingCargoCrate,
     MissingStaticLibrary,
+    MissingGnulibDirectory,
+    MissingLuaModule,
 )
 
+from . import OneOfRequirement
 from .fix_build import BuildFixer
 from .requirements import (
+    Requirement,
     BinaryRequirement,
     PathRequirement,
     PkgConfigRequirement,
@@ -111,11 +117,13 @@ from .requirements import (
     LatexPackageRequirement,
     CargoCrateRequirement,
     StaticLibraryRequirement,
+    GnulibDirectoryRequirement,
+    LuaModuleRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
 
-def problem_to_upstream_requirement(problem):  # noqa: C901
+def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]:  # noqa: C901
     if isinstance(problem, MissingFile):
         return PathRequirement(problem.path)
     elif isinstance(problem, MissingCommand):
@@ -135,7 +143,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
     elif isinstance(problem, MissingGoPackage):
         return GoPackageRequirement(problem.package)
     elif isinstance(problem, MissingBoostComponents):
-        return [BoostComponentRequirement(name) for name in problem.components]
+        return OneOfRequirement(
+            [BoostComponentRequirement(name) for name in problem.components])
     elif isinstance(problem, DhAddonLoadFailure):
         return DhAddonRequirement(problem.path)
     elif isinstance(problem, MissingPhpClass):
@@ -148,6 +157,8 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
         return StaticLibraryRequirement(problem.library, problem.filename)
     elif isinstance(problem, MissingNodePackage):
         return NodePackageRequirement(problem.package)
+    elif isinstance(problem, MissingLuaModule):
+        return LuaModuleRequirement(problem.module)
     elif isinstance(problem, MissingLatexFile):
         if problem.filename.endswith('.sty'):
             return LatexPackageRequirement(problem.filename[:-4])
@@ -165,18 +176,22 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
     elif isinstance(problem, MissingJavaClass):
         return JavaClassRequirement(problem.classname)
     elif isinstance(problem, CMakeFilesMissing):
-        return [CMakefileRequirement(filename, problem.version) for filename in problem.filenames]
+        return OneOfRequirement(
+            [CMakefileRequirement(filename, problem.version) for filename in problem.filenames])
     elif isinstance(problem, MissingHaskellDependencies):
-        return [HaskellPackageRequirement.from_string(dep) for dep in problem.deps]
+        return OneOfRequirement(
+            [HaskellPackageRequirement.from_string(dep) for dep in problem.deps])
     elif isinstance(problem, MissingMavenArtifacts):
-        return [
+        return OneOfRequirement([
             MavenArtifactRequirement.from_str(artifact)
             for artifact in problem.artifacts
-        ]
+        ])
     elif isinstance(problem, MissingCSharpCompiler):
         return BinaryRequirement("msc")
     elif isinstance(problem, GnomeCommonMissing):
         return GnomeCommonRequirement()
+    elif isinstance(problem, MissingGnulibDirectory):
+        return GnulibDirectoryRequirement(problem.directory)
     elif isinstance(problem, MissingJDKFile):
         return JDKFileRequirement(problem.jdk_path, problem.filename)
     elif isinstance(problem, MissingJDK):
