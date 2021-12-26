@@ -6,7 +6,7 @@ from setuptools import setup
 
 setup(name="ognibuild",
       description="Detect and run any build system",
-      version="0.0.9",
+      version="0.0.10",
       maintainer="Jelmer Vernooĳ",
       maintainer_email="jelmer@jelmer.uk",
       license="GNU GPLv2 or later",
@@ -34,6 +34,7 @@ setup(name="ognibuild",
           ],
       extras_require={
           'debian': ['debmutate', 'python_debian', 'python_apt'],
+          'remote': ['breezy', 'dulwich'],
       },
       tests_require=['python_debian', 'buildlog-consultant', 'breezy', 'testtools'],
       test_suite='ognibuild.tests.test_suite',

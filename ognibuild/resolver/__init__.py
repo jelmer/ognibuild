@@ -18,6 +18,8 @@
 
 import logging
 import subprocess
+from typing import Optional
+
 from .. import UnidentifiedError
 from ..fix_build import run_detecting_problems
 
@@ -546,25 +548,26 @@ def native_resolvers(session, user_local):
     return StackedResolver([kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
 
 
-def auto_resolver(session, explain=False):
+def auto_resolver(session, explain=False, system_wide: Optional[bool] = None):
     # if session is SchrootSession or if we're root, use apt
     from ..session.schroot import SchrootSession
     from ..session import get_user
 
     user = get_user(session)
     resolvers = []
-    # TODO(jelmer): Check VIRTUAL_ENV, and prioritize PypiResolver if
-    # present?
-    if isinstance(session, SchrootSession) or user == "root" or explain:
-        user_local = False
-    else:
-        user_local = True
-    if not user_local:
+    if system_wide is None:
+        # TODO(jelmer): Check VIRTUAL_ENV, and prioritize PypiResolver if
+        # present?
+        if isinstance(session, SchrootSession) or user == "root" or explain:
+            system_wide = True
+        else:
+            system_wide = False
+    if system_wide:
         try:
             from .apt import AptResolver
         except ModuleNotFoundError:
             pass
         else:
             resolvers.append(AptResolver.from_session(session))
-    resolvers.extend([kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
+    resolvers.extend([kls(session, not system_wide) for kls in NATIVE_RESOLVER_CLS])
     return StackedResolver(resolvers)

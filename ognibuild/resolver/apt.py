@@ -28,6 +28,7 @@ from debian.deb822 import PkgRelation
 from ..debian.apt import AptManager
 
 from . import Resolver, UnsatisfiedRequirements
+from .. import OneOfRequirement
 from ..requirements import (
     Requirement,
     CargoCrateRequirement,
@@ -51,6 +52,7 @@ from ..requirements import (
     StaticLibraryRequirement,
     RubyFileRequirement,
     XmlEntityRequirement,
+    OctavePackageRequirement,
     SprocketsFileRequirement,
     JavaClassRequirement,
     CMakefileRequirement,
@@ -346,6 +348,10 @@ def resolve_vague_dep_req(apt_mgr, req):
     return options
 
 
+def resolve_octave_pkg_req(apt_mgr, req):
+    return AptRequirement.simple("octave-%s" % req.package, minimum_version=req.minimum_version)
+
+
 def resolve_binary_req(apt_mgr, req):
     if posixpath.isabs(req.binary_name):
         paths = [req.binary_name]
@@ -423,7 +429,7 @@ def resolve_go_package_req(apt_mgr, req):
 
 
 def resolve_go_req(apt_mgr, req):
-    return [AptRequirement.simple("golang-go", minimum_version="2:%s" % req.version)]
+    return [AptRequirement.simple("golang-go", minimum_version="2:%s~" % req.version)]
 
 
 def resolve_dh_addon_req(apt_mgr, req):
@@ -602,7 +608,7 @@ def resolve_libtool_req(apt_mgr, req):
 
 
 def resolve_perl_module_req(apt_mgr, req):
-    DEFAULT_PERL_PATHS = ["/usr/share/perl5", "/usr/lib/.*/perl5/.*", "/usr/lib/.*/perl-base"]
+    DEFAULT_PERL_PATHS = ["/usr/share/perl5", "/usr/lib/.*/perl5/.*", "/usr/lib/.*/perl-base", "/usr/lib/.*/perl/[^/]+", "/usr/share/perl/[^/]+"]
 
     if req.inc is None:
         if req.filename is None:
@@ -703,6 +709,16 @@ def resolve_boost_component_req(apt_mgr, req):
         regex=True)
 
 
+def resolve_oneof_req(apt_mgr, req):
+    options = [resolve_requirement_apt(apt_mgr, req) for req in req.elements]
+    ret = []
+    for option in options:
+        if not option:
+            return False
+        ret.append(option[0])
+    return ret
+
+
 APT_REQUIREMENT_RESOLVERS = [
     (AptRequirement, resolve_apt_req),
     (BinaryRequirement, resolve_binary_req),
@@ -747,6 +763,8 @@ APT_REQUIREMENT_RESOLVERS = [
     (CargoCrateRequirement, resolve_cargo_crate_req),
     (IntrospectionTypelibRequirement, resolve_introspection_typelib_req),
     (BoostComponentRequirement, resolve_boost_component_req),
+    (OctavePackageRequirement, resolve_octave_pkg_req),
+    (OneOfRequirement, resolve_oneof_req),
 ]
 
 

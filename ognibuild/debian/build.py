@@ -117,6 +117,7 @@ def add_dummy_changelog_entry(
     message: str,
     timestamp=None,
     maintainer=None,
+    allow_reformatting: bool = True,
 ):
     """Add a dummy changelog entry to a package.
 
@@ -145,7 +146,9 @@ def add_dummy_changelog_entry(
         maintainer = get_maintainer()
     if timestamp is None:
         timestamp = datetime.now()
-    with ChangelogEditor(tree.abspath(os.path.join(path))) as editor:
+    with ChangelogEditor(
+            tree.abspath(os.path.join(path)),
+            allow_reformatting=allow_reformatting) as editor:
         version = editor[0].version
         if version.debian_revision:
             version.debian_revision = add_suffix(version.debian_revision, suffix)

@@ -62,6 +62,8 @@ def run_dist(session, buildsystems, resolver, fixers, target_directory, quiet=Fa
     raise NoBuildToolsFound()
 
 
+# TODO(jelmer): Remove this function, since it's unused and fairly
+# janitor-specific?
 def create_dist(
     session: Session,
     tree: Tree,
@@ -70,15 +72,6 @@ def create_dist(
     subdir: Optional[str] = None,
     cleanup: bool = False,
 ) -> Optional[str]:
-    from .buildsystem import detect_buildsystems
-    from .buildlog import InstallFixer
-    from .fix_build import BuildFixer
-    from .fixers import (
-        GitIdentityFixer,
-        SecretGpgKeyFixer,
-        UnexpandedAutoconfMacroFixer,
-    )
-
     if subdir is None:
         subdir = "package"
     try:
@@ -90,10 +83,26 @@ def create_dist(
             raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
         raise
 
+    return dist(session, export_directory, reldir, target_dir)
+
+
+def dist(session, export_directory, reldir, target_dir):
+    from .fix_build import BuildFixer
+    from .buildsystem import detect_buildsystems
+    from .buildlog import InstallFixer
+    from .fixers import (
+        GitIdentityFixer,
+        SecretGpgKeyFixer,
+        UnexpandedAutoconfMacroFixer,
+        GnulibDirectoryFixer,
+    )
+
     # TODO(jelmer): use scan_buildsystems to also look in subdirectories
     buildsystems = list(detect_buildsystems(export_directory))
     resolver = auto_resolver(session)
-    fixers: List[BuildFixer] = [UnexpandedAutoconfMacroFixer(session, resolver)]
+    fixers: List[BuildFixer] = [
+        UnexpandedAutoconfMacroFixer(session, resolver),
+        GnulibDirectoryFixer(session)]
 
     fixers.append(InstallFixer(resolver))
 

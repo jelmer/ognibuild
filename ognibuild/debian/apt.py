@@ -16,8 +16,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from debian.changelog import Version
 import logging
-from typing import List, Optional
+from typing import List, Optional, Iterable
 
 import os
 from buildlog_consultant.apt import (
@@ -93,8 +94,11 @@ class AptManager(object):
     def package_exists(self, package):
         return package in self.apt_cache
 
-    def package_versions(self, package):
-        return list(self.apt_cache[package].versions)
+    def package_versions(self, package: str) -> Optional[Iterable[Version]]:
+        try:
+            return list(self.apt_cache[package].versions)
+        except KeyError:
+            return None
 
     def get_packages_for_paths(self, paths, regex=False, case_insensitive=False):
         logging.debug("Searching for packages containing %r", paths)
