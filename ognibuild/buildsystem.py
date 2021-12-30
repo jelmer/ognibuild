@@ -1388,7 +1388,11 @@ class Cargo(BuildSystem):
         run_with_build_fixers(session, ["cargo", "clean"], fixers)
 
     def build(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["cargo", "generate"], fixers)
+        try:
+            run_with_build_fixers(session, ["cargo", "generate"], fixers)
+        except UnidentifiedError as e:
+            if e.lines != ['error: no such subcommand: `generate`']:
+                raise
         run_with_build_fixers(session, ["cargo", "build"], fixers)
 
     def install(self, session, resolver, fixers, install_target):
