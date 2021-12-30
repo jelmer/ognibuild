@@ -158,7 +158,8 @@ def main():  # noqa: C901
         try:
             es.enter_context(session)
         except SessionSetupFailure as e:
-            logging.fatal('Failed to set up session: %s', e)
+            logging.debug('Error lines: %r', e.errlines)
+            logging.fatal('Failed to set up session: %s', e.reason)
             return 1
 
         parsed_url = urlparse(args.directory)

@@ -109,6 +109,10 @@ class Session(object):
 class SessionSetupFailure(Exception):
     """Session failed to be set up."""
 
+    def __init__(self, reason, errlines=None):
+        self.reason = reason
+        self.errlines = errlines
+
 
 def run_with_tee(session: Session, args: List[str], **kwargs):
     if "stdin" not in kwargs:
