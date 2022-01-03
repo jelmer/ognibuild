@@ -669,6 +669,9 @@ def main(argv=None):
             logging.info("Using output directory %s", output_directory)
         else:
             output_directory = args.output_directory
+            if not os.path.isdir(output_directory):
+                parser.error(
+                    'output directory %s is not a directory' % output_directory)
 
         tree = WorkingTree.open(".")
         if args.schroot:
