@@ -28,7 +28,7 @@ from debian.deb822 import PkgRelation
 from ..debian.apt import AptManager
 
 from . import Resolver, UnsatisfiedRequirements
-from .. import OneOfRequirement
+from .. import OneOfRequirement, USER_AGENT
 from ..requirements import (
     Requirement,
     CargoCrateRequirement,
@@ -630,24 +630,29 @@ def resolve_perl_file_req(apt_mgr, req):
     return find_reqs_simple(apt_mgr, [req.filename], regex=False)
 
 
-def _find_aclocal_fun(macro):
-    # TODO(jelmer): Use the API for codesearch.debian.net instead?
-    defun_prefix = b"AC_DEFUN([%s]," % macro.encode("ascii")
-    au_alias_prefix = b"AU_ALIAS([%s]," % macro.encode("ascii")
-    prefixes = [defun_prefix, au_alias_prefix]
+def _m4_macro_regex(macro):
+    defun_prefix = re.escape("AC_DEFUN([%s]," % macro)
+    au_alias_prefix = re.escape("AU_ALIAS([%s]," % macro)
+    m4_copy = r"m4_copy\(.*,\s*\[%s\]\)" % re.escape(macro)
+    return "(" + "|".join([defun_prefix, au_alias_prefix, m4_copy]) + ")"
+
+
+def _find_local_m4_macro(macro):
+    # TODO(jelmer): Query some external service that can search all binary packages?
+    p = re.compile(_m4_macro_regex(macro).encode('ascii'))
     for entry in os.scandir("/usr/share/aclocal"):
         if not entry.is_file():
             continue
         with open(entry.path, "rb") as f:
             for line in f:
-                if any([line.startswith(prefix) for prefix in prefixes]):
+                if any(p.finditer(line)):
                     return entry.path
     raise KeyError
 
 
 def resolve_autoconf_macro_req(apt_mgr, req):
     try:
-        path = _find_aclocal_fun(req.macro)
+        path = _find_local_m4_macro(req.macro)
     except KeyError:
         logging.info("No local m4 file found defining %s", req.macro)
         return None
