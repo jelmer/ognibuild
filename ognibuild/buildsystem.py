@@ -404,7 +404,7 @@ class SetupPy(BuildSystem):
 
     def test(self, session, resolver, fixers):
         if os.path.exists(os.path.join(self.path, "tox.ini")):
-            run_with_build_fixers(session, ["tox"], fixers)
+            run_with_build_fixers(session, ["tox", "--skip-missing-interpreters"], fixers)
         elif self.pyproject:
             run_with_build_fixers(
                 session, ["python3", "-m", "pep517.check", "."], fixers
@@ -416,7 +416,12 @@ class SetupPy(BuildSystem):
             setuptools_req = PythonPackageRequirement("setuptools")
             if not setuptools_req.met(session):
                 resolver.install([setuptools_req])
-            self._run_setup(session, resolver, ["test"], fixers)
+            try:
+                self._run_setup(session, resolver, ["test"], fixers)
+            except UnidentifiedError as e:
+                if "error: invalid command: 'test'" in e.lines:
+                    pass
+                raise NotImplementedError
         else:
             raise NotImplementedError
 
