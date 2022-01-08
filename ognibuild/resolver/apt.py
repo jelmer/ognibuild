@@ -313,7 +313,6 @@ vague_map = {
     "the required FreeType library": "libfreetype-dev",
     "the Boost C++ libraries": "libboost-dev",
     "the sndfile library": "libsndfile-dev",
-    "GNU gettext": "gettext",
 
     # TODO(jelmer): Support resolving virtual packages
     "PythonLibs": "libpython3-dev",
@@ -331,16 +330,19 @@ vague_map = {
 
 def resolve_vague_dep_req(apt_mgr, req):
     name = req.name
+    options = []
     if ' or ' in name:
-        options = []
         for entry in name.split(' or '):
             options.extend(resolve_vague_dep_req(apt_mgr, VagueDependencyRequirement(entry)))
-        return options
-    options = []
+
     if name in vague_map:
         options.append(AptRequirement.simple(vague_map[name], minimum_version=req.minimum_version))
     for x in req.expand():
         options.extend(resolve_requirement_apt(apt_mgr, x))
+
+    if name.startswith('GNU '):
+        options.extend(resolve_vague_dep_req(apt_mgr, VagueDependencyRequirement(name[4:])))
+
     # Try even harder
     if not options:
         options.extend(find_reqs_simple(
