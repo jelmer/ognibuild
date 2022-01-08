@@ -331,6 +331,11 @@ vague_map = {
 
 def resolve_vague_dep_req(apt_mgr, req):
     name = req.name
+    if ' or ' in name:
+        options = []
+        for entry in name.split(' or '):
+            options.extend(resolve_vague_dep_req(apt_mgr, VagueDependencyRequirement(entry)))
+        return options
     options = []
     if name in vague_map:
         options.append(AptRequirement.simple(vague_map[name], minimum_version=req.minimum_version))
