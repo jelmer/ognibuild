@@ -421,7 +421,7 @@ class SetupPy(BuildSystem):
             try:
                 self._run_setup(session, resolver, ["test"], fixers)
             except UnidentifiedError as e:
-                if "error: invalid command: 'test'" in e.lines:
+                if "error: invalid command 'test'" in e.lines:
                     pass
                 else:
                     raise
