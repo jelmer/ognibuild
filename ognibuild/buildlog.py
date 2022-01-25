@@ -70,6 +70,7 @@ from buildlog_consultant.common import (
     MissingStaticLibrary,
     MissingGnulibDirectory,
     MissingLuaModule,
+    MissingPHPExtension,
 )
 
 from . import OneOfRequirement
@@ -119,6 +120,7 @@ from .requirements import (
     StaticLibraryRequirement,
     GnulibDirectoryRequirement,
     LuaModuleRequirement,
+    PHPExtensionRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -237,6 +239,8 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]: 
         return PerlModuleRequirement(
             module=problem.module, filename=problem.filename, inc=problem.inc
         )
+    elif isinstance(problem, MissingPHPExtension):
+        return PHPExtensionRequirement(problem.extension)
     elif isinstance(problem, MissingPerlFile):
         return PerlFileRequirement(filename=problem.filename)
     elif isinstance(problem, MissingAutoconfMacro):

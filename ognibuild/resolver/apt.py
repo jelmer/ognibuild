@@ -74,6 +74,7 @@ from ..requirements import (
     VagueDependencyRequirement,
     PerlPreDeclaredRequirement,
     IntrospectionTypelibRequirement,
+    PHPExtensionRequirement,
 )
 
 
@@ -357,6 +358,10 @@ def resolve_vague_dep_req(apt_mgr, req):
         ))
 
     return options
+
+
+def resolve_php_extension_req(apt_mgr, req):
+    return AptRequirement.simple("php-%s" % req.extension)
 
 
 def resolve_octave_pkg_req(apt_mgr, req):
@@ -779,6 +784,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (CargoCrateRequirement, resolve_cargo_crate_req),
     (IntrospectionTypelibRequirement, resolve_introspection_typelib_req),
     (BoostComponentRequirement, resolve_boost_component_req),
+    (PHPExtensionRequirement, resolve_php_extension_req),
     (OctavePackageRequirement, resolve_octave_pkg_req),
     (OneOfRequirement, resolve_oneof_req),
 ]
