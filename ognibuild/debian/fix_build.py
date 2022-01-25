@@ -22,7 +22,6 @@ __all__ = [
 from functools import partial
 import logging
 import os
-import re
 import shutil
 import sys
 from typing import List, Set, Optional, Type

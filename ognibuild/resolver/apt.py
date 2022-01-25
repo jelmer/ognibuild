@@ -28,7 +28,7 @@ from debian.deb822 import PkgRelation
 from ..debian.apt import AptManager
 
 from . import Resolver, UnsatisfiedRequirements
-from .. import OneOfRequirement, USER_AGENT
+from .. import OneOfRequirement
 from ..requirements import (
     Requirement,
     CargoCrateRequirement,
