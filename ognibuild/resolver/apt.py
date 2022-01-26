@@ -20,7 +20,7 @@ import logging
 import os
 import posixpath
 import re
-from typing import Optional, List
+from typing import Optional, List, Tuple, Callable, Type
 
 from debian.changelog import Version
 from debian.deb822 import PkgRelation
@@ -361,11 +361,12 @@ def resolve_vague_dep_req(apt_mgr, req):
 
 
 def resolve_php_extension_req(apt_mgr, req):
-    return AptRequirement.simple("php-%s" % req.extension)
+    return [AptRequirement.simple("php-%s" % req.extension)]
 
 
 def resolve_octave_pkg_req(apt_mgr, req):
-    return AptRequirement.simple("octave-%s" % req.package, minimum_version=req.minimum_version)
+    return [AptRequirement.simple(
+            "octave-%s" % req.package, minimum_version=req.minimum_version)]
 
 
 def resolve_binary_req(apt_mgr, req):
@@ -740,7 +741,7 @@ def resolve_oneof_req(apt_mgr, req):
     return ret
 
 
-APT_REQUIREMENT_RESOLVERS = [
+APT_REQUIREMENT_RESOLVERS: List[Tuple[Type[Requirement], Callable[[AptManager, Requirement], List[AptRequirement]]]] = [
     (AptRequirement, resolve_apt_req),
     (BinaryRequirement, resolve_binary_req),
     (VagueDependencyRequirement, resolve_vague_dep_req),
