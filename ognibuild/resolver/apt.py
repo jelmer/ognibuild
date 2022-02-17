@@ -344,6 +344,10 @@ def resolve_vague_dep_req(apt_mgr, req):
     if name.startswith('GNU '):
         options.extend(resolve_vague_dep_req(apt_mgr, VagueDependencyRequirement(name[4:])))
 
+    if name.startswith('py') or name.endswith('py'):
+        # TODO(jelmer): Try harder to determine whether this is a python package
+        options.append(resolve_requirement_apt(apt_mgr, PythonPackageRequirement(name)))
+
     # Try even harder
     if not options:
         options.extend(find_reqs_simple(
@@ -548,8 +552,7 @@ def resolve_sprockets_file_req(apt_mgr, req):
 
 
 def resolve_java_class_req(apt_mgr, req):
-    # Unfortunately this only finds classes in jars installed on the host
-    # system :(
+    apt_mgr.satisfy(["java-propose-classpath"])
     output = apt_mgr.session.check_output(
         ["java-propose-classpath", "-c" + req.classname]
     )
