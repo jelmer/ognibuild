@@ -48,7 +48,7 @@ from .session import which
 
 
 def guaranteed_which(session, resolver, name):
-    path = which(session, name)pt
+    path = which(session, name)
     if not path:
         resolver.install([BinaryRequirement(name)])
     return which(session, name)
