@@ -80,6 +80,7 @@ STAGE_MAP = {
     "test": ["test", "build", "core"],
     "build": ["build", "core"],
     "clean": [],
+    "verify": ["build", "core", "test"],
 }
 
 
@@ -128,6 +129,7 @@ def main():  # noqa: C901
     subparsers.add_parser("clean")
     subparsers.add_parser("test")
     subparsers.add_parser("info")
+    subparsers.add_parser("verify")
     exec_parser = subparsers.add_parser("exec")
     exec_parser.add_argument('subargv', nargs=argparse.REMAINDER, help='Command to run.')
     install_parser = subparsers.add_parser("install")
@@ -259,6 +261,14 @@ def main():  # noqa: C901
                 from .info import run_info
 
                 run_info(session, buildsystems=bss, fixers=fixers)
+
+            if args.subcommand == "verify":
+                from .build import run_build
+                from .test import run_test
+
+                run_build(session, buildsystems=bss, resolver=resolver, fixers=fixers)
+                run_test(session, buildsystems=bss, resolver=resolver, fixers=fixers)
+
         except ExplainInstall as e:
             display_explain_commands(e.commands)
         except (UnidentifiedError, DetailedFailure):
