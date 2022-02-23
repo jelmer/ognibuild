@@ -213,6 +213,11 @@ def add_dependency(context, phase, requirement: AptRequirement):
         return add_test_dependency(context, phase[1], requirement)
     elif phase[0] == "build":
         return add_build_dependency(context, requirement)
+    elif phase[0] == "buildenv":
+        # TODO(jelmer): Actually, we probably just want to install it on the
+        # host system?
+        logging.warning("Unknown phase %r", phase)
+        return False
     else:
         logging.warning("Unknown phase %r", phase)
         return False
