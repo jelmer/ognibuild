@@ -59,7 +59,6 @@ from buildlog_consultant.common import (
     DhAddonLoadFailure,
     MissingMavenArtifacts,
     MissingIntrospectionTypelib,
-    Missing
     GnomeCommonMissing,
     MissingGnomeCommonDependency,
     UnknownCertificateAuthority,
