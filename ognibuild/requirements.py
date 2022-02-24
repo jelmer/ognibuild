@@ -135,6 +135,18 @@ class BinaryRequirement(Requirement):
         return p.returncode == 0
 
 
+class PHPExtensionRequirement(Requirement):
+
+    extension: str
+
+    def __init__(self, extension: str):
+        super(PHPExtensionRequirement, self).__init__("php-extension")
+        self.extension = extension
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.extension)
+
+
 class PerlModuleRequirement(Requirement):
 
     module: str

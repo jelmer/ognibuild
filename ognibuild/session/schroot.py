@@ -87,9 +87,11 @@ class SchrootSession(Session):
             stderr.seek(0)
             errlines = stderr.readlines()
             if len(errlines) == 1:
-                raise SessionSetupFailure(errlines[0].rstrip().decode())
+                raise SessionSetupFailure(
+                    errlines[0].rstrip().decode(), errlines=errlines)
             else:
-                raise SessionSetupFailure(errlines[-1].decode())
+                raise SessionSetupFailure(
+                    errlines[-1].decode(), errlines=errlines)
         logging.info(
             "Opened schroot session %s (from %s)", self.session_id, self.chroot
         )
