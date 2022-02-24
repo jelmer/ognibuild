@@ -28,6 +28,7 @@ from buildlog_consultant.common import (
     MissingCHeader,
     MissingPkgConfig,
     MissingCommand,
+    MissingCommandOrBuildFile,
     MissingFile,
     MissingJavaScriptRuntime,
     MissingSprocketsFile,
@@ -46,6 +47,7 @@ from buildlog_consultant.common import (
     MissingSetupPyCommand,
     MissingJavaClass,
     MissingCSharpCompiler,
+    MissingRustCompiler,
     MissingRPackage,
     MissingRubyFile,
     MissingAutoconfMacro,
@@ -57,6 +59,7 @@ from buildlog_consultant.common import (
     DhAddonLoadFailure,
     MissingMavenArtifacts,
     MissingIntrospectionTypelib,
+    Missing
     GnomeCommonMissing,
     MissingGnomeCommonDependency,
     UnknownCertificateAuthority,
@@ -130,6 +133,8 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]: 
         return PathRequirement(problem.path)
     elif isinstance(problem, MissingCommand):
         return BinaryRequirement(problem.command)
+    elif isinstance(problem, MissingCommandOrBuildFile):
+        return BinaryRequirement(problem.command)
     elif isinstance(problem, MissingPkgConfig):
         return PkgConfigRequirement(problem.module, problem.minimum_version)
     elif isinstance(problem, MissingCHeader):
@@ -190,6 +195,8 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]: 
         ])
     elif isinstance(problem, MissingCSharpCompiler):
         return BinaryRequirement("msc")
+    elif isinstance(problem, MissingRustCompiler):
+        return BinaryRequirement("rustc")
     elif isinstance(problem, GnomeCommonMissing):
         return GnomeCommonRequirement()
     elif isinstance(problem, MissingGnulibDirectory):
