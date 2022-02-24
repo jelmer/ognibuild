@@ -38,7 +38,12 @@ from .file_search import (
 def run_apt(
     session: Session, args: List[str], prefix: Optional[List[str]] = None
 ) -> None:
-    """Run apt."""
+    """Run apt.
+
+    Raises:
+      DetailedFailure: When a known error occurs
+      UnidentifiedError: If an unknown error occurs
+    """
     if prefix is None:
         prefix = []
     args = prefix = ["apt", "-y"] + args
@@ -46,9 +51,10 @@ def run_apt(
     retcode, lines = run_with_tee(session, args, cwd="/", user="root")
     if retcode == 0:
         return
-    match, error = find_apt_get_failure(lines.rstrip('\n'))
-    if error is not None:
-        raise DetailedFailure(retcode, args, error)
+    for line in reversed(lines):
+        match, error = find_apt_get_failure(line.rstrip('\n'))
+        if error is not None:
+            raise DetailedFailure(retcode, args, error)
     while lines and lines[-1].rstrip('\n') == "":
         lines.pop(-1)
     raise UnidentifiedError(retcode, args, lines, secondary=match)
