@@ -22,7 +22,6 @@ __all__ = [
 from functools import partial
 import logging
 import os
-import re
 import shutil
 import sys
 from typing import List, Set, Optional, Type
@@ -214,6 +213,11 @@ def add_dependency(context, phase, requirement: AptRequirement):
         return add_test_dependency(context, phase[1], requirement)
     elif phase[0] == "build":
         return add_build_dependency(context, requirement)
+    elif phase[0] == "buildenv":
+        # TODO(jelmer): Actually, we probably just want to install it on the
+        # host system?
+        logging.warning("Unknown phase %r", phase)
+        return False
     else:
         logging.warning("Unknown phase %r", phase)
         return False
@@ -312,7 +316,7 @@ def python_tie_breaker(tree, subpath, reqs):
             return True
         if pkg.startswith("lib%s-" % python_version):
             return True
-        if re.match(r'lib%s\.[0-9]-dev' % python_version, pkg):
+        if pkg == r'lib%s-dev' % python_version:
             return True
         return False
 
@@ -669,6 +673,9 @@ def main(argv=None):
             logging.info("Using output directory %s", output_directory)
         else:
             output_directory = args.output_directory
+            if not os.path.isdir(output_directory):
+                parser.error(
+                    'output directory %s is not a directory' % output_directory)
 
         tree = WorkingTree.open(".")
         if args.schroot:

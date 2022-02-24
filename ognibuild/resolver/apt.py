@@ -20,7 +20,7 @@ import logging
 import os
 import posixpath
 import re
-from typing import Optional, List
+from typing import Optional, List, Tuple, Callable, Type
 
 from debian.changelog import Version
 from debian.deb822 import PkgRelation
@@ -74,6 +74,7 @@ from ..requirements import (
     VagueDependencyRequirement,
     PerlPreDeclaredRequirement,
     IntrospectionTypelibRequirement,
+    PHPExtensionRequirement,
 )
 
 
@@ -217,14 +218,14 @@ def python_spec_to_apt_rels(pkg_name, specs):
 def get_package_for_python_package(
     apt_mgr, package, python_version: Optional[str], specs=None
 ):
-    pypy_regex = "/usr/lib/pypy/dist-packages/%s-.*.egg-info" % re.escape(
+    pypy_regex = "/usr/lib/pypy/dist-packages/%s-.*\.(dist|egg)-info" % re.escape(
         package.replace("-", "_")
     )
     cpython2_regex = (
-        "/usr/lib/python2\\.[0-9]/dist-packages/%s-.*.egg-info"
+        "/usr/lib/python2\\.[0-9]/dist-packages/%s-.*\\.(dist|egg)-info"
         % re.escape(package.replace("-", "_"))
     )
-    cpython3_regex = "/usr/lib/python3/dist-packages/%s-.*.egg-info" % re.escape(
+    cpython3_regex = "/usr/lib/python3/dist-packages/%s-.*\\.(dist|egg)-info" % re.escape(
         package.replace("-", "_")
     )
     if python_version == "pypy":
@@ -312,12 +313,15 @@ vague_map = {
     "the Gnu Scientific Library": "libgsl-dev",
     "the required FreeType library": "libfreetype-dev",
     "the Boost C++ libraries": "libboost-dev",
+    "the sndfile library": "libsndfile-dev",
 
     # TODO(jelmer): Support resolving virtual packages
     "PythonLibs": "libpython3-dev",
+    "PythonInterp": "python3",
     "ZLIB": "libz3-dev",
     "Osmium": "libosmium2-dev",
     "glib": "libglib2.0-dev",
+    "OpenGL": "libgl-dev",
 
     # TODO(jelmer): For Python, check minimum_version and map to python 2 or python 3
     "Python": "libpython3-dev",
@@ -328,10 +332,22 @@ vague_map = {
 def resolve_vague_dep_req(apt_mgr, req):
     name = req.name
     options = []
+    if ' or ' in name:
+        for entry in name.split(' or '):
+            options.extend(resolve_vague_dep_req(apt_mgr, VagueDependencyRequirement(entry)))
+
     if name in vague_map:
         options.append(AptRequirement.simple(vague_map[name], minimum_version=req.minimum_version))
     for x in req.expand():
         options.extend(resolve_requirement_apt(apt_mgr, x))
+
+    if name.startswith('GNU '):
+        options.extend(resolve_vague_dep_req(apt_mgr, VagueDependencyRequirement(name[4:])))
+
+    if name.startswith('py') or name.endswith('py'):
+        # TODO(jelmer): Try harder to determine whether this is a python package
+        options.append(resolve_requirement_apt(apt_mgr, PythonPackageRequirement(name)))
+
     # Try even harder
     if not options:
         options.extend(find_reqs_simple(
@@ -348,8 +364,13 @@ def resolve_vague_dep_req(apt_mgr, req):
     return options
 
 
+def resolve_php_extension_req(apt_mgr, req):
+    return [AptRequirement.simple("php-%s" % req.extension)]
+
+
 def resolve_octave_pkg_req(apt_mgr, req):
-    return AptRequirement.simple("octave-%s" % req.package, minimum_version=req.minimum_version)
+    return [AptRequirement.simple(
+            "octave-%s" % req.package, minimum_version=req.minimum_version)]
 
 
 def resolve_binary_req(apt_mgr, req):
@@ -531,8 +552,7 @@ def resolve_sprockets_file_req(apt_mgr, req):
 
 
 def resolve_java_class_req(apt_mgr, req):
-    # Unfortunately this only finds classes in jars installed on the host
-    # system :(
+    apt_mgr.satisfy(["java-propose-classpath"])
     output = apt_mgr.session.check_output(
         ["java-propose-classpath", "-c" + req.classname]
     )
@@ -630,24 +650,29 @@ def resolve_perl_file_req(apt_mgr, req):
     return find_reqs_simple(apt_mgr, [req.filename], regex=False)
 
 
-def _find_aclocal_fun(macro):
-    # TODO(jelmer): Use the API for codesearch.debian.net instead?
-    defun_prefix = b"AC_DEFUN([%s]," % macro.encode("ascii")
-    au_alias_prefix = b"AU_ALIAS([%s]," % macro.encode("ascii")
-    prefixes = [defun_prefix, au_alias_prefix]
+def _m4_macro_regex(macro):
+    defun_prefix = re.escape("AC_DEFUN([%s]," % macro)
+    au_alias_prefix = re.escape("AU_ALIAS([%s]," % macro)
+    m4_copy = r"m4_copy\(.*,\s*\[%s\]\)" % re.escape(macro)
+    return "(" + "|".join([defun_prefix, au_alias_prefix, m4_copy]) + ")"
+
+
+def _find_local_m4_macro(macro):
+    # TODO(jelmer): Query some external service that can search all binary packages?
+    p = re.compile(_m4_macro_regex(macro).encode('ascii'))
     for entry in os.scandir("/usr/share/aclocal"):
         if not entry.is_file():
             continue
         with open(entry.path, "rb") as f:
             for line in f:
-                if any([line.startswith(prefix) for prefix in prefixes]):
+                if any(p.finditer(line)):
                     return entry.path
     raise KeyError
 
 
 def resolve_autoconf_macro_req(apt_mgr, req):
     try:
-        path = _find_aclocal_fun(req.macro)
+        path = _find_local_m4_macro(req.macro)
     except KeyError:
         logging.info("No local m4 file found defining %s", req.macro)
         return None
@@ -719,7 +744,7 @@ def resolve_oneof_req(apt_mgr, req):
     return ret
 
 
-APT_REQUIREMENT_RESOLVERS = [
+APT_REQUIREMENT_RESOLVERS: List[Tuple[Type[Requirement], Callable[[AptManager, Requirement], List[AptRequirement]]]] = [
     (AptRequirement, resolve_apt_req),
     (BinaryRequirement, resolve_binary_req),
     (VagueDependencyRequirement, resolve_vague_dep_req),
@@ -763,6 +788,7 @@ APT_REQUIREMENT_RESOLVERS = [
     (CargoCrateRequirement, resolve_cargo_crate_req),
     (IntrospectionTypelibRequirement, resolve_introspection_typelib_req),
     (BoostComponentRequirement, resolve_boost_component_req),
+    (PHPExtensionRequirement, resolve_php_extension_req),
     (OctavePackageRequirement, resolve_octave_pkg_req),
     (OneOfRequirement, resolve_oneof_req),
 ]

@@ -46,10 +46,10 @@ def run_apt(
     retcode, lines = run_with_tee(session, args, cwd="/", user="root")
     if retcode == 0:
         return
-    match, error = find_apt_get_failure(lines)
+    match, error = find_apt_get_failure(lines.rstrip('\n'))
     if error is not None:
         raise DetailedFailure(retcode, args, error)
-    while lines and lines[-1] == "":
+    while lines and lines[-1].rstrip('\n') == "":
         lines.pop(-1)
     raise UnidentifiedError(retcode, args, lines, secondary=match)
 

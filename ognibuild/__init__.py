@@ -21,7 +21,7 @@ import stat
 from typing import List
 
 
-__version__ = (0, 0, 10)
+__version__ = (0, 0, 11)
 
 
 USER_AGENT = "Ognibuild"

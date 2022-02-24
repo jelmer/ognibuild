@@ -404,21 +404,30 @@ class SetupPy(BuildSystem):
 
     def test(self, session, resolver, fixers):
         if os.path.exists(os.path.join(self.path, "tox.ini")):
-            run_with_build_fixers(session, ["tox"], fixers)
-        elif self.pyproject:
+            run_with_build_fixers(session, ["tox", "--skip-missing-interpreters"], fixers)
+            return
+        if self.pyproject:
             run_with_build_fixers(
                 session, ["python3", "-m", "pep517.check", "."], fixers
             )
-        elif self.has_setup_py:
+            return
+        if self.has_setup_py:
             # Pre-emptively insall setuptools, since distutils doesn't provide
             # a 'test' subcommand and some packages fall back to distutils
             # if setuptools is not available.
             setuptools_req = PythonPackageRequirement("setuptools")
             if not setuptools_req.met(session):
                 resolver.install([setuptools_req])
-            self._run_setup(session, resolver, ["test"], fixers)
-        else:
-            raise NotImplementedError
+            try:
+                self._run_setup(session, resolver, ["test"], fixers)
+            except UnidentifiedError as e:
+                if "error: invalid command 'test'" in e.lines:
+                    pass
+                else:
+                    raise
+            else:
+                return
+        raise NotImplementedError
 
     def build(self, session, resolver, fixers):
         if self.has_setup_py:
@@ -761,7 +770,7 @@ class R(BuildSystem):
         r_path = guaranteed_which(session, resolver, "R")
         if session.exists("run_tests.sh"):
             run_with_build_fixers(session, ["./run_tests.sh"], fixers)
-        elif session.exists("tests"):
+        elif session.exists("tests/testthat"):
             run_with_build_fixers(session, [r_path, "-e", "testthat::test_dir('tests')"], fixers)
 
     def lint(self, session, resolver, fixers):
@@ -1388,7 +1397,11 @@ class Cargo(BuildSystem):
         run_with_build_fixers(session, ["cargo", "clean"], fixers)
 
     def build(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["cargo", "generate"], fixers)
+        try:
+            run_with_build_fixers(session, ["cargo", "generate"], fixers)
+        except UnidentifiedError as e:
+            if e.lines != ['error: no such subcommand: `generate`']:
+                raise
         run_with_build_fixers(session, ["cargo", "build"], fixers)
 
     def install(self, session, resolver, fixers, install_target):
