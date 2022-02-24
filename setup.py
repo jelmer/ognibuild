@@ -28,7 +28,7 @@ setup(name="ognibuild",
         ]
       },
       install_requires=[
-          'breezy',
+          'breezy>=3.2',
           'buildlog-consultant>=0.0.10',
           'requirements-parser',
           ],
