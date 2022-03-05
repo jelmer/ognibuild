@@ -195,7 +195,7 @@ class AptFileFileSearcher(FileSearcher):
 
     @classmethod
     def from_session(cls, session):
-        logging.info('Using apt-file to search apt contents')
+        logging.debug('Using apt-file to search apt contents')
         if not os.path.exists(session.external_path(cls.CACHE_IS_EMPTY_PATH)):
             from .apt import AptManager
             AptManager.from_session(session).install(['apt-file'])

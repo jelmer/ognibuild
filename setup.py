@@ -27,6 +27,7 @@ setup(name="ognibuild",
             "deb-fix-build=ognibuild.debian.fix_build:main",
         ]
       },
+      scripts=['scripts/report-apt-deps-status'],
       install_requires=[
           'breezy>=3.2',
           'buildlog-consultant>=0.0.10',
