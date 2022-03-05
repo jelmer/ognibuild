@@ -3,7 +3,9 @@
 import argparse
 from contextlib import ExitStack
 import logging
+import sys
 from typing import Dict, List
+
 from ognibuild.buildsystem import NoBuildToolsFound, detect_buildsystems
 from ognibuild.requirements import Requirement
 from ognibuild.resolver.apt import AptResolver
@@ -23,7 +25,11 @@ with ExitStack() as es:
     session.chdir(args.directory)
     resolver = AptResolver.from_session(session)
 
-    bss = list(detect_buildsystems(args.directory))
+    try:
+        bss = list(detect_buildsystems(args.directory))
+    except NoBuildToolsFound:
+        logging.fatal('No build tools found')
+        sys.exit(1)
     logging.debug("Detected buildsystems: %s", ", ".join(map(str, bss)))
     deps: Dict[str, List[Requirement]] = {}
     for buildsystem in bss:
@@ -48,10 +54,13 @@ with ExitStack() as es:
         build_depends = []
         test_depends = []
         run_depends = []
+        unresolved = []
         for stage, reqs in deps.items():
             for req in reqs:
                 apt_req = resolver.resolve(req)
-                if stage == 'core':
+                if apt_req is None:
+                    unresolved.append(req)
+                elif stage == 'core':
                     build_depends.append(apt_req)
                     run_depends.append(apt_req)
                 elif stage == 'build':
@@ -72,3 +81,9 @@ with ExitStack() as es:
             logging.info(
                 'Depends: %s',
                 ', '.join([d.pkg_relation_str() for d in run_depends]))
+        if unresolved:
+            sys.stdout.write('\n')
+            logging.warning(
+                'Unable to find apt packages for the following dependencies:')
+            for req in unresolved:
+                logging.warning('* %s', req)
