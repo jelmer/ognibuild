@@ -76,6 +76,7 @@ from ..requirements import (
     PerlPreDeclaredRequirement,
     IntrospectionTypelibRequirement,
     PHPExtensionRequirement,
+    VcsControlDirectoryAccessRequirement,
 )
 
 
@@ -743,6 +744,22 @@ def resolve_kf5_component_req(apt_mgr, req):
         regex=True)
 
 
+def resolve_vcs_access_req(apt_mgr, req):
+    PKG_MAP = {
+        'hg': 'mercurial',
+        'svn': 'subversion',
+        'git': 'git',
+        'bzr': 'bzr',
+        }
+    ret = []
+    for vcs in req.vcs:
+        try:
+            ret.append(PKG_MAP[vcs])
+        except KeyError:
+            logging.debug('Unable to map VCS %s to package', vcs)
+    return [AptRequirement.from_str(','.join(ret))]
+
+
 def resolve_oneof_req(apt_mgr, req):
     options = [resolve_requirement_apt(apt_mgr, req) for req in req.elements]
     for option in options:
@@ -798,6 +815,7 @@ APT_REQUIREMENT_RESOLVERS: List[Tuple[Type[Requirement], Callable[[AptManager, R
     (KF5ComponentRequirement, resolve_kf5_component_req),
     (PHPExtensionRequirement, resolve_php_extension_req),
     (OctavePackageRequirement, resolve_octave_pkg_req),
+    (VcsControlDirectoryAccessRequirement, resolve_vcs_access_req),
     (OneOfRequirement, resolve_oneof_req),
 ]
 

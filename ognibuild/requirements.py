@@ -147,6 +147,18 @@ class PHPExtensionRequirement(Requirement):
         return "%s(%r)" % (type(self).__name__, self.extension)
 
 
+class VcsControlDirectoryAccessRequirement(Requirement):
+
+    vcs: List[str]
+
+    def __init__(self, vcs):
+        super(VcsControlDirectoryAccessRequirement, self).__init__("vcs-access")
+        self.vcs = vcs
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.vcs)
+
+
 class PerlModuleRequirement(Requirement):
 
     module: str

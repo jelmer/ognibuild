@@ -73,6 +73,7 @@ from buildlog_consultant.common import (
     MissingGnulibDirectory,
     MissingLuaModule,
     MissingPHPExtension,
+    VcsControlDirectoryNeeded,
 )
 
 from . import OneOfRequirement
@@ -124,6 +125,7 @@ from .requirements import (
     GnulibDirectoryRequirement,
     LuaModuleRequirement,
     PHPExtensionRequirement,
+    VcsControlDirectoryAccessRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -199,6 +201,8 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]: 
         ])
     elif isinstance(problem, MissingCSharpCompiler):
         return BinaryRequirement("msc")
+    elif isinstance(problem, VcsControlDirectoryNeeded):
+        return VcsControlDirectoryAccessRequirement(problem.vcs)
     elif isinstance(problem, MissingRustCompiler):
         return BinaryRequirement("rustc")
     elif isinstance(problem, GnomeCommonMissing):

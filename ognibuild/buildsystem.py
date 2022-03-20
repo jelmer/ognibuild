@@ -942,6 +942,16 @@ class Waf(BuildSystem):
         if not binary_req.met(session):
             resolver.install([binary_req])
 
+    def build(self, session, resolver, fixers):
+        try:
+            run_with_build_fixers(session, [self.path, 'build'], fixers)
+        except UnidentifiedError as e:
+            if "The project was not configured: run \"waf configure\" first!" in e.lines:
+                run_with_build_fixers(session, [self.path, 'configure'], fixers)
+                run_with_build_fixers(session, [self.path, 'build'], fixers)
+            else:
+                raise
+
     def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(session, resolver, fixers)
         with DistCatcher.default(session.external_path(".")) as dc:
