@@ -1540,6 +1540,9 @@ class Maven(BuildSystem):
     def __init__(self, path):
         self.path = path
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
     @classmethod
     def probe(cls, path):
         if os.path.exists(os.path.join(path, "pom.xml")):
