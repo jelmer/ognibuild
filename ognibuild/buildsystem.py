@@ -864,6 +864,21 @@ class Meson(BuildSystem):
             logging.debug("Found meson.build, assuming meson package.")
             return Meson(os.path.join(path, "meson.build"))
 
+    def _introspect(self, session, fixers, args):
+        self._setup(session, fixers)
+        ret = run_with_build_fixers(session, ["meson", "introspect"] + args + ["build"], fixers)
+        import json
+        return json.loads(''.join(ret))
+
+    def get_declared_dependencies(self, session, fixers=None):
+        resp = self._introspect(session, fixers, ["--dependencies"])
+        for entry in resp:
+            yield "core", VagueDependencyRequirement(entry['name'])
+
+    def get_declared_outputs(self, session, fixers=None):
+        resp = self._introspect(session, fixers, ["--install-plan"])
+        # TODO(jelmer): Yield outputs
+
 
 class Npm(BuildSystem):
 
