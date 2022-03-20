@@ -866,7 +866,7 @@ class Meson(BuildSystem):
             return Meson(os.path.join(path, "meson.build"))
 
     def _introspect(self, session, fixers, args):
-        ret = run_with_build_fixers(session, ["meson", "introspect"] + args + [self.path], fixers)
+        ret = run_with_build_fixers(session, ["meson", "introspect"] + args + ['./meson.build'], fixers)
         import json
         return json.loads(''.join(ret))
 
