@@ -219,6 +219,11 @@ class VagueDependencyRequirement(Requirement):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.name)
 
+    def __str__(self):
+        if self.minimum_version:
+            return "%s >= %s" % (self.name, self.minimum_version)
+        return self.name
+
 
 class NodePackageRequirement(Requirement):
 

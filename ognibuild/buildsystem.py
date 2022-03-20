@@ -873,9 +873,14 @@ class Meson(BuildSystem):
     def get_declared_dependencies(self, session, fixers=None):
         resp = self._introspect(session, fixers, ["--scan-dependencies"])
         for entry in resp:
-            # TODO(jelmer): Include entry['version']
+            version = entry.get('version', [])
+            minimum_version = None
+            if len(version) == 1 and version[0].startswith('>='):
+                minimum_version = version[0][2:]
+            elif len(version) > 1:
+                logging.warning('Unable to parse version constraints: %r', version)
             # TODO(jelmer): Include entry['required']
-            yield "core", VagueDependencyRequirement(entry['name'])
+            yield "core", VagueDependencyRequirement(entry['name'], minimum_version=minimum_version)
 
     def get_declared_outputs(self, session, fixers=None):
         resp = self._introspect(session, fixers, ["--targets"])
