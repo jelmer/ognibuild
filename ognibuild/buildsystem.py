@@ -42,6 +42,7 @@ from .requirements import (
     MavenArtifactRequirement,
     GoRequirement,
     GoPackageRequirement,
+    VagueDependencyRequirement,
 )
 from .fix_build import run_with_build_fixers
 from .session import which
@@ -865,19 +866,26 @@ class Meson(BuildSystem):
             return Meson(os.path.join(path, "meson.build"))
 
     def _introspect(self, session, fixers, args):
-        self._setup(session, fixers)
-        ret = run_with_build_fixers(session, ["meson", "introspect"] + args + ["build"], fixers)
+        ret = run_with_build_fixers(session, ["meson", "introspect"] + args + [self.path], fixers)
         import json
         return json.loads(''.join(ret))
 
     def get_declared_dependencies(self, session, fixers=None):
         resp = self._introspect(session, fixers, ["--dependencies"])
         for entry in resp:
+            # TODO(jelmer): Include entry['version']
+            # TODO(jelmer): Include entry['required']
             yield "core", VagueDependencyRequirement(entry['name'])
 
     def get_declared_outputs(self, session, fixers=None):
-        resp = self._introspect(session, fixers, ["--install-plan"])
-        # TODO(jelmer): Yield outputs
+        resp = self._introspect(session, fixers, ["--targets"])
+        for entry in resp:
+            if not entry['installed']:
+                continue
+            if entry['type'] == 'executable':
+                for name in entry['filename']:
+                    yield BinaryOutput(os.path.basename(name))
+            # TODO(jelmer): Handle other types
 
 
 class Npm(BuildSystem):
