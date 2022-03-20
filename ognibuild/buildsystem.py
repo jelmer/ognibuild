@@ -871,7 +871,7 @@ class Meson(BuildSystem):
         return json.loads(''.join(ret))
 
     def get_declared_dependencies(self, session, fixers=None):
-        resp = self._introspect(session, fixers, ["--dependencies"])
+        resp = self._introspect(session, fixers, ["--scan-dependencies"])
         for entry in resp:
             # TODO(jelmer): Include entry['version']
             # TODO(jelmer): Include entry['required']
