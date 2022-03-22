@@ -24,6 +24,7 @@ import logging
 import os
 import shutil
 import sys
+import time
 from typing import List, Set, Optional, Type
 
 from debian.deb822 import (
@@ -666,6 +667,19 @@ def main(argv=None):
             else:
                 phase = "%s (%s)" % (e.phase[0], e.phase[1])
             logging.fatal("Error during %s: %s", phase, e.error)
+            if not args.output_directory:
+                xdg_cache_dir = os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
+                buildlogs_dir = os.path.join(xdg_cache_dir, 'ognibuild', 'buildlogs')
+                os.makedirs(buildlogs_dir, exist_ok=True)
+                target_log_file = os.path.join(
+                    buildlogs_dir,
+                    '%s-%s.log' % (
+                        os.path.basename(getattr(tree, 'basedir', 'build')),
+                        time.strftime('%Y-%m-%d_%H%M%s')))
+                shutil.copy(
+                    os.path.join(output_directory, 'build.log'),
+                    target_log_file)
+                logging.info('Build log available in %s', target_log_file)
             return 1
         except UnidentifiedDebianBuildError as e:
             if e.phase is None:
