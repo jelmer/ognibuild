@@ -736,12 +736,10 @@ def resolve_boost_component_req(apt_mgr, req):
 
 def resolve_oneof_req(apt_mgr, req):
     options = [resolve_requirement_apt(apt_mgr, req) for req in req.elements]
-    ret = []
     for option in options:
         if not option:
-            return False
-        ret.append(option[0])
-    return ret
+            continue
+        return option
 
 
 APT_REQUIREMENT_RESOLVERS: List[Tuple[Type[Requirement], Callable[[AptManager, Requirement], List[AptRequirement]]]] = [
