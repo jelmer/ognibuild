@@ -22,6 +22,7 @@ from typing import List
 
 
 __version__ = (0, 0, 11)
+version_string = '.'.join(map(str, __version__))
 
 
 USER_AGENT = "Ognibuild"

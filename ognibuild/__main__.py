@@ -21,7 +21,7 @@ import os
 import shlex
 import sys
 from urllib.parse import urlparse
-from . import UnidentifiedError, DetailedFailure
+from . import UnidentifiedError, DetailedFailure, version_string
 from .buildlog import (
     InstallFixer,
     ExplainInstallFixer,
@@ -94,7 +94,10 @@ def determine_fixers(session, resolver, explain=False):
 def main():  # noqa: C901
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(prog='ogni')
+    parser.add_argument(
+        "--version", action="version", version="%(prog)s " + version_string
+    )
     parser.add_argument(
         "--directory", "-d", type=str, help="Directory for project.", default="."
     )
