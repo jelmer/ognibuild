@@ -414,13 +414,13 @@ def main(argv):
     else:
         logging.basicConfig(level=logging.INFO)
 
-    main_searcher = get_apt_contents_file_searcher(PlainSession())
-    main_searcher.load_local()
-    searchers = [main_searcher, GENERATED_FILE_SEARCHER]
+    with PlainSession() as session:
+        main_searcher = get_apt_contents_file_searcher(session)
+        searchers = [main_searcher, GENERATED_FILE_SEARCHER]
 
-    packages = get_packages_for_paths(args.path, searchers=searchers, regex=args.regex)
-    for package in packages:
-        print(package)
+        packages = get_packages_for_paths(args.path, searchers=searchers, regex=args.regex)
+        for package in packages:
+            print(package)
 
 
 if __name__ == "__main__":
