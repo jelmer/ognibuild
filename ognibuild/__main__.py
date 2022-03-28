@@ -271,7 +271,21 @@ def main():  # noqa: C901
 
         except ExplainInstall as e:
             display_explain_commands(e.commands)
-        except (UnidentifiedError, DetailedFailure):
+        except UnidentifiedError:
+            logging.info(
+                'If there is a clear indication of a problem in the build log, '
+                'please consider filing a request to update the patterns in '
+                'buildlog-consultant at '
+                'https://github.com/jelmer/buildlog-consultant/issues/new')
+            return 1
+        except DetailedFailure:
+            if not args.verbose:
+                logging.info(
+                    'Run with --verbose to get more information about steps taken '
+                    'to try to resolve error')
+            logging.info(
+                'Please consider filing a bug report at '
+                'https://github.com/jelmer/ognibuild/issues/new')
             return 1
         except NoBuildToolsFound:
             logging.info("No build tools found.")
