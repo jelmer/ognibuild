@@ -218,7 +218,7 @@ def python_spec_to_apt_rels(pkg_name, specs):
 def get_package_for_python_package(
     apt_mgr, package, python_version: Optional[str], specs=None
 ):
-    pypy_regex = "/usr/lib/pypy/dist-packages/%s-.*\.(dist|egg)-info" % re.escape(
+    pypy_regex = "/usr/lib/pypy/dist-packages/%s-.*\\.(dist|egg)-info" % re.escape(
         package.replace("-", "_")
     )
     cpython2_regex = (
