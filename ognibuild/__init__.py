@@ -21,7 +21,7 @@ import stat
 from typing import List
 
 
-__version__ = (0, 0, 11)
+__version__ = (0, 0, 12)
 version_string = '.'.join(map(str, __version__))
 
 
