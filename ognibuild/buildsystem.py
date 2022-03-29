@@ -1325,17 +1325,12 @@ class Make(BuildSystem):
         return dc.copy_single(target_directory)
 
     def get_declared_dependencies(self, session, fixers=None):
-        something = False
         # TODO(jelmer): Split out the perl-specific stuff?
         if os.path.exists(os.path.join(self.path, "META.yml")):
             with open(os.path.join(self.path, "META.yml"), "rb") as f:
                 yield from _declared_deps_from_meta_yml(f)
-            something = True
         if os.path.exists(os.path.join(self.path, "cpanfile")):
             yield from _declared_deps_from_cpanfile(session, fixers)
-            something = True
-        if not something:
-            raise NotImplementedError
 
     @classmethod
     def probe(cls, path):

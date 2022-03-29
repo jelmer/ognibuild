@@ -565,7 +565,8 @@ def resolve_java_class_req(apt_mgr, req):
 
 
 def resolve_cmake_file_req(apt_mgr, req):
-    paths = ['/usr/lib/.*/cmake/.*/%s' % re.escape(req.filename)]
+    paths = ['/usr/lib/.*/cmake/.*/%s' % re.escape(req.filename),
+             '/usr/share/.*/cmake/%s' % re.escape(req.filename)]
     return find_reqs_simple(apt_mgr, paths, regex=True)
 
 
@@ -736,12 +737,10 @@ def resolve_boost_component_req(apt_mgr, req):
 
 def resolve_oneof_req(apt_mgr, req):
     options = [resolve_requirement_apt(apt_mgr, req) for req in req.elements]
-    ret = []
     for option in options:
         if not option:
-            return False
-        ret.append(option[0])
-    return ret
+            continue
+        return option
 
 
 APT_REQUIREMENT_RESOLVERS: List[Tuple[Type[Requirement], Callable[[AptManager, Requirement], List[AptRequirement]]]] = [
