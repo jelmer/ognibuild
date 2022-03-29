@@ -49,49 +49,7 @@ from debmutate.reformatting import (
     GeneratedFile,
 )
 
-try:
-    from breezy.workspace import reset_tree
-except ImportError:  # breezy < 3.2
-
-    def delete_items(deletables, dry_run=False):
-        """Delete files in the deletables iterable"""
-        import errno
-        import shutil
-
-        def onerror(function, path, excinfo):
-            """Show warning for errors seen by rmtree."""
-            # Handle only permission error while removing files.
-            # Other errors are re-raised.
-            if function is not os.remove or excinfo[1].errno != errno.EACCES:
-                raise
-            logging.warning("unable to remove %s" % path)
-
-        for path, subp in deletables:
-            if os.path.isdir(path):
-                shutil.rmtree(path, onerror=onerror)
-            else:
-                try:
-                    os.unlink(path)
-                except OSError as e:
-                    # We handle only permission error here
-                    if e.errno != errno.EACCES:
-                        raise e
-                    logging.warning('unable to remove "%s": %s.', path, e.strerror)
-
-    def reset_tree(local_tree, subpath=""):
-        from breezy.transform import revert
-        from breezy.clean_tree import iter_deletables
-
-        revert(
-            local_tree,
-            local_tree.branch.basis_tree(),
-            [subpath] if subpath not in (".", "") else None,
-        )
-        deletables = list(
-            iter_deletables(local_tree, unknown=True, ignored=False, detritus=False)
-        )
-        delete_items(deletables)
-
+from breezy.workspace import reset_tree
 
 from debmutate._rules import (
     dh_invoke_add_with,

@@ -50,3 +50,4 @@ ognibuild/session/schroot.py
 ognibuild/tests/__init__.py
 ognibuild/tests/test_debian_build.py
 ognibuild/tests/test_debian_fix_build.py
+scripts/report-apt-deps-status

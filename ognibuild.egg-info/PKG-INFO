@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: ognibuild
-Version: 0.0.11
+Version: 0.0.12
 Summary: Detect and run any build system
 Home-page: https://jelmer.uk/code/ognibuild
 Maintainer: Jelmer Vernooĳ

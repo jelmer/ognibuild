@@ -6,7 +6,7 @@ from setuptools import setup
 
 setup(name="ognibuild",
       description="Detect and run any build system",
-      version="0.0.11",
+      version="0.0.12",
       maintainer="Jelmer Vernooĳ",
       maintainer_email="jelmer@jelmer.uk",
       license="GNU GPLv2 or later",
@@ -27,8 +27,9 @@ setup(name="ognibuild",
             "deb-fix-build=ognibuild.debian.fix_build:main",
         ]
       },
+      scripts=['scripts/report-apt-deps-status'],
       install_requires=[
-          'breezy',
+          'breezy>=3.2',
           'buildlog-consultant>=0.0.10',
           'requirements-parser',
           ],
