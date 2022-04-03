@@ -428,6 +428,12 @@ NPM_COMMAND_PACKAGES = {
     "del-cli": "del-cli",
     "husky": "husky",
     "cross-env": "cross-env",
+    "xo": "xo",
+    "standard": "standard",
+    "jshint": "jshint",
+    "if-node-version": "if-node-version",
+    "babel": "babel",
+    "c8": "c8",
 }
 
 
