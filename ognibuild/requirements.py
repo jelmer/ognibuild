@@ -746,6 +746,15 @@ class BoostComponentRequirement(Requirement):
         self.name = name
 
 
+class KF5ComponentRequirement(Requirement):
+
+    name: str
+
+    def __init__(self, name):
+        super(KF5ComponentRequirement, self).__init__("kf5-component")
+        self.name = name
+
+
 class GnulibDirectoryRequirement(Requirement):
 
     directory: str

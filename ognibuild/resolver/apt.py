@@ -49,6 +49,7 @@ from ..requirements import (
     NodePackageRequirement,
     LibraryRequirement,
     BoostComponentRequirement,
+    KF5ComponentRequirement,
     StaticLibraryRequirement,
     RubyFileRequirement,
     XmlEntityRequirement,
@@ -735,6 +736,13 @@ def resolve_boost_component_req(apt_mgr, req):
         regex=True)
 
 
+def resolve_kf5_component_req(apt_mgr, req):
+    return find_reqs_simple(
+        apt_mgr, ["/usr/lib/.*/cmake/KF5%s/KF5%sConfig.cmake" % (
+            re.escape(req.name), re.escape(req.name))],
+        regex=True)
+
+
 def resolve_oneof_req(apt_mgr, req):
     options = [resolve_requirement_apt(apt_mgr, req) for req in req.elements]
     for option in options:
@@ -787,6 +795,7 @@ APT_REQUIREMENT_RESOLVERS: List[Tuple[Type[Requirement], Callable[[AptManager, R
     (CargoCrateRequirement, resolve_cargo_crate_req),
     (IntrospectionTypelibRequirement, resolve_introspection_typelib_req),
     (BoostComponentRequirement, resolve_boost_component_req),
+    (KF5ComponentRequirement, resolve_kf5_component_req),
     (PHPExtensionRequirement, resolve_php_extension_req),
     (OctavePackageRequirement, resolve_octave_pkg_req),
     (OneOfRequirement, resolve_oneof_req),

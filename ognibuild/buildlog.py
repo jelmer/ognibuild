@@ -52,7 +52,7 @@ from buildlog_consultant.common import (
     MissingRubyFile,
     MissingAutoconfMacro,
     MissingValaPackage,
-    MissingBoostComponents,
+    MissingCMakeComponents,
     MissingXfceDependency,
     MissingHaskellDependencies,
     MissingVagueDependency,
@@ -100,6 +100,7 @@ from .requirements import (
     HaskellPackageRequirement,
     MavenArtifactRequirement,
     BoostComponentRequirement,
+    KF5ComponentRequirement,
     GnomeCommonRequirement,
     JDKFileRequirement,
     JDKRequirement,
@@ -148,9 +149,13 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]: 
         return ValaPackageRequirement(problem.package)
     elif isinstance(problem, MissingGoPackage):
         return GoPackageRequirement(problem.package)
-    elif isinstance(problem, MissingBoostComponents):
-        return OneOfRequirement(
-            [BoostComponentRequirement(name) for name in problem.components])
+    elif isinstance(problem, MissingCMakeComponents):
+        if problem.name.lower() == 'boost':
+            return OneOfRequirement(
+                [BoostComponentRequirement(name) for name in problem.components])
+        elif problem.name.lower() == 'kf5':
+            return OneOfRequirement(
+                [KF5ComponentRequirement(name) for name in problem.components])
     elif isinstance(problem, DhAddonLoadFailure):
         return DhAddonRequirement(problem.path)
     elif isinstance(problem, MissingPhpClass):
