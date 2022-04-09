@@ -434,6 +434,7 @@ NPM_COMMAND_PACKAGES = {
     "if-node-version": "if-node-version",
     "babel": "babel",
     "c8": "c8",
+    "prettier-standard": "prettier-standard",
 }
 
 
