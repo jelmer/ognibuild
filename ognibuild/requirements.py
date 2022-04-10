@@ -309,6 +309,7 @@ class CargoCrateRequirement(Requirement):
             features = set()
         self.features = features
         self.api_version = api_version
+        self.minimum_version = minimum_version
 
     def __repr__(self):
         return "%s(%r, features=%r, api_version=%r, minimum_version=%r)" % (
