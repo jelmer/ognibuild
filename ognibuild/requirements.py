@@ -299,33 +299,35 @@ class CargoCrateRequirement(Requirement):
 
     crate: str
     features: Set[str]
-    version: Optional[str]
+    api_version: Optional[str]
+    minimum_version: Optional[str]
 
-    def __init__(self, crate, features=None, version=None):
+    def __init__(self, crate, features=None, api_version=None, minimum_version=None):
         super(CargoCrateRequirement, self).__init__("cargo-crate")
         self.crate = crate
         if features is None:
             features = set()
         self.features = features
-        self.version = version
+        self.api_version = api_version
 
     def __repr__(self):
-        return "%s(%r, features=%r, version=%r)" % (
+        return "%s(%r, features=%r, api_version=%r, minimum_version=%r)" % (
             type(self).__name__,
             self.crate,
             self.features,
-            self.version,
+            self.api_version,
+            self.minimum_version,
         )
 
     def __str__(self):
+        ret = "cargo crate: %s %s" % (
+            self.crate,
+            self.api_version or "")
         if self.features:
-            return "cargo crate: %s %s (%s)" % (
-                self.crate,
-                self.version or "",
-                ", ".join(sorted(self.features)),
-            )
-        else:
-            return "cargo crate: %s %s" % (self.crate, self.version or "")
+            ret += " (%s)" % (", ".join(sorted(self.features)))
+        if self.minimum_version:
+            ret += " (>= %s)" % self.minimum_version
+        return ret
 
 
 class PkgConfigRequirement(Requirement):

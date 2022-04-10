@@ -710,7 +710,7 @@ def resolve_python_package_req(apt_mgr, req):
 
 def resolve_cargo_crate_req(apt_mgr, req):
     paths = ["/usr/share/cargo/registry/%s-[0-9]+.*/Cargo.toml" % re.escape(req.crate)]
-    return find_reqs_simple(apt_mgr, paths, regex=True)
+    return find_reqs_simple(apt_mgr, paths, regex=True, minimum_version=req.minimum_version)
 
 
 def resolve_ca_req(apt_mgr, req):
