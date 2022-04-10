@@ -158,6 +158,7 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]: 
         elif problem.name.lower() == 'kf5':
             return OneOfRequirement(
                 [KF5ComponentRequirement(name) for name in problem.components])
+        return None
     elif isinstance(problem, DhAddonLoadFailure):
         return DhAddonRequirement(problem.path)
     elif isinstance(problem, MissingPhpClass):
