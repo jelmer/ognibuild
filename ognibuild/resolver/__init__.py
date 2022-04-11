@@ -22,6 +22,7 @@ from typing import Optional
 
 from .. import UnidentifiedError
 from ..fix_build import run_detecting_problems
+from ..session import Session
 
 
 class UnsatisfiedRequirements(Exception):
@@ -555,7 +556,7 @@ def native_resolvers(session, user_local):
     return StackedResolver([kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
 
 
-def auto_resolver(session, explain=False, system_wide: Optional[bool] = None):
+def auto_resolver(session: Session, explain: bool = False, system_wide: Optional[bool] = None):
     # if session is SchrootSession or if we're root, use apt
     from ..session.schroot import SchrootSession
     from ..session import get_user

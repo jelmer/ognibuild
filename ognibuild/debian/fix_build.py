@@ -508,7 +508,8 @@ def build_incrementally(
     source_date_epoch=None,
     update_changelog=True,
     extra_repositories=None,
-    fixers=None
+    fixers=None,
+    run_gbp_dch: Optional[bool] = None,
 ):
     fixed_errors = []
     if fixers is None:
@@ -516,6 +517,8 @@ def build_incrementally(
             local_tree, subpath, apt, committer=committer,
             update_changelog=update_changelog)
     logging.info("Using fixers: %r", fixers)
+    if run_gbp_dch is None:
+        run_gbp_dch = (update_changelog is False)
     while True:
         try:
             return attempt_build(
@@ -527,7 +530,7 @@ def build_incrementally(
                 build_changelog_entry,
                 subpath=subpath,
                 source_date_epoch=source_date_epoch,
-                run_gbp_dch=(update_changelog is False),
+                run_gbp_dch=run_gbp_dch,
                 extra_repositories=extra_repositories,
             )
         except UnidentifiedDebianBuildError:
