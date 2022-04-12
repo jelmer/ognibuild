@@ -25,7 +25,7 @@ import os
 import shutil
 import sys
 import time
-from typing import List, Set, Optional, Type
+from typing import List, Set, Optional, Type, Tuple
 
 from debian.deb822 import (
     Deb822,
@@ -511,7 +511,7 @@ def build_incrementally(
     fixers=None,
     run_gbp_dch: Optional[bool] = None,
 ):
-    fixed_errors = []
+    fixed_errors: List[Tuple[Problem, str]] = []
     if fixers is None:
         fixers = default_fixers(
             local_tree, subpath, apt, committer=committer,

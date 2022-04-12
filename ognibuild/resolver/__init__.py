@@ -18,7 +18,7 @@
 
 import logging
 import subprocess
-from typing import Optional
+from typing import Optional, List, Type
 
 from .. import UnidentifiedError
 from ..fix_build import run_detecting_problems
@@ -31,7 +31,11 @@ class UnsatisfiedRequirements(Exception):
 
 
 class Resolver(object):
+
     name: str
+
+    def __init__(self, session, user_local):
+        raise NotImplementedError(self.__init__)
 
     def install(self, requirements):
         raise NotImplementedError(self.install)
@@ -564,7 +568,7 @@ class StackedResolver(Resolver):
             raise UnsatisfiedRequirements(requirements)
 
 
-NATIVE_RESOLVER_CLS = [
+NATIVE_RESOLVER_CLS: List[Type[Resolver]] = [
     CPANResolver,
     CTANResolver,
     PypiResolver,
@@ -581,7 +585,7 @@ def native_resolvers(session, user_local):
     return StackedResolver([kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
 
 
-def select_resolvers(session, user_local, resolvers) -> Resolver:
+def select_resolvers(session, user_local, resolvers) -> Optional[Resolver]:
     selected = []
     for resolver in resolvers:
         for kls in NATIVE_RESOLVER_CLS:
