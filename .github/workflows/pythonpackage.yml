@@ -25,6 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip flake8 cython
+          python -m pip install testtools
           python setup.py develop
       - name: Install Debian-specific dependencies
         run: |
@@ -33,7 +34,6 @@ jobs:
           python -m pip install wheel
           python -m pip install git+https://salsa.debian.org/apt-team/python-apt
           python -m pip install -e ".[debian]"
-          python -m pip install testtools
           mkdir -p ~/.config/breezy/plugins
           brz branch lp:brz-debian ~/.config/breezy/plugins/debian
         if: "matrix.python-version != 'pypy3' && matrix.os == 'ubuntu-latest'"

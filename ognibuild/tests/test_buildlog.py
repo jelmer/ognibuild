@@ -19,7 +19,7 @@ from ..buildlog import PROBLEM_CONVERTERS
 
 from buildlog_consultant import problem_clses
 
-from breezy.tests import TestCase
+from unittest import TestCase
 
 
 class TestProblemsExists(TestCase):
