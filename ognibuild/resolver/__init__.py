@@ -31,6 +31,8 @@ class UnsatisfiedRequirements(Exception):
 
 
 class Resolver(object):
+    name: str
+
     def install(self, requirements):
         raise NotImplementedError(self.install)
 
@@ -45,13 +47,15 @@ class Resolver(object):
 
 
 class CPANResolver(Resolver):
+    name = "cpan"
+
     def __init__(self, session, user_local=False, skip_tests=True):
         self.session = session
         self.user_local = user_local
         self.skip_tests = skip_tests
 
     def __str__(self):
-        return "cpan"
+        return self.name
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.session)
@@ -166,6 +170,7 @@ class TlmgrResolver(Resolver):
 
 
 class CTANResolver(TlmgrResolver):
+    name = "ctan"
 
     def __init__(self, session, user_local=False):
         super(CTANResolver, self).__init__(
@@ -173,13 +178,16 @@ class CTANResolver(TlmgrResolver):
 
 
 class RResolver(Resolver):
+
+    name: str
+
     def __init__(self, session, repos, user_local=False):
         self.session = session
         self.repos = repos
         self.user_local = user_local
 
     def __str__(self):
-        return "cran"
+        return self.name
 
     def __repr__(self):
         return "%s(%r, %r)" % (type(self).__name__, self.session, self.repos)
@@ -224,12 +232,14 @@ class RResolver(Resolver):
 
 
 class OctaveForgeResolver(Resolver):
+    name = "octave-forge"
+
     def __init__(self, session, user_local=False):
         self.session = session
         self.user_local = user_local
 
     def __str__(self):
-        return "octave-forge"
+        return self.name
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.session)
@@ -270,6 +280,8 @@ class OctaveForgeResolver(Resolver):
 
 
 class CRANResolver(RResolver):
+    name = "cran"
+
     def __init__(self, session, user_local=False):
         super(CRANResolver, self).__init__(
             session, "http://cran.r-project.org", user_local=user_local
@@ -277,6 +289,8 @@ class CRANResolver(RResolver):
 
 
 class BioconductorResolver(RResolver):
+    name = "bioconductor"
+
     def __init__(self, session, user_local=False):
         super(BioconductorResolver, self).__init__(
             session, "https://hedgehog.fhcrc.org/bioconductor", user_local=user_local
@@ -284,12 +298,15 @@ class BioconductorResolver(RResolver):
 
 
 class HackageResolver(Resolver):
+
+    name = "hackage"
+
     def __init__(self, session, user_local=False):
         self.session = session
         self.user_local = user_local
 
     def __str__(self):
-        return "hackage"
+        return self.name
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.session)
@@ -332,12 +349,15 @@ class HackageResolver(Resolver):
 
 
 class PypiResolver(Resolver):
+
+    name = "pypi"
+
     def __init__(self, session, user_local=False):
         self.session = session
         self.user_local = user_local
 
     def __str__(self):
-        return "pypi"
+        return self.name
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.session)
@@ -383,12 +403,15 @@ class PypiResolver(Resolver):
 
 
 class GoResolver(Resolver):
+
+    name = "go"
+
     def __init__(self, session, user_local):
         self.session = session
         self.user_local = user_local
 
     def __str__(self):
-        return "go"
+        return self.name
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.session)
@@ -440,13 +463,15 @@ NPM_COMMAND_PACKAGES = {
 
 
 class NpmResolver(Resolver):
+    name = "npm"
+
     def __init__(self, session, user_local=False):
         self.session = session
         self.user_local = user_local
         # TODO(jelmer): Handle user_local
 
     def __str__(self):
-        return "npm"
+        return self.name
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.session)
@@ -554,6 +579,30 @@ NATIVE_RESOLVER_CLS = [
 
 def native_resolvers(session, user_local):
     return StackedResolver([kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
+
+
+def select_resolvers(session, user_local, resolvers) -> Resolver:
+    selected = []
+    for resolver in resolvers:
+        for kls in NATIVE_RESOLVER_CLS:
+            if kls.name == resolver:
+                selected.append(kls(session, user_local))
+                break
+        else:
+            if resolver == 'native':
+                selected.extend([kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
+            elif resolver == 'apt':
+                if user_local:
+                    raise NotImplementedError('user local not supported for apt')
+                from .apt import AptResolver
+                selected.append(AptResolver.from_session(session))
+            else:
+                raise KeyError(resolver)
+    if len(selected) == 0:
+        return None
+    if len(selected) == 1:
+        return selected[0]
+    return StackedResolver(selected)
 
 
 def auto_resolver(session: Session, explain: bool = False, system_wide: Optional[bool] = None):
