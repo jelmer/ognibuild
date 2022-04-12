@@ -47,11 +47,9 @@ from buildlog_consultant.common import (
     MissingVagueDependency,
     DhAddonLoadFailure,
     MissingMavenArtifacts,
-    MissingIntrospectionTypelib,
     GnomeCommonMissing,
     MissingGnomeCommonDependency,
     UnknownCertificateAuthority,
-    CMakeFilesMissing,
     MissingLibtool,
     MissingQt,
     MissingX11,
@@ -120,7 +118,7 @@ from .resolver import UnsatisfiedRequirements
 
 
 PROBLEM_CONVERTERS = [
-    ('missing-file', lambda p: PathRequirement(problem.path)),
+    ('missing-file', lambda p: PathRequirement(p.path)),
     ('command-missing', lambda p: BinaryRequirement(p.command)),
     ('missing-cmake-config', lambda p: OneOfRequirement(
         [CMakefileRequirement(filename, p.version) for filename in p.filenames])),

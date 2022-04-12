@@ -15,14 +15,11 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import datetime
-import os
-
 from ..buildlog import PROBLEM_CONVERTERS
 
 from buildlog_consultant import problem_clses
 
-from breezy.tests import TestCaseWithTransport, TestCase
+from breezy.tests import TestCase
 
 
 class TestProblemsExists(TestCase):
