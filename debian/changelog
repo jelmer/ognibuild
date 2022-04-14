@@ -1,11 +1,11 @@
-ognibuild (0.0.13-1) UNRELEASED; urgency=low
+ognibuild (0.0.13-1) unstable; urgency=low
 
   * New upstream release.
   * Bump debhelper from old 12 to 13.
   * Re-export upstream signing key without extra signatures.
   * Update standards version to 4.6.0, no changes needed.
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Thu, 14 Apr 2022 19:55:28 -0000
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Thu, 14 Apr 2022 19:55:46 +0100
 
 ognibuild (0.0.12-1) unstable; urgency=low
 
