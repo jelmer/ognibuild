@@ -20,7 +20,7 @@
 import logging
 import os
 import re
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Type
 import warnings
 
 from . import shebang_binary, UnidentifiedError
@@ -1756,6 +1756,13 @@ BUILDSYSTEM_CLSES = [
     Composer,
     RunTests,
 ]
+
+
+def lookup_buildsystem_cls(name: str) -> Type[BuildSystem]:
+    for bs in BUILDSYSTEM_CLSES:
+        if bs.name == name:
+            return bs
+    raise KeyError(name)
 
 
 def scan_buildsystems(path):
