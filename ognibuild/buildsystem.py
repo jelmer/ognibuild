@@ -20,7 +20,7 @@
 import logging
 import os
 import re
-from typing import Optional, Tuple, Type
+from typing import Optional, Tuple, Type, List
 import warnings
 
 from . import shebang_binary, UnidentifiedError
@@ -1733,7 +1733,7 @@ class PerlBuildTiny(BuildSystem):
             return cls(path)
 
 
-BUILDSYSTEM_CLSES = [
+BUILDSYSTEM_CLSES: List[Type[BuildSystem]] = [
     Pear,
     SetupPy,
     Npm,

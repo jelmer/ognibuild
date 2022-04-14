@@ -147,7 +147,7 @@ def add_dummy_changelog_entry(
     if timestamp is None:
         timestamp = datetime.now()
     with ChangelogEditor(
-            tree.abspath(os.path.join(path)),
+            tree.abspath(os.path.join(path)),  # type: ignore
             allow_reformatting=allow_reformatting) as editor:
         version = editor[0].version
         if version.debian_revision:
