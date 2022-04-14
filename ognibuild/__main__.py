@@ -31,7 +31,7 @@ from .buildlog import (
 from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .resolver import (
     auto_resolver,
-    native_resolvers,
+    select_resolvers,
     UnsatisfiedRequirements,
 )
 from .session import SessionSetupFailure
@@ -191,13 +191,10 @@ def main():  # noqa: C901
         if not session.is_temporary and args.subcommand == 'info':
             args.explain = True
 
-        if args.resolve == "apt":
-            from .resolver.apt import AptResolver
-            resolver = AptResolver.from_session(session)
-        elif args.resolve == "native":
-            resolver = native_resolvers(session, user_local=args.user)
-        elif args.resolve == "auto":
+        if args.resolve == "auto":
             resolver = auto_resolver(session, explain=args.explain)
+        else:
+            resolver = select_resolvers(session, user_local=args.user, resolvers=args.resolve.split(','))
         logging.info("Using requirement resolver: %s", resolver)
         fixers = determine_fixers(session, resolver, explain=args.explain)
         try:

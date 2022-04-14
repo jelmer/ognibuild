@@ -23,6 +23,7 @@ import unittest
 
 def test_suite():
     names = [
+        'buildlog',
     ]
     if os.path.exists("/usr/bin/dpkg-architecture"):
         names.append("debian_build")

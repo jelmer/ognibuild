@@ -24,7 +24,8 @@ import logging
 import os
 import shutil
 import sys
-from typing import List, Set, Optional, Type
+import time
+from typing import List, Set, Optional, Type, Tuple
 
 from debian.deb822 import (
     Deb822,
@@ -70,6 +71,7 @@ from buildlog_consultant.common import (
 )
 from buildlog_consultant.sbuild import (
     DebcargoUnacceptablePredicate,
+    DebcargoUnacceptableComparator,
     )
 
 from .build import (
@@ -395,7 +397,7 @@ def fix_missing_makefile_pl(error, phase, context):
     return False
 
 
-def coerce_unacceptable_predicate(error, phase, context):
+def debcargo_coerce_unacceptable_prerelease(error, phase, context):
     from debmutate.debcargo import DebcargoEditor
     with DebcargoEditor(context.abspath('debian/debcargo.toml')) as editor:
         editor['allow_prerelease_deps'] = True
@@ -454,7 +456,12 @@ def versioned_package_fixers(session, packaging_context, apt):
             packaging_context, MissingConfigStatusInput, fix_missing_config_status_input
         ),
         SimpleBuildFixer(packaging_context, MissingPerlFile, fix_missing_makefile_pl),
-        SimpleBuildFixer(packaging_context, DebcargoUnacceptablePredicate, coerce_unacceptable_predicate),
+        SimpleBuildFixer(
+            packaging_context, DebcargoUnacceptablePredicate,
+            debcargo_coerce_unacceptable_prerelease),
+        SimpleBuildFixer(
+            packaging_context, DebcargoUnacceptableComparator,
+            debcargo_coerce_unacceptable_prerelease),
     ]
 
 
@@ -501,14 +508,17 @@ def build_incrementally(
     source_date_epoch=None,
     update_changelog=True,
     extra_repositories=None,
-    fixers=None
+    fixers=None,
+    run_gbp_dch: Optional[bool] = None,
 ):
-    fixed_errors = []
+    fixed_errors: List[Tuple[Problem, str]] = []
     if fixers is None:
         fixers = default_fixers(
             local_tree, subpath, apt, committer=committer,
             update_changelog=update_changelog)
     logging.info("Using fixers: %r", fixers)
+    if run_gbp_dch is None:
+        run_gbp_dch = (update_changelog is False)
     while True:
         try:
             return attempt_build(
@@ -520,7 +530,7 @@ def build_incrementally(
                 build_changelog_entry,
                 subpath=subpath,
                 source_date_epoch=source_date_epoch,
-                run_gbp_dch=(update_changelog is False),
+                run_gbp_dch=run_gbp_dch,
                 extra_repositories=extra_repositories,
             )
         except UnidentifiedDebianBuildError:
@@ -666,6 +676,19 @@ def main(argv=None):
             else:
                 phase = "%s (%s)" % (e.phase[0], e.phase[1])
             logging.fatal("Error during %s: %s", phase, e.error)
+            if not args.output_directory:
+                xdg_cache_dir = os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
+                buildlogs_dir = os.path.join(xdg_cache_dir, 'ognibuild', 'buildlogs')
+                os.makedirs(buildlogs_dir, exist_ok=True)
+                target_log_file = os.path.join(
+                    buildlogs_dir,
+                    '%s-%s.log' % (
+                        os.path.basename(getattr(tree, 'basedir', 'build')),
+                        time.strftime('%Y-%m-%d_%H%M%s')))
+                shutil.copy(
+                    os.path.join(output_directory, 'build.log'),
+                    target_log_file)
+                logging.info('Build log available in %s', target_log_file)
             return 1
         except UnidentifiedDebianBuildError as e:
             if e.phase is None:
