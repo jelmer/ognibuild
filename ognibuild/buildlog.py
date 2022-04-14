@@ -23,14 +23,6 @@ from typing import Optional
 
 from buildlog_consultant.common import (
     Problem,
-    MissingPythonModule,
-    MissingPythonDistribution,
-    MissingCHeader,
-    MissingPkgConfig,
-    MissingCommand,
-    MissingCommandOrBuildFile,
-    MissingFile,
-    MissingJavaScriptRuntime,
     MissingSprocketsFile,
     MissingGoPackage,
     MissingPerlFile,
@@ -39,10 +31,7 @@ from buildlog_consultant.common import (
     MissingJDKFile,
     MissingJDK,
     MissingJRE,
-    MissingNodeModule,
-    MissingNodePackage,
     MissingPhpClass,
-    MissingRubyGem,
     MissingLibrary,
     MissingSetupPyCommand,
     MissingJavaClass,
@@ -52,17 +41,15 @@ from buildlog_consultant.common import (
     MissingRubyFile,
     MissingAutoconfMacro,
     MissingValaPackage,
-    MissingBoostComponents,
+    MissingCMakeComponents,
     MissingXfceDependency,
     MissingHaskellDependencies,
     MissingVagueDependency,
     DhAddonLoadFailure,
     MissingMavenArtifacts,
-    MissingIntrospectionTypelib,
     GnomeCommonMissing,
     MissingGnomeCommonDependency,
     UnknownCertificateAuthority,
-    CMakeFilesMissing,
     MissingLibtool,
     MissingQt,
     MissingX11,
@@ -73,6 +60,7 @@ from buildlog_consultant.common import (
     MissingGnulibDirectory,
     MissingLuaModule,
     MissingPHPExtension,
+    VcsControlDirectoryNeeded,
 )
 
 from . import OneOfRequirement
@@ -85,7 +73,6 @@ from .requirements import (
     CHeaderRequirement,
     JavaScriptRuntimeRequirement,
     ValaPackageRequirement,
-    RubyGemRequirement,
     GoPackageRequirement,
     DhAddonRequirement,
     PhpClassRequirement,
@@ -100,6 +87,7 @@ from .requirements import (
     HaskellPackageRequirement,
     MavenArtifactRequirement,
     BoostComponentRequirement,
+    KF5ComponentRequirement,
     GnomeCommonRequirement,
     JDKFileRequirement,
     JDKRequirement,
@@ -123,46 +111,56 @@ from .requirements import (
     GnulibDirectoryRequirement,
     LuaModuleRequirement,
     PHPExtensionRequirement,
+    VcsControlDirectoryAccessRequirement,
+    RubyGemRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
 
+PROBLEM_CONVERTERS = [
+    ('missing-file', lambda p: PathRequirement(p.path)),
+    ('command-missing', lambda p: BinaryRequirement(p.command)),
+    ('missing-cmake-config', lambda p: OneOfRequirement(
+        [CMakefileRequirement(filename, p.version) for filename in p.filenames])),
+    ('missing-command-or-build-file', lambda p: BinaryRequirement(p.command)),
+    ('missing-pkg-config-package', lambda p: PkgConfigRequirement(p.module, p.minimum_version)),
+    ('missing-c-header', lambda p: CHeaderRequirement(p.header)),
+    ('missing-introspection-typelib', lambda p: IntrospectionTypelibRequirement(p.library)),
+    ('missing-python-module', lambda p: PythonModuleRequirement(
+        p.module, python_version=p.python_version, minimum_version=p.minimum_version)),
+    ('missing-python-distribution', lambda p: PythonPackageRequirement(
+        p.distribution, python_version=p.python_version, minimum_version=p.minimum_version)),
+    ('javascript-runtime-missing', lambda p: JavaScriptRuntimeRequirement()),
+    ('missing-node-module', lambda p: NodeModuleRequirement(p.module)),
+    ('missing-node-package', lambda p: NodePackageRequirement(p.package)),
+    ('missing-ruby-gem', lambda p: RubyGemRequirement(p.gem, p.version)),
+]
+
+
 def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]:  # noqa: C901
-    if isinstance(problem, MissingFile):
-        return PathRequirement(problem.path)
-    elif isinstance(problem, MissingCommand):
-        return BinaryRequirement(problem.command)
-    elif isinstance(problem, MissingCommandOrBuildFile):
-        return BinaryRequirement(problem.command)
-    elif isinstance(problem, MissingPkgConfig):
-        return PkgConfigRequirement(problem.module, problem.minimum_version)
-    elif isinstance(problem, MissingCHeader):
-        return CHeaderRequirement(problem.header)
-    elif isinstance(problem, MissingIntrospectionTypelib):
-        return IntrospectionTypelibRequirement(problem.library)
-    elif isinstance(problem, MissingJavaScriptRuntime):
-        return JavaScriptRuntimeRequirement()
-    elif isinstance(problem, MissingRubyGem):
-        return RubyGemRequirement(problem.gem, problem.version)
-    elif isinstance(problem, MissingValaPackage):
+    for kind, fn in PROBLEM_CONVERTERS:
+        if kind == problem.kind:
+            return fn(problem)
+    if isinstance(problem, MissingValaPackage):
         return ValaPackageRequirement(problem.package)
     elif isinstance(problem, MissingGoPackage):
         return GoPackageRequirement(problem.package)
-    elif isinstance(problem, MissingBoostComponents):
-        return OneOfRequirement(
-            [BoostComponentRequirement(name) for name in problem.components])
+    elif isinstance(problem, MissingCMakeComponents):
+        if problem.name.lower() == 'boost':
+            return OneOfRequirement(
+                [BoostComponentRequirement(name) for name in problem.components])
+        elif problem.name.lower() == 'kf5':
+            return OneOfRequirement(
+                [KF5ComponentRequirement(name) for name in problem.components])
+        return None
     elif isinstance(problem, DhAddonLoadFailure):
         return DhAddonRequirement(problem.path)
     elif isinstance(problem, MissingPhpClass):
         return PhpClassRequirement(problem.php_class)
     elif isinstance(problem, MissingRPackage):
         return RPackageRequirement(problem.package, problem.minimum_version)
-    elif isinstance(problem, MissingNodeModule):
-        return NodeModuleRequirement(problem.module)
     elif isinstance(problem, MissingStaticLibrary):
         return StaticLibraryRequirement(problem.library, problem.filename)
-    elif isinstance(problem, MissingNodePackage):
-        return NodePackageRequirement(problem.package)
     elif isinstance(problem, MissingLuaModule):
         return LuaModuleRequirement(problem.module)
     elif isinstance(problem, MissingLatexFile):
@@ -181,9 +179,6 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]: 
         return SprocketsFileRequirement(problem.content_type, problem.name)
     elif isinstance(problem, MissingJavaClass):
         return JavaClassRequirement(problem.classname)
-    elif isinstance(problem, CMakeFilesMissing):
-        return OneOfRequirement(
-            [CMakefileRequirement(filename, problem.version) for filename in problem.filenames])
     elif isinstance(problem, MissingHaskellDependencies):
         return OneOfRequirement(
             [HaskellPackageRequirement.from_string(dep) for dep in problem.deps])
@@ -194,6 +189,8 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]: 
         ])
     elif isinstance(problem, MissingCSharpCompiler):
         return BinaryRequirement("msc")
+    elif isinstance(problem, VcsControlDirectoryNeeded):
+        return VcsControlDirectoryAccessRequirement(problem.vcs)
     elif isinstance(problem, MissingRustCompiler):
         return BinaryRequirement("rustc")
     elif isinstance(problem, GnomeCommonMissing):
@@ -251,18 +248,6 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]: 
         return PerlFileRequirement(filename=problem.filename)
     elif isinstance(problem, MissingAutoconfMacro):
         return AutoconfMacroRequirement(problem.macro)
-    elif isinstance(problem, MissingPythonModule):
-        return PythonModuleRequirement(
-            problem.module,
-            python_version=problem.python_version,
-            minimum_version=problem.minimum_version,
-        )
-    elif isinstance(problem, MissingPythonDistribution):
-        return PythonPackageRequirement(
-            problem.distribution,
-            python_version=problem.python_version,
-            minimum_version=problem.minimum_version,
-        )
     elif problem.kind == 'unsatisfied-apt-dependencies':
         from .resolver.apt import AptRequirement
         return AptRequirement(problem.relations)

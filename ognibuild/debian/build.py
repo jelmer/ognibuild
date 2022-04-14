@@ -256,8 +256,15 @@ def build_once(
     return (changes_names, cl_entry)
 
 
+class GitBuildpackageMissing(Exception):
+    """git-buildpackage is not installed"""
+
+
 def gbp_dch(path):
-    subprocess.check_call(["gbp", "dch", "--ignore-branch"], cwd=path)
+    try:
+        subprocess.check_call(["gbp", "dch", "--ignore-branch"], cwd=path)
+    except FileNotFoundError:
+        raise GitBuildpackageMissing()
 
 
 def attempt_build(

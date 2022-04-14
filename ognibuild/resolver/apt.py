@@ -49,6 +49,7 @@ from ..requirements import (
     NodePackageRequirement,
     LibraryRequirement,
     BoostComponentRequirement,
+    KF5ComponentRequirement,
     StaticLibraryRequirement,
     RubyFileRequirement,
     XmlEntityRequirement,
@@ -75,6 +76,7 @@ from ..requirements import (
     PerlPreDeclaredRequirement,
     IntrospectionTypelibRequirement,
     PHPExtensionRequirement,
+    VcsControlDirectoryAccessRequirement,
 )
 
 
@@ -218,7 +220,7 @@ def python_spec_to_apt_rels(pkg_name, specs):
 def get_package_for_python_package(
     apt_mgr, package, python_version: Optional[str], specs=None
 ):
-    pypy_regex = "/usr/lib/pypy/dist-packages/%s-.*\.(dist|egg)-info" % re.escape(
+    pypy_regex = "/usr/lib/pypy/dist-packages/%s-.*\\.(dist|egg)-info" % re.escape(
         package.replace("-", "_")
     )
     cpython2_regex = (
@@ -708,7 +710,7 @@ def resolve_python_package_req(apt_mgr, req):
 
 def resolve_cargo_crate_req(apt_mgr, req):
     paths = ["/usr/share/cargo/registry/%s-[0-9]+.*/Cargo.toml" % re.escape(req.crate)]
-    return find_reqs_simple(apt_mgr, paths, regex=True)
+    return find_reqs_simple(apt_mgr, paths, regex=True, minimum_version=req.minimum_version)
 
 
 def resolve_ca_req(apt_mgr, req):
@@ -733,6 +735,29 @@ def resolve_boost_component_req(apt_mgr, req):
     return find_reqs_simple(
         apt_mgr, ["/usr/lib/.*/libboost_%s" % re.escape(req.name)],
         regex=True)
+
+
+def resolve_kf5_component_req(apt_mgr, req):
+    return find_reqs_simple(
+        apt_mgr, ["/usr/lib/.*/cmake/KF5%s/KF5%sConfig.cmake" % (
+            re.escape(req.name), re.escape(req.name))],
+        regex=True)
+
+
+def resolve_vcs_access_req(apt_mgr, req):
+    PKG_MAP = {
+        'hg': 'mercurial',
+        'svn': 'subversion',
+        'git': 'git',
+        'bzr': 'bzr',
+        }
+    ret = []
+    for vcs in req.vcs:
+        try:
+            ret.append(PKG_MAP[vcs])
+        except KeyError:
+            logging.debug('Unable to map VCS %s to package', vcs)
+    return [AptRequirement.from_str(','.join(ret))]
 
 
 def resolve_oneof_req(apt_mgr, req):
@@ -787,8 +812,10 @@ APT_REQUIREMENT_RESOLVERS: List[Tuple[Type[Requirement], Callable[[AptManager, R
     (CargoCrateRequirement, resolve_cargo_crate_req),
     (IntrospectionTypelibRequirement, resolve_introspection_typelib_req),
     (BoostComponentRequirement, resolve_boost_component_req),
+    (KF5ComponentRequirement, resolve_kf5_component_req),
     (PHPExtensionRequirement, resolve_php_extension_req),
     (OctavePackageRequirement, resolve_octave_pkg_req),
+    (VcsControlDirectoryAccessRequirement, resolve_vcs_access_req),
     (OneOfRequirement, resolve_oneof_req),
 ]
 

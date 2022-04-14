@@ -147,6 +147,18 @@ class PHPExtensionRequirement(Requirement):
         return "%s(%r)" % (type(self).__name__, self.extension)
 
 
+class VcsControlDirectoryAccessRequirement(Requirement):
+
+    vcs: List[str]
+
+    def __init__(self, vcs):
+        super(VcsControlDirectoryAccessRequirement, self).__init__("vcs-access")
+        self.vcs = vcs
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.vcs)
+
+
 class PerlModuleRequirement(Requirement):
 
     module: str
@@ -206,6 +218,11 @@ class VagueDependencyRequirement(Requirement):
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.name)
+
+    def __str__(self):
+        if self.minimum_version:
+            return "%s >= %s" % (self.name, self.minimum_version)
+        return self.name
 
 
 class NodePackageRequirement(Requirement):
@@ -282,33 +299,36 @@ class CargoCrateRequirement(Requirement):
 
     crate: str
     features: Set[str]
-    version: Optional[str]
+    api_version: Optional[str]
+    minimum_version: Optional[str]
 
-    def __init__(self, crate, features=None, version=None):
+    def __init__(self, crate, features=None, api_version=None, minimum_version=None):
         super(CargoCrateRequirement, self).__init__("cargo-crate")
         self.crate = crate
         if features is None:
             features = set()
         self.features = features
-        self.version = version
+        self.api_version = api_version
+        self.minimum_version = minimum_version
 
     def __repr__(self):
-        return "%s(%r, features=%r, version=%r)" % (
+        return "%s(%r, features=%r, api_version=%r, minimum_version=%r)" % (
             type(self).__name__,
             self.crate,
             self.features,
-            self.version,
+            self.api_version,
+            self.minimum_version,
         )
 
     def __str__(self):
+        ret = "cargo crate: %s %s" % (
+            self.crate,
+            self.api_version or "")
         if self.features:
-            return "cargo crate: %s %s (%s)" % (
-                self.crate,
-                self.version or "",
-                ", ".join(sorted(self.features)),
-            )
-        else:
-            return "cargo crate: %s %s" % (self.crate, self.version or "")
+            ret += " (%s)" % (", ".join(sorted(self.features)))
+        if self.minimum_version:
+            ret += " (>= %s)" % self.minimum_version
+        return ret
 
 
 class PkgConfigRequirement(Requirement):
@@ -743,6 +763,15 @@ class BoostComponentRequirement(Requirement):
 
     def __init__(self, name):
         super(BoostComponentRequirement, self).__init__("boost-component")
+        self.name = name
+
+
+class KF5ComponentRequirement(Requirement):
+
+    name: str
+
+    def __init__(self, name):
+        super(KF5ComponentRequirement, self).__init__("kf5-component")
         self.name = name
 
 

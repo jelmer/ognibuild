@@ -71,6 +71,7 @@ class SchrootSession(Session):
             self.session_id = None
             return False
         self.session_id = None
+        self._location = None
         return True
 
     def __enter__(self) -> "Session":
@@ -221,7 +222,6 @@ class SchrootSession(Session):
         from ..vcs import dupe_vcs_tree, export_vcs_tree
 
         build_dir = os.path.join(self.location, "build")
-
         directory = tempfile.mkdtemp(dir=build_dir)
         reldir = "/" + os.path.relpath(directory, self.location)
 

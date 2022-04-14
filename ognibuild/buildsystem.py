@@ -42,6 +42,7 @@ from .requirements import (
     MavenArtifactRequirement,
     GoRequirement,
     GoPackageRequirement,
+    VagueDependencyRequirement,
 )
 from .fix_build import run_with_build_fixers
 from .session import which
@@ -864,6 +865,33 @@ class Meson(BuildSystem):
             logging.debug("Found meson.build, assuming meson package.")
             return Meson(os.path.join(path, "meson.build"))
 
+    def _introspect(self, session, fixers, args):
+        ret = run_with_build_fixers(session, ["meson", "introspect"] + args + ['./meson.build'], fixers)
+        import json
+        return json.loads(''.join(ret))
+
+    def get_declared_dependencies(self, session, fixers=None):
+        resp = self._introspect(session, fixers, ["--scan-dependencies"])
+        for entry in resp:
+            version = entry.get('version', [])
+            minimum_version = None
+            if len(version) == 1 and version[0].startswith('>='):
+                minimum_version = version[0][2:]
+            elif len(version) > 1:
+                logging.warning('Unable to parse version constraints: %r', version)
+            # TODO(jelmer): Include entry['required']
+            yield "core", VagueDependencyRequirement(entry['name'], minimum_version=minimum_version)
+
+    def get_declared_outputs(self, session, fixers=None):
+        resp = self._introspect(session, fixers, ["--targets"])
+        for entry in resp:
+            if not entry['installed']:
+                continue
+            if entry['type'] == 'executable':
+                for name in entry['filename']:
+                    yield BinaryOutput(os.path.basename(name))
+            # TODO(jelmer): Handle other types
+
 
 class Npm(BuildSystem):
 
@@ -941,6 +969,16 @@ class Waf(BuildSystem):
         binary_req = BinaryRequirement("python3")
         if not binary_req.met(session):
             resolver.install([binary_req])
+
+    def build(self, session, resolver, fixers):
+        try:
+            run_with_build_fixers(session, [self.path, 'build'], fixers)
+        except UnidentifiedError as e:
+            if "The project was not configured: run \"waf configure\" first!" in e.lines:
+                run_with_build_fixers(session, [self.path, 'configure'], fixers)
+                run_with_build_fixers(session, [self.path, 'build'], fixers)
+            else:
+                raise
 
     def dist(self, session, resolver, fixers, target_directory, quiet=False):
         self.setup(session, resolver, fixers)
@@ -1501,6 +1539,9 @@ class Maven(BuildSystem):
 
     def __init__(self, path):
         self.path = path
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
 
     @classmethod
     def probe(cls, path):
