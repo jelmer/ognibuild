@@ -64,6 +64,7 @@ from ..requirements import (
     JDKRequirement,
     JRERequirement,
     QTRequirement,
+    QtModuleRequirement,
     X11Requirement,
     PerlModuleRequirement,
     PerlFileRequirement,
@@ -626,6 +627,10 @@ def resolve_qt_req(apt_mgr, req):
     return find_reqs_simple(apt_mgr, ["/usr/lib/.*/qt[0-9]+/bin/qmake"], regex=True)
 
 
+def resolve_qt_module_req(apt_mgr, req):
+    return find_reqs_simple(apt_mgr, ["/usr/lib/.*/qt5/mkspecs/modules/qt_lib_%s.pri" % re.escape(req.module)], regex=True)
+
+
 def resolve_libtool_req(apt_mgr, req):
     return [AptRequirement.simple("libtool")]
 
@@ -801,6 +806,7 @@ APT_REQUIREMENT_RESOLVERS: List[Tuple[Type[Requirement], Callable[[AptManager, R
     (JDKRequirement, resolve_jdk_req),
     (JRERequirement, resolve_jre_req),
     (QTRequirement, resolve_qt_req),
+    (QtModuleRequirement, resolve_qt_module_req),
     (X11Requirement, resolve_x11_req),
     (LibtoolRequirement, resolve_libtool_req),
     (PerlModuleRequirement, resolve_perl_module_req),

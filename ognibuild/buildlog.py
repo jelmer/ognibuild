@@ -113,6 +113,7 @@ from .requirements import (
     PHPExtensionRequirement,
     VcsControlDirectoryAccessRequirement,
     RubyGemRequirement,
+    QtModuleRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
@@ -134,6 +135,7 @@ PROBLEM_CONVERTERS = [
     ('missing-node-module', lambda p: NodeModuleRequirement(p.module)),
     ('missing-node-package', lambda p: NodePackageRequirement(p.package)),
     ('missing-ruby-gem', lambda p: RubyGemRequirement(p.gem, p.version)),
+    ('missing-qt-modules', lambda p: QtModuleRequirement(p.modules[0])),
 ]
 
 

@@ -1201,6 +1201,8 @@ class Make(BuildSystem):
         elif any([os.path.exists(os.path.join(path, n))
                  for n in ['configure.ac', 'configure.in', 'autogen.sh']]):
             self.name = 'autoconf'
+        elif any([n.name.endswith(".pro") for n in os.scandir(path)]):
+            self.name = 'qmake'
         else:
             self.name = "make"
 
@@ -1248,7 +1250,11 @@ class Make(BuildSystem):
 
     def build(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
-        self._run_make(session, ["all"], fixers)
+        if self.name == 'qmake':
+            default_target = None
+        else:
+            default_target = 'all'
+        self._run_make(session, [default_target] if default_target else [], fixers)
 
     def clean(self, session, resolver, fixers):
         self.setup(session, resolver, fixers)
@@ -1269,7 +1275,7 @@ class Make(BuildSystem):
                     line):
                 return True
             return False
-        if session.exists('build'):
+        if session.exists('build/Makefile'):
             cwd = 'build'
         else:
             cwd = None

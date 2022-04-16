@@ -125,6 +125,9 @@ def main():  # noqa: C901
         action="store_true",
         help="Ignore declared dependencies, follow build errors only",
     )
+    parser.add_argument(
+        "--user", action="store_true", help="Install in local-user directories."
+    )
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
     subparsers = parser.add_subparsers(dest="subcommand")
     subparsers.add_parser("dist")
@@ -136,9 +139,6 @@ def main():  # noqa: C901
     exec_parser = subparsers.add_parser("exec")
     exec_parser.add_argument('subargv', nargs=argparse.REMAINDER, help='Command to run.')
     install_parser = subparsers.add_parser("install")
-    install_parser.add_argument(
-        "--user", action="store_true", help="Install in local-user directories."
-    )
     install_parser.add_argument(
         "--prefix", type=str, help='Prefix to install in')
 
