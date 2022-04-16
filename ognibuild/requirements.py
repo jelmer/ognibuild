@@ -674,6 +674,13 @@ class JRERequirement(Requirement):
         super(JRERequirement, self).__init__("jre")
 
 
+class QtModuleRequirement(Requirement):
+
+    def __init__(self, module):
+        super(QtModuleRequirement, self).__init__("qt-module")
+        self.module = module
+
+
 class QTRequirement(Requirement):
     def __init__(self):
         super(QTRequirement, self).__init__("qt")

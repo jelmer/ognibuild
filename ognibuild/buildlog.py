@@ -86,6 +86,7 @@ from .requirements import (
     PHPExtensionRequirement,
     VcsControlDirectoryAccessRequirement,
     RubyGemRequirement,
+    QtModuleRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 
