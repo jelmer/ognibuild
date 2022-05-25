@@ -580,44 +580,47 @@ def main(argv=None):
     import argparse
 
     parser = argparse.ArgumentParser("ognibuild.debian.fix_build")
-    parser.add_argument(
+    modifications = parser.add_argument_group('Modifications')
+    modifications.add_argument(
         "--suffix", type=str, help="Suffix to use for test builds.", default="fixbuild1"
     )
-    parser.add_argument(
+    modifications.add_argument(
         "--suite", type=str, help="Suite to target.", default="unstable"
     )
-    parser.add_argument(
-        "--output-directory", type=str, help="Output directory.", default=None
-    )
-    parser.add_argument(
+    modifications.add_argument(
         "--committer", type=str, help="Committer string (name and email)", default=None
     )
-    parser.add_argument(
-        "--build-command",
-        type=str,
-        help="Build command",
-        default=(DEFAULT_BUILDER + " -A -s -v"),
-    )
-    parser.add_argument(
+    modifications.add_argument(
         "--no-update-changelog",
         action="store_false",
         default=None,
         dest="update_changelog",
         help="do not update the changelog",
     )
-    parser.add_argument(
-        '--max-iterations',
-        type=int,
-        default=DEFAULT_MAX_ITERATIONS,
-        help='Maximum number of issues to attempt to fix before giving up.')
-    parser.add_argument(
+    modifications.add_argument(
         "--update-changelog",
         action="store_true",
         dest="update_changelog",
         help="force updating of the changelog",
         default=None,
     )
-    parser.add_argument("--schroot", type=str, help="chroot to use.")
+    build_behaviour = parser.add_argument_group('Build Behaviour')
+    build_behaviour.add_argument(
+        "--output-directory", type=str, help="Output directory.", default=None
+    )
+    build_behaviour.add_argument(
+        "--build-command",
+        type=str,
+        help="Build command",
+        default=(DEFAULT_BUILDER + " -A -s -v"),
+    )
+
+    build_behaviour.add_argument(
+        '--max-iterations',
+        type=int,
+        default=DEFAULT_MAX_ITERATIONS,
+        help='Maximum number of issues to attempt to fix before giving up.')
+    build_behaviour.add_argument("--schroot", type=str, help="chroot to use.")
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
 
     args = parser.parse_args()
