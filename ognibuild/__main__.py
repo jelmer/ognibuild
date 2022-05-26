@@ -128,6 +128,7 @@ def main():  # noqa: C901
     parser.add_argument(
         "--user", action="store_true", help="Install in local-user directories."
     )
+
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
     subparsers = parser.add_subparsers(dest="subcommand")
     subparsers.add_parser("dist")
@@ -194,7 +195,8 @@ def main():  # noqa: C901
         if args.resolve == "auto":
             resolver = auto_resolver(session, explain=args.explain)
         else:
-            resolver = select_resolvers(session, user_local=args.user, resolvers=args.resolve.split(','))
+            resolver = select_resolvers(
+                session, user_local=args.user, resolvers=args.resolve.split(','))
         logging.info("Using requirement resolver: %s", resolver)
         fixers = determine_fixers(session, resolver, explain=args.explain)
         try:
