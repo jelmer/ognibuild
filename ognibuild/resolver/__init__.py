@@ -511,7 +511,10 @@ class NpmResolver(Resolver):
             if not isinstance(requirement, NodePackageRequirement):
                 missing.append(requirement)
                 continue
-            cmd = ["npm", "-g", "install", requirement.package]
+            cmd = ["npm", "install"]
+            if not self.user_local:
+                cmd.append('-g')
+            cmd.append(requirement.package)
             logging.info("npm: running %r", cmd)
             run_detecting_problems(self.session, cmd, user=user)
         if missing:

@@ -147,7 +147,7 @@ def add_dummy_changelog_entry(
     if timestamp is None:
         timestamp = datetime.now()
     with ChangelogEditor(
-            tree.abspath(os.path.join(path)),
+            tree.abspath(os.path.join(path)),  # type: ignore
             allow_reformatting=allow_reformatting) as editor:
         version = editor[0].version
         if version.debian_revision:
@@ -292,7 +292,7 @@ def attempt_build(
       source_date_epoch: Source date epoch to set
     Returns: Tuple with (changes_name, cl_version)
     """
-    if run_gbp_dch and not subpath:
+    if run_gbp_dch and not subpath and hasattr(local_tree.controldir, '_git'):
         gbp_dch(local_tree.abspath(subpath))
     if build_changelog_entry is not None:
         add_dummy_changelog_entry(
