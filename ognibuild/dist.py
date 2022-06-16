@@ -28,14 +28,14 @@ import os
 import sys
 from typing import Optional, List
 
-from debian.deb822 import Deb822
-
 from breezy.tree import Tree
 from breezy.workingtree import WorkingTree
 
 from buildlog_consultant.common import (
     NoSpaceOnDevice,
 )
+
+from debian.deb822 import Deb822
 
 
 from . import DetailedFailure, UnidentifiedError
@@ -178,6 +178,10 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     tree = WorkingTree.open(args.directory)
+
+    packaging_tree: Optional[WorkingTree]
+    subdir: Optional[str]
+
     if args.packaging_directory:
         packaging_tree = WorkingTree.open(args.packaging_directory)
         with packaging_tree.lock_read():
@@ -197,7 +201,7 @@ if __name__ == "__main__":
             chroot=args.chroot,
             include_controldir=args.include_controldir,
         )
-    except (NoBuildToolsFound, NotImplementedError):
+    except NoBuildToolsFound:
         logging.info("No build tools found, falling back to simple export.")
         export(tree, "dist.tar.gz", "tgz", None)
     except NotImplementedError:
