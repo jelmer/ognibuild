@@ -70,8 +70,16 @@ def create_dist(
     target_dir: str,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
-    cleanup: bool = False,
 ) -> Optional[str]:
+    """Create a dist tarball for a tree.
+
+    Args:
+      session: session to run it
+      tree: Tree object to work in
+      target_dir: Directory to write tarball into
+      include_controldir: Whether to include the version control directory
+      subdir: subdirectory in the tree to operate in
+    """
     if subdir is None:
         subdir = "package"
     try:
@@ -122,7 +130,6 @@ def create_dist_schroot(
     packaging_subpath: Optional[str] = None,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
-    cleanup: bool = False,
 ) -> Optional[str]:
     with SchrootSession(chroot) as session:
         if packaging_tree is not None:
@@ -135,7 +142,6 @@ def create_dist_schroot(
             target_dir,
             include_controldir=include_controldir,
             subdir=subdir,
-            cleanup=cleanup,
         )
 
 
