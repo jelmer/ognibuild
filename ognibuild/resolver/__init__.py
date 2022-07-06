@@ -460,7 +460,7 @@ NPM_COMMAND_PACKAGES = {
     "standard": "standard",
     "jshint": "jshint",
     "if-node-version": "if-node-version",
-    "babel": "babel",
+    "babel-cli": "babel",
     "c8": "c8",
     "prettier-standard": "prettier-standard",
 }
