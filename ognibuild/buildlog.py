@@ -28,7 +28,6 @@ from buildlog_consultant.common import (
     MissingCMakeComponents,
     MissingXfceDependency,
     MissingHaskellDependencies,
-    MissingVagueDependency,
     MissingMavenArtifacts,
     MissingGnomeCommonDependency,
     MissingPerlPredeclared,
