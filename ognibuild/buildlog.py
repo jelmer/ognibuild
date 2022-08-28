@@ -94,8 +94,10 @@ from .resolver import UnsatisfiedRequirements
 PROBLEM_CONVERTERS = [
     ('missing-file', lambda p: PathRequirement(p.path)),
     ('command-missing', lambda p: BinaryRequirement(p.command)),
+    ('valac-cannot-compile', lambda p: MissingVagueDependency('valac')),
     ('missing-cmake-files', lambda p: OneOfRequirement(
-        [CMakefileRequirement(filename, p.version) for filename in p.filenames])),
+        [CMakefileRequirement(filename, p.version)
+         for filename in p.filenames])),
     ('missing-command-or-build-file', lambda p: BinaryRequirement(p.command)),
     ('missing-pkg-config-package',
      lambda p: PkgConfigRequirement(p.module, p.minimum_version)),
