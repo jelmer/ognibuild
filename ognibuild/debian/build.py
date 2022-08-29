@@ -60,7 +60,8 @@ class DetailedDebianBuildFailure(DetailedFailure):
 
 class UnidentifiedDebianBuildError(UnidentifiedError):
 
-    def __init__(self, stage, phase, retcode, argv, lines, description, secondary=None):
+    def __init__(self, stage, phase, retcode, argv, lines, description,
+                 secondary=None):
         super(UnidentifiedDebianBuildError, self).__init__(
             retcode, argv, lines, secondary)
         self.stage = stage
@@ -79,7 +80,8 @@ def find_changes_files(path, package, version):
     non_epoch_version = version.upstream_version
     if version.debian_version is not None:
         non_epoch_version += "-%s" % version.debian_version
-    c = re.compile('%s_%s_(.*).changes' % (re.escape(package), re.escape(non_epoch_version)))
+    c = re.compile('%s_%s_(.*).changes' % (
+        re.escape(package), re.escape(non_epoch_version)))
     for entry in os.scandir(path):
         m = c.match(entry.name)
         if m:
@@ -151,12 +153,15 @@ def add_dummy_changelog_entry(
             allow_reformatting=allow_reformatting) as editor:
         version = editor[0].version
         if version.debian_revision:
-            version.debian_revision = add_suffix(version.debian_revision, suffix)
+            version.debian_revision = add_suffix(
+                version.debian_revision, suffix)
         else:
-            version.upstream_version = add_suffix(version.upstream_version, suffix)
+            version.upstream_version = add_suffix(
+                version.upstream_version, suffix)
         editor.auto_version(version, timestamp=timestamp)
         editor.add_entry(
-            summary=[message], maintainer=maintainer, timestamp=timestamp, urgency='low')
+            summary=[message], maintainer=maintainer, timestamp=timestamp,
+            urgency='low')
         editor[0].distributions = suite
 
 
@@ -202,7 +207,8 @@ def build(
     logging.info("Building debian packages, running %r.", build_command)
     try:
         subprocess.check_call(
-            args, cwd=local_tree.abspath(subpath), stdout=outf, stderr=outf, env=env
+            args, cwd=local_tree.abspath(subpath), stdout=outf, stderr=outf,
+            env=env
         )
     except subprocess.CalledProcessError:
         raise BuildFailedError()
@@ -251,7 +257,8 @@ def build_once(
 
     cl_entry = get_latest_changelog_entry(local_tree, subpath)
     changes_names = []
-    for kind, entry in find_changes_files(output_directory, cl_entry.package, cl_entry.version):
+    for kind, entry in find_changes_files(
+            output_directory, cl_entry.package, cl_entry.version):
         changes_names.append((entry.name))
     return (changes_names, cl_entry)
 

@@ -29,7 +29,8 @@ def satisfy_build_deps(session: Session, tree, debian_path):
             deps.append(source[name].strip().strip(","))
         except KeyError:
             pass
-    for name in ["Build-Conflicts", "Build-Conflicts-Indep", "Build-Conflicts-Arch"]:
+    for name in ["Build-Conflicts", "Build-Conflicts-Indep",
+                 "Build-Conflicts-Arch"]:
         try:
             deps.append("Conflicts: " + source[name])
         except KeyError:

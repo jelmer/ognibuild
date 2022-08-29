@@ -28,7 +28,9 @@ class PythonPackageRequirement(Requirement):
 
     package: str
 
-    def __init__(self, package, python_version=None, specs=None, minimum_version=None):
+    def __init__(
+            self, package, python_version=None, specs=None,
+            minimum_version=None):
         super(PythonPackageRequirement, self).__init__("python-package")
         self.package = package
         self.python_version = python_version
@@ -74,7 +76,8 @@ class PythonPackageRequirement(Requirement):
             raise NotImplementedError
         text = self.package + ",".join(["".join(spec) for spec in self.specs])
         p = session.Popen(
-            [cmd, "-c", "import pkg_resources; pkg_resources.require(%r)" % text],
+            [cmd, "-c",
+             "import pkg_resources; pkg_resources.require(%r)" % text],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -152,7 +155,8 @@ class VcsControlDirectoryAccessRequirement(Requirement):
     vcs: List[str]
 
     def __init__(self, vcs):
-        super(VcsControlDirectoryAccessRequirement, self).__init__("vcs-access")
+        super(VcsControlDirectoryAccessRequirement, self).__init__(
+            "vcs-access")
         self.vcs = vcs
 
     def __repr__(self):
@@ -193,22 +197,26 @@ class VagueDependencyRequirement(Requirement):
         if " " not in self.name:
             yield BinaryRequirement(self.name)
             yield LibraryRequirement(self.name)
-            yield PkgConfigRequirement(self.name, minimum_version=self.minimum_version)
+            yield PkgConfigRequirement(
+                self.name, minimum_version=self.minimum_version)
             if self.name.lower() != self.name:
                 yield BinaryRequirement(self.name.lower())
                 yield LibraryRequirement(self.name.lower())
-                yield PkgConfigRequirement(self.name.lower(), minimum_version=self.minimum_version)
+                yield PkgConfigRequirement(
+                    self.name.lower(), minimum_version=self.minimum_version)
             try:
                 from .resolver.apt import AptRequirement
             except ModuleNotFoundError:
                 pass
             else:
-                yield AptRequirement.simple(self.name.lower(), minimum_version=self.minimum_version)
+                yield AptRequirement.simple(
+                    self.name.lower(), minimum_version=self.minimum_version)
                 if self.name.lower().startswith('lib'):
                     devname = '%s-dev' % self.name.lower()
                 else:
                     devname = 'lib%s-dev' % self.name.lower()
-                yield AptRequirement.simple(devname, minimum_version=self.minimum_version)
+                yield AptRequirement.simple(
+                    devname, minimum_version=self.minimum_version)
 
     def met(self, session):
         for x in self.expand():
@@ -302,7 +310,8 @@ class CargoCrateRequirement(Requirement):
     api_version: Optional[str]
     minimum_version: Optional[str]
 
-    def __init__(self, crate, features=None, api_version=None, minimum_version=None):
+    def __init__(self, crate, features=None, api_version=None,
+                 minimum_version=None):
         super(CargoCrateRequirement, self).__init__("cargo-crate")
         self.crate = crate
         if features is None:
@@ -371,7 +380,8 @@ class CHeaderRequirement(Requirement):
 
 class JavaScriptRuntimeRequirement(Requirement):
     def __init__(self):
-        super(JavaScriptRuntimeRequirement, self).__init__("javascript-runtime")
+        super(JavaScriptRuntimeRequirement, self).__init__(
+            "javascript-runtime")
 
 
 class ValaPackageRequirement(Requirement):
@@ -463,7 +473,8 @@ class RPackageRequirement(Requirement):
 
     def __str__(self):
         if self.minimum_version:
-            return "R package: %s (>= %s)" % (self.package, self.minimum_version)
+            return "R package: %s (>= %s)" % (
+                self.package, self.minimum_version)
         else:
             return "R package: %s" % (self.package,)
 
@@ -498,7 +509,8 @@ class OctavePackageRequirement(Requirement):
 
     def __str__(self):
         if self.minimum_version:
-            return "Octave package: %s (>= %s)" % (self.package, self.minimum_version)
+            return "Octave package: %s (>= %s)" % (
+                self.package, self.minimum_version)
         else:
             return "Octave package: %s" % (self.package,)
 

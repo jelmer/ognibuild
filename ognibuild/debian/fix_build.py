@@ -109,7 +109,9 @@ class DebianPackagingContext(object):
     def abspath(self, *parts):
         return self.tree.abspath(os.path.join(self.subpath, *parts))
 
-    def commit(self, summary: str, update_changelog: Optional[bool] = None) -> bool:
+    def commit(
+            self, summary: str,
+            update_changelog: Optional[bool] = None) -> bool:
         if update_changelog is None:
             update_changelog = self.update_changelog
         with self.tree.lock_write():
@@ -195,10 +197,12 @@ def add_build_dependency(context, requirement: AptRequirement):
                     raise CircularDependency(binary["Package"])
             for rel in requirement.relations:
                 updater.source["Build-Depends"] = ensure_relation(
-                    updater.source.get("Build-Depends", ""), PkgRelation.str([rel])
+                    updater.source.get("Build-Depends", ""),
+                    PkgRelation.str([rel])
                 )
     except FormattingUnpreservable as e:
-        logging.info("Unable to edit %s in a way that preserves formatting.", e.path)
+        logging.info(
+            "Unable to edit %s in a way that preserves formatting.", e.path)
         return False
 
     desc = requirement.pkg_relation_str()
@@ -236,7 +240,8 @@ def add_test_dependency(context, testname, requirement):
                         control.get("Depends", ""), PkgRelation.str([rel])
                     )
     except FormattingUnpreservable as e:
-        logging.info("Unable to edit %s in a way that preserves formatting.", e.path)
+        logging.info(
+            "Unable to edit %s in a way that preserves formatting.", e.path)
         return False
     if not updater.changed:
         return False
@@ -252,7 +257,8 @@ def add_test_dependency(context, testname, requirement):
 def targeted_python_versions(tree: Tree, subpath: str) -> List[str]:
     with tree.get_file(os.path.join(subpath, "debian/control")) as f:
         control = Deb822(f)
-    build_depends = PkgRelation.parse_relations(control.get("Build-Depends", ""))
+    build_depends = PkgRelation.parse_relations(
+        control.get("Build-Depends", ""))
     all_build_deps: Set[str] = set()
     for or_deps in build_depends:
         all_build_deps.update(or_dep["name"] for or_dep in or_deps)
@@ -301,7 +307,8 @@ def retry_apt_failure(error, phase, apt, context):
 def enable_dh_autoreconf(context, phase):
     # Debhelper >= 10 depends on dh-autoreconf and enables autoreconf by
     # default.
-    debhelper_compat_version = get_debhelper_compat_level(context.tree.abspath("."))
+    debhelper_compat_version = get_debhelper_compat_level(
+        context.tree.abspath("."))
     if debhelper_compat_version is not None and debhelper_compat_version < 10:
 
         def add_with_autoreconf(line, target):
@@ -320,9 +327,8 @@ def enable_dh_autoreconf(context, phase):
 
 
 def fix_missing_configure(error, phase, context):
-    if not context.tree.has_filename("configure.ac") and not context.tree.has_filename(
-        "configure.in"
-    ):
+    if (not context.tree.has_filename("configure.ac")
+            and not context.tree.has_filename("configure.in")):
         return False
 
     return enable_dh_autoreconf(context, phase)
@@ -425,7 +431,8 @@ class SimpleBuildFixer(BuildFixer):
 
 
 class DependencyBuildFixer(BuildFixer):
-    def __init__(self, packaging_context, apt_resolver, problem_cls: Type[Problem], fn):
+    def __init__(self, packaging_context, apt_resolver,
+                 problem_cls: Type[Problem], fn):
         self.context = packaging_context
         self.apt_resolver = apt_resolver
         self._problem_cls = problem_cls
@@ -448,14 +455,17 @@ class DependencyBuildFixer(BuildFixer):
 def versioned_package_fixers(session, packaging_context, apt):
     return [
         PgBuildExtOutOfDateControlFixer(packaging_context, session, apt),
-        SimpleBuildFixer(packaging_context, MissingConfigure, fix_missing_configure),
+        SimpleBuildFixer(
+            packaging_context, MissingConfigure, fix_missing_configure),
         SimpleBuildFixer(
             packaging_context, MissingAutomakeInput, fix_missing_automake_input
         ),
         SimpleBuildFixer(
-            packaging_context, MissingConfigStatusInput, fix_missing_config_status_input
+            packaging_context, MissingConfigStatusInput,
+            fix_missing_config_status_input
         ),
-        SimpleBuildFixer(packaging_context, MissingPerlFile, fix_missing_makefile_pl),
+        SimpleBuildFixer(
+            packaging_context, MissingPerlFile, fix_missing_makefile_pl),
         SimpleBuildFixer(
             packaging_context, DebcargoUnacceptablePredicate,
             debcargo_coerce_unacceptable_prerelease),
@@ -471,7 +481,8 @@ def apt_fixers(apt, packaging_context) -> List[BuildFixer]:
     from .build_deps import BuildDependencyTieBreaker
 
     apt_tie_breakers = [
-        partial(python_tie_breaker, packaging_context.tree, packaging_context.subpath),
+        partial(python_tie_breaker, packaging_context.tree,
+                packaging_context.subpath),
         BuildDependencyTieBreaker.from_session(apt.session),
         popcon_tie_breaker,
     ]
@@ -484,14 +495,14 @@ def apt_fixers(apt, packaging_context) -> List[BuildFixer]:
     ]
 
 
-def default_fixers(local_tree, subpath, apt, committer=None, update_changelog=None):
+def default_fixers(local_tree, subpath, apt, committer=None,
+                   update_changelog=None):
     packaging_context = DebianPackagingContext(
         local_tree, subpath, committer, update_changelog,
         commit_reporter=NullCommitReporter()
     )
-    return versioned_package_fixers(apt.session, packaging_context, apt) + apt_fixers(
-        apt, packaging_context
-    )
+    return (versioned_package_fixers(apt.session, packaging_context, apt)
+            + apt_fixers(apt, packaging_context))
 
 
 def build_incrementally(
@@ -541,15 +552,19 @@ def build_incrementally(
                 logging.info("No relevant context, not making any changes.")
                 raise
             if (e.error, e.phase) in fixed_errors:
-                logging.warning("Error was still not fixed on second try. Giving up.")
+                logging.warning(
+                    "Error was still not fixed on second try. Giving up.")
                 raise
-            if max_iterations is not None and len(fixed_errors) > max_iterations:
-                logging.warning("Last fix did not address the issue. Giving up.")
+            if (max_iterations is not None
+                    and len(fixed_errors) > max_iterations):
+                logging.warning(
+                    "Last fix did not address the issue. Giving up.")
                 raise
             reset_tree(local_tree, subpath=subpath)
             try:
                 if not resolve_error(e.error, e.phase, fixers):
-                    logging.warning("Failed to resolve error %r. Giving up.", e.error)
+                    logging.warning(
+                        "Failed to resolve error %r. Giving up.", e.error)
                     raise
             except GeneratedFile:
                 logging.warning(
@@ -560,7 +575,8 @@ def build_incrementally(
                 raise e
             except CircularDependency:
                 logging.warning(
-                    "Unable to fix %r; it would introduce a circular " "dependency.",
+                    "Unable to fix %r; it would introduce a circular "
+                    "dependency.",
                     e.error,
                 )
                 raise e
@@ -571,8 +587,10 @@ def build_incrementally(
                     os.path.join(output_directory, "build.log.%d" % i)
                 ):
                     i += 1
-                target_path = os.path.join(output_directory, "build.log.%d" % i)
-                os.rename(os.path.join(output_directory, "build.log"), target_path)
+                target_path = os.path.join(
+                    output_directory, "build.log.%d" % i)
+                os.rename(
+                    os.path.join(output_directory, "build.log"), target_path)
                 logging.debug("Storing build log at %s", target_path)
 
 
@@ -582,13 +600,15 @@ def main(argv=None):
     parser = argparse.ArgumentParser("ognibuild.debian.fix_build")
     modifications = parser.add_argument_group('Modifications')
     modifications.add_argument(
-        "--suffix", type=str, help="Suffix to use for test builds.", default="fixbuild1"
+        "--suffix", type=str, help="Suffix to use for test builds.",
+        default="fixbuild1"
     )
     modifications.add_argument(
         "--suite", type=str, help="Suite to target.", default="unstable"
     )
     modifications.add_argument(
-        "--committer", type=str, help="Committer string (name and email)", default=None
+        "--committer", type=str, help="Committer string (name and email)",
+        default=None
     )
     modifications.add_argument(
         "--no-update-changelog",
@@ -646,7 +666,8 @@ def main(argv=None):
             output_directory = args.output_directory
             if not os.path.isdir(output_directory):
                 parser.error(
-                    'output directory %s is not a directory' % output_directory)
+                    'output directory %s is not a directory'
+                    % output_directory)
 
         tree = WorkingTree.open(".")
         if args.schroot:
@@ -680,8 +701,10 @@ def main(argv=None):
                 phase = "%s (%s)" % (e.phase[0], e.phase[1])
             logging.fatal("Error during %s: %s", phase, e.error)
             if not args.output_directory:
-                xdg_cache_dir = os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
-                buildlogs_dir = os.path.join(xdg_cache_dir, 'ognibuild', 'buildlogs')
+                xdg_cache_dir = os.environ.get(
+                    'XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
+                buildlogs_dir = os.path.join(
+                    xdg_cache_dir, 'ognibuild', 'buildlogs')
                 os.makedirs(buildlogs_dir, exist_ok=True)
                 target_log_file = os.path.join(
                     buildlogs_dir,

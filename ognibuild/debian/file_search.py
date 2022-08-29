@@ -75,7 +75,8 @@ def contents_urls_from_sources_entry(source, arches, load_url):
             response = load_url(release_url)
         except FileNotFoundError as e:
             logging.warning(
-                "Unable to download %s or %s: %s", inrelease_url, release_url, e
+                "Unable to download %s or %s: %s", inrelease_url,
+                release_url, e
             )
             return
 
@@ -213,7 +214,8 @@ class AptFileFileSearcher(FileSearcher):
             args.append('-i')
         args.append(path)
         try:
-            output = self.session.check_output(['/usr/bin/apt-file', 'search'] + args)
+            output = self.session.check_output(
+                ['/usr/bin/apt-file', 'search'] + args)
         except subprocess.CalledProcessError as e:
             if e.returncode == 1:
                 # No results
@@ -261,7 +263,8 @@ class RemoteContentsFileSearcher(FileSearcher):
             return load_url_with_cache(url, cache_dirs)
 
         urls = list(
-            contents_urls_from_sourceslist(sl, get_build_architecture(), load_url)
+            contents_urls_from_sourceslist(
+                sl, get_build_architecture(), load_url)
         )
         self._load_urls(urls, cache_dirs, load_url)
 
@@ -285,8 +288,8 @@ class RemoteContentsFileSearcher(FileSearcher):
             return load_url_with_cache(url, cache_dirs)
 
         urls = list(
-            contents_urls_from_sourceslist(sl, get_build_architecture(), load_url)
-        )
+            contents_urls_from_sourceslist(
+                sl, get_build_architecture(), load_url))
         self._load_urls(urls, cache_dirs, load_url)
 
     def _load_urls(self, urls, cache_dirs, load_url):
@@ -404,8 +407,10 @@ def main(argv):
     from ..session.plain import PlainSession
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("path", help="Path to search for.", type=str, nargs="*")
-    parser.add_argument("--regex", "-x", help="Search for regex.", action="store_true")
+    parser.add_argument(
+        "path", help="Path to search for.", type=str, nargs="*")
+    parser.add_argument(
+        "--regex", "-x", help="Search for regex.", action="store_true")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
@@ -418,7 +423,8 @@ def main(argv):
         main_searcher = get_apt_contents_file_searcher(session)
         searchers = [main_searcher, GENERATED_FILE_SEARCHER]
 
-        packages = get_packages_for_paths(args.path, searchers=searchers, regex=args.regex)
+        packages = get_packages_for_paths(
+            args.path, searchers=searchers, regex=args.regex)
         for package in packages:
             print(package)
 

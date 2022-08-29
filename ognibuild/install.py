@@ -19,7 +19,9 @@ from .buildsystem import NoBuildToolsFound, InstallTarget
 from typing import Optional
 
 
-def run_install(session, buildsystems, resolver, fixers, user: bool = False, prefix: Optional[str] = None):
+def run_install(
+        session, buildsystems, resolver, fixers, user: bool = False,
+        prefix: Optional[str] = None):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()

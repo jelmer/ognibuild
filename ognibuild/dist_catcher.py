@@ -54,7 +54,8 @@ class DistCatcher(object):
     @classmethod
     def default(cls, directory):
         return cls(
-            [os.path.join(directory, "dist"), directory, os.path.join(directory, "..")]
+            [os.path.join(directory, "dist"), directory,
+             os.path.join(directory, "..")]
         )
 
     def __enter__(self):
@@ -87,19 +88,23 @@ class DistCatcher(object):
                     continue
             if len(possible_new) == 1:
                 entry = possible_new[0]
-                logging.info("Found new tarball %s in %s.", entry.name, directory)
+                logging.info(
+                    "Found new tarball %s in %s.", entry.name, directory)
                 self.files.append(entry.path)
                 return entry.name
             elif len(possible_new) > 1:
                 logging.warning(
-                    "Found multiple tarballs %r in %s.", possible_new, directory
+                    "Found multiple tarballs %r in %s.", possible_new,
+                    directory
                 )
                 self.files.extend([entry.path for entry in possible_new])
                 return possible_new[0].name
 
             if len(possible_updated) == 1:
                 entry = possible_updated[0]
-                logging.info("Found updated tarball %s in %s.", entry.name, directory)
+                logging.info(
+                    "Found updated tarball %s in %s.", entry.name,
+                    directory)
                 self.files.append(entry.path)
                 return entry.name
 
