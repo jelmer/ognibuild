@@ -101,6 +101,7 @@ def dist(session, export_directory, reldir, target_dir):
     from .buildlog import InstallFixer
     from .fixers import (
         GitIdentityFixer,
+        MissingGoSumEntryFixer,
         SecretGpgKeyFixer,
         UnexpandedAutoconfMacroFixer,
         GnulibDirectoryFixer,
@@ -111,13 +112,17 @@ def dist(session, export_directory, reldir, target_dir):
     resolver = auto_resolver(session)
     fixers: List[BuildFixer] = [
         UnexpandedAutoconfMacroFixer(session, resolver),
-        GnulibDirectoryFixer(session)]
+        GnulibDirectoryFixer(session),
+        MissingGoSumEntryFixer(session)]
 
     fixers.append(InstallFixer(resolver))
 
     if session.is_temporary:
         # Only muck about with temporary sessions
-        fixers.extend([GitIdentityFixer(session), SecretGpgKeyFixer(session)])
+        fixers.extend([
+            GitIdentityFixer(session),
+            SecretGpgKeyFixer(session),
+        ])
 
     session.chdir(reldir)
     return run_dist(session, buildsystems, resolver, fixers, target_dir)
