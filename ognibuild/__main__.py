@@ -42,7 +42,8 @@ def display_explain_commands(commands):
     for command, reqs in commands:
         if isinstance(command, list):
             command = shlex.join(command)
-        logging.info("  %s (to install %s)", command, ", ".join(map(str, reqs)))
+        logging.info(
+            "  %s (to install %s)", command, ", ".join(map(str, reqs)))
 
 
 def install_necessary_declared_requirements(
@@ -52,7 +53,8 @@ def install_necessary_declared_requirements(
     if explain:
         relevant = []
         for buildsystem in buildsystems:
-            declared_reqs = buildsystem.get_declared_dependencies(session, fixers)
+            declared_reqs = buildsystem.get_declared_dependencies(
+                session, fixers)
             for stage, req in declared_reqs:
                 if stage in stages:
                     relevant.append(req)
@@ -60,10 +62,12 @@ def install_necessary_declared_requirements(
     else:
         for buildsystem in buildsystems:
             try:
-                buildsystem.install_declared_requirements(stages, session, resolver, fixers)
+                buildsystem.install_declared_requirements(
+                    stages, session, resolver, fixers)
             except NotImplementedError:
                 logging.warning(
-                    "Unable to determine declared dependencies from %r", buildsystem
+                    "Unable to determine declared dependencies from %r",
+                    buildsystem
                 )
 
 
@@ -99,7 +103,8 @@ def main():  # noqa: C901
         "--version", action="version", version="%(prog)s " + version_string
     )
     parser.add_argument(
-        "--directory", "-d", type=str, help="Directory for project.", default="."
+        "--directory", "-d", type=str, help="Directory for project.",
+        default="."
     )
     parser.add_argument("--schroot", type=str, help="schroot to run in.")
     parser.add_argument(
@@ -126,7 +131,8 @@ def main():  # noqa: C901
         help="Ignore declared dependencies, follow build errors only",
     )
     parser.add_argument(
-        "--user", action="store_true", help="Install in local-user directories."
+        "--user", action="store_true",
+        help="Install in local-user directories."
     )
 
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
@@ -138,7 +144,8 @@ def main():  # noqa: C901
     subparsers.add_parser("info")
     subparsers.add_parser("verify")
     exec_parser = subparsers.add_parser("exec")
-    exec_parser.add_argument('subargv', nargs=argparse.REMAINDER, help='Command to run.')
+    exec_parser.add_argument(
+        'subargv', nargs=argparse.REMAINDER, help='Command to run.')
     install_parser = subparsers.add_parser("install")
     install_parser.add_argument(
         "--prefix", type=str, help='Prefix to install in')
@@ -185,7 +192,8 @@ def main():  # noqa: C901
             else:
                 directory = args.directory
             logging.info("Preparing directory %s", directory)
-            external_dir, internal_dir = session.setup_from_directory(directory)
+            external_dir, internal_dir = session.setup_from_directory(
+                directory)
         session.chdir(internal_dir)
         os.chdir(external_dir)
 
@@ -196,7 +204,8 @@ def main():  # noqa: C901
             resolver = auto_resolver(session, explain=args.explain)
         else:
             resolver = select_resolvers(
-                session, user_local=args.user, resolvers=args.resolve.split(','))
+                session, user_local=args.user,
+                resolvers=args.resolve.split(','))
         logging.info("Using requirement resolver: %s", resolver)
         fixers = determine_fixers(session, resolver, explain=args.explain)
         try:
@@ -209,13 +218,16 @@ def main():  # noqa: C901
             if not args.ignore_declared_dependencies:
                 stages = STAGE_MAP[args.subcommand]
                 if stages:
-                    logging.info("Checking that declared requirements are present")
+                    logging.info(
+                        "Checking that declared requirements are present")
                     try:
                         install_necessary_declared_requirements(
-                            session, resolver, fixers, bss, stages, explain=args.explain
+                            session, resolver, fixers, bss, stages,
+                            explain=args.explain
                         )
                     except UnsatisfiedRequirements as e:
-                        logging.info('Unable to install declared dependencies:')
+                        logging.info(
+                            'Unable to install declared dependencies:')
                         for req in e.requirements:
                             logging.info(' * %s', req)
                         return 1
@@ -239,11 +251,15 @@ def main():  # noqa: C901
             if args.subcommand == "build":
                 from .build import run_build
 
-                run_build(session, buildsystems=bss, resolver=resolver, fixers=fixers)
+                run_build(
+                    session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
             if args.subcommand == "clean":
                 from .clean import run_clean
 
-                run_clean(session, buildsystems=bss, resolver=resolver, fixers=fixers)
+                run_clean(
+                    session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
             if args.subcommand == "install":
                 from .install import run_install
 
@@ -258,7 +274,9 @@ def main():  # noqa: C901
             if args.subcommand == "test":
                 from .test import run_test
 
-                run_test(session, buildsystems=bss, resolver=resolver, fixers=fixers)
+                run_test(
+                    session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
             if args.subcommand == "info":
                 from .info import run_info
 
@@ -268,23 +286,27 @@ def main():  # noqa: C901
                 from .build import run_build
                 from .test import run_test
 
-                run_build(session, buildsystems=bss, resolver=resolver, fixers=fixers)
-                run_test(session, buildsystems=bss, resolver=resolver, fixers=fixers)
+                run_build(
+                    session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
+                run_test(
+                    session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
 
         except ExplainInstall as e:
             display_explain_commands(e.commands)
         except UnidentifiedError:
             logging.info(
-                'If there is a clear indication of a problem in the build log, '
-                'please consider filing a request to update the patterns in '
-                'buildlog-consultant at '
+                'If there is a clear indication of a problem in the build '
+                'log, please consider filing a request to update the patterns '
+                'in buildlog-consultant at '
                 'https://github.com/jelmer/buildlog-consultant/issues/new')
             return 1
         except DetailedFailure:
             if not args.verbose:
                 logging.info(
-                    'Run with --verbose to get more information about steps taken '
-                    'to try to resolve error')
+                    'Run with --verbose to get more information '
+                    'about steps taken to try to resolve error')
             logging.info(
                 'Please consider filing a bug report at '
                 'https://github.com/jelmer/ognibuild/issues/new')

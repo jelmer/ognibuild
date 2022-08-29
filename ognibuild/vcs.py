@@ -43,7 +43,8 @@ def dupe_vcs_tree(tree, directory):
             tree = tree.basis_tree()
     try:
         result = tree._repository.controldir.sprout(
-            directory, create_tree_if_local=True, revision_id=tree.get_revision_id()
+            directory, create_tree_if_local=True,
+            revision_id=tree.get_revision_id()
         )
     except OSError as e:
         if e.errno == errno.ENOSPC:

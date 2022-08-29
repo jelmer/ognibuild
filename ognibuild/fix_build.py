@@ -52,7 +52,8 @@ class BuildFixer(object):
         return self._fix(problem, phase)
 
 
-def run_detecting_problems(session: Session, args: List[str], check_success=None, **kwargs):
+def run_detecting_problems(
+        session: Session, args: List[str], check_success=None, **kwargs):
     if check_success is None:
         def check_success(retcode, contents):
             return (retcode == 0)
@@ -71,12 +72,14 @@ def run_detecting_problems(session: Session, args: List[str], check_success=None
                 logging.warning("Build failed with unidentified error:")
                 logging.warning("%s", match.line.rstrip("\n"))
             else:
-                logging.warning("Build failed and unable to find cause. Giving up.")
+                logging.warning(
+                    "Build failed and unable to find cause. Giving up.")
             raise UnidentifiedError(retcode, args, lines, secondary=match)
     raise DetailedFailure(retcode, args, error)
 
 
-def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any], limit=DEFAULT_LIMIT):
+def iterate_with_build_fixers(
+        fixers: List[BuildFixer], cb: Callable[[], Any], limit=DEFAULT_LIMIT):
     """Call cb() until there are no more DetailedFailures we can fix.
 
     Args:
@@ -97,7 +100,8 @@ def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any], l
             logging.info("Identified error: %r", f.error)
             if f.error in fixed_errors:
                 logging.warning(
-                    "Failed to resolve error %r, it persisted. Giving up.", f.error
+                    "Failed to resolve error %r, it persisted. Giving up.",
+                    f.error
                 )
                 raise f
             attempts += 1
@@ -114,14 +118,16 @@ def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any], l
             else:
                 if not resolved:
                     logging.warning(
-                        "Failed to find resolution for error %r. Giving up.", f.error
+                        "Failed to find resolution for error %r. Giving up.",
+                        f.error
                     )
                     raise f
                 fixed_errors.append(f.error)
 
 
 def run_with_build_fixers(
-    session: Session, args: List[str], fixers: Optional[List[BuildFixer]], quiet=False, **kwargs
+    session: Session, args: List[str], fixers: Optional[List[BuildFixer]],
+    quiet: bool = False, **kwargs
 ):
     if not quiet:
         logging.info('Running %r', args)

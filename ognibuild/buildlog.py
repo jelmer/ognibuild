@@ -94,7 +94,8 @@ PROBLEM_CONVERTERS = [
     ('missing-file', lambda p: PathRequirement(p.path)),
     ('command-missing', lambda p: BinaryRequirement(p.command)),
     ('missing-cmake-files', lambda p: OneOfRequirement(
-        [CMakefileRequirement(filename, p.version) for filename in p.filenames])),
+        [CMakefileRequirement(filename, p.version)
+         for filename in p.filenames])),
     ('missing-command-or-build-file', lambda p: BinaryRequirement(p.command)),
     ('missing-pkg-config-package',
      lambda p: PkgConfigRequirement(p.module, p.minimum_version)),
@@ -154,14 +155,16 @@ PROBLEM_CONVERTERS = [
 ]
 
 
-def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]:  # noqa: C901
+def problem_to_upstream_requirement(
+        problem: Problem) -> Optional[Requirement]:  # noqa: C901
     for kind, fn in PROBLEM_CONVERTERS:
         if kind == problem.kind:
             return fn(problem)
     if isinstance(problem, MissingCMakeComponents):
         if problem.name.lower() == 'boost':
             return OneOfRequirement(
-                [BoostComponentRequirement(name) for name in problem.components])
+                [BoostComponentRequirement(name)
+                 for name in problem.components])
         elif problem.name.lower() == 'kf5':
             return OneOfRequirement(
                 [KF5ComponentRequirement(name) for name in problem.components])
@@ -172,7 +175,8 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]: 
         return None
     elif isinstance(problem, MissingHaskellDependencies):
         return OneOfRequirement(
-            [HaskellPackageRequirement.from_string(dep) for dep in problem.deps])
+            [HaskellPackageRequirement.from_string(dep)
+             for dep in problem.deps])
     elif isinstance(problem, MissingMavenArtifacts):
         return OneOfRequirement([
             MavenArtifactRequirement.from_str(artifact)
@@ -196,14 +200,16 @@ def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]: 
             return BinaryRequirement("glib-gettextize")
         else:
             logging.warning(
-                "No known command for gnome-common dependency %s", problem.package
+                "No known command for gnome-common dependency %s",
+                problem.package
             )
             return None
     elif isinstance(problem, MissingXfceDependency):
         if problem.package == "gtk-doc":
             return BinaryRequirement("gtkdocize")
         else:
-            logging.warning("No known command for xfce dependency %s", problem.package)
+            logging.warning(
+                "No known command for xfce dependency %s", problem.package)
             return None
     elif isinstance(problem, MissingPerlFile):
         return PerlFileRequirement(filename=problem.filename)

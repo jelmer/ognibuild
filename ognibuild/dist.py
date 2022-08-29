@@ -46,7 +46,8 @@ from .session import Session
 from .session.schroot import SchrootSession
 
 
-def run_dist(session, buildsystems, resolver, fixers, target_directory, quiet=False):
+def run_dist(session, buildsystems, resolver, fixers, target_directory,
+             quiet=False):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
@@ -173,7 +174,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
     parser.add_argument(
-        "--include-controldir", action="store_true", help="Clone rather than export."
+        "--include-controldir", action="store_true",
+        help="Clone rather than export."
     )
 
     args = parser.parse_args()

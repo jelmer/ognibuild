@@ -66,7 +66,8 @@ class SchrootSession(Session):
                 if line.startswith(b"E: "):
                     logging.error("%s", line[3:].decode(errors="replace"))
             logging.warning(
-                "Failed to close schroot session %s, leaving stray.", self.session_id
+                "Failed to close schroot session %s, leaving stray.",
+                self.session_id
             )
             self.session_id = None
             return False
@@ -80,7 +81,8 @@ class SchrootSession(Session):
         stderr = tempfile.TemporaryFile()
         try:
             self.session_id = (
-                subprocess.check_output(["schroot", "-c", self.chroot, "-b"], stderr=stderr)
+                subprocess.check_output(
+                    ["schroot", "-c", self.chroot, "-b"], stderr=stderr)
                 .strip()
                 .decode()
             )
@@ -164,24 +166,28 @@ class SchrootSession(Session):
         env: Optional[Dict[str, str]] = None,
     ) -> bytes:
         try:
-            return subprocess.check_output(self._run_argv(argv, cwd, user, env=env))
+            return subprocess.check_output(
+                self._run_argv(argv, cwd, user, env=env))
         except subprocess.CalledProcessError as e:
             raise subprocess.CalledProcessError(e.returncode, argv)
 
     def Popen(
-        self, argv, cwd: Optional[str] = None, user: Optional[str] = None, **kwargs
+        self, argv, cwd: Optional[str] = None, user: Optional[str] = None,
+        **kwargs
     ):
         return subprocess.Popen(self._run_argv(argv, cwd, user), **kwargs)
 
     def call(
-        self, argv: List[str], cwd: Optional[str] = None, user: Optional[str] = None
+        self, argv: List[str], cwd: Optional[str] = None,
+        user: Optional[str] = None
     ):
         return subprocess.call(self._run_argv(argv, cwd, user))
 
     def create_home(self) -> None:
         """Create the user's home directory."""
         home = (
-            self.check_output(["sh", "-c", "echo $HOME"], cwd="/").decode().rstrip("\n")
+            self.check_output(
+                ["sh", "-c", "echo $HOME"], cwd="/").decode().rstrip("\n")
         )
         user = (
             self.check_output(["sh", "-c", "echo $LOGNAME"], cwd="/")
@@ -197,7 +203,8 @@ class SchrootSession(Session):
             return os.path.join(self.location, path.lstrip("/"))
         if self._cwd is None:
             raise ValueError("no cwd set")
-        return os.path.join(self.location, os.path.join(self._cwd, path).lstrip("/"))
+        return os.path.join(
+            self.location, os.path.join(self._cwd, path).lstrip("/"))
 
     def exists(self, path: str) -> bool:
         fullpath = self.external_path(path)

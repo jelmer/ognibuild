@@ -73,7 +73,8 @@ class PlainSession(Session):
         close_fds: bool = True,
     ):
         argv = self._prepend_user(user, argv)
-        return subprocess.check_call(argv, cwd=cwd, env=env, close_fds=close_fds)
+        return subprocess.check_call(
+            argv, cwd=cwd, env=env, close_fds=close_fds)
 
     def check_output(
         self,
@@ -85,9 +86,12 @@ class PlainSession(Session):
         argv = self._prepend_user(user, argv)
         return subprocess.check_output(argv, cwd=cwd, env=env)
 
-    def Popen(self, args, stdout=None, stderr=None, stdin=None, user=None, cwd=None, env=None):
+    def Popen(
+            self, args, stdout=None, stderr=None, stdin=None, user=None,
+            cwd=None, env=None):
         args = self._prepend_user(user, args)
-        return subprocess.Popen(args, stdout=stdout, stderr=stderr, stdin=stdin, cwd=cwd, env=env)
+        return subprocess.Popen(
+            args, stdout=stdout, stderr=stderr, stdin=stdin, cwd=cwd, env=env)
 
     def exists(self, path):
         return os.path.exists(path)

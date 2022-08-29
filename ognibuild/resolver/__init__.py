@@ -120,7 +120,8 @@ class TlmgrResolver(Resolver):
         self.repository = repository
 
     def __str__(self):
-        if self.repository.startswith('http://') or self.repository.startswith('https://'):
+        if (self.repository.startswith('http://')
+                or self.repository.startswith('https://')):
             return 'tlmgr(%r)' % self.repository
         else:
             return self.repository
@@ -165,7 +166,8 @@ class TlmgrResolver(Resolver):
             try:
                 run_detecting_problems(self.session, cmd, user=user)
             except UnidentifiedError as e:
-                if "tlmgr: user mode not initialized, please read the documentation!" in e.lines:
+                if ("tlmgr: user mode not initialized, "
+                        "please read the documentation!") in e.lines:
                     self.session.check_call(['tlmgr', 'init-usertree'])
                 else:
                     raise
@@ -297,7 +299,8 @@ class BioconductorResolver(RResolver):
 
     def __init__(self, session, user_local=False):
         super(BioconductorResolver, self).__init__(
-            session, "https://hedgehog.fhcrc.org/bioconductor", user_local=user_local
+            session, "https://hedgehog.fhcrc.org/bioconductor",
+            user_local=user_local
         )
 
 
@@ -319,7 +322,8 @@ class HackageResolver(Resolver):
         extra_args = []
         if self.user_local:
             extra_args.append("--user")
-        return ["cabal", "install"] + extra_args + [req.package for req in reqs]
+        return (["cabal", "install"] + extra_args
+                + [req.package for req in reqs])
 
     def install(self, requirements):
         from ..requirements import HaskellPackageRequirement
@@ -585,7 +589,8 @@ NATIVE_RESOLVER_CLS: List[Type[Resolver]] = [
 
 
 def native_resolvers(session, user_local):
-    return StackedResolver([kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
+    return StackedResolver(
+        [kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
 
 
 def select_resolvers(session, user_local, resolvers) -> Optional[Resolver]:
@@ -597,10 +602,12 @@ def select_resolvers(session, user_local, resolvers) -> Optional[Resolver]:
                 break
         else:
             if resolver == 'native':
-                selected.extend([kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
+                selected.extend([
+                    kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
             elif resolver == 'apt':
                 if user_local:
-                    raise NotImplementedError('user local not supported for apt')
+                    raise NotImplementedError(
+                        'user local not supported for apt')
                 from .apt import AptResolver
                 selected.append(AptResolver.from_session(session))
             else:
@@ -612,7 +619,8 @@ def select_resolvers(session, user_local, resolvers) -> Optional[Resolver]:
     return StackedResolver(selected)
 
 
-def auto_resolver(session: Session, explain: bool = False, system_wide: Optional[bool] = None):
+def auto_resolver(session: Session, explain: bool = False,
+                  system_wide: Optional[bool] = None):
     # if session is SchrootSession or if we're root, use apt
     from ..session.schroot import SchrootSession
     from ..session import get_user
@@ -633,5 +641,6 @@ def auto_resolver(session: Session, explain: bool = False, system_wide: Optional
             pass
         else:
             resolvers.append(AptResolver.from_session(session))
-    resolvers.extend([kls(session, not system_wide) for kls in NATIVE_RESOLVER_CLS])
+    resolvers.extend([kls(session, not system_wide)
+                      for kls in NATIVE_RESOLVER_CLS])
     return StackedResolver(resolvers)
