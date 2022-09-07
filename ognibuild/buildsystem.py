@@ -1884,7 +1884,7 @@ def lookup_buildsystem_cls(name: str) -> Type[BuildSystem]:
     raise KeyError(name)
 
 
-def scan_buildsystems(path):
+def scan_buildsystems(path: str) -> List[BuildSystem]:
     """Detect build systems."""
     ret = []
     ret.extend([(".", bs) for bs in detect_buildsystems(path)])
@@ -1900,7 +1900,7 @@ def scan_buildsystems(path):
     return ret
 
 
-def detect_buildsystems(path):
+def detect_buildsystems(path: str) -> Optional[BuildSystem]:
     for bs_cls in BUILDSYSTEM_CLSES:
         bs = bs_cls.probe(path)
         if bs is not None:
