@@ -24,6 +24,7 @@ import unittest
 def test_suite():
     names = [
         'buildlog',
+        'resolver_apt',
     ]
     if os.path.exists("/usr/bin/dpkg-architecture"):
         names.append("debian_build")
