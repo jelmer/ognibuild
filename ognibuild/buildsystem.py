@@ -20,7 +20,7 @@
 import logging
 import os
 import re
-from typing import Optional, Tuple, Type, List
+from typing import Optional, Tuple, Type, List, Iterable
 import warnings
 
 from . import shebang_binary, UnidentifiedError
@@ -116,7 +116,7 @@ class BuildSystem(object):
         raise NotImplementedError(self.get_declared_outputs)
 
     @classmethod
-    def probe(cls, path):
+    def probe(cls, path: str) -> Optional["BuildSystem"]:
         return None
 
 
@@ -1884,10 +1884,10 @@ def lookup_buildsystem_cls(name: str) -> Type[BuildSystem]:
     raise KeyError(name)
 
 
-def scan_buildsystems(path: str) -> List[BuildSystem]:
+def scan_buildsystems(path: str) -> List[Tuple[str, BuildSystem]]:
     """Detect build systems."""
     ret = []
-    ret.extend([(".", bs) for bs in detect_buildsystems(path)])
+    ret.extend([(".", bs) for bs in detect_buildsystems(path) if bs])
 
     if not ret:
         # Nothing found. Try the next level?
@@ -1900,7 +1900,7 @@ def scan_buildsystems(path: str) -> List[BuildSystem]:
     return ret
 
 
-def detect_buildsystems(path: str) -> Optional[BuildSystem]:
+def detect_buildsystems(path: str) -> Iterable[BuildSystem]:
     for bs_cls in BUILDSYSTEM_CLSES:
         bs = bs_cls.probe(path)
         if bs is not None:
