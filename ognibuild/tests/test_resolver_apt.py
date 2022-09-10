@@ -27,14 +27,16 @@ class TestPython3Paths(TestCase):
         self.assertEqual([
             '/usr/lib/python3/dist\\-packages/dulwich/__init__\\.py',
             '/usr/lib/python3/dist\\-packages/dulwich\\.py',
-            '/usr/lib/python3\\.[0-9]+/lib\\-dynload/dulwich.cpython\\-.*\\.so',
+            '/usr/lib/python3\\.[0-9]+/'
+            'lib\\-dynload/dulwich.cpython\\-.*\\.so',
             '/usr/lib/python3\\.[0-9]+/dulwich\\.py',
             '/usr/lib/python3\\.[0-9]+/dulwich/__init__\\.py'],
             get_possible_python3_paths_for_python_object('dulwich'))
         self.assertEqual([
             '/usr/lib/python3/dist\\-packages/cleo/foo/__init__\\.py',
             '/usr/lib/python3/dist\\-packages/cleo/foo\\.py',
-            '/usr/lib/python3\\.[0-9]+/lib\\-dynload/cleo/foo.cpython\\-.*\\.so',
+            '/usr/lib/python3\\.[0-9]+/'
+            'lib\\-dynload/cleo/foo.cpython\\-.*\\.so',
             '/usr/lib/python3\\.[0-9]+/cleo/foo\\.py',
             '/usr/lib/python3\\.[0-9]+/cleo/foo/__init__\\.py',
             '/usr/lib/python3/dist\\-packages/cleo/__init__\\.py',

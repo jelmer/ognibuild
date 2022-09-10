@@ -278,7 +278,8 @@ def get_possible_python3_paths_for_python_object(object_path):
             ),
             posixpath.join(
                 "/usr/lib/python3\\.[0-9]+/lib\\-dynload",
-                re.escape(object_path.replace(".", "/")) + ".cpython\\-.*\\.so",
+                re.escape(object_path.replace(".", "/"))
+                + ".cpython\\-.*\\.so",
             ),
             posixpath.join(
                 "/usr/lib/python3\\.[0-9]+/",
@@ -347,7 +348,8 @@ def get_possible_python2_paths_for_python_object(object_path):
     return cpython2_regexes
 
 
-def get_package_for_python_object_path(apt_mgr, object_path, python_version, specs):
+def get_package_for_python_object_path(
+        apt_mgr, object_path, python_version, specs):
     # Try to find the most specific file
     if python_version == "cpython3":
         paths = get_possible_python3_paths_for_python_object(object_path)
@@ -357,8 +359,8 @@ def get_package_for_python_object_path(apt_mgr, object_path, python_version, spe
         paths = get_possible_pypy_paths_for_python_object(object_path)
     elif python_version is None:
         paths = (get_possible_python3_paths_for_python_object(object_path)
-                + get_possible_python2_paths_for_python_object(object_path)
-                + get_possible_pypy_paths_for_python_object(object_path))
+                 + get_possible_python2_paths_for_python_object(object_path)
+                 + get_possible_pypy_paths_for_python_object(object_path))
     else:
         raise AssertionError("unknown python version %r" % python_version)
     names = find_package_names(apt_mgr, paths, regex=True)
