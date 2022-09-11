@@ -24,11 +24,11 @@ import unittest
 def test_suite():
     names = [
         'buildlog',
-        'resolver_apt',
     ]
     if os.path.exists("/usr/bin/dpkg-architecture"):
         names.append("debian_build")
         names.append("debian_fix_build")
+        names.append("resolver_apt")
     module_names = ["ognibuild.tests.test_" + name for name in names]
     loader = unittest.TestLoader()
     return loader.loadTestsFromNames(module_names)
