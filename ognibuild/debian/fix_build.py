@@ -34,6 +34,8 @@ from debian.deb822 import (
 
 from breezy.commit import PointlessCommit, NullCommitReporter
 from breezy.tree import Tree
+from breezy.workingtree import WorkingTree
+
 from debmutate.changelog import ChangelogEditor
 from debmutate.control import (
     ensure_relation,
@@ -83,6 +85,7 @@ from ..fix_build import BuildFixer, resolve_error
 from ..resolver.apt import (
     AptRequirement,
 )
+from .apt import AptManager
 from .build import attempt_build, DEFAULT_BUILDER
 
 
@@ -452,7 +455,7 @@ class DependencyBuildFixer(BuildFixer):
         return self._fn(problem, phase, self.apt_resolver, self.context)
 
 
-def versioned_package_fixers(session, packaging_context, apt):
+def versioned_package_fixers(session, packaging_context, apt: AptManager):
     return [
         PgBuildExtOutOfDateControlFixer(packaging_context, session, apt),
         SimpleBuildFixer(
@@ -475,7 +478,7 @@ def versioned_package_fixers(session, packaging_context, apt):
     ]
 
 
-def apt_fixers(apt, packaging_context) -> List[BuildFixer]:
+def apt_fixers(apt: AptManager, packaging_context) -> List[BuildFixer]:
     from ..resolver.apt import AptResolver
     from .udd import popcon_tie_breaker
     from .build_deps import BuildDependencyTieBreaker
@@ -495,8 +498,11 @@ def apt_fixers(apt, packaging_context) -> List[BuildFixer]:
     ]
 
 
-def default_fixers(local_tree, subpath, apt, committer=None,
-                   update_changelog=None):
+def default_fixers(
+        local_tree: WorkingTree,
+        subpath: str, apt: AptManager,
+        committer: Optional[str] = None,
+        update_changelog: Optional[bool] = None):
     packaging_context = DebianPackagingContext(
         local_tree, subpath, committer, update_changelog,
         commit_reporter=NullCommitReporter()
@@ -506,20 +512,20 @@ def default_fixers(local_tree, subpath, apt, committer=None,
 
 
 def build_incrementally(
-    local_tree,
-    apt,
-    suffix,
-    build_suite,
-    output_directory,
-    build_command,
+    local_tree: WorkingTree,
+    apt: AptManager,
+    suffix: str,
+    build_suite: str,
+    output_directory: str,
+    build_command: str,
     build_changelog_entry,
-    committer=None,
-    max_iterations=DEFAULT_MAX_ITERATIONS,
-    subpath="",
+    committer: Optional[str] = None,
+    max_iterations: int = DEFAULT_MAX_ITERATIONS,
+    subpath: str = "",
     source_date_epoch=None,
-    update_changelog=True,
-    extra_repositories=None,
-    fixers=None,
+    update_changelog: bool = True,
+    extra_repositories: Optional[List[str]] = None,
+    fixers: Optional[List[BuildFixer]] = None,
     run_gbp_dch: Optional[bool] = None,
 ):
     fixed_errors: List[Tuple[Problem, str]] = []
@@ -644,10 +650,8 @@ def main(argv=None):
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
 
     args = parser.parse_args()
-    from breezy.workingtree import WorkingTree
     import breezy.git  # noqa: F401
     import breezy.bzr  # noqa: F401
-    from .apt import AptManager
     from ..session.plain import PlainSession
     from ..session.schroot import SchrootSession
     import tempfile

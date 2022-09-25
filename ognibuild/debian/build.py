@@ -24,20 +24,21 @@ __all__ = [
 ]
 
 from datetime import datetime
-from debmutate.changelog import ChangelogEditor
 import logging
 import os
 import re
 import shlex
 import subprocess
 import sys
+from typing import Optional, List
 
-from debian.changelog import Changelog
-from debmutate.changelog import get_maintainer
+from debian.changelog import Changelog, Version
+from debmutate.changelog import get_maintainer, ChangelogEditor
 
 from breezy.mutabletree import MutableTree
 from breezy.plugins.debian.builder import BuildFailedError
 from breezy.tree import Tree
+from breezy.workingtree import WorkingTree
 
 from buildlog_consultant.sbuild import (
     worker_failure_from_sbuild_log,
@@ -76,7 +77,7 @@ class MissingChangesFile(Exception):
         self.filename = filename
 
 
-def find_changes_files(path, package, version):
+def find_changes_files(path: str, package: str, version: Version):
     non_epoch_version = version.upstream_version
     if version.debian_version is not None:
         non_epoch_version += "-%s" % version.debian_version
@@ -117,8 +118,8 @@ def add_dummy_changelog_entry(
     suffix: str,
     suite: str,
     message: str,
-    timestamp=None,
-    maintainer=None,
+    timestamp: Optional[datetime] = None,
+    maintainer: Optional[str] = None,
     allow_reformatting: bool = True,
 ):
     """Add a dummy changelog entry to a package.
@@ -165,7 +166,8 @@ def add_dummy_changelog_entry(
         editor[0].distributions = suite
 
 
-def get_latest_changelog_entry(local_tree, subpath=""):
+def get_latest_changelog_entry(
+        local_tree: WorkingTree, subpath: str = "") -> str:
     if control_files_in_root(local_tree, subpath):
         path = os.path.join(subpath, "changelog")
     else:
@@ -176,14 +178,14 @@ def get_latest_changelog_entry(local_tree, subpath=""):
 
 
 def build(
-    local_tree,
+    local_tree: WorkingTree,
     outf,
-    build_command=DEFAULT_BUILDER,
-    result_dir=None,
-    distribution=None,
-    subpath="",
-    source_date_epoch=None,
-    extra_repositories=None,
+    build_command: str = DEFAULT_BUILDER,
+    result_dir: Optional[str] = None,
+    distribution: Optional[str] = None,
+    subpath: str = "",
+    source_date_epoch: Optional[int] = None,
+    extra_repositories: Optional[List[str]] = None,
 ):
     for repo in extra_repositories or []:
         build_command += " --extra-repository=" + shlex.quote(repo)
@@ -215,13 +217,13 @@ def build(
 
 
 def build_once(
-    local_tree,
-    build_suite,
-    output_directory,
-    build_command,
-    subpath="",
-    source_date_epoch=None,
-    extra_repositories=None
+    local_tree: WorkingTree,
+    build_suite: str,
+    output_directory: str,
+    build_command: str,
+    subpath: str = "",
+    source_date_epoch: Optional[int] = None,
+    extra_repositories: Optional[List[str]] = None
 ):
     build_log_path = os.path.join(output_directory, "build.log")
     logging.debug("Writing build log to %s", build_log_path)
@@ -275,16 +277,16 @@ def gbp_dch(path):
 
 
 def attempt_build(
-    local_tree,
-    suffix,
-    build_suite,
-    output_directory,
-    build_command,
-    build_changelog_entry=None,
-    subpath="",
-    source_date_epoch=None,
-    run_gbp_dch=False,
-    extra_repositories=None
+    local_tree: WorkingTree,
+    suffix: str,
+    build_suite: str,
+    output_directory: str,
+    build_command: str,
+    build_changelog_entry: Optional[str] = None,
+    subpath: str = "",
+    source_date_epoch: Optional[int] = None,
+    run_gbp_dch: bool = False,
+    extra_repositories: Optional[List[str]] = None
 ):
     """Attempt a build, with a custom distribution set.
 

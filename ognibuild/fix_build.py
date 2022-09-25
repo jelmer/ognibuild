@@ -17,7 +17,7 @@
 
 from functools import partial
 import logging
-from typing import List, Tuple, Callable, Any, Optional
+from typing import List, Tuple, Callable, Any, Optional, TypeVar
 
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
@@ -78,8 +78,12 @@ def run_detecting_problems(
     raise DetailedFailure(retcode, args, error)
 
 
+T = TypeVar('T')
+
+
 def iterate_with_build_fixers(
-        fixers: List[BuildFixer], cb: Callable[[], Any], limit=DEFAULT_LIMIT):
+        fixers: List[BuildFixer],
+        cb: Callable[[], T], limit=DEFAULT_LIMIT) -> T:
     """Call cb() until there are no more DetailedFailures we can fix.
 
     Args:
