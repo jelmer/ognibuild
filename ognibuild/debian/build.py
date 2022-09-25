@@ -17,6 +17,7 @@
 
 __all__ = [
     "get_build_architecture",
+    "version_add_suffix",
     "add_dummy_changelog_entry",
     "build",
     "DetailedDebianBuildFailure",
@@ -24,20 +25,21 @@ __all__ = [
 ]
 
 from datetime import datetime
-from debmutate.changelog import ChangelogEditor
 import logging
 import os
 import re
 import shlex
 import subprocess
 import sys
+from typing import Optional, List
 
-from debian.changelog import Changelog
-from debmutate.changelog import get_maintainer
+from debian.changelog import Changelog, Version, ChangeBlock
+from debmutate.changelog import get_maintainer, ChangelogEditor
 
 from breezy.mutabletree import MutableTree
 from breezy.plugins.debian.builder import BuildFailedError
 from breezy.tree import Tree
+from breezy.workingtree import WorkingTree
 
 from buildlog_consultant.sbuild import (
     worker_failure_from_sbuild_log,
@@ -76,8 +78,8 @@ class MissingChangesFile(Exception):
         self.filename = filename
 
 
-def find_changes_files(path, package, version):
-    non_epoch_version = version.upstream_version
+def find_changes_files(path: str, package: str, version: Version):
+    non_epoch_version = version.upstream_version or ''
     if version.debian_version is not None:
         non_epoch_version += "-%s" % version.debian_version
     c = re.compile('%s_%s_(.*).changes' % (
@@ -111,14 +113,30 @@ def control_files_in_root(tree: Tree, subpath: str) -> bool:
     return False
 
 
+def version_add_suffix(version: Version, suffix: str) -> Version:
+    version = Version(str(version))
+
+    def add_suffix(v):
+        m = re.fullmatch("(.*)(" + re.escape(suffix) + ")([0-9]+)", v)
+        if m:
+            return m.group(1) + m.group(2) + "%d" % (int(m.group(3)) + 1)
+        else:
+            return v + suffix + "1"
+    if version.debian_revision:
+        version.debian_revision = add_suffix(version.debian_revision)
+    else:
+        version.upstream_version = add_suffix(version.upstream_version)
+    return version
+
+
 def add_dummy_changelog_entry(
     tree: MutableTree,
     subpath: str,
     suffix: str,
     suite: str,
     message: str,
-    timestamp=None,
-    maintainer=None,
+    timestamp: Optional[datetime] = None,
+    maintainer: Optional[str] = None,
     allow_reformatting: bool = True,
 ):
     """Add a dummy changelog entry to a package.
@@ -129,16 +147,6 @@ def add_dummy_changelog_entry(
       suite: Debian suite
       message: Changelog message
     """
-
-    def add_suffix(v, suffix):
-        m = re.fullmatch(
-            "(.*)(" + re.escape(suffix) + ")([0-9]+)",
-            v,
-        )
-        if m:
-            return m.group(1) + m.group(2) + "%d" % (int(m.group(3)) + 1)
-        else:
-            return v + suffix + "1"
 
     if control_files_in_root(tree, subpath):
         path = os.path.join(subpath, "changelog")
@@ -151,13 +159,7 @@ def add_dummy_changelog_entry(
     with ChangelogEditor(
             tree.abspath(os.path.join(path)),  # type: ignore
             allow_reformatting=allow_reformatting) as editor:
-        version = editor[0].version
-        if version.debian_revision:
-            version.debian_revision = add_suffix(
-                version.debian_revision, suffix)
-        else:
-            version.upstream_version = add_suffix(
-                version.upstream_version, suffix)
+        version = version_add_suffix(editor[0].version, suffix)
         editor.auto_version(version, timestamp=timestamp)
         editor.add_entry(
             summary=[message], maintainer=maintainer, timestamp=timestamp,
@@ -165,7 +167,8 @@ def add_dummy_changelog_entry(
         editor[0].distributions = suite
 
 
-def get_latest_changelog_entry(local_tree, subpath=""):
+def get_latest_changelog_entry(
+        local_tree: WorkingTree, subpath: str = "") -> ChangeBlock:
     if control_files_in_root(local_tree, subpath):
         path = os.path.join(subpath, "changelog")
     else:
@@ -176,14 +179,14 @@ def get_latest_changelog_entry(local_tree, subpath=""):
 
 
 def build(
-    local_tree,
+    local_tree: WorkingTree,
     outf,
-    build_command=DEFAULT_BUILDER,
-    result_dir=None,
-    distribution=None,
-    subpath="",
-    source_date_epoch=None,
-    extra_repositories=None,
+    build_command: str = DEFAULT_BUILDER,
+    result_dir: Optional[str] = None,
+    distribution: Optional[str] = None,
+    subpath: str = "",
+    source_date_epoch: Optional[int] = None,
+    extra_repositories: Optional[List[str]] = None,
 ):
     for repo in extra_repositories or []:
         build_command += " --extra-repository=" + shlex.quote(repo)
@@ -215,13 +218,13 @@ def build(
 
 
 def build_once(
-    local_tree,
-    build_suite,
-    output_directory,
-    build_command,
-    subpath="",
-    source_date_epoch=None,
-    extra_repositories=None
+    local_tree: WorkingTree,
+    build_suite: str,
+    output_directory: str,
+    build_command: str,
+    subpath: str = "",
+    source_date_epoch: Optional[int] = None,
+    extra_repositories: Optional[List[str]] = None
 ):
     build_log_path = os.path.join(output_directory, "build.log")
     logging.debug("Writing build log to %s", build_log_path)
@@ -256,6 +259,8 @@ def build_once(
                     [], sbuild_failure.description)
 
     cl_entry = get_latest_changelog_entry(local_tree, subpath)
+    if cl_entry.package is None:
+        raise Exception('missing package in changelog entry')
     changes_names = []
     for kind, entry in find_changes_files(
             output_directory, cl_entry.package, cl_entry.version):
@@ -275,16 +280,16 @@ def gbp_dch(path):
 
 
 def attempt_build(
-    local_tree,
-    suffix,
-    build_suite,
-    output_directory,
-    build_command,
-    build_changelog_entry=None,
-    subpath="",
-    source_date_epoch=None,
-    run_gbp_dch=False,
-    extra_repositories=None
+    local_tree: WorkingTree,
+    suffix: str,
+    build_suite: str,
+    output_directory: str,
+    build_command: str,
+    build_changelog_entry: Optional[str] = None,
+    subpath: str = "",
+    source_date_epoch: Optional[int] = None,
+    run_gbp_dch: bool = False,
+    extra_repositories: Optional[List[str]] = None
 ):
     """Attempt a build, with a custom distribution set.
 

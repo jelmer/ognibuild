@@ -18,7 +18,13 @@
 import datetime
 import os
 
-from ..debian.build import add_dummy_changelog_entry, get_build_architecture
+from debian.changelog import Version
+
+from ..debian.build import (
+    add_dummy_changelog_entry,
+    get_build_architecture,
+    version_add_suffix,
+)
 
 from breezy.tests import TestCaseWithTransport, TestCase
 
@@ -150,3 +156,29 @@ class BuildArchitectureTests(TestCase):
 
     def test_is_str(self):
         self.assertIsInstance(get_build_architecture(), str)
+
+
+class VersionAddSuffixTests(TestCase):
+
+    def test_native(self):
+        self.assertEqual(
+            Version('1.0~jan+lint4'),
+            version_add_suffix(Version('1.0~jan+lint3'), '~jan+lint'))
+        self.assertEqual(
+            Version('1.0~jan+lint1'),
+            version_add_suffix(Version('1.0'), '~jan+lint'))
+
+    def test_normal(self):
+        self.assertEqual(
+            Version('1.0-1~jan+lint4'),
+            version_add_suffix(Version('1.0-1~jan+lint3'), '~jan+lint'))
+        self.assertEqual(
+            Version('1.0-1~jan+lint1'),
+            version_add_suffix(Version('1.0-1'), '~jan+lint'))
+        self.assertEqual(
+            Version('0.0.12-1~jan+lint1'),
+            version_add_suffix(Version('0.0.12-1'), '~jan+lint'))
+        self.assertEqual(
+            Version('0.0.12-1~jan+unchanged1~jan+lint1'),
+            version_add_suffix(
+                Version('0.0.12-1~jan+unchanged1'), '~jan+lint'))
