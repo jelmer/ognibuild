@@ -17,7 +17,7 @@
 
 from functools import partial
 import logging
-from typing import List, Tuple, Callable, Any, Optional, TypeVar
+from typing import List, Tuple, Callable, Optional, TypeVar
 
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
