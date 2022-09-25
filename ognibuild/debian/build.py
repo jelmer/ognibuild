@@ -33,7 +33,7 @@ import subprocess
 import sys
 from typing import Optional, List
 
-from debian.changelog import Changelog, Version
+from debian.changelog import Changelog, Version, ChangeBlock
 from debmutate.changelog import get_maintainer, ChangelogEditor
 
 from breezy.mutabletree import MutableTree
@@ -79,7 +79,7 @@ class MissingChangesFile(Exception):
 
 
 def find_changes_files(path: str, package: str, version: Version):
-    non_epoch_version = version.upstream_version
+    non_epoch_version = version.upstream_version or ''
     if version.debian_version is not None:
         non_epoch_version += "-%s" % version.debian_version
     c = re.compile('%s_%s_(.*).changes' % (
@@ -168,7 +168,7 @@ def add_dummy_changelog_entry(
 
 
 def get_latest_changelog_entry(
-        local_tree: WorkingTree, subpath: str = "") -> str:
+        local_tree: WorkingTree, subpath: str = "") -> ChangeBlock:
     if control_files_in_root(local_tree, subpath):
         path = os.path.join(subpath, "changelog")
     else:
@@ -259,6 +259,8 @@ def build_once(
                     [], sbuild_failure.description)
 
     cl_entry = get_latest_changelog_entry(local_tree, subpath)
+    if cl_entry.package is None:
+        raise Exception('missing package in changelog entry')
     changes_names = []
     for kind, entry in find_changes_files(
             output_directory, cl_entry.package, cl_entry.version):
