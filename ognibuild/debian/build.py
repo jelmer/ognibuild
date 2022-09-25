@@ -17,6 +17,7 @@
 
 __all__ = [
     "get_build_architecture",
+    "version_add_suffix",
     "add_dummy_changelog_entry",
     "build",
     "DetailedDebianBuildFailure",
@@ -112,6 +113,22 @@ def control_files_in_root(tree: Tree, subpath: str) -> bool:
     return False
 
 
+def version_add_suffix(version: Version, suffix: str) -> Version:
+    version = Version(str(version))
+
+    def add_suffix(v):
+        m = re.fullmatch("(.*)(" + re.escape(suffix) + ")([0-9]+)", v)
+        if m:
+            return m.group(1) + m.group(2) + "%d" % (int(m.group(3)) + 1)
+        else:
+            return v + suffix + "1"
+    if version.debian_revision:
+        version.debian_revision = add_suffix(version.debian_revision)
+    else:
+        version.upstream_version = add_suffix(version.upstream_version)
+    return version
+
+
 def add_dummy_changelog_entry(
     tree: MutableTree,
     subpath: str,
@@ -131,16 +148,6 @@ def add_dummy_changelog_entry(
       message: Changelog message
     """
 
-    def add_suffix(v, suffix):
-        m = re.fullmatch(
-            "(.*)(" + re.escape(suffix) + ")([0-9]+)",
-            v,
-        )
-        if m:
-            return m.group(1) + m.group(2) + "%d" % (int(m.group(3)) + 1)
-        else:
-            return v + suffix + "1"
-
     if control_files_in_root(tree, subpath):
         path = os.path.join(subpath, "changelog")
     else:
@@ -152,13 +159,7 @@ def add_dummy_changelog_entry(
     with ChangelogEditor(
             tree.abspath(os.path.join(path)),  # type: ignore
             allow_reformatting=allow_reformatting) as editor:
-        version = editor[0].version
-        if version.debian_revision:
-            version.debian_revision = add_suffix(
-                version.debian_revision, suffix)
-        else:
-            version.upstream_version = add_suffix(
-                version.upstream_version, suffix)
+        version = version_add_suffix(editor[0].version, suffix)
         editor.auto_version(version, timestamp=timestamp)
         editor.add_entry(
             summary=[message], maintainer=maintainer, timestamp=timestamp,
