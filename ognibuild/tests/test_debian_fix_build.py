@@ -35,7 +35,9 @@ from ..debian.fix_build import (
     versioned_package_fixers,
     apt_fixers,
     DebianPackagingContext,
+    add_build_dependency,
 )
+from ..resolver.apt import AptRequirement
 from breezy.commit import NullCommitReporter
 from breezy.tests import TestCaseWithTransport
 
@@ -244,3 +246,63 @@ blah (0.1) UNRELEASED; urgency=medium
         }
         self.assertTrue(self.resolve(MissingValaPackage("posix")))
         self.assertEqual("libc6, valac-0.48-vapi", self.get_build_deps())
+
+
+class AddBuildDependencyTests(TestCaseWithTransport):
+
+    def setUp(self):
+        super(AddBuildDependencyTests, self).setUp()
+        self.tree = self.make_branch_and_tree(".")
+        self.build_tree_contents(
+            [
+                ("debian/",),
+                (
+                    "debian/control",
+                    """\
+Source: blah
+Build-Depends: libc6
+
+Package: python-blah
+Depends: ${python3:Depends}
+Description: A python package
+ Foo
+""",
+                ),
+                (
+                    "debian/changelog",
+                    """\
+blah (0.1) UNRELEASED; urgency=medium
+
+  * Initial release. (Closes: #XXXXXX)
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 04 Apr 2020 14:12:13 +0000
+""",
+                ),
+            ]
+        )
+        self.tree.add(["debian", "debian/control", "debian/changelog"])
+        self.tree.commit("Initial commit")
+        self.context = DebianPackagingContext(
+            self.tree,
+            subpath="",
+            committer="ognibuild <ognibuild@jelmer.uk>",
+            update_changelog=True,
+            commit_reporter=NullCommitReporter(),
+        )
+
+    def test_already_present(self):
+        requirement = AptRequirement.simple('libc6')
+        self.assertFalse(add_build_dependency(self.context, requirement))
+
+    def test_basic(self):
+        requirement = AptRequirement.simple('foo')
+        self.assertTrue(add_build_dependency(self.context, requirement))
+        self.assertFileEqual("""\
+Source: blah
+Build-Depends: libc6, foo
+
+Package: python-blah
+Depends: ${python3:Depends}
+Description: A python package
+ Foo
+""", 'debian/control')
