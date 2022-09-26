@@ -211,7 +211,8 @@ def add_build_dependency(context, requirement: AptRequirement):
     desc = requirement.pkg_relation_str()
 
     if not updater.changed:
-        logging.info("Giving up; dependency %s was already present.", desc)
+        logging.info(
+            "Giving up; build dependency %s was already present.", desc)
         return False
 
     logging.info("Adding build dependency: %s", desc)
@@ -246,10 +247,14 @@ def add_test_dependency(context, testname, requirement):
         logging.info(
             "Unable to edit %s in a way that preserves formatting.", e.path)
         return False
-    if not updater.changed:
-        return False
 
     desc = requirement.pkg_relation_str()
+
+    if not updater.changed:
+        logging.info(
+            "Giving up; dependency %s for test %s was already present.",
+            desc, testname)
+        return False
 
     logging.info("Adding dependency to test %s: %s", testname, desc)
     return context.commit(
