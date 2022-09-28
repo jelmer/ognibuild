@@ -651,6 +651,43 @@ class Bazel(BuildSystem):
         run_with_build_fixers(session, ["bazel", "test", "//..."], fixers)
 
 
+class GnomeShellExtension(BuildSystem):
+
+    name = "gnome-shell-extension"
+
+    def __init__(self, path):
+        self.path = path
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.path)
+
+    @classmethod
+    def exists(cls, path):
+        if not os.path.exists(os.path.join(path, "metadata.json")):
+            return False
+        return True
+
+    @classmethod
+    def probe(cls, path):
+        if cls.exists(path):
+            logging.debug("Found metadata.json , assuming gnome-shell extension.")
+            return cls(path)
+
+    def build(self, session, resolver, fixers):
+        pass
+
+    def test(self, session, resolver, fixers):
+        pass
+
+    def get_declared_dependencies(self, session, fixers=None):
+        import json
+        with open(os.path.join(self.path, 'metadata.json'), 'r') as f:
+            metadata = json.load(f)
+        if 'shell-version' in metadata:
+            # TODO(jelmer): Somehow represent supported versions
+            yield "core", VagueDependencyRequirement("gnome-shell")
+
+
 class Octave(BuildSystem):
 
     name = "octave"
@@ -1875,6 +1912,7 @@ BUILDSYSTEM_CLSES: List[Type[BuildSystem]] = [
     Octave,
     Bazel,
     CMake,
+    GnomeShellExtension,
     # Make is intentionally at the end of the list.
     Make,
     Composer,
