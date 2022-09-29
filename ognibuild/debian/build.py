@@ -186,6 +186,7 @@ def build(
     distribution: Optional[str] = None,
     subpath: str = "",
     source_date_epoch: Optional[int] = None,
+    apt_repositories: Optional[str] = None,
     extra_repositories: Optional[List[str]] = None,
 ):
     for repo in extra_repositories or []:
@@ -198,6 +199,8 @@ def build(
         "--guess-upstream-branch-url",
         "--builder=%s" % build_command,
     ]
+    if apt_repositories:
+        args.append("--apt-repositories=%s" % apt_repositories)
     if result_dir:
         args.append("--result-dir=%s" % result_dir)
     outf.write("Running %r\n" % (build_command,))
@@ -224,6 +227,7 @@ def build_once(
     build_command: str,
     subpath: str = "",
     source_date_epoch: Optional[int] = None,
+    apt_repositories: Optional[str] = None,
     extra_repositories: Optional[List[str]] = None
 ):
     build_log_path = os.path.join(output_directory, "build.log")
@@ -238,6 +242,7 @@ def build_once(
                 distribution=build_suite,
                 subpath=subpath,
                 source_date_epoch=source_date_epoch,
+                apt_repositories=apt_repositories,
                 extra_repositories=extra_repositories,
             )
     except BuildFailedError as e:
@@ -289,6 +294,7 @@ def attempt_build(
     subpath: str = "",
     source_date_epoch: Optional[int] = None,
     run_gbp_dch: bool = False,
+    apt_repositories: Optional[str] = None,
     extra_repositories: Optional[List[str]] = None
 ):
     """Attempt a build, with a custom distribution set.
@@ -317,5 +323,6 @@ def attempt_build(
         build_command,
         subpath,
         source_date_epoch=source_date_epoch,
+        apt_repositories=apt_repositories,
         extra_repositories=extra_repositories,
     )
