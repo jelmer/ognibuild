@@ -18,48 +18,37 @@
 """Tie breaking by build deps."""
 
 
+from debian.deb822 import PkgRelation
 import logging
 
-
-class NoAptSources(Exception):
-    """No apt sources."""
+from breezy.plugins.debian.apt_repo import LocalApt, NoAptSources
 
 
 class BuildDependencyTieBreaker(object):
-    def __init__(self, rootdir):
-        self.rootdir = rootdir
+    def __init__(self, apt):
+        self.apt = apt
         self._counts = None
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.rootdir)
+        return "%s(%r)" % (type(self).__name__, self.apt)
 
     @classmethod
     def from_session(cls, session):
-        return cls(session.location)
+        return cls(LocalApt(session.location))
 
     def _count(self):
         counts = {}
         import apt_pkg
 
-        apt_pkg.init()
-        apt_pkg.config.set("Dir", self.rootdir)
-        try:
-            apt_cache = apt_pkg.SourceRecords()
-        except apt_pkg.Error as e:
-            if (e.args[0] ==
-                    "E:You must put some 'deb-src' URIs in your sources.list"):
-                raise NoAptSources()
-            raise
-        apt_cache.restart()
-        while apt_cache.step():
-            try:
-                for d in apt_cache.build_depends.values():
-                    for o in d:
-                        for p in o:
-                            counts.setdefault(p[0], 0)
-                            counts[p[0]] += 1
-            except AttributeError:
-                pass
+        with self.apt:
+            for source in self.apt.iter_sources():
+                for field in ['Build-Depends', 'Build-Depends-Indep',
+                              'Build-Depends-Arch']:
+                    for r in PkgRelation.parse_relations(
+                            source.get(field, '')):
+                        for p in r:
+                            counts.setdefault(p['name'], 0)
+                            counts[p['name']] += 1
         return counts
 
     def __call__(self, reqs):
@@ -96,5 +85,5 @@ if __name__ == "__main__":
     parser.add_argument("req", nargs="+")
     args = parser.parse_args()
     reqs = [AptRequirement.from_str(req) for req in args.req]
-    tie_breaker = BuildDependencyTieBreaker("/")
+    tie_breaker = BuildDependencyTieBreaker(LocalApt())
     print(tie_breaker(reqs))
