@@ -670,7 +670,8 @@ class GnomeShellExtension(BuildSystem):
     @classmethod
     def probe(cls, path):
         if cls.exists(path):
-            logging.debug("Found metadata.json , assuming gnome-shell extension.")
+            logging.debug(
+                "Found metadata.json , assuming gnome-shell extension.")
             return cls(path)
 
     def build(self, session, resolver, fixers):
