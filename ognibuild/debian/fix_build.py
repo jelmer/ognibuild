@@ -529,6 +529,8 @@ def build_incrementally(
     subpath: str = "",
     source_date_epoch=None,
     update_changelog: bool = True,
+    apt_repository: Optional[str] = None,
+    apt_repository_key: Optional[str] = None,
     extra_repositories: Optional[List[str]] = None,
     fixers: Optional[List[BuildFixer]] = None,
     run_gbp_dch: Optional[bool] = None,
@@ -553,6 +555,8 @@ def build_incrementally(
                 subpath=subpath,
                 source_date_epoch=source_date_epoch,
                 run_gbp_dch=run_gbp_dch,
+                apt_repository=apt_repository,
+                apt_repository_key=apt_repository_key,
                 extra_repositories=extra_repositories,
             )
         except UnidentifiedDebianBuildError:

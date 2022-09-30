@@ -233,6 +233,11 @@ class Pear(BuildSystem):
 
 
 def run_setup(script_name, script_args=None, stop_after="run"):
+    # Import setuptools, just in case it decides to replace distutils
+    try:
+        import setuptools  # noqa: F401
+    except ImportError:
+        pass
     from distutils import core
     import sys
 
@@ -665,7 +670,8 @@ class GnomeShellExtension(BuildSystem):
     @classmethod
     def probe(cls, path):
         if cls.exists(path):
-            logging.debug("Found metadata.json , assuming gnome-shell extension.")
+            logging.debug(
+                "Found metadata.json , assuming gnome-shell extension.")
             return cls(path)
 
     def build(self, session, resolver, fixers):
