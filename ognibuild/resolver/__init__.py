@@ -596,7 +596,7 @@ def native_resolvers(session, user_local):
         [kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
 
 
-def select_resolvers(session, user_local, resolvers) -> Optional[Resolver]:
+def select_resolvers(session, user_local, resolvers, dep_server_url=None) -> Optional[Resolver]:
     selected = []
     for resolver in resolvers:
         for kls in NATIVE_RESOLVER_CLS:
@@ -611,8 +611,12 @@ def select_resolvers(session, user_local, resolvers) -> Optional[Resolver]:
                 if user_local:
                     raise NotImplementedError(
                         'user local not supported for apt')
-                from .apt import AptResolver
-                selected.append(AptResolver.from_session(session))
+                if dep_server_url:
+                    from .dep_server import DepServerAptResolver
+                    selected.append(DepServerAptResolver.from_session(session))
+                else:
+                    from .apt import AptResolver
+                    selected.append(AptResolver.from_session(session))
             else:
                 raise KeyError(resolver)
     if len(selected) == 0:

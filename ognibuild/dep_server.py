@@ -43,7 +43,7 @@ async def handle_families(request):
 async def handle_apt(request):
     js = await request.json()
     try:
-        req = Requirement.from_json(js)
+        req = Requirement.from_json(js['requirement'])
     except UnknownRequirementFamily as e:
         return web.json_response(
             {"reason": "family-unknown", "family": e.family}, status=404)

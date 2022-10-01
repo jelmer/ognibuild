@@ -25,15 +25,28 @@ from urllib.request import Request, urlopen
 
 from .. import Requirement, version_string
 from . import Resolver
-from .apt import AptRequirement
+from .apt import AptRequirement, AptResolver
 
 
 def resolve_apt_requirement_dep_server(url: str, req: Requirement) -> List[Requirement]:
     request = Request(
         urljoin(url, 'resolve-apt'),
-        data=json.dumps(req.json()).encode('utf-8'), headers={
+        data=json.dumps({'resolve': req.json()}).encode('utf-8'), headers={
             'User-Agent': 'ognibuild/%s' % version_string,
             'Content-Type': 'application/json'})
     resp = urlopen(request)
     ret = json.load(resp)
     return [AptRequirement._from_json(e) for e in ret]
+
+
+class DepServerAptResolver(AptResolver):
+    def __init__(self, apt, dep_server_url, tie_breakers=None):
+        super(DepServerAptResolver, self).__init__(apt, tie_breakers=tie_breakers)
+        self.dep_server_url = dep_server_url
+
+    def resolve_all(self, req: Requirement):
+        try:
+            req.json()
+        except NotImplementedError:
+            return super(DepServerAptResolver, self).__init__(req)
+        return resolve_apt_requirement_dep_server(self.dep_server_url, req)

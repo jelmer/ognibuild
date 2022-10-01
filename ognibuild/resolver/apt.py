@@ -1018,7 +1018,7 @@ class AptResolver(Resolver):
                 [o for o, r in apt_requirements],
             )
 
-    def resolve_alL(self, req: Requirement):
+    def resolve_all(self, req: Requirement):
         return resolve_requirement_apt(self.apt, req)
 
     def resolve(self, req: Requirement):
