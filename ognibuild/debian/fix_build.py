@@ -496,6 +496,7 @@ def apt_fixers(apt: AptManager, packaging_context,
         BuildDependencyTieBreaker.from_session(apt.session),
         popcon_tie_breaker,
     ]
+    resolver: AptResolver
     if dep_server_url:
         resolver = DepServerAptResolver(apt, dep_server_url, apt_tie_breakers)
     else:

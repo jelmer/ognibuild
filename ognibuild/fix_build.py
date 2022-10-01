@@ -53,7 +53,8 @@ class BuildFixer(object):
 
 
 def run_detecting_problems(
-        session: Session, args: List[str], check_success=None, **kwargs):
+        session: Session, args: List[str], check_success=None,
+        **kwargs) -> List[str]:
     if check_success is None:
         def check_success(retcode, contents):
             return (retcode == 0)
@@ -132,7 +133,7 @@ def iterate_with_build_fixers(
 def run_with_build_fixers(
     session: Session, args: List[str], fixers: Optional[List[BuildFixer]],
     quiet: bool = False, **kwargs
-):
+) -> List[str]:
     if not quiet:
         logging.info('Running %r', args)
     if fixers is None:
@@ -142,7 +143,7 @@ def run_with_build_fixers(
     )
 
 
-def resolve_error(error, phase, fixers):
+def resolve_error(error, phase, fixers) -> bool:
     relevant_fixers = []
     for fixer in fixers:
         if fixer.can_fix(error):
