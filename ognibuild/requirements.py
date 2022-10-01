@@ -33,7 +33,6 @@ class PythonPackageRequirement(Requirement):
     def __init__(
             self, package, python_version=None, specs=None,
             minimum_version=None):
-        super(PythonPackageRequirement, self).__init__()
         self.package = package
         self.python_version = python_version
         if specs is None:
@@ -61,11 +60,13 @@ class PythonPackageRequirement(Requirement):
         from requirements.requirement import Requirement
 
         req = Requirement.parse(text)
-        return cls(package=req.name, specs=req.specs, python_version=python_version)
+        return cls(
+            package=req.name, specs=req.specs, python_version=python_version)
 
     def requirement_str(self):
         if self.specs:
-            return '%s;%s' % (self.package, ','.join([''.join(s) for s in self.specs]))
+            return '%s;%s' % (
+                self.package, ','.join([''.join(s) for s in self.specs]))
         return self.package
 
     @classmethod
@@ -144,7 +145,6 @@ class BinaryRequirement(Requirement):
     binary_name: str
 
     def __init__(self, binary_name):
-        super(BinaryRequirement, self).__init__()
         self.binary_name = binary_name
 
     def _json(self):
@@ -172,10 +172,10 @@ Requirement.register_json(BinaryRequirement)
 
 class PHPExtensionRequirement(Requirement):
 
+    family = "php-extension"
     extension: str
 
     def __init__(self, extension: str):
-        super(PHPExtensionRequirement, self).__init__("php-extension")
         self.extension = extension
 
     def __repr__(self):
@@ -185,10 +185,9 @@ class PHPExtensionRequirement(Requirement):
 class VcsControlDirectoryAccessRequirement(Requirement):
 
     vcs: List[str]
+    family = "vcs-access"
 
     def __init__(self, vcs):
-        super(VcsControlDirectoryAccessRequirement, self).__init__(
-            "vcs-access")
         self.vcs = vcs
 
     def __repr__(self):
@@ -200,9 +199,9 @@ class PerlModuleRequirement(Requirement):
     module: str
     filename: Optional[str]
     inc: Optional[List[str]]
+    family = "perl-module"
 
     def __init__(self, module, filename=None, inc=None):
-        super(PerlModuleRequirement, self).__init__("perl-module")
         self.module = module
         self.filename = filename
         self.inc = inc
@@ -218,10 +217,10 @@ class PerlModuleRequirement(Requirement):
 class VagueDependencyRequirement(Requirement):
 
     name: str
+    family = "vague"
     minimum_version: Optional[str] = None
 
     def __init__(self, name, minimum_version=None):
-        super(VagueDependencyRequirement, self).__init__("vague")
         self.name = name
         self.minimum_version = minimum_version
 
@@ -268,9 +267,9 @@ class VagueDependencyRequirement(Requirement):
 class NodePackageRequirement(Requirement):
 
     package: str
+    family = "npm-package"
 
     def __init__(self, package):
-        super(NodePackageRequirement, self).__init__("npm-package")
         self.package = package
 
     def __repr__(self):
@@ -280,9 +279,9 @@ class NodePackageRequirement(Requirement):
 class LuaModuleRequirement(Requirement):
 
     module: str
+    family = "lua-module"
 
     def __init__(self, module):
-        super(LuaModuleRequirement, self).__init__("lua-module")
         self.module = module
 
     def __repr__(self):
@@ -311,8 +310,9 @@ class PerlPreDeclaredRequirement(Requirement):
         'auto_set_bugtracker': 'Module::Install::Bugtracker',
         }
 
+    family = "perl-predeclared"
+
     def __init__(self, name):
-        super(PerlPreDeclaredRequirement, self).__init__("perl-predeclared")
         self.name = name
 
     def lookup_module(self):
@@ -326,9 +326,9 @@ class PerlPreDeclaredRequirement(Requirement):
 class NodeModuleRequirement(Requirement):
 
     module: str
+    family = "npm-module"
 
     def __init__(self, module):
-        super(NodeModuleRequirement, self).__init__("npm-module")
         self.module = module
 
     def __repr__(self):
@@ -341,10 +341,10 @@ class CargoCrateRequirement(Requirement):
     features: Set[str]
     api_version: Optional[str]
     minimum_version: Optional[str]
+    family = "cargo-crate"
 
     def __init__(self, crate, features=None, api_version=None,
                  minimum_version=None):
-        super(CargoCrateRequirement, self).__init__("cargo-crate")
         self.crate = crate
         if features is None:
             features = set()
@@ -375,9 +375,9 @@ class CargoCrateRequirement(Requirement):
 class PkgConfigRequirement(Requirement):
 
     module: str
+    family = "pkg-config"
 
     def __init__(self, module, minimum_version=None):
-        super(PkgConfigRequirement, self).__init__("pkg-config")
         self.module = module
         self.minimum_version = minimum_version
 
@@ -389,9 +389,9 @@ class PkgConfigRequirement(Requirement):
 class PathRequirement(Requirement):
 
     path: str
+    family = "path"
 
     def __init__(self, path):
-        super(PathRequirement, self).__init__("path")
         self.path = path
 
     def __repr__(self):
@@ -401,9 +401,9 @@ class PathRequirement(Requirement):
 class CHeaderRequirement(Requirement):
 
     header: str
+    family = "c-header"
 
     def __init__(self, header):
-        super(CHeaderRequirement, self).__init__("c-header")
         self.header = header
 
     def __repr__(self):
@@ -411,17 +411,15 @@ class CHeaderRequirement(Requirement):
 
 
 class JavaScriptRuntimeRequirement(Requirement):
-    def __init__(self):
-        super(JavaScriptRuntimeRequirement, self).__init__(
-            "javascript-runtime")
+    family = "javascript-runtime"
 
 
 class ValaPackageRequirement(Requirement):
 
     package: str
+    family = "vala"
 
     def __init__(self, package: str):
-        super(ValaPackageRequirement, self).__init__("vala")
         self.package = package
 
 
@@ -429,9 +427,9 @@ class RubyGemRequirement(Requirement):
 
     gem: str
     minimum_version: Optional[str]
+    family = "gem"
 
     def __init__(self, gem: str, minimum_version: Optional[str]):
-        super(RubyGemRequirement, self).__init__("gem")
         self.gem = gem
         self.minimum_version = minimum_version
 
@@ -440,9 +438,9 @@ class GoPackageRequirement(Requirement):
 
     package: str
     version: Optional[str]
+    family = "go-package"
 
     def __init__(self, package: str, version: Optional[str] = None):
-        super(GoPackageRequirement, self).__init__("go-package")
         self.package = package
         self.version = version
 
@@ -459,9 +457,9 @@ class GoPackageRequirement(Requirement):
 class GoRequirement(Requirement):
 
     version: Optional[str]
+    family = "go"
 
     def __init__(self, version: Optional[str] = None):
-        super(GoRequirement, self).__init__("go")
         self.version = version
 
     def __str__(self):
@@ -471,18 +469,18 @@ class GoRequirement(Requirement):
 class DhAddonRequirement(Requirement):
 
     path: str
+    family = "dh-addon"
 
     def __init__(self, path: str):
-        super(DhAddonRequirement, self).__init__("dh-addon")
         self.path = path
 
 
 class PhpClassRequirement(Requirement):
 
     php_class: str
+    family = "php-class"
 
     def __init__(self, php_class: str):
-        super(PhpClassRequirement, self).__init__("php-class")
         self.php_class = php_class
 
 
@@ -490,9 +488,9 @@ class RPackageRequirement(Requirement):
 
     package: str
     minimum_version: Optional[str]
+    family = "r-package"
 
     def __init__(self, package: str, minimum_version: Optional[str] = None):
-        super(RPackageRequirement, self).__init__("r-package")
         self.package = package
         self.minimum_version = minimum_version
 
@@ -526,9 +524,9 @@ class OctavePackageRequirement(Requirement):
 
     package: str
     minimum_version: Optional[str]
+    family = "octave-package"
 
     def __init__(self, package: str, minimum_version: Optional[str] = None):
-        super(OctavePackageRequirement, self).__init__("octave-package")
         self.package = package
         self.minimum_version = minimum_version
 
@@ -561,9 +559,9 @@ class OctavePackageRequirement(Requirement):
 class LibraryRequirement(Requirement):
 
     library: str
+    family = "lib"
 
     def __init__(self, library: str):
-        super(LibraryRequirement, self).__init__("lib")
         self.library = library
 
 
@@ -571,9 +569,9 @@ class StaticLibraryRequirement(Requirement):
 
     library: str
     filename: str
+    family = "static-lib"
 
     def __init__(self, library: str, filename: str):
-        super(StaticLibraryRequirement, self).__init__("static-lib")
         self.library = library
         self.filename = filename
 
@@ -581,18 +579,18 @@ class StaticLibraryRequirement(Requirement):
 class RubyFileRequirement(Requirement):
 
     filename: str
+    family = "ruby-file"
 
     def __init__(self, filename: str):
-        super(RubyFileRequirement, self).__init__("ruby-file")
         self.filename = filename
 
 
 class XmlEntityRequirement(Requirement):
 
     url: str
+    family = "xml-entity"
 
     def __init__(self, url: str):
-        super(XmlEntityRequirement, self).__init__("xml-entity")
         self.url = url
 
 
@@ -600,9 +598,9 @@ class SprocketsFileRequirement(Requirement):
 
     content_type: str
     name: str
+    family = "sprockets-file"
 
     def __init__(self, content_type: str, name: str):
-        super(SprocketsFileRequirement, self).__init__("sprockets-file")
         self.content_type = content_type
         self.name = name
 
@@ -610,9 +608,9 @@ class SprocketsFileRequirement(Requirement):
 class JavaClassRequirement(Requirement):
 
     classname: str
+    family = "java-class"
 
     def __init__(self, classname: str):
-        super(JavaClassRequirement, self).__init__("java-class")
         self.classname = classname
 
 
@@ -620,9 +618,9 @@ class CMakefileRequirement(Requirement):
 
     filename: str
     version: Optional[str]
+    family = "cmake-file"
 
     def __init__(self, filename: str, version=None):
-        super(CMakefileRequirement, self).__init__("cmake-file")
         self.filename = filename
         self.version = version
 
@@ -630,9 +628,9 @@ class CMakefileRequirement(Requirement):
 class HaskellPackageRequirement(Requirement):
 
     package: str
+    family = "haskell-package"
 
     def __init__(self, package: str, specs=None):
-        super(HaskellPackageRequirement, self).__init__("haskell-package")
         self.package = package
         self.specs = specs
 
@@ -648,9 +646,9 @@ class MavenArtifactRequirement(Requirement):
     artifact_id: str
     version: Optional[str]
     kind: Optional[str]
+    family = "maven-artifact"
 
     def __init__(self, group_id, artifact_id, version=None, kind=None):
-        super(MavenArtifactRequirement, self).__init__("maven-artifact")
         self.group_id = group_id
         self.artifact_id = artifact_id
         self.version = version
@@ -689,17 +687,16 @@ class MavenArtifactRequirement(Requirement):
 
 
 class GnomeCommonRequirement(Requirement):
-    def __init__(self):
-        super(GnomeCommonRequirement, self).__init__("gnome-common")
+    family = "gnome-common"
 
 
 class JDKFileRequirement(Requirement):
 
     jdk_path: str
     filename: str
+    family = "jdk-file"
 
     def __init__(self, jdk_path: str, filename: str):
-        super(JDKFileRequirement, self).__init__("jdk-file")
         self.jdk_path = jdk_path
         self.filename = filename
 
@@ -709,44 +706,41 @@ class JDKFileRequirement(Requirement):
 
 
 class JDKRequirement(Requirement):
-    def __init__(self):
-        super(JDKRequirement, self).__init__("jdk")
+    family = "jdk"
 
 
 class JRERequirement(Requirement):
-    def __init__(self):
-        super(JRERequirement, self).__init__("jre")
+    family = "jre"
 
 
 class QtModuleRequirement(Requirement):
+    family = "qt-module"
 
     def __init__(self, module):
-        super(QtModuleRequirement, self).__init__("qt-module")
         self.module = module
 
 
 class QTRequirement(Requirement):
-    def __init__(self):
-        super(QTRequirement, self).__init__("qt")
+    family = "qt"
 
 
 class X11Requirement(Requirement):
-    def __init__(self):
-        super(X11Requirement, self).__init__("x11")
+    family = "x11"
 
 
 class CertificateAuthorityRequirement(Requirement):
+    family = "ca-cert"
+
     def __init__(self, url):
-        super(CertificateAuthorityRequirement, self).__init__("ca-cert")
         self.url = url
 
 
 class PerlFileRequirement(Requirement):
 
     filename: str
+    family = "perl-file"
 
     def __init__(self, filename: str):
-        super(PerlFileRequirement, self).__init__("perl-file")
         self.filename = filename
 
 
@@ -756,7 +750,6 @@ class AutoconfMacroRequirement(Requirement):
     macro: str
 
     def __init__(self, macro: str):
-        super(AutoconfMacroRequirement, self).__init__()
         self.macro = macro
 
     def _json(self):
@@ -771,11 +764,12 @@ Requirement.register_json(AutoconfMacroRequirement)
 
 
 class LibtoolRequirement(Requirement):
-    def __init__(self):
-        super(LibtoolRequirement, self).__init__("libtool")
+    family = "libtool"
 
 
 class IntrospectionTypelibRequirement(Requirement):
+    family = "introspection-type-lib"
+
     def __init__(self, library):
         self.library = library
 
@@ -785,9 +779,9 @@ class PythonModuleRequirement(Requirement):
     module: str
     python_version: Optional[str]
     minimum_version: Optional[str]
+    family = "python-module"
 
     def __init__(self, module, python_version=None, minimum_version=None):
-        super(PythonModuleRequirement, self).__init__("python-module")
         self.module = module
         self.python_version = python_version
         self.minimum_version = minimum_version
@@ -822,25 +816,25 @@ class PythonModuleRequirement(Requirement):
 class BoostComponentRequirement(Requirement):
 
     name: str
+    family = "boost-component"
 
     def __init__(self, name):
-        super(BoostComponentRequirement, self).__init__("boost-component")
         self.name = name
 
 
 class KF5ComponentRequirement(Requirement):
 
     name: str
+    family = "kf5-component"
 
     def __init__(self, name):
-        super(KF5ComponentRequirement, self).__init__("kf5-component")
         self.name = name
 
 
 class GnulibDirectoryRequirement(Requirement):
 
     directory: str
+    family = "gnulib"
 
     def __init__(self, directory):
-        super(GnulibDirectoryRequirement, self).__init__("gnulib")
         self.directory = directory

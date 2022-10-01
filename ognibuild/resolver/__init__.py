@@ -596,7 +596,8 @@ def native_resolvers(session, user_local):
         [kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
 
 
-def select_resolvers(session, user_local, resolvers, dep_server_url=None) -> Optional[Resolver]:
+def select_resolvers(session, user_local, resolvers,
+                     dep_server_url=None) -> Optional[Resolver]:
     selected = []
     for resolver in resolvers:
         for kls in NATIVE_RESOLVER_CLS:

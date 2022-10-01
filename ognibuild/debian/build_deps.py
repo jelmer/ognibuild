@@ -38,8 +38,6 @@ class BuildDependencyTieBreaker(object):
 
     def _count(self):
         counts = {}
-        import apt_pkg
-
         with self.apt:
             for source in self.apt.iter_sources():
                 for field in ['Build-Depends', 'Build-Depends-Indep',

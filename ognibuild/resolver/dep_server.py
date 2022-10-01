@@ -24,11 +24,11 @@ from urllib.request import Request, urlopen
 
 
 from .. import Requirement, version_string
-from . import Resolver
 from .apt import AptRequirement, AptResolver
 
 
-def resolve_apt_requirement_dep_server(url: str, req: Requirement) -> List[Requirement]:
+def resolve_apt_requirement_dep_server(
+        url: str, req: Requirement) -> List[Requirement]:
     request = Request(
         urljoin(url, 'resolve-apt'),
         data=json.dumps({'resolve': req.json()}).encode('utf-8'), headers={
@@ -41,7 +41,8 @@ def resolve_apt_requirement_dep_server(url: str, req: Requirement) -> List[Requi
 
 class DepServerAptResolver(AptResolver):
     def __init__(self, apt, dep_server_url, tie_breakers=None):
-        super(DepServerAptResolver, self).__init__(apt, tie_breakers=tie_breakers)
+        super(DepServerAptResolver, self).__init__(
+            apt, tie_breakers=tie_breakers)
         self.dep_server_url = dep_server_url
 
     def resolve_all(self, req: Requirement):

@@ -93,10 +93,6 @@ class Requirement(object):
 
     _JSON_DESERIALIZERS: Dict[str, Type["Requirement"]] = {}
 
-    def __init__(self, family=None):
-        if self.family is not None:
-            self.family = family
-
     @classmethod
     def _from_json(self, js):
         raise NotImplementedError(self._from_json)
