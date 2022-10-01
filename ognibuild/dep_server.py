@@ -68,7 +68,25 @@ def main():
     parser.add_argument('--listen-address', type=str, help='Listen address')
     parser.add_argument('--schroot', type=str, help='Schroot session to use')
     parser.add_argument('--port', type=str, help='Listen port', default=9934)
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument("--gcp-logging", action='store_true', help='Use Google cloud logging.')
     args = parser.parse_args()
+
+    if args.gcp_logging:
+        import google.cloud.logging
+        client = google.cloud.logging.Client()
+        client.get_default_handler()
+        client.setup_logging()
+    else:
+        if args.debug:
+            log_level = logging.DEBUG
+        else:
+            log_level = logging.INFO
+
+        logging.basicConfig(
+            level=log_level,
+            format="[%(asctime)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S")
 
     if args.schroot:
         from .session.schroot import SchrootSession
