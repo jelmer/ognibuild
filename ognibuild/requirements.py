@@ -109,14 +109,28 @@ Requirement.register_json(PythonPackageRequirement)
 
 class LatexPackageRequirement(Requirement):
 
+    family = "latex-package"
+
     def __init__(self, package: str):
         self.package = package
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.package)
 
+    def _json(self):
+        return self.package
+
+    def _from_json(cls, package):
+        return cls(package)
+
+
+Requirement.register_json(LatexPackageRequirement)
+
 
 class PhpPackageRequirement(Requirement):
+
+    family = "php-package"
+
     def __init__(
         self,
         package: str,
@@ -129,6 +143,13 @@ class PhpPackageRequirement(Requirement):
         self.min_version = min_version
         self.max_version = max_version
 
+    def _json(self):
+        return (self.package, self.channel, self.min_version, self.max_version)
+
+    @classmethod
+    def _from_json(cls, js):
+        return cls(*js)
+
     def __repr__(self):
         return "%s(%r, %r, %r, %r)" % (
             type(self).__name__,
@@ -137,6 +158,9 @@ class PhpPackageRequirement(Requirement):
             self.min_version,
             self.max_version,
         )
+
+
+Requirement.register_json(PhpPackageRequirement)
 
 
 class BinaryRequirement(Requirement):

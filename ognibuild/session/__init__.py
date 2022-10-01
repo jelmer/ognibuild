@@ -116,7 +116,8 @@ class SessionSetupFailure(Exception):
         self.errlines = errlines
 
 
-def run_with_tee(session: Session, args: List[str], **kwargs) -> Tuple[int, List[str]]:
+def run_with_tee(session: Session,
+                 args: List[str], **kwargs) -> Tuple[int, List[str]]:
     if "stdin" not in kwargs:
         kwargs["stdin"] = subprocess.DEVNULL
     p = session.Popen(
