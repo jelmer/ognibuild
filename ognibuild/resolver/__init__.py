@@ -652,7 +652,8 @@ def auto_resolver(session: Session, explain: bool = False,
         else:
             if dep_server_url:
                 from .dep_server import DepServerAptResolver
-                resolvers.append(DepServerAptResolver.from_session(session, dep_server_url))
+                resolvers.append(
+                    DepServerAptResolver.from_session(session, dep_server_url))
             else:
                 resolvers.append(AptResolver.from_session(session))
     resolvers.extend([kls(session, not system_wide)

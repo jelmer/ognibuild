@@ -24,6 +24,7 @@ from urllib.request import Request, urlopen
 
 
 from .. import Requirement, version_string
+from ..debian.apt import AptManager
 from .apt import AptRequirement, AptResolver
 
 
