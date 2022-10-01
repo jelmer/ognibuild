@@ -45,6 +45,12 @@ class DepServerAptResolver(AptResolver):
             apt, tie_breakers=tie_breakers)
         self.dep_server_url = dep_server_url
 
+    @classmethod
+    def from_session(cls, session, dep_server_url, tie_breakers=None):
+        return cls(
+            AptManager.from_session(session), dep_server_url,
+            tie_breakers=tie_breakers)
+
     def resolve_all(self, req: Requirement):
         try:
             req.json()

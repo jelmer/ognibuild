@@ -614,7 +614,8 @@ def select_resolvers(session, user_local, resolvers,
                         'user local not supported for apt')
                 if dep_server_url:
                     from .dep_server import DepServerAptResolver
-                    selected.append(DepServerAptResolver.from_session(session))
+                    selected.append(DepServerAptResolver.from_session(
+                        session, dep_server_url))
                 else:
                     from .apt import AptResolver
                     selected.append(AptResolver.from_session(session))
@@ -628,7 +629,8 @@ def select_resolvers(session, user_local, resolvers,
 
 
 def auto_resolver(session: Session, explain: bool = False,
-                  system_wide: Optional[bool] = None):
+                  system_wide: Optional[bool] = None,
+                  dep_server_url: Optional[str] = None):
     # if session is SchrootSession or if we're root, use apt
     from ..session.schroot import SchrootSession
     from ..session import get_user
@@ -648,7 +650,11 @@ def auto_resolver(session: Session, explain: bool = False,
         except ModuleNotFoundError:
             pass
         else:
-            resolvers.append(AptResolver.from_session(session))
+            if dep_server_url:
+                from .dep_server import DepServerAptResolver
+                resolvers.append(DepServerAptResolver.from_session(session, dep_server_url))
+            else:
+                resolvers.append(AptResolver.from_session(session))
     resolvers.extend([kls(session, not system_wide)
                       for kls in NATIVE_RESOLVER_CLS])
     return StackedResolver(resolvers)
