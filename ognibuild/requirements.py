@@ -26,18 +26,20 @@ from . import Requirement
 
 class PythonPackageRequirement(Requirement):
 
+    family = "python-package"
+
     package: str
 
     def __init__(
             self, package, python_version=None, specs=None,
             minimum_version=None):
-        super(PythonPackageRequirement, self).__init__("python-package")
+        super(PythonPackageRequirement, self).__init__()
         self.package = package
         self.python_version = python_version
-        if minimum_version is not None:
-            specs = [(">=", minimum_version)]
         if specs is None:
             specs = []
+        if minimum_version is not None:
+            specs.append((">=", minimum_version))
         self.specs = specs
 
     def __repr__(self):
@@ -55,11 +57,27 @@ class PythonPackageRequirement(Requirement):
             return "python package: %s" % (self.package,)
 
     @classmethod
-    def from_requirement_str(cls, text):
+    def from_requirement_str(cls, text, python_version=None):
         from requirements.requirement import Requirement
 
         req = Requirement.parse(text)
-        return cls(package=req.name, specs=req.specs)
+        return cls(package=req.name, specs=req.specs, python_version=python_version)
+
+    def requirement_str(self):
+        if self.specs:
+            return '%s;%s' % (self.package, ','.join([''.join(s) for s in self.specs]))
+        return self.package
+
+    @classmethod
+    def _from_json(cls, js):
+        if isinstance(js, str):
+            return cls.from_requirement_str(js)
+        return cls.from_requirement_str(js[0], python_version=js[1])
+
+    def _json(self):
+        if self.python_version:
+            return [self.requirement_str(), self.python_version]
+        return self.requirement_str()
 
     def met(self, session):
         if self.python_version == "cpython3":
@@ -83,6 +101,9 @@ class PythonPackageRequirement(Requirement):
         )
         p.communicate()
         return p.returncode == 0
+
+
+Requirement.register_json(PythonPackageRequirement)
 
 
 class LatexPackageRequirement(Requirement):
@@ -119,11 +140,19 @@ class PhpPackageRequirement(Requirement):
 
 class BinaryRequirement(Requirement):
 
+    family = "binary"
     binary_name: str
 
     def __init__(self, binary_name):
-        super(BinaryRequirement, self).__init__("binary")
+        super(BinaryRequirement, self).__init__()
         self.binary_name = binary_name
+
+    def _json(self):
+        return self.binary_name
+
+    @classmethod
+    def _from_json(cls, js):
+        return cls(js)
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.binary_name)
@@ -136,6 +165,9 @@ class BinaryRequirement(Requirement):
         )
         p.communicate()
         return p.returncode == 0
+
+
+Requirement.register_json(BinaryRequirement)
 
 
 class PHPExtensionRequirement(Requirement):
@@ -720,11 +752,22 @@ class PerlFileRequirement(Requirement):
 
 class AutoconfMacroRequirement(Requirement):
 
+    family = "autoconf-macro"
     macro: str
 
     def __init__(self, macro: str):
-        super(AutoconfMacroRequirement, self).__init__("autoconf-macro")
+        super(AutoconfMacroRequirement, self).__init__()
         self.macro = macro
+
+    def _json(self):
+        return self.macro
+
+    @classmethod
+    def _from_json(cls, macro):
+        return cls(macro)
+
+
+Requirement.register_json(AutoconfMacroRequirement)
 
 
 class LibtoolRequirement(Requirement):

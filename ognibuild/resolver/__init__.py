@@ -20,7 +20,7 @@ import logging
 import subprocess
 from typing import Optional, List, Type
 
-from .. import UnidentifiedError
+from .. import UnidentifiedError, Requirement
 from ..fix_build import run_detecting_problems
 from ..session import Session
 
@@ -37,13 +37,16 @@ class Resolver(object):
     def __init__(self, session, user_local):
         raise NotImplementedError(self.__init__)
 
-    def install(self, requirements):
+    def install(self, requirements: List[Requirement]):
         raise NotImplementedError(self.install)
 
-    def resolve(self, requirement):
+    def resolve(self, requirement: Requirement) -> Optional[Requirement]:
         raise NotImplementedError(self.resolve)
 
-    def explain(self, requirements):
+    def resolve_all(self, requirement: Requirement) -> List[Requirement]:
+        raise NotImplementedError(self.resolve_all)
+
+    def explain(self, requirements: List[Requirement]):
         raise NotImplementedError(self.explain)
 
     def env(self):
