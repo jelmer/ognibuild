@@ -51,6 +51,17 @@ async def handle_apt(request):
     return web.json_response([r.pkg_relation_str() for r in apt_reqs])
 
 
+@routes.get('/resolve-apt/sid/{family}:{arg}', name='resolve-apt-simple')
+async def handle_apt(request):
+    try:
+        req = Requirement.from_json((request.match_info['family'], request.match_info['arg']))
+    except UnknownRequirementFamily as e:
+        return web.json_response(
+            {"reason": "family-unknown", "family": e.family}, status=404)
+    apt_reqs = resolve_requirement_apt(request.app['apt_mgr'], req)
+    return web.json_response([r.pkg_relation_str() for r in apt_reqs])
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
