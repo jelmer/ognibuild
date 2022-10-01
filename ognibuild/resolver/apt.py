@@ -82,8 +82,11 @@ from ..requirements import (
 
 
 class AptRequirement(Requirement):
+
+    family = "apt"
+
     def __init__(self, relations):
-        super(AptRequirement, self).__init__("apt")
+        super(AptRequirement, self).__init__()
         if not isinstance(relations, list):
             raise TypeError(relations)
         self.relations = relations
@@ -101,6 +104,13 @@ class AptRequirement(Requirement):
 
     def pkg_relation_str(self):
         return PkgRelation.str(self.relations)
+
+    def _json(self):
+        return self.pkg_relation_str()
+
+    @classmethod
+    def _from_json(cls, text):
+        return cls.from_str(text)
 
     def __hash__(self):
         return hash((type(self), self.pkg_relation_str()))
@@ -449,6 +459,7 @@ def resolve_binary_req(apt_mgr, req):
             posixpath.join(dirname, req.binary_name)
             for dirname in ["/usr/bin", "/bin"]
         ]
+    # TODO(jelmer): Check for binaries which use alternatives
     return find_reqs_simple(apt_mgr, paths)
 
 
@@ -1007,8 +1018,11 @@ class AptResolver(Resolver):
                 [o for o, r in apt_requirements],
             )
 
+    def resolve_all(self, req: Requirement):
+        return resolve_requirement_apt(self.apt, req)
+
     def resolve(self, req: Requirement):
-        ret = resolve_requirement_apt(self.apt, req)
+        ret = self.resolve_all(req)
         if not ret:
             return None
         if len(ret) == 1:

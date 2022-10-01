@@ -483,8 +483,10 @@ def versioned_package_fixers(session, packaging_context, apt: AptManager):
     ]
 
 
-def apt_fixers(apt: AptManager, packaging_context) -> List[BuildFixer]:
+def apt_fixers(apt: AptManager, packaging_context,
+               dep_server_url: Optional[str] = None) -> List[BuildFixer]:
     from ..resolver.apt import AptResolver
+    from ..resolver.dep_server import DepServerAptResolver
     from .udd import popcon_tie_breaker
     from .build_deps import BuildDependencyTieBreaker
 
@@ -494,7 +496,11 @@ def apt_fixers(apt: AptManager, packaging_context) -> List[BuildFixer]:
         BuildDependencyTieBreaker.from_session(apt.session),
         popcon_tie_breaker,
     ]
-    resolver = AptResolver(apt, apt_tie_breakers)
+    resolver: AptResolver
+    if dep_server_url:
+        resolver = DepServerAptResolver(apt, dep_server_url, apt_tie_breakers)
+    else:
+        resolver = AptResolver(apt, apt_tie_breakers)
     return [
         DependencyBuildFixer(
             packaging_context, apt, AptFetchFailure, retry_apt_failure
@@ -507,13 +513,14 @@ def default_fixers(
         local_tree: WorkingTree,
         subpath: str, apt: AptManager,
         committer: Optional[str] = None,
-        update_changelog: Optional[bool] = None):
+        update_changelog: Optional[bool] = None,
+        dep_server_url: Optional[str] = None):
     packaging_context = DebianPackagingContext(
         local_tree, subpath, committer, update_changelog,
         commit_reporter=NullCommitReporter()
     )
     return (versioned_package_fixers(apt.session, packaging_context, apt)
-            + apt_fixers(apt, packaging_context))
+            + apt_fixers(apt, packaging_context, dep_server_url))
 
 
 def build_incrementally(
@@ -534,12 +541,14 @@ def build_incrementally(
     extra_repositories: Optional[List[str]] = None,
     fixers: Optional[List[BuildFixer]] = None,
     run_gbp_dch: Optional[bool] = None,
+    dep_server_url: Optional[str] = None,
 ):
     fixed_errors: List[Tuple[Problem, str]] = []
     if fixers is None:
         fixers = default_fixers(
             local_tree, subpath, apt, committer=committer,
-            update_changelog=update_changelog)
+            update_changelog=update_changelog,
+            dep_server_url=dep_server_url)
     logging.info("Using fixers: %r", fixers)
     if run_gbp_dch is None:
         run_gbp_dch = (update_changelog is False)
@@ -656,6 +665,10 @@ def main(argv=None):
         default=DEFAULT_MAX_ITERATIONS,
         help='Maximum number of issues to attempt to fix before giving up.')
     build_behaviour.add_argument("--schroot", type=str, help="chroot to use.")
+    parser.add_argument(
+        "--dep-server-url", type=str,
+        help="ognibuild dep server to use",
+        default=os.environ.get('OGNIBUILD_DEPS'))
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
 
     args = parser.parse_args()
@@ -704,6 +717,7 @@ def main(argv=None):
                 committer=args.committer,
                 update_changelog=args.update_changelog,
                 max_iterations=args.max_iterations,
+                dep_server_url=args.dep_server_url,
             )
         except DetailedDebianBuildFailure as e:
             if e.phase is None:

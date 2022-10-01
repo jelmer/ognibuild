@@ -134,6 +134,10 @@ def main():  # noqa: C901
         "--user", action="store_true",
         help="Install in local-user directories."
     )
+    parser.add_argument(
+        "--dep-server-url", type=str,
+        help="ognibuild dep server to use",
+        default=os.environ.get('OGNIBUILD_DEPS'))
 
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
     subparsers = parser.add_subparsers(dest="subcommand")
@@ -205,7 +209,8 @@ def main():  # noqa: C901
         else:
             resolver = select_resolvers(
                 session, user_local=args.user,
-                resolvers=args.resolve.split(','))
+                resolvers=args.resolve.split(','),
+                dep_server_url=args.dep_server_url)
         logging.info("Using requirement resolver: %s", resolver)
         fixers = determine_fixers(session, resolver, explain=args.explain)
         try:

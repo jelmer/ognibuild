@@ -20,7 +20,7 @@ import logging
 import subprocess
 from typing import Optional, List, Type
 
-from .. import UnidentifiedError
+from .. import UnidentifiedError, Requirement
 from ..fix_build import run_detecting_problems
 from ..session import Session
 
@@ -37,13 +37,16 @@ class Resolver(object):
     def __init__(self, session, user_local):
         raise NotImplementedError(self.__init__)
 
-    def install(self, requirements):
+    def install(self, requirements: List[Requirement]):
         raise NotImplementedError(self.install)
 
-    def resolve(self, requirement):
+    def resolve(self, requirement: Requirement) -> Optional[Requirement]:
         raise NotImplementedError(self.resolve)
 
-    def explain(self, requirements):
+    def resolve_all(self, requirement: Requirement) -> List[Requirement]:
+        raise NotImplementedError(self.resolve_all)
+
+    def explain(self, requirements: List[Requirement]):
         raise NotImplementedError(self.explain)
 
     def env(self):
@@ -593,7 +596,8 @@ def native_resolvers(session, user_local):
         [kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
 
 
-def select_resolvers(session, user_local, resolvers) -> Optional[Resolver]:
+def select_resolvers(session, user_local, resolvers,
+                     dep_server_url=None) -> Optional[Resolver]:
     selected = []
     for resolver in resolvers:
         for kls in NATIVE_RESOLVER_CLS:
@@ -608,8 +612,12 @@ def select_resolvers(session, user_local, resolvers) -> Optional[Resolver]:
                 if user_local:
                     raise NotImplementedError(
                         'user local not supported for apt')
-                from .apt import AptResolver
-                selected.append(AptResolver.from_session(session))
+                if dep_server_url:
+                    from .dep_server import DepServerAptResolver
+                    selected.append(DepServerAptResolver.from_session(session))
+                else:
+                    from .apt import AptResolver
+                    selected.append(AptResolver.from_session(session))
             else:
                 raise KeyError(resolver)
     if len(selected) == 0:

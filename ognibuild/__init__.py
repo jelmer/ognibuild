@@ -18,7 +18,7 @@
 
 import os
 import stat
-from typing import List
+from typing import List, Dict, Type
 
 
 __version__ = (0, 0, 14)
@@ -79,16 +79,44 @@ def shebang_binary(p):
         return os.path.basename(args[0].decode()).strip()
 
 
+class UnknownRequirementFamily(Exception):
+    """Requirement family is unknown"""
+
+    def __init__(self, family):
+        self.family = family
+
+
 class Requirement(object):
 
     # Name of the family of requirements - e.g. "python-package"
     family: str
 
-    def __init__(self, family):
-        self.family = family
+    _JSON_DESERIALIZERS: Dict[str, Type["Requirement"]] = {}
+
+    @classmethod
+    def _from_json(self, js):
+        raise NotImplementedError(self._from_json)
+
+    @classmethod
+    def from_json(self, js):
+        try:
+            family = Requirement._JSON_DESERIALIZERS[js[0]]
+        except KeyError:
+            raise UnknownRequirementFamily(js[0])
+        return family._from_json(js[1])
 
     def met(self, session):
         raise NotImplementedError(self)
+
+    def _json(self):
+        raise NotImplementedError(self._json)
+
+    def json(self):
+        return (type(self).family, self._json())
+
+    @classmethod
+    def register_json(cls, subcls):
+        Requirement._JSON_DESERIALIZERS[subcls.family] = subcls
 
 
 class OneOfRequirement(Requirement):
