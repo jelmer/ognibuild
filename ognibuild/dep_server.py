@@ -56,7 +56,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--listen-address', type=str, help='Listen address')
     parser.add_argument('--schroot', type=str, help='Schroot session to use')
-    parser.add_argument('--port', type=str, help='Listen port', default=9933)
+    parser.add_argument('--port', type=str, help='Listen port', default=9934)
     args = parser.parse_args()
 
     if args.schroot:
