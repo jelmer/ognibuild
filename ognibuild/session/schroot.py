@@ -92,6 +92,9 @@ class SchrootSession(Session):
             if len(errlines) == 1:
                 raise SessionSetupFailure(
                     errlines[0].rstrip().decode(), errlines=errlines)
+            elif len(errlines) == 0:
+                raise SessionSetupFailure(
+                    "No output from schroot", errlines=errlines)
             else:
                 raise SessionSetupFailure(
                     errlines[-1].decode(), errlines=errlines)
