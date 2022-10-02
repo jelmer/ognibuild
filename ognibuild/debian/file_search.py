@@ -23,7 +23,7 @@ from debian.deb822 import Release
 import os
 import re
 import subprocess
-from typing import Iterator, List, AsyncIterator
+from typing import List, AsyncIterator
 import logging
 
 
@@ -215,7 +215,8 @@ class AptFileFileSearcher(FileSearcher):
             args.append('-i')
         args.append(path)
         process = await asyncio.create_subprocess_exec(
-            '/usr/bin/apt-file', 'search', *args, stdout=asyncio.subprocess.PIPE)
+            '/usr/bin/apt-file', 'search', *args,
+            stdout=asyncio.subprocess.PIPE)
         (output, error) = await process.communicate(input=None)
         if process.returncode == 1:
             # No results
@@ -354,7 +355,8 @@ class GeneratedFileSearcher(FileSearcher):
                 self._db.append(path, pkg)
 
     async def search_files(
-            self, path: str, regex: bool = False, case_insensitive: bool = False):
+            self, path: str, regex: bool = False,
+            case_insensitive: bool = False):
         for p, pkg in self._db:
             if regex:
                 flags = 0
@@ -392,6 +394,7 @@ async def get_packages_for_paths(
     case_insensitive: bool = False,
 ) -> List[str]:
     candidates: List[str] = list()
+    # TODO(jelmer): Combine these, perhaps by creating one gigantic regex?
     for path in paths:
         for searcher in searchers:
             async for pkg in searcher.search_files(
