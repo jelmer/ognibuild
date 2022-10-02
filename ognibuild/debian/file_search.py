@@ -23,7 +23,7 @@ from debian.deb822 import Release
 import os
 import re
 import subprocess
-from typing import Iterator, List
+from typing import Iterator, List, AsyncIterator
 import logging
 
 
@@ -32,9 +32,9 @@ from ..session import Session
 
 
 class FileSearcher(object):
-    async def search_files(
-        self, path: str, regex: bool = False, case_insensitive: bool = False
-    ) -> Iterator[str]:
+    def search_files(
+            self, path: str, regex: bool = False,
+            case_insensitive: bool = False) -> AsyncIterator[str]:
         raise NotImplementedError(self.search_files)
 
 
@@ -354,8 +354,7 @@ class GeneratedFileSearcher(FileSearcher):
                 self._db.append(path, pkg)
 
     async def search_files(
-        self, path: str, regex: bool = False, case_insensitive: bool = False
-    ) -> Iterator[str]:
+            self, path: str, regex: bool = False, case_insensitive: bool = False):
         for p, pkg in self._db:
             if regex:
                 flags = 0
