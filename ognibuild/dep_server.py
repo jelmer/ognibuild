@@ -48,7 +48,7 @@ async def handle_apt(request):
     except UnknownRequirementFamily as e:
         return web.json_response(
             {"reason": "family-unknown", "family": e.family}, status=404)
-    apt_reqs = resolve_requirement_apt(request.app['apt_mgr'], req)
+    apt_reqs = await resolve_requirement_apt(request.app['apt_mgr'], req)
     return web.json_response([r.pkg_relation_str() for r in apt_reqs])
 
 
@@ -60,7 +60,7 @@ async def handle_apt_simple(request):
     except UnknownRequirementFamily as e:
         return web.json_response(
             {"reason": "family-unknown", "family": e.family}, status=404)
-    apt_reqs = resolve_requirement_apt(request.app['apt_mgr'], req)
+    apt_reqs = await resolve_requirement_apt(request.app['apt_mgr'], req)
     return web.json_response([r.pkg_relation_str() for r in apt_reqs])
 
 

@@ -105,10 +105,10 @@ class AptManager(object):
         except KeyError:
             return None
 
-    def get_packages_for_paths(self, paths, regex: bool = False,
-                               case_insensitive: bool = False):
+    async def get_packages_for_paths(
+            self, paths, regex: bool = False, case_insensitive: bool = False):
         logging.debug("Searching for packages containing %r", paths)
-        return get_packages_for_paths(
+        return await get_packages_for_paths(
             paths, self.searchers(), regex=regex,
             case_insensitive=case_insensitive
         )

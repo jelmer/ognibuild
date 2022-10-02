@@ -270,6 +270,10 @@ def run_setup(script_name, script_args=None, stop_after="run"):
 
 
 _setup_wrapper = """\
+try:
+    import setuptools
+except ImportError:
+    pass
 import distutils
 from distutils import core
 import sys
@@ -351,7 +355,7 @@ class SetupPy(BuildSystem):
             return toml.load(pf)
 
     def load_setup_cfg(self):
-        from setuptools.config import read_configuration
+        from setuptools.config.setupcfg import read_configuration
 
         p = os.path.join(self.path, "setup.cfg")
         if os.path.exists(p):
