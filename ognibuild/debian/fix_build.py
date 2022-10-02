@@ -486,7 +486,6 @@ def versioned_package_fixers(session, packaging_context, apt: AptManager):
 def apt_fixers(apt: AptManager, packaging_context,
                dep_server_url: Optional[str] = None) -> List[BuildFixer]:
     from ..resolver.apt import AptResolver
-    from ..resolver.dep_server import DepServerAptResolver
     from .udd import popcon_tie_breaker
     from .build_deps import BuildDependencyTieBreaker
 
@@ -498,6 +497,7 @@ def apt_fixers(apt: AptManager, packaging_context,
     ]
     resolver: AptResolver
     if dep_server_url:
+        from ..resolver.dep_server import DepServerAptResolver
         resolver = DepServerAptResolver(apt, dep_server_url, apt_tie_breakers)
     else:
         resolver = AptResolver(apt, apt_tie_breakers)
