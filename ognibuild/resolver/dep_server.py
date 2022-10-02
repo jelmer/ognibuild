@@ -56,5 +56,5 @@ class DepServerAptResolver(AptResolver):
         try:
             req.json()
         except NotImplementedError:
-            return super(DepServerAptResolver, self).__init__(req)
+            return super(DepServerAptResolver, self).resolve_all(req)
         return resolve_apt_requirement_dep_server(self.dep_server_url, req)

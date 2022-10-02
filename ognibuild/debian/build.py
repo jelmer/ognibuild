@@ -191,7 +191,7 @@ def build(
     extra_repositories: Optional[List[str]] = None,
 ):
     for repo in extra_repositories or []:
-        build_command += " --extra-repository=" + repo
+        build_command += " --extra-repository=" + shlex.quote(repo)
     args = [
         sys.executable,
         "-m",
