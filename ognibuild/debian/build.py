@@ -178,18 +178,12 @@ def get_latest_changelog_entry(
         return cl[0]
 
 
-def build(
-    local_tree: WorkingTree,
-    outf,
-    build_command: str = DEFAULT_BUILDER,
-    result_dir: Optional[str] = None,
-    distribution: Optional[str] = None,
-    subpath: str = "",
-    source_date_epoch: Optional[int] = None,
-    apt_repository: Optional[str] = None,
-    apt_repository_key: Optional[str] = None,
-    extra_repositories: Optional[List[str]] = None,
-):
+def _builddeb_command(
+        build_command: str = DEFAULT_BUILDER,
+        result_dir: Optional[str] = None,
+        apt_repository: Optional[str] = None,
+        apt_repository_key: Optional[str] = None,
+        extra_repositories: Optional[List[str]] = None):
     for repo in extra_repositories or []:
         build_command += " --extra-repository=" + shlex.quote(repo)
     args = [
@@ -206,6 +200,28 @@ def build(
         args.append("--apt-repository-key=%s" % apt_repository_key)
     if result_dir:
         args.append("--result-dir=%s" % result_dir)
+    return args
+
+
+def build(
+    local_tree: WorkingTree,
+    outf,
+    build_command: str = DEFAULT_BUILDER,
+    result_dir: Optional[str] = None,
+    distribution: Optional[str] = None,
+    subpath: str = "",
+    source_date_epoch: Optional[int] = None,
+    apt_repository: Optional[str] = None,
+    apt_repository_key: Optional[str] = None,
+    extra_repositories: Optional[List[str]] = None,
+):
+    args = _builddeb_command(
+        build_command=build_command,
+        result_dir=result_dir,
+        apt_repository=apt_repository,
+        apt_repository_key=apt_repository_key,
+        extra_repositories=extra_repositories)
+
     outf.write("Running %r\n" % (build_command,))
     outf.flush()
     env = dict(os.environ.items())

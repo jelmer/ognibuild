@@ -49,6 +49,7 @@ setup(
         'python_debian',
         'buildlog-consultant>=0.0.21',
         'breezy',
+        "brz-debian",
         'testtools',
     ],
     test_suite='ognibuild.tests.test_suite',

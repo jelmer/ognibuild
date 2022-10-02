@@ -17,6 +17,7 @@
 
 import datetime
 import os
+import sys
 
 from debian.changelog import Version
 
@@ -24,6 +25,8 @@ from ..debian.build import (
     add_dummy_changelog_entry,
     get_build_architecture,
     version_add_suffix,
+    _builddeb_command,
+    DEFAULT_BUILDER,
 )
 
 from breezy.tests import TestCaseWithTransport, TestCase
@@ -182,3 +185,17 @@ class VersionAddSuffixTests(TestCase):
             Version('0.0.12-1~jan+unchanged1~jan+lint1'),
             version_add_suffix(
                 Version('0.0.12-1~jan+unchanged1'), '~jan+lint'))
+
+
+class BuilddebCommandTests(TestCase):
+
+    def test_simple(self):
+        self.assertEqual(
+            [sys.executable, "-m", "breezy", "builddeb",
+                "--guess-upstream-branch-url", "--builder=" + DEFAULT_BUILDER],
+            _builddeb_command())
+        self.assertEqual(
+            [sys.executable, "-m", "breezy", "builddeb",
+                "--guess-upstream-branch-url", "--builder=" + DEFAULT_BUILDER,
+                "--result-dir=/tmp/blah"],
+            _builddeb_command(result_dir="/tmp/blah"))
