@@ -60,7 +60,7 @@ async def resolve_apt_requirement_dep_server(
         except (ClientConnectorError, ClientResponseError,
                 ServerDisconnectedError) as e:
             logging.warning('Unable to contact dep server: %r', e)
-            raise DepServerAptResolver(e)
+            raise DepServerError(e)
 
 
 class DepServerAptResolver(AptResolver):
