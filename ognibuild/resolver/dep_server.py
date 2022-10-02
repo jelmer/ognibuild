@@ -15,12 +15,17 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-
-import json
+import asyncio
+import logging
 from typing import List
 
-from urllib.parse import urljoin
-from urllib.request import Request, urlopen
+from aiohttp import (
+    ClientSession,
+    ClientConnectorError,
+    ClientResponseError,
+    ServerDisconnectedError,
+)
+from yarl import URL
 
 
 from .. import Requirement, version_string
@@ -28,16 +33,34 @@ from ..debian.apt import AptManager
 from .apt import AptRequirement, AptResolver
 
 
-def resolve_apt_requirement_dep_server(
-        url: str, req: Requirement) -> List[Requirement]:
-    request = Request(
-        urljoin(url, 'resolve-apt'),
-        data=json.dumps({'resolve': req.json()}).encode('utf-8'), headers={
-            'User-Agent': 'ognibuild/%s' % version_string,
-            'Content-Type': 'application/json'})
-    resp = urlopen(request)
-    ret = json.load(resp)
-    return [AptRequirement._from_json(e) for e in ret]
+class DepServerError(Exception):
+
+    def __init__(self, inner):
+        self.inner = inner
+
+
+async def resolve_apt_requirement_dep_server(
+        url: str, req: Requirement) -> List[AptRequirement]:
+    """Resolve a requirement to an APT requirement with a dep server.
+
+    Args:
+      url: Dep server URL
+      req: Requirement to resolve
+    Returns:
+      List of Apt requirements.
+    """
+    async with ClientSession() as session:
+        try:
+            async with session.post(URL(url) / "resolve-apt", headers={
+                    'User-Agent': 'ognibuild/%s' % version_string},
+                    json={'requirement': req.json()},
+                    raise_for_status=True) as resp:
+                return [
+                    AptRequirement._from_json(e) for e in await resp.json()]
+        except (ClientConnectorError, ClientResponseError,
+                ServerDisconnectedError) as e:
+            logging.warning('Unable to contact dep server: %r', e)
+            raise DepServerAptResolver(e)
 
 
 class DepServerAptResolver(AptResolver):
@@ -57,4 +80,9 @@ class DepServerAptResolver(AptResolver):
             req.json()
         except NotImplementedError:
             return super(DepServerAptResolver, self).resolve_all(req)
-        return resolve_apt_requirement_dep_server(self.dep_server_url, req)
+        try:
+            return asyncio.run(
+                resolve_apt_requirement_dep_server(self.dep_server_url, req))
+        except DepServerError:
+            logging.warning('Falling back to resolving error locally')
+            return super(DepServerAptResolver, self).resolve_all(req)
