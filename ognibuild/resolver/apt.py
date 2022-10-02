@@ -15,12 +15,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+import asyncio
 from itertools import chain
 import logging
 import os
 import posixpath
 import re
-from typing import Optional, List, Tuple, Callable, Type
+from typing import Optional, List, Tuple, Callable, Type, Awaitable
 
 from debian.changelog import Version
 from debian.deb822 import PkgRelation
@@ -159,26 +160,26 @@ class AptRequirement(Requirement):
         return True
 
 
-def resolve_perl_predeclared_req(apt_mgr, req):
+async def resolve_perl_predeclared_req(apt_mgr, req):
     try:
         req = req.lookup_module()
     except KeyError:
         logging.warning(
             'Unable to map predeclared function %s to a perl module', req.name)
         return None
-    return resolve_perl_module_req(apt_mgr, req)
+    return await resolve_perl_module_req(apt_mgr, req)
 
 
-def find_package_names(
+async def find_package_names(
     apt_mgr: AptManager, paths: List[str], regex: bool = False,
     case_insensitive: bool = False
 ) -> List[str]:
     if not isinstance(paths, list):
         raise TypeError(paths)
-    return apt_mgr.get_packages_for_paths(paths, regex, case_insensitive)
+    return await apt_mgr.get_packages_for_paths(paths, regex, case_insensitive)
 
 
-def find_reqs_simple(
+async def find_reqs_simple(
     apt_mgr: AptManager,
     paths: List[str],
     regex: bool = False,
@@ -189,7 +190,7 @@ def find_reqs_simple(
         raise TypeError(paths)
     return [
         AptRequirement.simple(package, minimum_version=minimum_version)
-        for package in find_package_names(
+        for package in await find_package_names(
             apt_mgr, paths, regex, case_insensitive)
     ]
 
@@ -243,7 +244,7 @@ def python_spec_to_apt_rels(pkg_name, specs):
         return rels
 
 
-def get_package_for_python_package(
+async def get_package_for_python_package(
     apt_mgr, package, python_version: Optional[str], specs=None
 ):
     pypy_regex = (
@@ -267,7 +268,7 @@ def get_package_for_python_package(
     else:
         raise NotImplementedError(
             "unsupported python version %s" % python_version)
-    names = find_package_names(
+    names = await find_package_names(
         apt_mgr, paths, regex=True, case_insensitive=True)
     return [AptRequirement(
         python_spec_to_apt_rels(name, specs)) for name in names]
@@ -358,7 +359,7 @@ def get_possible_python2_paths_for_python_object(object_path):
     return cpython2_regexes
 
 
-def get_package_for_python_object_path(
+async def get_package_for_python_object_path(
         apt_mgr, object_path, python_version, specs):
     # Try to find the most specific file
     if python_version == "cpython3":
@@ -373,7 +374,7 @@ def get_package_for_python_object_path(
                  + get_possible_pypy_paths_for_python_object(object_path))
     else:
         raise AssertionError("unknown python version %r" % python_version)
-    names = find_package_names(apt_mgr, paths, regex=True)
+    names = await find_package_names(apt_mgr, paths, regex=True)
     return [AptRequirement(python_spec_to_apt_rels(name, specs))
             for name in names]
 
@@ -399,33 +400,33 @@ vague_map = {
 }
 
 
-def resolve_vague_dep_req(apt_mgr, req):
+async def resolve_vague_dep_req(apt_mgr, req):
     name = req.name
     options = []
     if ' or ' in name:
         for entry in name.split(' or '):
-            options.extend(resolve_vague_dep_req(
+            options.extend(await resolve_vague_dep_req(
                 apt_mgr, VagueDependencyRequirement(entry)))
 
     if name in vague_map:
         options.append(AptRequirement.simple(
             vague_map[name], minimum_version=req.minimum_version))
     for x in req.expand():
-        options.extend(resolve_requirement_apt(apt_mgr, x))
+        options.extend(await resolve_requirement_apt(apt_mgr, x))
 
     if name.startswith('GNU '):
-        options.extend(resolve_vague_dep_req(
+        options.extend(await resolve_vague_dep_req(
             apt_mgr, VagueDependencyRequirement(name[4:])))
 
     if name.startswith('py') or name.endswith('py'):
         # TODO(jelmer): Try harder to determine whether this is a python
         # package
-        options.append(resolve_requirement_apt(
+        options.append(await resolve_requirement_apt(
             apt_mgr, PythonPackageRequirement(name)))
 
     # Try even harder
     if not options:
-        options.extend(find_reqs_simple(
+        options.extend(await find_reqs_simple(
             apt_mgr,
             [
                 posixpath.join(
@@ -442,16 +443,16 @@ def resolve_vague_dep_req(apt_mgr, req):
     return options
 
 
-def resolve_php_extension_req(apt_mgr, req):
+async def resolve_php_extension_req(apt_mgr, req):
     return [AptRequirement.simple("php-%s" % req.extension)]
 
 
-def resolve_octave_pkg_req(apt_mgr, req):
+async def resolve_octave_pkg_req(apt_mgr, req):
     return [AptRequirement.simple(
             "octave-%s" % req.package, minimum_version=req.minimum_version)]
 
 
-def resolve_binary_req(apt_mgr, req):
+async def resolve_binary_req(apt_mgr, req):
     if posixpath.isabs(req.binary_name):
         paths = [req.binary_name]
     else:
@@ -460,11 +461,11 @@ def resolve_binary_req(apt_mgr, req):
             for dirname in ["/usr/bin", "/bin"]
         ]
     # TODO(jelmer): Check for binaries which use alternatives
-    return find_reqs_simple(apt_mgr, paths)
+    return await find_reqs_simple(apt_mgr, paths)
 
 
-def resolve_pkg_config_req(apt_mgr, req):
-    names = find_package_names(
+async def resolve_pkg_config_req(apt_mgr, req):
+    names = await find_package_names(
         apt_mgr,
         [
             posixpath.join(
@@ -474,7 +475,7 @@ def resolve_pkg_config_req(apt_mgr, req):
         regex=True,
     )
     if not names:
-        names = find_package_names(
+        names = await find_package_names(
             apt_mgr, [posixpath.join("/usr/lib/pkgconfig", req.module + ".pc")]
         )
     return [
@@ -483,16 +484,16 @@ def resolve_pkg_config_req(apt_mgr, req):
     ]
 
 
-def resolve_path_req(apt_mgr, req):
-    return find_reqs_simple(apt_mgr, [req.path])
+async def resolve_path_req(apt_mgr, req):
+    return await find_reqs_simple(apt_mgr, [req.path])
 
 
-def resolve_c_header_req(apt_mgr, req):
-    reqs = find_reqs_simple(
+async def resolve_c_header_req(apt_mgr, req):
+    reqs = await find_reqs_simple(
         apt_mgr, [posixpath.join("/usr/include", req.header)], regex=False
     )
     if not reqs:
-        reqs = find_reqs_simple(
+        reqs = await find_reqs_simple(
             apt_mgr,
             [posixpath.join("/usr/include", ".*", re.escape(req.header))],
             regex=True,
@@ -500,29 +501,29 @@ def resolve_c_header_req(apt_mgr, req):
     return reqs
 
 
-def resolve_js_runtime_req(apt_mgr, req):
-    return find_reqs_simple(apt_mgr, ["/usr/bin/node", "/usr/bin/duk"])
+async def resolve_js_runtime_req(apt_mgr, req):
+    return await find_reqs_simple(apt_mgr, ["/usr/bin/node", "/usr/bin/duk"])
 
 
-def resolve_vala_package_req(apt_mgr, req):
+async def resolve_vala_package_req(apt_mgr, req):
     path = "/usr/share/vala-[0-9.]+/vapi/%s\\.vapi" % re.escape(req.package)
-    return find_reqs_simple(apt_mgr, [path], regex=True)
+    return await find_reqs_simple(apt_mgr, [path], regex=True)
 
 
-def resolve_ruby_gem_req(apt_mgr, req):
+async def resolve_ruby_gem_req(apt_mgr, req):
     paths = [
         posixpath.join(
             "/usr/share/rubygems-integration/all/"
             "specifications/%s-.*\\.gemspec" % re.escape(req.gem)
         )
     ]
-    return find_reqs_simple(
+    return await find_reqs_simple(
         apt_mgr, paths, regex=True, minimum_version=req.minimum_version
     )
 
 
-def resolve_go_package_req(apt_mgr, req):
-    return find_reqs_simple(
+async def resolve_go_package_req(apt_mgr, req):
+    return await find_reqs_simple(
         apt_mgr,
         [posixpath.join(
             "/usr/share/gocode/src", re.escape(req.package), ".*")],
@@ -530,78 +531,78 @@ def resolve_go_package_req(apt_mgr, req):
     )
 
 
-def resolve_go_req(apt_mgr, req):
+async def resolve_go_req(apt_mgr, req):
     return [
         AptRequirement.simple(
             "golang-go", minimum_version="2:%s~" % req.version)]
 
 
-def resolve_dh_addon_req(apt_mgr, req):
+async def resolve_dh_addon_req(apt_mgr, req):
     paths = [posixpath.join("/usr/share/perl5", req.path)]
-    return find_reqs_simple(apt_mgr, paths)
+    return await find_reqs_simple(apt_mgr, paths)
 
 
-def resolve_php_class_req(apt_mgr, req):
+async def resolve_php_class_req(apt_mgr, req):
     path = "/usr/share/php/%s.php" % req.php_class.replace("\\", "/")
-    return find_reqs_simple(apt_mgr, [path])
+    return await find_reqs_simple(apt_mgr, [path])
 
 
-def resolve_php_package_req(apt_mgr, req):
+async def resolve_php_package_req(apt_mgr, req):
     return [
         AptRequirement.simple(
             "php-%s" % req.package, minimum_version=req.min_version)
     ]
 
 
-def resolve_r_package_req(apt_mgr, req):
+async def resolve_r_package_req(apt_mgr, req):
     paths = [
         posixpath.join("/usr/lib/R/site-library", req.package, "DESCRIPTION")
     ]
-    return find_reqs_simple(
+    return await find_reqs_simple(
         apt_mgr, paths, minimum_version=req.minimum_version)
 
 
-def resolve_node_module_req(apt_mgr, req):
+async def resolve_node_module_req(apt_mgr, req):
     paths = [
         "/usr/share/nodejs/.*/node_modules/%s/index\\.js"
         % re.escape(req.module),
         "/usr/lib/nodejs/%s/index\\.js" % re.escape(req.module),
         "/usr/share/nodejs/%s/index\\.js" % re.escape(req.module),
     ]
-    return find_reqs_simple(apt_mgr, paths, regex=True)
+    return await find_reqs_simple(apt_mgr, paths, regex=True)
 
 
-def resolve_node_package_req(apt_mgr, req):
+async def resolve_node_package_req(apt_mgr, req):
     paths = [
         "/usr/share/nodejs/.*/node_modules/%s/package\\.json"
         % re.escape(req.package),
         "/usr/lib/nodejs/%s/package\\.json" % re.escape(req.package),
         "/usr/share/nodejs/%s/package\\.json" % re.escape(req.package),
     ]
-    return find_reqs_simple(apt_mgr, paths, regex=True)
+    return await find_reqs_simple(apt_mgr, paths, regex=True)
 
 
-def resolve_library_req(apt_mgr, req):
+async def resolve_library_req(apt_mgr, req):
     paths = [
         posixpath.join("/usr/lib/lib%s\\.so$" % re.escape(req.library)),
         posixpath.join("/usr/lib/.*/lib%s\\.so$" % re.escape(req.library)),
         posixpath.join("/usr/lib/lib%s\\.a$" % re.escape(req.library)),
         posixpath.join("/usr/lib/.*/lib%s\\.a$" % re.escape(req.library)),
     ]
-    return find_reqs_simple(apt_mgr, paths, regex=True)
+    return await find_reqs_simple(apt_mgr, paths, regex=True)
 
 
-def resolve_static_library_req(apt_mgr, req):
+async def resolve_static_library_req(apt_mgr, req):
     paths = [
         posixpath.join("/usr/lib/%s$" % re.escape(req.filename)),
         posixpath.join("/usr/lib/.*/%s$" % re.escape(req.filename)),
     ]
-    return find_reqs_simple(apt_mgr, paths, regex=True)
+    return await find_reqs_simple(apt_mgr, paths, regex=True)
 
 
-def resolve_ruby_file_req(apt_mgr, req):
+async def resolve_ruby_file_req(apt_mgr, req):
     paths = [posixpath.join("/usr/lib/ruby/vendor_ruby/%s.rb" % req.filename)]
-    reqs = find_reqs_simple(apt_mgr, paths, regex=False)
+    reqs = await find_reqs_simple(apt_mgr, paths, regex=False)
     if reqs:
         return reqs
     paths = [
@@ -610,10 +611,10 @@ def resolve_ruby_file_req(apt_mgr, req):
             "lib/%s\\.rb" % re.escape(req.filename)
         )
     ]
-    return find_reqs_simple(apt_mgr, paths, regex=True)
+    return await find_reqs_simple(apt_mgr, paths, regex=True)
 
 
-def resolve_xml_entity_req(apt_mgr, req):
+async def resolve_xml_entity_req(apt_mgr, req):
     # Ideally we should be using the XML catalog for this, but hardcoding
     # a few URLs will do for now..
     URL_MAP = {
@@ -627,10 +628,10 @@ def resolve_xml_entity_req(apt_mgr, req):
     else:
         return None
 
-    return find_reqs_simple(apt_mgr, [search_path], regex=False)
+    return await find_reqs_simple(apt_mgr, [search_path], regex=False)
 
 
-def resolve_sprockets_file_req(apt_mgr, req):
+async def resolve_sprockets_file_req(apt_mgr, req):
     if req.content_type == "application/javascript":
         path = ("/usr/share/.*/app/assets/javascripts/%s\\.js$"
                 % re.escape(req.name))
@@ -638,10 +639,10 @@ def resolve_sprockets_file_req(apt_mgr, req):
         logging.warning(
             "unable to handle content type %s", req.content_type)
         return None
-    return find_reqs_simple(apt_mgr, [path], regex=True)
+    return await find_reqs_simple(apt_mgr, [path], regex=True)
 
 
-def resolve_java_class_req(apt_mgr, req):
+async def resolve_java_class_req(apt_mgr, req):
     apt_mgr.satisfy(["java-propose-classpath"])
     output = apt_mgr.session.check_output(
         ["java-propose-classpath", "-c" + req.classname]
@@ -651,22 +652,22 @@ def resolve_java_class_req(apt_mgr, req):
         logging.warning("unable to find classpath for %s", req.classname)
         return False
     logging.info("Classpath for %s: %r", req.classname, classpath)
-    return find_reqs_simple(apt_mgr, [classpath])
+    return await find_reqs_simple(apt_mgr, [classpath])
 
 
-def resolve_cmake_file_req(apt_mgr, req):
+async def resolve_cmake_file_req(apt_mgr, req):
     paths = ['/usr/lib/.*/cmake/.*/%s' % re.escape(req.filename),
              '/usr/share/.*/cmake/%s' % re.escape(req.filename)]
-    return find_reqs_simple(apt_mgr, paths, regex=True)
+    return await find_reqs_simple(apt_mgr, paths, regex=True)
 
 
-def resolve_haskell_package_req(apt_mgr, req):
+async def resolve_haskell_package_req(apt_mgr, req):
     path = ("/var/lib/ghc/package\\.conf\\.d/%s\\-.*\\.conf"
             % re.escape(req.package))
-    return find_reqs_simple(apt_mgr, [path], regex=True)
+    return await find_reqs_simple(apt_mgr, [path], regex=True)
 
 
-def resolve_maven_artifact_req(apt_mgr, req):
+async def resolve_maven_artifact_req(apt_mgr, req):
     if req.version is None:
         version = ".*"
         regex = True
@@ -687,48 +688,48 @@ def resolve_maven_artifact_req(apt_mgr, req):
         escape("%s-" % req.artifact_id) + version + escape("." + kind),
     )
 
-    return find_reqs_simple(apt_mgr, [path], regex=regex)
+    return await find_reqs_simple(apt_mgr, [path], regex=regex)
 
 
-def resolve_gnome_common_req(apt_mgr, req):
+async def resolve_gnome_common_req(apt_mgr, req):
     return [AptRequirement.simple("gnome-common")]
 
 
-def resolve_jdk_file_req(apt_mgr, req):
+async def resolve_jdk_file_req(apt_mgr, req):
     path = re.escape(req.jdk_path) + ".*/" + re.escape(req.filename)
-    return find_reqs_simple(apt_mgr, [path], regex=True)
+    return await find_reqs_simple(apt_mgr, [path], regex=True)
 
 
-def resolve_jdk_req(apt_mgr, req):
+async def resolve_jdk_req(apt_mgr, req):
     return [AptRequirement.simple("default-jdk")]
 
 
-def resolve_jre_req(apt_mgr, req):
+async def resolve_jre_req(apt_mgr, req):
     return [AptRequirement.simple("default-jre")]
 
 
-def resolve_x11_req(apt_mgr, req):
+async def resolve_x11_req(apt_mgr, req):
     return [AptRequirement.simple("libx11-dev")]
 
 
-def resolve_qt_req(apt_mgr, req):
-    return find_reqs_simple(
+async def resolve_qt_req(apt_mgr, req):
+    return await find_reqs_simple(
         apt_mgr, ["/usr/lib/.*/qt[0-9]+/bin/qmake"], regex=True)
 
 
-def resolve_qt_module_req(apt_mgr, req):
-    return find_reqs_simple(
+async def resolve_qt_module_req(apt_mgr, req):
+    return await find_reqs_simple(
         apt_mgr,
         ["/usr/lib/.*/qt5/mkspecs/modules/qt_lib_%s\\.pri"
             % re.escape(req.module)],
         regex=True)
 
 
-def resolve_libtool_req(apt_mgr, req):
+async def resolve_libtool_req(apt_mgr, req):
     return [AptRequirement.simple("libtool")]
 
 
-def resolve_perl_module_req(apt_mgr, req):
+async def resolve_perl_module_req(apt_mgr, req):
     DEFAULT_PERL_PATHS = [
         "/usr/share/perl5", "/usr/lib/.*/perl5/.*", "/usr/lib/.*/perl-base",
         "/usr/lib/.*/perl/[^/]+", "/usr/share/perl/[^/]+"]
@@ -751,11 +752,11 @@ def resolve_perl_module_req(apt_mgr, req):
     else:
         regex = False
         paths = [posixpath.join(inc, req.filename) for inc in req.inc]
-    return find_reqs_simple(apt_mgr, paths, regex=regex)
+    return await find_reqs_simple(apt_mgr, paths, regex=regex)
 
 
-def resolve_perl_file_req(apt_mgr, req):
-    return find_reqs_simple(apt_mgr, [req.filename], regex=False)
+async def resolve_perl_file_req(apt_mgr, req):
+    return await find_reqs_simple(apt_mgr, [req.filename], regex=False)
 
 
 def _m4_macro_regex(macro):
@@ -779,64 +780,64 @@ def _find_local_m4_macro(macro):
     raise KeyError
 
 
-def resolve_autoconf_macro_req(apt_mgr, req):
+async def resolve_autoconf_macro_req(apt_mgr, req):
     try:
         path = _find_local_m4_macro(req.macro)
     except KeyError:
         logging.info("No local m4 file found defining %s", req.macro)
         return None
-    return find_reqs_simple(apt_mgr, [path])
+    return await find_reqs_simple(apt_mgr, [path])
 
 
-def resolve_python_module_req(apt_mgr, req):
+async def resolve_python_module_req(apt_mgr, req):
     if req.minimum_version:
         specs = [(">=", req.minimum_version)]
     else:
         specs = []
     if req.python_version == 2:
-        return get_package_for_python_object_path(
+        return await get_package_for_python_object_path(
             apt_mgr, req.module, "cpython2", specs)
     elif req.python_version in (None, 3):
-        return get_package_for_python_object_path(
+        return await get_package_for_python_object_path(
             apt_mgr, req.module, "cpython3", specs)
     else:
         return None
 
 
-def resolve_python_package_req(apt_mgr, req):
+async def resolve_python_package_req(apt_mgr, req):
     if req.python_version == 2:
-        return get_package_for_python_package(
+        return await get_package_for_python_package(
             apt_mgr, req.package, "cpython2", req.specs
         )
     elif req.python_version in (None, 3):
-        return get_package_for_python_package(
+        return await get_package_for_python_package(
             apt_mgr, req.package, "cpython3", req.specs
         )
     else:
         return None
 
 
-def resolve_cargo_crate_req(apt_mgr, req):
+async def resolve_cargo_crate_req(apt_mgr, req):
     paths = [
         "/usr/share/cargo/registry/%s\\-[0-9]+.*/Cargo\\.toml"
         % re.escape(req.crate)]
-    return find_reqs_simple(
+    return await find_reqs_simple(
         apt_mgr, paths, regex=True, minimum_version=req.minimum_version)
 
 
-def resolve_ca_req(apt_mgr, req):
+async def resolve_ca_req(apt_mgr, req):
     return [AptRequirement.simple("ca-certificates")]
 
 
-def resolve_introspection_typelib_req(apt_mgr, req):
-    return find_reqs_simple(
+async def resolve_introspection_typelib_req(apt_mgr, req):
+    return await find_reqs_simple(
         apt_mgr,
         [r'/usr/lib/.*/girepository\\-.*/%s\\-.*\.typelib'
             % re.escape(req.library)],
         regex=True)
 
 
-def resolve_apt_req(apt_mgr, req):
+async def resolve_apt_req(apt_mgr, req):
     # TODO(jelmer): This should be checking whether versions match as well.
     for package_name in req.package_names():
         if not apt_mgr.package_exists(package_name):
@@ -844,20 +845,20 @@ def resolve_apt_req(apt_mgr, req):
     return [req]
 
 
-def resolve_boost_component_req(apt_mgr, req):
-    return find_reqs_simple(
+async def resolve_boost_component_req(apt_mgr, req):
+    return await find_reqs_simple(
         apt_mgr, ["/usr/lib/.*/libboost_%s" % re.escape(req.name)],
         regex=True)
 
 
-def resolve_kf5_component_req(apt_mgr, req):
-    return find_reqs_simple(
+async def resolve_kf5_component_req(apt_mgr, req):
+    return await find_reqs_simple(
         apt_mgr, ["/usr/lib/.*/cmake/KF5%s/KF5%sConfig\\.cmake" % (
             re.escape(req.name), re.escape(req.name))],
         regex=True)
 
 
-def resolve_vcs_access_req(apt_mgr, req):
+async def resolve_vcs_access_req(apt_mgr, req):
     PKG_MAP = {
         'hg': 'mercurial',
         'svn': 'subversion',
@@ -873,8 +874,9 @@ def resolve_vcs_access_req(apt_mgr, req):
     return [AptRequirement.from_str(','.join(ret))]
 
 
-def resolve_oneof_req(apt_mgr, req):
-    options = [resolve_requirement_apt(apt_mgr, req) for req in req.elements]
+async def resolve_oneof_req(apt_mgr, req):
+    options = asyncio.gather(
+        *[resolve_requirement_apt(apt_mgr, req) for req in req.elements])
     for option in options:
         if not option:
             continue
@@ -883,7 +885,7 @@ def resolve_oneof_req(apt_mgr, req):
 
 APT_REQUIREMENT_RESOLVERS: List[Tuple[
         Type[Requirement], Callable[
-            [AptManager, Requirement], List[AptRequirement]]]] = [
+            [AptManager, Requirement], Awaitable[List[AptRequirement]]]]] = [
     (AptRequirement, resolve_apt_req),
     (BinaryRequirement, resolve_binary_req),
     (VagueDependencyRequirement, resolve_vague_dep_req),
@@ -936,10 +938,11 @@ APT_REQUIREMENT_RESOLVERS: List[Tuple[
 ]
 
 
-def resolve_requirement_apt(apt_mgr, req: Requirement) -> List[AptRequirement]:
+async def resolve_requirement_apt(
+        apt_mgr, req: Requirement) -> List[AptRequirement]:
     for rr_class, rr_fn in APT_REQUIREMENT_RESOLVERS:
         if isinstance(req, rr_class):
-            ret = rr_fn(apt_mgr, req)
+            ret = await rr_fn(apt_mgr, req)
             if not ret:
                 return []
             if not isinstance(ret, list):
@@ -1019,7 +1022,7 @@ class AptResolver(Resolver):
             )
 
     def resolve_all(self, req: Requirement):
-        return resolve_requirement_apt(self.apt, req)
+        return asyncio.run(resolve_requirement_apt(self.apt, req))
 
     def resolve(self, req: Requirement):
         ret = self.resolve_all(req)
