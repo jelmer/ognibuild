@@ -991,7 +991,7 @@ class AptResolver(Resolver):
         still_missing = []
         apt_requirements = []
         for m in missing:
-            apt_req = self.resolve(m)
+            apt_req = asyncio.run(self.resolve(m))
             if apt_req is None:
                 still_missing.append(m)
             else:
@@ -1006,7 +1006,7 @@ class AptResolver(Resolver):
     def explain(self, requirements):
         apt_requirements = []
         for r in requirements:
-            apt_req = self.resolve(r)
+            apt_req = asyncio.run(self.resolve(r))
             if apt_req is not None:
                 apt_requirements.append((r, apt_req))
         if apt_requirements:
@@ -1021,11 +1021,11 @@ class AptResolver(Resolver):
                 [o for o, r in apt_requirements],
             )
 
-    def resolve_all(self, req: Requirement):
-        return asyncio.run(resolve_requirement_apt(self.apt, req))
+    async def resolve_all(self, req: Requirement):
+        return resolve_requirement_apt(self.apt, req)
 
-    def resolve(self, req: Requirement):
-        ret = self.resolve_all(req)
+    async def resolve(self, req: Requirement):
+        ret = await self.resolve_all(req)
         if not ret:
             return None
         if len(ret) == 1:

@@ -15,8 +15,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import asyncio
 import logging
+
+from aiohttp import ClientSession
+from yarl import URL
 from typing import List
 
 from aiohttp import (
@@ -75,14 +77,13 @@ class DepServerAptResolver(AptResolver):
             AptManager.from_session(session), dep_server_url,
             tie_breakers=tie_breakers)
 
-    def resolve_all(self, req: Requirement):
+    async def resolve_all(self, req: Requirement):
         try:
             req.json()
         except NotImplementedError:
-            return super(DepServerAptResolver, self).resolve_all(req)
+            return await super(DepServerAptResolver, self).resolve_all(req)
         try:
-            return asyncio.run(
-                resolve_apt_requirement_dep_server(self.dep_server_url, req))
+            return await resolve_apt_requirement_dep_server(self.dep_server_url, req)
         except DepServerError:
             logging.warning('Falling back to resolving error locally')
             return super(DepServerAptResolver, self).resolve_all(req)

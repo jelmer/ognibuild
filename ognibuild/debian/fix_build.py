@@ -19,6 +19,7 @@ __all__ = [
     "build_incrementally",
 ]
 
+import asyncio
 from functools import partial
 import logging
 import os
@@ -165,7 +166,7 @@ class PackageDependencyFixer(BuildFixer):
 
         changed = False
         for req in reqs:
-            apt_req = self.apt_resolver.resolve(req)
+            apt_req = asyncio.run(self.apt_resolver.resolve(req))
             if apt_req is None:
                 return False
             if add_dependency(self.context, phase, apt_req):

@@ -18,7 +18,7 @@
 
 import logging
 import subprocess
-from typing import Optional, List, Type
+from typing import Optional, List, Type, AsyncIterator
 
 from .. import UnidentifiedError, Requirement
 from ..fix_build import run_detecting_problems
@@ -40,10 +40,11 @@ class Resolver(object):
     def install(self, requirements: List[Requirement]):
         raise NotImplementedError(self.install)
 
-    def resolve(self, requirement: Requirement) -> Optional[Requirement]:
+    async def resolve(self, requirement: Requirement) -> Optional[Requirement]:
         raise NotImplementedError(self.resolve)
 
-    def resolve_all(self, requirement: Requirement) -> List[Requirement]:
+    async def resolve_all(
+            self, requirement: Requirement) -> List[Requirement]:
         raise NotImplementedError(self.resolve_all)
 
     def explain(self, requirements: List[Requirement]):

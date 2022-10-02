@@ -36,6 +36,7 @@ setup(
     },
     scripts=['scripts/report-apt-deps-status'],
     install_requires=[
+        'aiohttp',
         'breezy>=3.2',
         'buildlog-consultant>=0.0.21',
         'requirements-parser',

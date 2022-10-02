@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import asyncio
 import argparse
 from contextlib import ExitStack
 import logging
@@ -47,7 +48,7 @@ with ExitStack() as es:
         for stage, reqs in deps.items():
             logging.info("Stage: %s", stage)
             for req in reqs:
-                apt_req = resolver.resolve(req)
+                apt_req = asyncio.run(resolver.resolve(req))
                 logging.info("%s: %s", req, apt_req.pkg_relation_str())
             logging.info('')
     else:
@@ -57,7 +58,7 @@ with ExitStack() as es:
         unresolved = []
         for stage, reqs in deps.items():
             for req in reqs:
-                apt_req = resolver.resolve(req)
+                apt_req = asyncio.run(resolver.resolve(req))
                 if apt_req is None:
                     unresolved.append(req)
                 elif stage == 'core':
