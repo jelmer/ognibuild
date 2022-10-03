@@ -875,7 +875,7 @@ async def resolve_vcs_access_req(apt_mgr, req):
 
 
 async def resolve_oneof_req(apt_mgr, req):
-    options = asyncio.gather(
+    options = await asyncio.gather(
         *[resolve_requirement_apt(apt_mgr, req) for req in req.elements])
     for option in options:
         if not option:
