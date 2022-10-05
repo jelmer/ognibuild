@@ -44,6 +44,7 @@ setup(
         'debian': ['debmutate', 'python_debian', 'python_apt'],
         'remote': ['breezy', 'dulwich'],
         'dep-server': ['aiohttp', 'aiohttp-openmetrics'],
+        'gcp': ['google-cloud-logging'],
     },
     tests_require=[
         'python_debian',
