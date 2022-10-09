@@ -17,7 +17,10 @@
 
 from ..buildlog import PROBLEM_CONVERTERS
 
-from buildlog_consultant import problem_clses
+from buildlog_consultant import (
+    problem_clses,
+    __version__ as buildlog_consultant_version,
+)
 
 from unittest import TestCase
 
@@ -25,5 +28,20 @@ from unittest import TestCase
 class TestProblemsExists(TestCase):
 
     def test_exist(self):
-        for problem_kind, fn in PROBLEM_CONVERTERS:
-            self.assertIn(problem_kind, problem_clses)
+        for entry in PROBLEM_CONVERTERS:
+            if len(entry) == 2:
+                problem_kind, fn = entry
+                min_version = None
+            elif len(entry) == 3:
+                problem_kind, fn, min_version = entry
+            else:
+                raise TypeError(entry)
+            if min_version is not None:
+                min_version_tuple = tuple(
+                    [int(x) for x in min_version.split('.')])
+                if buildlog_consultant_version < min_version_tuple:
+                    continue
+            self.assertTrue(
+                problem_kind in problem_clses,
+                f"{problem_kind} does not exist in known "
+                "buildlog-consultant problem kinds")
