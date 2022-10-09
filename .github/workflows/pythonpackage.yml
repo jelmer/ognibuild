@@ -33,8 +33,6 @@ jobs:
           sudo apt update
           sudo apt install libapt-pkg-dev
           python -m pip install -e ".[debian]"
-          mkdir -p ~/.config/breezy/plugins
-          brz branch lp:brz-debian ~/.config/breezy/plugins/debian
         if: "matrix.python-version != 'pypy3' && matrix.os == 'ubuntu-latest'"
       - name: Style checks
         run: |
