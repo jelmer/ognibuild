@@ -28,7 +28,7 @@ jobs:
           sudo apt update
           sudo apt install python3-wheel
           python -m pip install --upgrade pip
-          python -m pip install -e ".[remote,dep_server]"
+          python -m pip install -e ".[remote,dep_server,dev]"
           python setup.py develop
       - name: Install Debian-specific dependencies
         run: |
