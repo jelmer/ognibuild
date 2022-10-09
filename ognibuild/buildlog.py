@@ -90,6 +90,11 @@ from .requirements import (
 from .resolver import UnsatisfiedRequirements
 
 
+def map_pytest_arguments_to_plugin(args):
+    # TODO(jelmer): Map argument to PytestPluginRequirement
+    return None
+
+
 PROBLEM_CONVERTERS = [
     ('missing-file', lambda p: PathRequirement(p.path)),
     ('command-missing', lambda p: BinaryRequirement(p.command)),
@@ -153,6 +158,8 @@ PROBLEM_CONVERTERS = [
         module=p.module, filename=p.filename, inc=p.inc)),
     ('unknown-certificate-authority',
      lambda p: CertificateAuthorityRequirement(p.url)),
+    ('unsupported-pytest-arguments',
+     lambda p: map_pytest_arguments_to_plugin(p.args)),
 ]
 
 
