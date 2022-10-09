@@ -1,6 +1,7 @@
+---
 name: Python package
 
-on:
+"on":
   push:
   pull_request:
   schedule:
@@ -31,8 +32,10 @@ jobs:
         run: |
           sudo apt update
           sudo apt install libapt-pkg-dev
-          python -m pip install wheel
-          python -m pip install git+https://salsa.debian.org/apt-team/python-apt git+https://salsa.debian.org/python-debian-team/python-debian
+          python -m pip install wheel setuptools-rust
+          python -m pip install \
+            git+https://salsa.debian.org/apt-team/python-apt \
+            git+https://salsa.debian.org/python-debian-team/python-debian
           python -m pip install -e ".[debian,dep-server]"
           mkdir -p ~/.config/breezy/plugins
           brz branch lp:brz-debian ~/.config/breezy/plugins/debian
