@@ -206,6 +206,19 @@ class PHPExtensionRequirement(Requirement):
         return "%s(%r)" % (type(self).__name__, self.extension)
 
 
+class PytestPluginRequirement(Requirement):
+
+    family = "pytest-plugin"
+
+    plugin: str
+
+    def __init__(self, plugin: str):
+        self.plugin = plugin
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.plugin)
+
+
 class VcsControlDirectoryAccessRequirement(Requirement):
 
     vcs: List[str]

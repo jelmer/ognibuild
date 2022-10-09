@@ -19,7 +19,7 @@
 """
 
 import logging
-from typing import Optional
+from typing import Optional, List, Callable, Union, Tuple
 
 from buildlog_consultant.common import (
     Problem,
@@ -90,10 +90,21 @@ from .requirements import (
 from .resolver import UnsatisfiedRequirements
 
 
-PROBLEM_CONVERTERS = [
+def map_pytest_arguments_to_plugin(args):
+    # TODO(jelmer): Map argument to PytestPluginRequirement
+    return None
+
+
+ProblemToRequirementConverter = Callable[[Problem], Optional[Requirement]]
+
+
+PROBLEM_CONVERTERS: List[Union[
+        Tuple[str, ProblemToRequirementConverter],
+        Tuple[str, ProblemToRequirementConverter, str]]] = [
     ('missing-file', lambda p: PathRequirement(p.path)),
     ('command-missing', lambda p: BinaryRequirement(p.command)),
-    ('valac-cannot-compile', lambda p: VagueDependencyRequirement('valac')),
+    ('valac-cannot-compile', lambda p: VagueDependencyRequirement('valac'),
+     '0.0.27'),
     ('missing-cmake-files', lambda p: OneOfRequirement(
         [CMakefileRequirement(filename, p.version)
          for filename in p.filenames])),
@@ -113,7 +124,8 @@ PROBLEM_CONVERTERS = [
     ('missing-node-module', lambda p: NodeModuleRequirement(p.module)),
     ('missing-node-package', lambda p: NodePackageRequirement(p.package)),
     ('missing-ruby-gem', lambda p: RubyGemRequirement(p.gem, p.version)),
-    ('missing-qt-modules', lambda p: QtModuleRequirement(p.modules[0])),
+    ('missing-qt-modules', lambda p: QtModuleRequirement(p.modules[0]),
+     '0.0.27'),
     ('missing-php-class', lambda p: PhpClassRequirement(p.php_class)),
     ('missing-r-package', lambda p: RPackageRequirement(
         p.package, p.minimum_version)),
@@ -153,12 +165,15 @@ PROBLEM_CONVERTERS = [
         module=p.module, filename=p.filename, inc=p.inc)),
     ('unknown-certificate-authority',
      lambda p: CertificateAuthorityRequirement(p.url)),
+    ('unsupported-pytest-arguments',
+     lambda p: map_pytest_arguments_to_plugin(p.args), '0.0.27'),
 ]
 
 
 def problem_to_upstream_requirement(
         problem: Problem) -> Optional[Requirement]:  # noqa: C901
-    for kind, fn in PROBLEM_CONVERTERS:
+    for entry in PROBLEM_CONVERTERS:
+        kind, fn = entry[:2]
         if kind == problem.kind:
             return fn(problem)
     if isinstance(problem, MissingCMakeComponents):

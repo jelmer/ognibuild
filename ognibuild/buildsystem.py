@@ -441,6 +441,10 @@ class SetupPy(BuildSystem):
                 session, ["python3", "-m", "pep517.check", "."], fixers
             )
             return
+        if 'tool:pytest' in self.config or 'pytest' in self.config:
+            run_with_build_fixers(
+                session, ['pytest'], fixers)
+            return
         if self.has_setup_py:
             # Pre-emptively insall setuptools, since distutils doesn't provide
             # a 'test' subcommand and some packages fall back to distutils
