@@ -31,8 +31,8 @@ jobs:
       - name: Install Debian-specific dependencies
         run: |
           sudo apt update
-          sudo apt install libapt-pkg-dev
-          python -m pip install python-distutils-extra
+          sudo apt install libapt-pkg-dev bzr
+          python -m pip install https://launchpad.net/python-distutils-extra/
           python -m pip install -e ".[debian,dep-server]"
           mkdir -p ~/.config/breezy/plugins
           brz branch lp:brz-debian ~/.config/breezy/plugins/debian
