@@ -28,7 +28,7 @@ from aiohttp import (
 from yarl import URL
 
 
-from .. import Requirement, version_string
+from .. import Requirement, USER_AGENT
 from ..debian.apt import AptManager
 from .apt import AptRequirement, AptResolver
 
@@ -52,7 +52,7 @@ async def resolve_apt_requirement_dep_server(
     async with ClientSession() as session:
         try:
             async with session.post(URL(url) / "resolve-apt", headers={
-                    'User-Agent': 'ognibuild/%s' % version_string},
+                    'User-Agent': USER_AGENT},
                     json={'requirement': req.json()},
                     raise_for_status=True) as resp:
                 return [

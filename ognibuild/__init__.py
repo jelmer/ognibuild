@@ -21,11 +21,11 @@ import stat
 from typing import List, Dict, Type
 
 
-__version__ = (0, 0, 14)
+__version__ = (0, 0, 15)
 version_string = '.'.join(map(str, __version__))
 
 
-USER_AGENT = "Ognibuild"
+USER_AGENT = f"Ognibuild/{version_string}"
 
 
 class DetailedFailure(Exception):
