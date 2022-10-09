@@ -25,15 +25,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install python3-wheel
           python -m pip install --upgrade pip
           python -m pip install -e ".[remote,dep_server,dev]"
           python setup.py develop
       - name: Install Debian-specific dependencies
         run: |
           sudo apt update
-          sudo apt install libapt-pkg-dev
+          sudo apt install python3-wheel libapt-pkg-dev
           python -m pip install -e ".[debian]"
         if: "matrix.python-version != 'pypy3' && matrix.os == 'ubuntu-latest'"
       - name: Style checks
