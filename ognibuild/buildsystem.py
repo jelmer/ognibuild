@@ -535,11 +535,6 @@ class SetupPy(BuildSystem):
         argv = [interpreter, "./setup.py"] + args
         # TODO(jelmer): Perhaps this should be additive?
         env = dict(os.environ)
-        # Inherit SETUPTOOLS_SCM_PRETEND_VERSION from the current environment
-        if "SETUPTOOLS_SCM_PRETEND_VERSION" in os.environ:
-            env["SETUPTOOLS_SCM_PRETEND_VERSION"] = os.environ[
-                "SETUPTOOLS_SCM_PRETEND_VERSION"
-            ]
         run_with_build_fixers(session, argv, fixers, env=env)
 
     def _setup_requires(self):
