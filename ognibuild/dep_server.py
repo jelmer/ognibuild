@@ -26,6 +26,8 @@ from . import Requirement, UnknownRequirementFamily
 from .debian.apt import AptManager
 from .resolver.apt import resolve_requirement_apt
 
+SUPPORTED_RELEASES = ['unstable', 'sid']
+
 
 routes = web.RouteTableDef()
 
@@ -47,6 +49,11 @@ async def handle_apt(request):
         req_js = js['requirement']
     except KeyError:
         raise web.HTTPBadRequest(text="json missing 'requirement' key")
+    release = js.get('release')
+    if release and release not in SUPPORTED_RELEASES:
+        return web.json_response(
+            {"reason": "unsupported-release", "release": release},
+            status=404)
     try:
         req = Requirement.from_json(req_js)
     except UnknownRequirementFamily as e:
@@ -56,8 +63,13 @@ async def handle_apt(request):
     return web.json_response([r.pkg_relation_str() for r in apt_reqs])
 
 
-@routes.get('/resolve-apt/sid/{family}:{arg}', name='resolve-apt-simple')
+@routes.get('/resolve-apt/{release}/{family}:{arg}', name='resolve-apt-simple')
 async def handle_apt_simple(request):
+    if request.match_info['release'] not in SUPPORTED_RELEASES:
+        return web.json_response(
+            {"reason": "unsupported-release",
+             "release": request.match_info['release']},
+            status=404)
     try:
         req = Requirement.from_json(
             (request.match_info['family'], request.match_info['arg']))
