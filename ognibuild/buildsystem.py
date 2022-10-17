@@ -44,7 +44,7 @@ from .requirements import (
     GoPackageRequirement,
     VagueDependencyRequirement,
 )
-from .fix_build import run_with_build_fixers
+from .fix_build import run_with_build_fixers, run_detecting_problems
 from .session import which
 
 
@@ -86,7 +86,7 @@ class BuildSystem(object):
         return self.name
 
     def dist(
-        self, session, resolver, fixers, target_directory: str, quiet=False
+        self, session, resolver, target_directory: str, quiet=False
     ) -> str:
         raise NotImplementedError(self.dist)
 
@@ -97,16 +97,16 @@ class BuildSystem(object):
             resolver, declared_reqs, stages)
         install_missing_reqs(session, resolver, relevant, explain=False)
 
-    def test(self, session, resolver, fixers):
+    def test(self, session, resolver):
         raise NotImplementedError(self.test)
 
-    def build(self, session, resolver, fixers):
+    def build(self, session, resolver):
         raise NotImplementedError(self.build)
 
-    def clean(self, session, resolver, fixers):
+    def clean(self, session, resolver):
         raise NotImplementedError(self.clean)
 
-    def install(self, session, resolver, fixers, install_target):
+    def install(self, session, resolver, install_target):
         raise NotImplementedError(self.install)
 
     def get_declared_dependencies(self, session, fixers=None):
@@ -143,36 +143,33 @@ class Pear(BuildSystem):
     def __init__(self, path):
         self.path = path
 
-    def dist(self, session, resolver, fixers, target_directory: str,
+    def dist(self, session, resolver, target_directory: str,
              quiet: bool = False):
         with DistCatcher([session.external_path(".")]) as dc:
-            run_with_build_fixers(
+            run_detecting_problems(
                 session,
-                [guaranteed_which(session, resolver, "pear"), "package"],
-                fixers)
+                [guaranteed_which(session, resolver, "pear"), "package"])
         return dc.copy_single(target_directory)
 
-    def test(self, session, resolver, fixers):
-        run_with_build_fixers(
+    def test(self, session, resolver):
+        run_detecting_problems(
             session,
-            [guaranteed_which(session, resolver, "pear"), "run-tests"], fixers)
+            [guaranteed_which(session, resolver, "pear"), "run-tests"])
 
-    def build(self, session, resolver, fixers):
-        run_with_build_fixers(
+    def build(self, session, resolver):
+        run_detecting_problems(
             session,
-            [guaranteed_which(session, resolver, "pear"), "build", self.path],
-            fixers)
+            [guaranteed_which(session, resolver, "pear"), "build", self.path])
 
-    def clean(self, session, resolver, fixers):
+    def clean(self, session, resolver):
         self.setup(resolver)
         # TODO
 
-    def install(self, session, resolver, fixers, install_target):
-        run_with_build_fixers(
+    def install(self, session, resolver, install_target):
+        run_detecting_problems(
             session,
             [guaranteed_which(
-                session, resolver, "pear"), "install", self.path],
-            fixers)
+                session, resolver, "pear"), "install", self.path])
 
     def get_declared_dependencies(self, session, fixers=None):
         path = os.path.join(self.path, "package.xml")
@@ -419,7 +416,7 @@ class SetupPy(BuildSystem):
             ]
             try:
                 if fixers is not None:
-                    run_with_build_fixers(session, argv, fixers, quiet=True)
+                    run_with_build_fixers(fixers, session, argv, quiet=True)
                 else:
                     session.check_call(argv, close_fds=False)
             except RuntimeError as e:
@@ -431,19 +428,17 @@ class SetupPy(BuildSystem):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
 
-    def test(self, session, resolver, fixers):
+    def test(self, session, resolver):
         if os.path.exists(os.path.join(self.path, "tox.ini")):
-            run_with_build_fixers(
-                session, ["tox", "--skip-missing-interpreters"], fixers)
+            run_detecting_problems(
+                session, ["tox", "--skip-missing-interpreters"])
             return
         if self.pyproject:
-            run_with_build_fixers(
-                session, ["python3", "-m", "pep517.check", "."], fixers
-            )
+            run_detecting_problems(
+                session, ["python3", "-m", "pep517.check", "."])
             return
         if 'tool:pytest' in self.config or 'pytest' in self.config:
-            run_with_build_fixers(
-                session, ['pytest'], fixers)
+            run_detecting_problems(session, ['pytest'])
             return
         if self.has_setup_py:
             # Pre-emptively insall setuptools, since distutils doesn't provide
@@ -453,7 +448,7 @@ class SetupPy(BuildSystem):
             if not setuptools_req.met(session):
                 resolver.install([setuptools_req])
             try:
-                self._run_setup(session, resolver, ["test"], fixers)
+                self._run_setup(session, resolver, ["test"])
             except UnidentifiedError as e:
                 if "error: invalid command 'test'" in e.lines:
                     pass
@@ -463,13 +458,13 @@ class SetupPy(BuildSystem):
                 return
         raise NotImplementedError
 
-    def build(self, session, resolver, fixers):
+    def build(self, session, resolver):
         if self.has_setup_py:
-            self._run_setup(session, resolver, ["build"], fixers)
+            self._run_setup(session, resolver, ["build"])
         else:
             raise NotImplementedError
 
-    def dist(self, session, resolver, fixers, target_directory, quiet=False):
+    def dist(self, session, resolver, target_directory, quiet=False):
         # TODO(jelmer): Look at self.build_backend
         if self.has_setup_py:
             preargs = []
@@ -481,25 +476,24 @@ class SetupPy(BuildSystem):
             if not setuptools_req.met(session):
                 resolver.install([setuptools_req])
             with DistCatcher([session.external_path("dist")]) as dc:
-                self._run_setup(session, resolver, preargs + ["sdist"], fixers)
+                self._run_setup(session, resolver, preargs + ["sdist"])
             return dc.copy_single(target_directory)
         elif self.pyproject:
             with DistCatcher([session.external_path("dist")]) as dc:
-                run_with_build_fixers(
+                run_detecting_problems(
                     session,
                     ["python3", "-m", "pep517.build", "--source", "."],
-                    fixers,
                 )
             return dc.copy_single(target_directory)
         raise AssertionError("no setup.py or pyproject.toml")
 
-    def clean(self, session, resolver, fixers):
+    def clean(self, session, resolver):
         if self.has_setup_py:
-            self._run_setup(session, resolver, ["clean"], fixers)
+            self._run_setup(session, resolver, ["clean"])
         else:
             raise NotImplementedError
 
-    def install(self, session, resolver, fixers, install_target):
+    def install(self, session, resolver, install_target):
         if self.has_setup_py:
             extra_args = []
             if install_target.user:
@@ -507,7 +501,7 @@ class SetupPy(BuildSystem):
             if install_target.prefix:
                 extra_args.append("--prefix=%s" % install_target.prefix)
             self._run_setup(
-                session, resolver, ["install"] + extra_args, fixers)
+                session, resolver, ["install"] + extra_args)
         else:
             raise NotImplementedError
 
@@ -525,7 +519,7 @@ class SetupPy(BuildSystem):
             interpreter = self.DEFAULT_PYTHON
         return interpreter
 
-    def _run_setup(self, session, resolver, args, fixers):
+    def _run_setup(self, session, resolver, args):
         from .buildlog import install_missing_reqs
 
         # Install the setup_requires beforehand, since otherwise
@@ -535,7 +529,7 @@ class SetupPy(BuildSystem):
         argv = [interpreter, "./setup.py"] + args
         # TODO(jelmer): Perhaps this should be additive?
         env = dict(os.environ)
-        run_with_build_fixers(session, argv, fixers, env=env)
+        run_detecting_problems(session, argv, env=env)
 
     def _setup_requires(self):
         if self.pyproject:
@@ -647,11 +641,11 @@ class Bazel(BuildSystem):
             logging.debug("Found BUILD, assuming bazel package.")
             return cls(path)
 
-    def build(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["bazel", "build", "//..."], fixers)
+    def build(self, session, resolver):
+        run_detecting_problems(session, ["bazel", "build", "//..."])
 
-    def test(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["bazel", "test", "//..."], fixers)
+    def test(self, session, resolver):
+        run_detecting_problems(session, ["bazel", "test", "//..."])
 
 
 class GnomeShellExtension(BuildSystem):
@@ -677,10 +671,10 @@ class GnomeShellExtension(BuildSystem):
                 "Found metadata.json , assuming gnome-shell extension.")
             return cls(path)
 
-    def build(self, session, resolver, fixers):
+    def build(self, session, resolver):
         pass
 
-    def test(self, session, resolver, fixers):
+    def test(self, session, resolver):
         pass
 
     def get_declared_dependencies(self, session, fixers=None):
@@ -774,7 +768,7 @@ class Gradle(BuildSystem):
             if not binary_req.met(session):
                 resolver.install([binary_req])
 
-    def _run(self, session, resolver, task, args, fixers):
+    def _run(self, session, resolver, task, args):
         self.setup(session, resolver)
         argv = []
         if self.executable.startswith("./") and (
@@ -784,7 +778,7 @@ class Gradle(BuildSystem):
         argv.extend([self.executable, task])
         argv.extend(args)
         try:
-            run_with_build_fixers(session, argv, fixers)
+            run_detecting_problems(session, argv)
         except UnidentifiedError as e:
             if any(
                 [
@@ -798,24 +792,24 @@ class Gradle(BuildSystem):
                 raise NotImplementedError
             raise
 
-    def clean(self, session, resolver, fixers):
-        self._run(session, resolver, "clean", [], fixers)
+    def clean(self, session, resolver):
+        self._run(session, resolver, "clean", [])
 
-    def build(self, session, resolver, fixers):
-        self._run(session, resolver, "build", [], fixers)
+    def build(self, session, resolver):
+        self._run(session, resolver, "build", [])
 
-    def test(self, session, resolver, fixers):
-        self._run(session, resolver, "test", [], fixers)
+    def test(self, session, resolver):
+        self._run(session, resolver, "test", [])
 
-    def dist(self, session, resolver, fixers, target_directory, quiet=False):
+    def dist(self, session, resolver, target_directory, quiet=False):
         with DistCatcher([session.external_path(".")]) as dc:
-            self._run(session, resolver, "distTar", [], fixers)
+            self._run(session, resolver, "distTar", [])
         return dc.copy_single(target_directory)
 
-    def install(self, session, resolver, fixers, install_target):
+    def install(self, session, resolver, install_target):
         raise NotImplementedError
         # TODO(jelmer): installDist just creates files under build/install/...
-        self._run(session, resolver, "installDist", [], fixers)
+        self._run(session, resolver, "installDist", [])
 
 
 class R(BuildSystem):
@@ -830,35 +824,34 @@ class R(BuildSystem):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
 
-    def build(self, session, resolver, fixers):
+    def build(self, session, resolver):
         pass
 
-    def dist(self, session, resolver, fixers, target_directory, quiet=False):
+    def dist(self, session, resolver, target_directory, quiet=False):
         r_path = guaranteed_which(session, resolver, "R")
         with DistCatcher([session.external_path(".")]) as dc:
-            run_with_build_fixers(
-                session, [r_path, "CMD", "build", "."], fixers)
+            run_detecting_problems(session, [r_path, "CMD", "build", "."])
         return dc.copy_single(target_directory)
 
-    def install(self, session, resolver, fixers, install_target):
+    def install(self, session, resolver, install_target):
         extra_args = []
         if install_target.prefix:
             extra_args.append("--prefix=%s" % install_target.prefix)
         r_path = guaranteed_which(session, resolver, "R")
-        run_with_build_fixers(
-            session, [r_path, "CMD", "INSTALL", "."] + extra_args, fixers)
+        run_detecting_problems(
+            session, [r_path, "CMD", "INSTALL", "."] + extra_args)
 
-    def test(self, session, resolver, fixers):
+    def test(self, session, resolver):
         r_path = guaranteed_which(session, resolver, "R")
         if session.exists("run_tests.sh"):
-            run_with_build_fixers(session, ["./run_tests.sh"], fixers)
+            run_detecting_problems(session, ["./run_tests.sh"])
         elif session.exists("tests/testthat"):
-            run_with_build_fixers(
-                session, [r_path, "-e", "testthat::test_dir('tests')"], fixers)
+            run_detecting_problems(
+                session, [r_path, "-e", "testthat::test_dir('tests')"])
 
-    def lint(self, session, resolver, fixers):
+    def lint(self, session, resolver):
         r_path = guaranteed_which(session, resolver, "R")
-        run_with_build_fixers(session, [r_path, "CMD", "check"], fixers)
+        run_detecting_problems(session, [r_path, "CMD", "check"])
 
     @classmethod
     def probe(cls, path):
@@ -908,26 +901,25 @@ class Meson(BuildSystem):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
 
-    def _setup(self, session, fixers):
+    def _setup(self, session):
         if not session.exists("build"):
             session.mkdir("build")
-        run_with_build_fixers(session, ["meson", "setup", "build"], fixers)
+        run_detecting_problems(session, ["meson", "setup", "build"])
 
-    def clean(self, session, resolver, fixers):
-        self._setup(session, fixers)
-        run_with_build_fixers(
-            session, ["ninja", "-C", "build", "clean"], fixers)
+    def clean(self, session, resolver):
+        self._setup(session)
+        run_detecting_problems(session, ["ninja", "-C", "build", "clean"])
 
-    def build(self, session, resolver, fixers):
-        self._setup(session, fixers)
-        run_with_build_fixers(session, ["ninja", "-C", "build"], fixers)
+    def build(self, session, resolver):
+        self._setup(session)
+        run_detecting_problems(session, ["ninja", "-C", "build"])
 
-    def dist(self, session, resolver, fixers, target_directory, quiet=False):
-        self._setup(session, fixers)
+    def dist(self, session, resolver, target_directory, quiet=False):
+        self._setup(session)
         with DistCatcher([session.external_path("build/meson-dist")]) as dc:
             try:
-                run_with_build_fixers(
-                    session, ["ninja", "-C", "build", "dist"], fixers)
+                run_detecting_problems(
+                    session, ["ninja", "-C", "build", "dist"])
             except UnidentifiedError as e:
                 if ("ninja: error: unknown target 'dist', did you mean 'dino'?"
                         in e.lines):
@@ -935,15 +927,13 @@ class Meson(BuildSystem):
                 raise
         return dc.copy_single(target_directory)
 
-    def test(self, session, resolver, fixers):
-        self._setup(session, fixers)
-        run_with_build_fixers(
-            session, ["ninja", "-C", "build", "test"], fixers)
+    def test(self, session, resolver):
+        self._setup(session)
+        run_detecting_problems(session, ["ninja", "-C", "build", "test"])
 
-    def install(self, session, resolver, fixers, install_target):
-        self._setup(session, fixers)
-        run_with_build_fixers(
-            session, ["ninja", "-C", "build", "install"], fixers)
+    def install(self, session, resolver, install_target):
+        self._setup(session)
+        run_detecting_problems(session, ["ninja", "-C", "build", "install"])
 
     @classmethod
     def probe(cls, path):
@@ -953,8 +943,9 @@ class Meson(BuildSystem):
 
     def _introspect(self, session, fixers, args):
         ret = run_with_build_fixers(
+            fixers,
             session,
-            ["meson", "introspect"] + args + ['./meson.build'], fixers)
+            ["meson", "introspect"] + args + ['./meson.build'])
         import json
         return json.loads(''.join(ret))
 
@@ -1015,35 +1006,33 @@ class Npm(BuildSystem):
         if not binary_req.met(session):
             resolver.install([binary_req])
 
-    def dist(self, session, resolver, fixers, target_directory, quiet=False):
+    def dist(self, session, resolver, target_directory, quiet=False):
         self.setup(session, resolver)
         with DistCatcher([session.external_path(".")]) as dc:
-            run_with_build_fixers(session, ["npm", "pack"], fixers)
+            run_detecting_problems(session, ["npm", "pack"])
         return dc.copy_single(target_directory)
 
-    def test(self, session, resolver, fixers):
+    def test(self, session, resolver):
         self.setup(session, resolver)
         test_script = self.package.get("scripts", {}).get("test")
         if test_script:
-            run_with_build_fixers(session, ['bash', '-c', test_script], fixers)
+            run_detecting_problems(session, ['bash', '-c', test_script])
         else:
             logging.info('No test command defined in package.json')
 
-    def build(self, session, resolver, fixers):
+    def build(self, session, resolver):
         self.setup(session, resolver)
         build_script = self.package.get("scripts", {}).get("build")
         if build_script:
-            run_with_build_fixers(
-                session, ['bash', '-c', build_script], fixers)
+            run_detecting_problems(session, ['bash', '-c', build_script])
         else:
             logging.info('No build command defined in package.json')
 
-    def clean(self, session, resolver, fixers):
+    def clean(self, session, resolver):
         self.setup(session, resolver)
         clean_script = self.package.get("scripts", {}).get("clean")
         if clean_script:
-            run_with_build_fixers(
-                session, ['bash', '-c', clean_script], fixers)
+            run_detecting_problems(session, ['bash', '-c', clean_script])
         else:
             logging.info('No clean command defined in package.json')
 
@@ -1061,33 +1050,31 @@ class Waf(BuildSystem):
     def __init__(self, path):
         self.path = path
 
-    def setup(self, session, resolver, fixers):
+    def setup(self, session, resolver):
         binary_req = BinaryRequirement("python3")
         if not binary_req.met(session):
             resolver.install([binary_req])
 
-    def build(self, session, resolver, fixers):
+    def build(self, session, resolver):
         try:
-            run_with_build_fixers(session, [self.path, 'build'], fixers)
+            run_detecting_problems(session, [self.path, 'build'])
         except UnidentifiedError as e:
             if ("The project was not configured: run \"waf configure\" first!"
                     in e.lines):
-                run_with_build_fixers(
-                    session, [self.path, 'configure'], fixers)
-                run_with_build_fixers(
-                    session, [self.path, 'build'], fixers)
+                run_detecting_problems(session, [self.path, 'configure'])
+                run_detecting_problems(session, [self.path, 'build'])
             else:
                 raise
 
-    def dist(self, session, resolver, fixers, target_directory, quiet=False):
-        self.setup(session, resolver, fixers)
+    def dist(self, session, resolver, target_directory, quiet=False):
+        self.setup(session, resolver)
         with DistCatcher.default(session.external_path(".")) as dc:
-            run_with_build_fixers(session, ["./waf", "dist"], fixers)
+            run_detecting_problems(session, ["./waf", "dist"])
         return dc.copy_single(target_directory)
 
-    def test(self, session, resolver, fixers):
-        self.setup(session, resolver, fixers)
-        run_with_build_fixers(session, ["./waf", "test"], fixers)
+    def test(self, session, resolver):
+        self.setup(session, resolver)
+        run_detecting_problems(session, ["./waf", "test"])
 
     @classmethod
     def probe(cls, path):
@@ -1103,7 +1090,7 @@ class Gem(BuildSystem):
     def __init__(self, path):
         self.path = path
 
-    def dist(self, session, resolver, fixers, target_directory, quiet=False):
+    def dist(self, session, resolver, target_directory, quiet=False):
         gemfiles = [
             entry.name for entry in session.scandir(".")
             if entry.name.endswith(".gem")
@@ -1111,10 +1098,10 @@ class Gem(BuildSystem):
         if len(gemfiles) > 1:
             logging.warning("More than one gemfile. Trying the first?")
         with DistCatcher.default(session.external_path(".")) as dc:
-            run_with_build_fixers(
+            run_detecting_problems(
                 session,
                 [guaranteed_which(session, resolver, "gem2tgz"),
-                 gemfiles[0]], fixers)
+                 gemfiles[0]])
         return dc.copy_single(target_directory)
 
     @classmethod
@@ -1160,40 +1147,36 @@ class DistZilla(BuildSystem):
             ]
         )
 
-    def dist(self, session, resolver, fixers, target_directory, quiet=False):
+    def dist(self, session, resolver, target_directory, quiet=False):
         self.setup(resolver)
         if self.name == "dist-inkt":
             with DistCatcher.default(session.external_path(".")) as dc:
-                run_with_build_fixers(
+                run_detecting_problems(
                     session,
-                    [guaranteed_which(session, resolver, "distinkt-dist")],
-                    fixers)
+                    [guaranteed_which(session, resolver, "distinkt-dist")])
             return dc.copy_single(target_directory)
         else:
             # Default to invoking Dist::Zilla
             with DistCatcher.default(session.external_path(".")) as dc:
-                run_with_build_fixers(
+                run_detecting_problems(
                     session,
                     [guaranteed_which(session, resolver, "dzil"),
-                     "build", "--tgz"],
-                    fixers)
+                     "build", "--tgz"])
             return dc.copy_single(target_directory)
 
-    def test(self, session, resolver, fixers):
+    def test(self, session, resolver):
         # see also
         # https://perlmaven.com/how-to-run-the-tests-of-a-typical-perl-module
         self.setup(resolver)
-        run_with_build_fixers(
+        run_detecting_problems(
             session,
-            [guaranteed_which(session, resolver, "dzil"), "test"],
-            fixers)
+            [guaranteed_which(session, resolver, "dzil"), "test"])
 
-    def build(self, session, resolver, fixers):
+    def build(self, session, resolver):
         self.setup(resolver)
-        run_with_build_fixers(
+        run_detecting_problems(
             session,
-            [guaranteed_which(session, resolver, "dzil"), "build"],
-            fixers)
+            [guaranteed_which(session, resolver, "dzil"), "build"])
 
     @classmethod
     def probe(cls, path):
@@ -1204,7 +1187,7 @@ class DistZilla(BuildSystem):
     def get_declared_dependencies(self, session, fixers=None):
         if os.path.exists(os.path.join(self.path, "dist.ini")):
             lines = run_with_build_fixers(
-                session, ["dzil", "authordeps"], fixers)
+                fixers, session, ["dzil", "authordeps"])
             for entry in lines:
                 yield "build", PerlModuleRequirement(entry.strip())
         if os.path.exists(
@@ -1227,17 +1210,16 @@ class RunTests(BuildSystem):
         if os.path.exists(os.path.join(path, "runtests.sh")):
             return cls(path)
 
-    def test(self, session, resolver, fixers):
+    def test(self, session, resolver):
         if shebang_binary(os.path.join(self.path, "runtests.sh")) is not None:
-            run_with_build_fixers(session, ["./runtests.sh"], fixers)
+            run_detecting_problems(session, ["./runtests.sh"])
         else:
-            run_with_build_fixers(
-                session, ["/bin/bash", "./runtests.sh"], fixers)
+            run_detecting_problems(session, ["/bin/bash", "./runtests.sh"])
 
 
 def _read_cpanfile(session, args, kind, fixers):
     for line in run_with_build_fixers(
-            session, ["cpanfile-dump"] + args, fixers):
+            fixers, session, ["cpanfile-dump"] + args):
         line = line.strip()
         if line:
             yield kind, PerlModuleRequirement(line)
@@ -1280,12 +1262,12 @@ class CMake(BuildSystem):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
 
-    def setup(self, session, resolver, fixers):
+    def setup(self, session, resolver):
         if not session.exists(self.builddir):
             session.mkdir(self.builddir)
         try:
-            run_with_build_fixers(
-                session, ["cmake", '.', '-B%s' % self.builddir], fixers)
+            run_detecting_problems(
+                session, ["cmake", '.', '-B%s' % self.builddir])
         except Exception:
             session.rmtree(self.builddir)
             raise
@@ -1296,24 +1278,23 @@ class CMake(BuildSystem):
             return cls(path)
         return None
 
-    def build(self, session, resolver, fixers):
-        self.setup(session, resolver, fixers)
-        run_with_build_fixers(
-            session, ["cmake", "--build", self.builddir], fixers)
+    def build(self, session, resolver):
+        self.setup(session, resolver)
+        run_detecting_problems(
+            session, ["cmake", "--build", self.builddir])
 
-    def install(self, session, resolver, fixers, install_target):
-        self.setup(session, resolver, fixers)
-        run_with_build_fixers(
-            session, ["cmake", "--install", self.builddir], fixers)
+    def install(self, session, resolver, install_target):
+        self.setup(session, resolver)
+        run_detecting_problems(
+            session, ["cmake", "--install", self.builddir])
 
-    def clean(self, session, resolver, fixers):
-        self.setup(session, resolver, fixers)
-        run_with_build_fixers(
+    def clean(self, session, resolver):
+        self.setup(session, resolver)
+        run_detecting_problems(
             session,
-            ["cmake", "--build %s" % self.builddir, ".", "--target", "clean"],
-            fixers)
+            ["cmake", "--build %s" % self.builddir, ".", "--target", "clean"])
 
-    def test(self, session, resolver, fixers):
+    def test(self, session, resolver):
         raise NotImplementedError(self.test)
 
 
@@ -1336,7 +1317,7 @@ class Make(BuildSystem):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
 
-    def setup(self, session, resolver, fixers, prefix=None):
+    def setup(self, session, resolver, prefix=None):
         def makefile_exists():
             return any(
                 [session.exists(p)
@@ -1344,59 +1325,56 @@ class Make(BuildSystem):
             )
 
         if session.exists("Makefile.PL") and not makefile_exists():
-            run_with_build_fixers(session, ["perl", "Makefile.PL"], fixers)
+            run_detecting_problems(session, ["perl", "Makefile.PL"])
 
         if not makefile_exists() and not session.exists("configure"):
             if session.exists("autogen.sh"):
                 if shebang_binary(
                         os.path.join(self.path, "autogen.sh")) is None:
-                    run_with_build_fixers(
-                        session, ["/bin/sh", "./autogen.sh"], fixers)
+                    run_detecting_problems(
+                        session, ["/bin/sh", "./autogen.sh"])
                 try:
-                    run_with_build_fixers(session, ["./autogen.sh"], fixers)
+                    run_detecting_problems(session, ["./autogen.sh"])
                 except UnidentifiedError as e:
                     if (
                         "Gnulib not yet bootstrapped; "
                         "run ./bootstrap instead." in e.lines
                     ):
-                        run_with_build_fixers(
-                            session, ["./bootstrap"], fixers)
-                        run_with_build_fixers(
-                            session, ["./autogen.sh"], fixers)
+                        run_detecting_problems(session, ["./bootstrap"])
+                        run_detecting_problems(session, ["./autogen.sh"])
                     else:
                         raise
 
             elif (session.exists("configure.ac")
                     or session.exists("configure.in")):
-                run_with_build_fixers(session, ["autoreconf", "-i"], fixers)
+                run_detecting_problems(session, ["autoreconf", "-i"])
 
         if not makefile_exists() and session.exists("configure"):
             extra_args = []
             if prefix is not None:
                 extra_args.append('--prefix=%s' % prefix)
-            run_with_build_fixers(
-                session, ["./configure"] + extra_args, fixers)
+            run_detecting_problems(session, ["./configure"] + extra_args)
 
         if not makefile_exists() and any(
             [n.name.endswith(".pro") for n in session.scandir(".")]
         ):
-            run_with_build_fixers(session, ["qmake"], fixers)
+            run_detecting_problems(session, ["qmake"])
 
-    def build(self, session, resolver, fixers):
-        self.setup(session, resolver, fixers)
+    def build(self, session, resolver):
+        self.setup(session, resolver)
         if self.name == 'qmake':
             default_target = None
         else:
             default_target = 'all'
         self._run_make(
             session,
-            [default_target] if default_target else [], fixers)
+            [default_target] if default_target else [])
 
-    def clean(self, session, resolver, fixers):
-        self.setup(session, resolver, fixers)
-        self._run_make(session, ["clean"], fixers)
+    def clean(self, session, resolver):
+        self.setup(session, resolver)
+        self._run_make(session, ["clean"])
 
-    def _run_make(self, session, args, fixers, prefix=None):
+    def _run_make(self, session, args, prefix=None):
         def _wants_configure(line):
             if line.startswith("Run ./configure"):
                 return True
@@ -1416,30 +1394,29 @@ class Make(BuildSystem):
         else:
             cwd = None
         try:
-            run_with_build_fixers(session, ["make"] + args, fixers, cwd=cwd)
+            run_detecting_problems(session, ["make"] + args, cwd=cwd)
         except UnidentifiedError as e:
             if len(e.lines) < 5 and any(
                     [_wants_configure(line) for line in e.lines]):
                 extra_args = []
                 if prefix is not None:
                     extra_args.append("--prefix=%s" % prefix)
-                run_with_build_fixers(
-                    session, ["./configure"] + extra_args, fixers)
-                run_with_build_fixers(session, ["make"] + args, fixers)
+                run_detecting_problems(session, ["./configure"] + extra_args)
+                run_detecting_problems(session, ["make"] + args)
             elif (
                 "Reconfigure the source tree "
                 "(via './config' or 'perl Configure'), please."
             ) in e.lines:
-                run_with_build_fixers(session, ["./config"], fixers)
-                run_with_build_fixers(session, ["make"] + args, fixers)
+                run_detecting_problems(session, ["./config"])
+                run_detecting_problems(session, ["make"] + args)
             else:
                 raise
 
-    def test(self, session, resolver, fixers):
-        self.setup(session, resolver, fixers)
+    def test(self, session, resolver):
+        self.setup(session, resolver)
         for target in ["check", "test"]:
             try:
-                self._run_make(session, [target], fixers)
+                self._run_make(session, [target])
             except UnidentifiedError as e:
                 if (("make: *** No rule to make target '%s'.  Stop." % target)
                         in e.lines):
@@ -1452,20 +1429,19 @@ class Make(BuildSystem):
             if os.path.isdir('t'):
                 # See
                 # https://perlmaven.com/how-to-run-the-tests-of-a-typical-perl-module
-                run_with_build_fixers(session, ["prove", "-b", "t/"], fixers)
+                run_detecting_problems(session, ["prove", "-b", "t/"])
             else:
                 logging.warning('No test target found')
 
-    def install(self, session, resolver, fixers, install_target):
-        self.setup(session, resolver, fixers, prefix=install_target.prefix)
-        self._run_make(
-            session, ["install"], fixers, prefix=install_target.prefix)
+    def install(self, session, resolver, install_target):
+        self.setup(session, resolver, prefix=install_target.prefix)
+        self._run_make(session, ["install"], prefix=install_target.prefix)
 
-    def dist(self, session, resolver, fixers, target_directory, quiet=False):
-        self.setup(session, resolver, fixers)
+    def dist(self, session, resolver, target_directory, quiet=False):
+        self.setup(session, resolver)
         with DistCatcher.default(session.external_path(".")) as dc:
             try:
-                self._run_make(session, ["dist"], fixers)
+                self._run_make(session, ["dist"])
             except UnidentifiedError as e:
                 if ("make: *** No rule to make target 'dist'.  Stop."
                         in e.lines):
@@ -1480,10 +1456,8 @@ class Make(BuildSystem):
                     "Please try running 'make manifest' and then run "
                     "'make dist' again." in e.lines
                 ):
-                    run_with_build_fixers(
-                        session, ["make", "manifest"], fixers)
-                    run_with_build_fixers(
-                        session, ["make", "dist"], fixers)
+                    run_detecting_problems(session, ["make", "manifest"])
+                    run_detecting_problems(session, ["make", "dist"])
                 elif any(
                     [
                         re.match(
@@ -1495,8 +1469,8 @@ class Make(BuildSystem):
                         for line in e.lines
                     ]
                 ):
-                    run_with_build_fixers(session, ["./configure"], fixers)
-                    run_with_build_fixers(session, ["make", "dist"], fixers)
+                    run_detecting_problems(session, ["./configure"])
+                    run_detecting_problems(session, ["make", "dist"])
                 elif any(
                     [
                         re.match(
@@ -1507,9 +1481,8 @@ class Make(BuildSystem):
                         for line in e.lines
                     ]
                 ):
-                    run_with_build_fixers(
-                        session, ["make", "manifest"], fixers)
-                    run_with_build_fixers(session, ["make", "dist"], fixers)
+                    run_detecting_problems(session, ["make", "manifest"])
+                    run_detecting_problems(session, ["make", "dist"])
                 else:
                     raise
         return dc.copy_single(target_directory)
@@ -1561,7 +1534,7 @@ class Cargo(BuildSystem):
             self.cargo = load(f)
 
     def install_declared_requirements(self, stages, session, resolver, fixers):
-        run_with_build_fixers(session, ["cargo", "fetch"], fixers)
+        run_with_build_fixers(fixers, session, ["cargo", "fetch"])
 
     def get_declared_dependencies(self, session, fixers=None):
         if "dependencies" in self.cargo:
@@ -1575,26 +1548,26 @@ class Cargo(BuildSystem):
                     version=details.get("version"),
                 )
 
-    def test(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["cargo", "test"], fixers)
+    def test(self, session, resolver):
+        run_detecting_problems(session, ["cargo", "test"])
 
-    def clean(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["cargo", "clean"], fixers)
+    def clean(self, session, resolver):
+        run_detecting_problems(session, ["cargo", "clean"])
 
-    def build(self, session, resolver, fixers):
+    def build(self, session, resolver):
         try:
-            run_with_build_fixers(session, ["cargo", "generate"], fixers)
+            run_detecting_problems(session, ["cargo", "generate"])
         except UnidentifiedError as e:
             if e.lines != ['error: no such subcommand: `generate`']:
                 raise
-        run_with_build_fixers(session, ["cargo", "build"], fixers)
+        run_detecting_problems(session, ["cargo", "build"])
 
-    def install(self, session, resolver, fixers, install_target):
+    def install(self, session, resolver, install_target):
         args = []
         if install_target.prefix:
             args.append('-root=%s' % install_target.prefix)
-        run_with_build_fixers(
-            session, ["cargo", "install", "--path=."] + args, fixers)
+        run_detecting_problems(
+            session, ["cargo", "install", "--path=."] + args)
 
     @classmethod
     def probe(cls, path):
@@ -1639,16 +1612,16 @@ class Golang(BuildSystem):
     def __repr__(self):
         return "%s()" % (type(self).__name__)
 
-    def test(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["go", "test", "./..."], fixers)
+    def test(self, session, resolver):
+        run_detecting_problems(session, ["go", "test", "./..."])
 
-    def build(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["go", "build"], fixers)
+    def build(self, session, resolver):
+        run_detecting_problems(session, ["go", "build"])
 
-    def install(self, session, resolver, fixers, install_target):
-        run_with_build_fixers(session, ["go", "install"], fixers)
+    def install(self, session, resolver, install_target):
+        run_detecting_problems(session, ["go", "install"])
 
-    def clean(self, session, resolver, fixers):
+    def clean(self, session, resolver):
         session.check_call(["go", "clean"])
 
     def get_declared_dependencies(self, session, fixers=None):
@@ -1704,19 +1677,19 @@ class Maven(BuildSystem):
             logging.debug("Found pom.xml, assuming maven package.")
             return cls(os.path.join(path, "pom.xml"))
 
-    def test(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["mvn", "test"], fixers)
+    def test(self, session, resolver):
+        run_detecting_problems(session, ["mvn", "test"])
 
-    def clean(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["mvn", "clean"], fixers)
+    def clean(self, session, resolver):
+        run_detecting_problems(session, ["mvn", "clean"])
 
-    def install(self, session, resolver, fixers, install_target):
-        run_with_build_fixers(session, ["mvn", "install"], fixers)
+    def install(self, session, resolver, install_target):
+        run_detecting_problems(session, ["mvn", "install"])
 
-    def build(self, session, resolver, fixers):
-        run_with_build_fixers(session, ["mvn", "compile"], fixers)
+    def build(self, session, resolver):
+        run_detecting_problems(session, ["mvn", "compile"])
 
-    def dist(self, session, resolver, fixers, target_directory, quiet=False):
+    def dist(self, session, resolver, target_directory, quiet=False):
         # TODO(jelmer): 'mvn generate-sources' creates a jar in target/.
         # is that what we need?
         raise NotImplementedError
@@ -1753,32 +1726,30 @@ class Cabal(BuildSystem):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
 
-    def _run(self, session, args, fixers):
+    def _run(self, session, args):
         try:
-            run_with_build_fixers(
-                session, ["runhaskell", "Setup.hs"] + args, fixers)
+            run_detecting_problems(
+                session, ["runhaskell", "Setup.hs"] + args)
         except UnidentifiedError as e:
             if "Run the 'configure' command first." in e.lines:
-                run_with_build_fixers(
-                    session, ["runhaskell", "Setup.hs", "configure"], fixers
-                )
-                run_with_build_fixers(
-                    session, ["runhaskell", "Setup.hs"] + args, fixers
-                )
+                run_detecting_problems(
+                    session, ["runhaskell", "Setup.hs", "configure"])
+                run_detecting_problems(
+                    session, ["runhaskell", "Setup.hs"] + args)
             else:
                 raise
 
-    def test(self, session, resolver, fixers):
-        self._run(session, ["test"], fixers)
+    def test(self, session, resolver):
+        self._run(session, ["test"])
 
-    def dist(self, session, resolver, fixers, target_directory, quiet=False):
+    def dist(self, session, resolver, target_directory, quiet=False):
         with DistCatcher(
             [
                 session.external_path("dist-newstyle/sdist"),
                 session.external_path("dist"),
             ]
         ) as dc:
-            self._run(session, ["sdist"], fixers)
+            self._run(session, ["sdist"])
         return dc.copy_single(target_directory)
 
     @classmethod
@@ -1816,55 +1787,54 @@ class PerlBuildTiny(BuildSystem):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.path)
 
-    def setup(self, session, fixers):
-        run_with_build_fixers(session, ["perl", "Build.PL"], fixers)
+    def setup(self, session, fixers=None):
+        run_with_build_fixers(fixers, session, ["perl", "Build.PL"])
 
-    def test(self, session, resolver, fixers):
-        self.setup(session, fixers)
+    def test(self, session, resolver):
+        self.setup(session)
         if self.minilla:
-            run_with_build_fixers(session, ["minil", "test"], fixers)
+            run_detecting_problems(session, ["minil", "test"])
         else:
-            run_with_build_fixers(session, ["./Build", "test"], fixers)
+            run_detecting_problems(session, ["./Build", "test"])
 
-    def build(self, session, resolver, fixers):
-        self.setup(session, fixers)
-        run_with_build_fixers(session, ["./Build", "build"], fixers)
+    def build(self, session, resolver):
+        self.setup(session)
+        run_detecting_problems(session, ["./Build", "build"])
 
-    def clean(self, session, resolver, fixers):
-        self.setup(session, fixers)
-        run_with_build_fixers(session, ["./Build", "clean"], fixers)
+    def clean(self, session, resolver):
+        self.setup(session)
+        run_detecting_problems(session, ["./Build", "clean"])
 
-    def dist(self, session, resolver, fixers, target_directory, quiet=False):
-        self.setup(session, fixers)
+    def dist(self, session, resolver, target_directory, quiet=False):
+        self.setup(session)
         with DistCatcher([session.external_path('.')]) as dc:
             if self.minilla:
                 # minil seems to return 0 even if it didn't produce a tarball
                 # :(
-                run_with_build_fixers(
-                    session, ["minil", "dist"], fixers,
+                run_detecting_problems(
+                    session, ["minil", "dist"],
                     check_success=lambda retcode, lines: bool(dc.find_files()))
             else:
                 try:
-                    run_with_build_fixers(session, ["./Build", "dist"], fixers)
+                    run_detecting_problems(session, ["./Build", "dist"])
                 except UnidentifiedError as e:
                     if ("Can't find dist packages without a MANIFEST file"
                             in e.lines):
-                        run_with_build_fixers(
-                            session, ["./Build", "manifest"], fixers)
-                        run_with_build_fixers(
-                            session, ["./Build", "dist"], fixers)
+                        run_detecting_problems(
+                            session, ["./Build", "manifest"])
+                        run_detecting_problems(session, ["./Build", "dist"])
                     elif "No such action 'dist'" in e.lines:
                         raise NotImplementedError
                     else:
                         raise
         return dc.copy_single(target_directory)
 
-    def install(self, session, resolver, fixers, install_target):
-        self.setup(session, fixers)
+    def install(self, session, resolver, install_target):
+        self.setup(session)
         if self.minilla:
-            run_with_build_fixers(session, ["minil", "install"], fixers)
+            run_detecting_problems(session, ["minil", "install"])
         else:
-            run_with_build_fixers(session, ["./Build", "install"], fixers)
+            run_detecting_problems(session, ["./Build", "install"])
 
     def get_declared_dependencies(self, session, fixers=None):
         self.setup(session, fixers)
@@ -1874,7 +1844,7 @@ class PerlBuildTiny(BuildSystem):
             pass
         else:
             try:
-                run_with_build_fixers(session, ["./Build", "distmeta"], fixers)
+                run_with_build_fixers(fixers, session, ["./Build", "distmeta"])
             except UnidentifiedError as e:
                 if "No such action 'distmeta'" in e.lines:
                     pass

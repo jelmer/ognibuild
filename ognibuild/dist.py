@@ -23,6 +23,7 @@ __all__ = [
 ]
 
 import errno
+from functools import partial
 import logging
 import os
 import sys
@@ -40,6 +41,7 @@ from debian.deb822 import Deb822
 
 from . import DetailedFailure, UnidentifiedError
 from .dist_catcher import DistNoTarball
+from .fix_build import iterate_with_build_fixers
 from .buildsystem import NoBuildToolsFound
 from .resolver import auto_resolver
 from .session import Session
@@ -55,9 +57,9 @@ def run_dist(session, buildsystems, resolver, fixers, target_directory,
     logging.info('Using dependency resolver: %s', resolver)
 
     for buildsystem in buildsystems:
-        filename = buildsystem.dist(
-            session, resolver, fixers, target_directory, quiet=quiet
-        )
+        filename = iterate_with_build_fixers(fixers, partial(
+            buildsystem.dist, session, resolver, target_directory,
+            quiet=quiet))
         return filename
 
     raise NoBuildToolsFound()
