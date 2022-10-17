@@ -18,8 +18,9 @@
 __all__ = [
     "UnidentifiedError",
     "DetailedFailure",
-    "create_dist",
+    "run_dist",
     "create_dist_schroot",
+    "dist",
 ]
 
 import errno
@@ -42,10 +43,13 @@ from debian.deb822 import Deb822
 from . import DetailedFailure, UnidentifiedError
 from .dist_catcher import DistNoTarball
 from .fix_build import iterate_with_build_fixers
+from .logs import NoLogManager
 from .buildsystem import NoBuildToolsFound
 from .resolver import auto_resolver
-from .session import Session
 from .session.schroot import SchrootSession
+
+
+DIST_LOG_FILENAME = 'dist.log'
 
 
 def run_dist(session, buildsystems, resolver, fixers, target_directory,
@@ -65,39 +69,8 @@ def run_dist(session, buildsystems, resolver, fixers, target_directory,
     raise NoBuildToolsFound()
 
 
-# TODO(jelmer): Remove this function, since it's unused and fairly
-# janitor-specific?
-def create_dist(
-    session: Session,
-    tree: Tree,
-    target_dir: str,
-    include_controldir: bool = True,
-    subdir: Optional[str] = None,
-) -> Optional[str]:
-    """Create a dist tarball for a tree.
-
-    Args:
-      session: session to run it
-      tree: Tree object to work in
-      target_dir: Directory to write tarball into
-      include_controldir: Whether to include the version control directory
-      subdir: subdirectory in the tree to operate in
-    """
-    if subdir is None:
-        subdir = "package"
-    try:
-        export_directory, reldir = session.setup_from_vcs(
-            tree, include_controldir=include_controldir, subdir=subdir
-        )
-    except OSError as e:
-        if e.errno == errno.ENOSPC:
-            raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
-        raise
-
-    return dist(session, export_directory, reldir, target_dir)
-
-
-def dist(session, export_directory, reldir, target_dir):
+def dist(session, export_directory, reldir, target_dir, log_manager, *,
+         quiet=False):
     from .fix_build import BuildFixer
     from .buildsystem import detect_buildsystems
     from .buildlog import InstallFixer
@@ -127,7 +100,20 @@ def dist(session, export_directory, reldir, target_dir):
         ])
 
     session.chdir(reldir)
-    return run_dist(session, buildsystems, resolver, fixers, target_dir)
+
+    # Some things want to write to the user's home directory,
+    # e.g. pip caches in ~/.cache
+    session.create_home()
+
+    logging.info('Using dependency resolver: %s', resolver)
+
+    for buildsystem in buildsystems:
+        filename = iterate_with_build_fixers(fixers, log_manager.wrap(partial(
+            buildsystem.dist, session, resolver, target_dir,
+            quiet=quiet)))
+        return filename
+
+    raise NoBuildToolsFound()
 
 
 def create_dist_schroot(
@@ -139,18 +125,33 @@ def create_dist_schroot(
     include_controldir: bool = True,
     subdir: Optional[str] = None,
 ) -> Optional[str]:
+    """Create a dist tarball for a tree.
+
+    Args:
+      session: session to run it
+      tree: Tree object to work in
+      target_dir: Directory to write tarball into
+      include_controldir: Whether to include the version control directory
+      subdir: subdirectory in the tree to operate in
+    """
     with SchrootSession(chroot) as session:
         if packaging_tree is not None:
             from .debian import satisfy_build_deps
 
             satisfy_build_deps(session, packaging_tree, packaging_subpath)
-        return create_dist(
-            session,
-            tree,
-            target_dir,
-            include_controldir=include_controldir,
-            subdir=subdir,
-        )
+        if subdir is None:
+            subdir = "package"
+        try:
+            export_directory, reldir = session.setup_from_vcs(
+                tree, include_controldir=include_controldir, subdir=subdir
+            )
+        except OSError as e:
+            if e.errno == errno.ENOSPC:
+                raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
+            raise
+
+        return dist(session, export_directory, reldir, target_dir,
+                    log_manager=NoLogManager())
 
 
 if __name__ == "__main__":

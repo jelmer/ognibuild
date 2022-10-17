@@ -80,6 +80,7 @@ from .build import (
     DetailedDebianBuildFailure,
     UnidentifiedDebianBuildError,
     )
+from ..logs import rotate_logfile
 from ..buildlog import problem_to_upstream_requirement
 from ..fix_build import BuildFixer, resolve_error
 from ..resolver.apt import (
@@ -607,19 +608,7 @@ def build_incrementally(
                 )
                 raise e
             fixed_errors.append((e.error, e.phase))
-            rotate_logfile(output_directory, BUILD_LOG_FILENAME)
-
-
-def rotate_logfile(directory_path: str, name: str) -> None:
-    source_path = os.path.join(directory_path, name)
-    if os.path.exists(source_path):
-        i = 1
-        while os.path.exists(
-                os.path.join(directory_path, "%s.%d" % (name, i))):
-            i += 1
-        target_path = os.path.join(directory_path, "%s.%d" % (name, i))
-        os.rename(source_path, target_path)
-        logging.debug("Storing previous build log at %s", target_path)
+            rotate_logfile(os.path.join(output_directory, BUILD_LOG_FILENAME))
 
 
 def main(argv=None):
