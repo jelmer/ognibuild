@@ -91,6 +91,8 @@ from .build import attempt_build, DEFAULT_BUILDER
 
 DEFAULT_MAX_ITERATIONS = 10
 
+BUILD_LOG_FILENAME = 'build.log'
+
 
 class CircularDependency(Exception):
     """Adding dependency would introduce cycle."""
@@ -605,16 +607,16 @@ def build_incrementally(
                 )
                 raise e
             fixed_errors.append((e.error, e.phase))
-            if os.path.exists(os.path.join(output_directory, "build.log")):
+            if os.path.exists(os.path.join(output_directory, BUILD_LOG_FILENAME)):
                 i = 1
                 while os.path.exists(
-                    os.path.join(output_directory, "build.log.%d" % i)
-                ):
+                    os.path.join(output_directory,
+                                 "%s.%d" % (BUILD_LOG_FILENAME, i))):
                     i += 1
                 target_path = os.path.join(
-                    output_directory, "build.log.%d" % i)
+                    output_directory, "%s.%d" % (BUILD_LOG_FILENAME, i))
                 os.rename(
-                    os.path.join(output_directory, "build.log"), target_path)
+                    os.path.join(output_directory, BUILD_LOG_FILENAME), target_path)
                 logging.debug("Storing build log at %s", target_path)
 
 
