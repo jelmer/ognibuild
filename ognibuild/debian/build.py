@@ -48,6 +48,7 @@ from buildlog_consultant.sbuild import (
 
 from .. import DetailedFailure as DetailedFailure, UnidentifiedError
 
+BUILD_LOG_FILENAME = 'build.log'
 
 DEFAULT_BUILDER = "sbuild --no-clean-source"
 
@@ -264,7 +265,7 @@ def build_once(
     apt_repository_key: Optional[str] = None,
     extra_repositories: Optional[List[str]] = None
 ):
-    build_log_path = os.path.join(output_directory, "build.log")
+    build_log_path = os.path.join(output_directory, BUILD_LOG_FILENAME)
     logging.debug("Writing build log to %s", build_log_path)
     try:
         with open(build_log_path, "w") as f:

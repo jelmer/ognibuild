@@ -24,6 +24,7 @@ from ognibuild.logs import (
     copy_output,
     redirect_output,
     rotate_logfile,
+    DirectoryLogManager,
 )
 
 
@@ -76,3 +77,19 @@ class TestRotateLogfile(TestCase):
                 f.write('contents\n')
             rotate_logfile(p)
             self.assertEqual(['foo.log.1'], os.listdir(td))
+
+
+class TestLogManager(TestCase):
+
+    def test_simple(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, 'foo.log')
+            lm = DirectoryLogManager(p, mode='redirect')
+
+            def writesomething():
+                sys.stdout.write('foo\n')
+                sys.stdout.flush()
+            fn = lm.wrap(writesomething)
+            fn()
+            with open(p, 'r') as f:
+                self.assertEqual('foo\n', f.read())

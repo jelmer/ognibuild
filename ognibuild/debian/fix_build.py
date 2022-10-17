@@ -87,12 +87,10 @@ from ..resolver.apt import (
     AptRequirement,
 )
 from .apt import AptManager
-from .build import attempt_build, DEFAULT_BUILDER
+from .build import attempt_build, DEFAULT_BUILDER, BUILD_LOG_FILENAME
 
 
 DEFAULT_MAX_ITERATIONS = 10
-
-BUILD_LOG_FILENAME = 'build.log'
 
 
 class CircularDependency(Exception):
