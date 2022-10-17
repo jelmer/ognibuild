@@ -80,13 +80,14 @@ from .build import (
     DetailedDebianBuildFailure,
     UnidentifiedDebianBuildError,
     )
+from ..logs import rotate_logfile
 from ..buildlog import problem_to_upstream_requirement
 from ..fix_build import BuildFixer, resolve_error
 from ..resolver.apt import (
     AptRequirement,
 )
 from .apt import AptManager
-from .build import attempt_build, DEFAULT_BUILDER
+from .build import attempt_build, DEFAULT_BUILDER, BUILD_LOG_FILENAME
 
 
 DEFAULT_MAX_ITERATIONS = 10
@@ -605,17 +606,7 @@ def build_incrementally(
                 )
                 raise e
             fixed_errors.append((e.error, e.phase))
-            if os.path.exists(os.path.join(output_directory, "build.log")):
-                i = 1
-                while os.path.exists(
-                    os.path.join(output_directory, "build.log.%d" % i)
-                ):
-                    i += 1
-                target_path = os.path.join(
-                    output_directory, "build.log.%d" % i)
-                os.rename(
-                    os.path.join(output_directory, "build.log"), target_path)
-                logging.debug("Storing build log at %s", target_path)
+            rotate_logfile(os.path.join(output_directory, BUILD_LOG_FILENAME))
 
 
 def main(argv=None):

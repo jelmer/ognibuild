@@ -15,8 +15,11 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from .buildsystem import NoBuildToolsFound, InstallTarget
+from functools import partial
 from typing import Optional
+
+from .buildsystem import NoBuildToolsFound, InstallTarget
+from .fix_build import iterate_with_build_fixers
 
 
 def run_install(
@@ -31,7 +34,9 @@ def run_install(
     install_target.prefix = prefix
 
     for buildsystem in buildsystems:
-        buildsystem.install(session, resolver, fixers, install_target)
+        iterate_with_build_fixers(
+            fixers,
+            partial(buildsystem.install, session, resolver, install_target))
         return
 
     raise NoBuildToolsFound()

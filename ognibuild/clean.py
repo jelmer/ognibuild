@@ -15,6 +15,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from functools import partial
+
+from .fix_build import iterate_with_build_fixers
+
 from .buildsystem import NoBuildToolsFound
 
 
@@ -24,7 +28,8 @@ def run_clean(session, buildsystems, resolver, fixers):
     session.create_home()
 
     for buildsystem in buildsystems:
-        buildsystem.clean(session, resolver, fixers)
+        iterate_with_build_fixers(
+            fixers, partial(buildsystem.clean, session, resolver))
         return
 
     raise NoBuildToolsFound()

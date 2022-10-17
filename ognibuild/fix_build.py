@@ -54,7 +54,9 @@ class BuildFixer(object):
 
 def run_detecting_problems(
         session: Session, args: List[str], check_success=None,
-        **kwargs) -> List[str]:
+        quiet=False, **kwargs) -> List[str]:
+    if not quiet:
+        logging.info('Running %r', args)
     if check_success is None:
         def check_success(retcode, contents):
             return (retcode == 0)
@@ -131,16 +133,14 @@ def iterate_with_build_fixers(
 
 
 def run_with_build_fixers(
-    session: Session, args: List[str], fixers: Optional[List[BuildFixer]],
-    quiet: bool = False, **kwargs
+     fixers: Optional[List[BuildFixer]], session: Session, args: List[str],
+     quiet: bool = False, **kwargs
 ) -> List[str]:
-    if not quiet:
-        logging.info('Running %r', args)
     if fixers is None:
         fixers = []
     return iterate_with_build_fixers(
-        fixers, partial(run_detecting_problems, session, args, **kwargs)
-    )
+        fixers,
+        partial(run_detecting_problems, session, args, quiet=quiet, **kwargs))
 
 
 def resolve_error(error, phase, fixers) -> bool:

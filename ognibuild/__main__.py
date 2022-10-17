@@ -216,7 +216,7 @@ def main():  # noqa: C901
         try:
             if args.subcommand == "exec":
                 from .fix_build import run_with_build_fixers
-                run_with_build_fixers(session, args.subargv, fixers)
+                run_with_build_fixers(fixers, session, args.subargv)
                 return 0
             bss = list(detect_buildsystems(external_dir))
             logging.info("Detected buildsystems: %s", ", ".join(map(str, bss)))

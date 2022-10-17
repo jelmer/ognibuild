@@ -35,6 +35,7 @@ from typing import Optional, List
 
 from debian.changelog import Changelog, Version, ChangeBlock
 from debmutate.changelog import get_maintainer, ChangelogEditor
+from debmutate.reformatting import GeneratedFile
 
 from breezy.mutabletree import MutableTree
 from breezy.plugins.debian.builder import BuildFailedError
@@ -47,8 +48,16 @@ from buildlog_consultant.sbuild import (
 
 from .. import DetailedFailure as DetailedFailure, UnidentifiedError
 
+BUILD_LOG_FILENAME = 'build.log'
 
 DEFAULT_BUILDER = "sbuild --no-clean-source"
+
+
+class ChangelogNotEditable(Exception):
+    """Changelog can not be edited."""
+
+    def __init__(self, path):
+        self.path = path
 
 
 class DetailedDebianBuildFailure(DetailedFailure):
@@ -138,7 +147,7 @@ def add_dummy_changelog_entry(
     timestamp: Optional[datetime] = None,
     maintainer: Optional[str] = None,
     allow_reformatting: bool = True,
-):
+) -> Version:
     """Add a dummy changelog entry to a package.
 
     Args:
@@ -146,6 +155,8 @@ def add_dummy_changelog_entry(
       suffix: Suffix for the version
       suite: Debian suite
       message: Changelog message
+    Returns:
+      version of the newly added entry
     """
 
     if control_files_in_root(tree, subpath):
@@ -156,15 +167,19 @@ def add_dummy_changelog_entry(
         maintainer = get_maintainer()
     if timestamp is None:
         timestamp = datetime.now()
-    with ChangelogEditor(
-            tree.abspath(os.path.join(path)),  # type: ignore
-            allow_reformatting=allow_reformatting) as editor:
-        version = version_add_suffix(editor[0].version, suffix)
-        editor.auto_version(version, timestamp=timestamp)
-        editor.add_entry(
-            summary=[message], maintainer=maintainer, timestamp=timestamp,
-            urgency='low')
-        editor[0].distributions = suite
+    try:
+        with ChangelogEditor(
+                tree.abspath(path),  # type: ignore
+                allow_reformatting=allow_reformatting) as editor:
+            version = version_add_suffix(editor[0].version, suffix)
+            editor.auto_version(version, timestamp=timestamp)
+            editor.add_entry(
+                summary=[message], maintainer=maintainer, timestamp=timestamp,
+                urgency='low')
+            editor[0].distributions = suite
+            return version
+    except GeneratedFile as e:
+        raise ChangelogNotEditable(path) from e
 
 
 def get_latest_changelog_entry(
@@ -250,7 +265,7 @@ def build_once(
     apt_repository_key: Optional[str] = None,
     extra_repositories: Optional[List[str]] = None
 ):
-    build_log_path = os.path.join(output_directory, "build.log")
+    build_log_path = os.path.join(output_directory, BUILD_LOG_FILENAME)
     logging.debug("Writing build log to %s", build_log_path)
     try:
         with open(build_log_path, "w") as f:
