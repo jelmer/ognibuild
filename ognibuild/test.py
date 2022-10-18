@@ -28,7 +28,7 @@ def run_test(session, buildsystems, resolver, fixers):
 
     for buildsystem in buildsystems:
         iterate_with_build_fixers(
-            fixers, partial(buildsystem.test, session, resolver, fixers))
+            fixers, partial(buildsystem.test, session, resolver))
         return
 
     raise NoBuildToolsFound()
