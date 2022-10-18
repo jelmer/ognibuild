@@ -20,6 +20,7 @@ import subprocess
 import logging
 import os
 import sys
+from typing import Callable, TypeVar
 
 
 @contextmanager
@@ -73,7 +74,16 @@ def rotate_logfile(source_path: str) -> None:
         logging.debug("Storing previous build log at %s", target_path)
 
 
-class DirectoryLogManager(object):
+T = TypeVar('T')
+
+
+class LogManager(object):
+
+    def wrap(self, fn: Callable[[], T]) -> Callable[[], T]:
+        raise NotImplementedError(self.wrap)
+
+
+class DirectoryLogManager(LogManager):
 
     def __init__(self, path, mode):
         self.path = path
@@ -93,7 +103,7 @@ class DirectoryLogManager(object):
         return _run
 
 
-class NoLogManager(object):
+class NoLogManager(LogManager):
 
     def wrap(self, fn):
         return fn

@@ -20,6 +20,7 @@ __all__ = [
     "DetailedFailure",
     "run_dist",
     "create_dist_schroot",
+    "create_dist",
     "dist",
 ]
 
@@ -43,9 +44,10 @@ from debian.deb822 import Deb822
 from . import DetailedFailure, UnidentifiedError
 from .dist_catcher import DistNoTarball
 from .fix_build import iterate_with_build_fixers
-from .logs import NoLogManager
+from .logs import LogManager, NoLogManager
 from .buildsystem import NoBuildToolsFound
 from .resolver import auto_resolver
+from .session import Session
 from .session.schroot import SchrootSession
 
 
@@ -116,6 +118,42 @@ def dist(session, export_directory, reldir, target_dir, log_manager, *,
     raise NoBuildToolsFound()
 
 
+# This is the function used by debianize()
+def create_dist(
+    session: Session,
+    tree: Tree,
+    target_dir: str,
+    include_controldir: bool = True,
+    subdir: Optional[str] = None,
+    log_manager: Optional[LogManager] = None,
+) -> Optional[str]:
+    """Create a dist tarball for a tree.
+
+    Args:
+      session: session to run it
+      tree: Tree object to work in
+      target_dir: Directory to write tarball into
+      include_controldir: Whether to include the version control directory
+      subdir: subdirectory in the tree to operate in
+    """
+    if subdir is None:
+        subdir = "package"
+    try:
+        export_directory, reldir = session.setup_from_vcs(
+            tree, include_controldir=include_controldir, subdir=subdir
+        )
+    except OSError as e:
+        if e.errno == errno.ENOSPC:
+            raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
+        raise
+
+    if log_manager is None:
+        log_manager = NoLogManager()
+
+    return dist(session, export_directory, reldir, target_dir,
+                log_manager=log_manager)
+
+
 def create_dist_schroot(
     tree: Tree,
     target_dir: str,
@@ -124,6 +162,7 @@ def create_dist_schroot(
     packaging_subpath: Optional[str] = None,
     include_controldir: bool = True,
     subdir: Optional[str] = None,
+    log_manager: Optional[LogManager] = None,
 ) -> Optional[str]:
     """Create a dist tarball for a tree.
 
@@ -139,19 +178,10 @@ def create_dist_schroot(
             from .debian import satisfy_build_deps
 
             satisfy_build_deps(session, packaging_tree, packaging_subpath)
-        if subdir is None:
-            subdir = "package"
-        try:
-            export_directory, reldir = session.setup_from_vcs(
-                tree, include_controldir=include_controldir, subdir=subdir
-            )
-        except OSError as e:
-            if e.errno == errno.ENOSPC:
-                raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
-            raise
-
-        return dist(session, export_directory, reldir, target_dir,
-                    log_manager=NoLogManager())
+        return create_dist(
+                session, tree, target_dir,
+                include_controldir=include_controldir, subdir=subdir,
+                log_manager=log_manager)
 
 
 if __name__ == "__main__":
