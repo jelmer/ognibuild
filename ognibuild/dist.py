@@ -72,7 +72,7 @@ def run_dist(session, buildsystems, resolver, fixers, target_directory,
 
 
 def dist(session, export_directory, reldir, target_dir, log_manager, *,
-         quiet=False):
+         version: Optional[str] = None, quiet=False):
     from .fix_build import BuildFixer
     from .buildsystem import detect_buildsystems
     from .buildlog import InstallFixer
@@ -83,6 +83,10 @@ def dist(session, export_directory, reldir, target_dir, log_manager, *,
         UnexpandedAutoconfMacroFixer,
         GnulibDirectoryFixer,
     )
+
+    if version:
+        # TODO(jelmer): Shouldn't include backend-specific code here
+        os.environ['SETUPTOOLS_SCM_PRETEND_VERSION'] = version
 
     # TODO(jelmer): use scan_buildsystems to also look in subdirectories
     buildsystems = list(detect_buildsystems(export_directory))
@@ -110,9 +114,10 @@ def dist(session, export_directory, reldir, target_dir, log_manager, *,
     logging.info('Using dependency resolver: %s', resolver)
 
     for buildsystem in buildsystems:
-        filename = iterate_with_build_fixers(fixers, log_manager.wrap(partial(
-            buildsystem.dist, session, resolver, target_dir,
-            quiet=quiet)))
+        filename = iterate_with_build_fixers(fixers, log_manager.wrap(
+            partial(
+                buildsystem.dist, session, resolver, target_dir,
+                quiet=quiet)))
         return filename
 
     raise NoBuildToolsFound()
@@ -126,6 +131,7 @@ def create_dist(
     include_controldir: bool = True,
     subdir: Optional[str] = None,
     log_manager: Optional[LogManager] = None,
+    version: Optional[str] = None,
 ) -> Optional[str]:
     """Create a dist tarball for a tree.
 
@@ -151,7 +157,7 @@ def create_dist(
         log_manager = NoLogManager()
 
     return dist(session, export_directory, reldir, target_dir,
-                log_manager=log_manager)
+                log_manager=log_manager, version=version)
 
 
 def create_dist_schroot(
