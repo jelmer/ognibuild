@@ -21,7 +21,7 @@ import sys
 
 from debian.changelog import Version
 
-from ..debian.build import (
+from ognibuild.debian.build import (
     add_dummy_changelog_entry,
     get_build_architecture,
     version_add_suffix,

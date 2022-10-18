@@ -29,15 +29,15 @@ from buildlog_consultant.common import (
     MissingRubyGem,
     MissingValaPackage,
 )
-from ..debian.apt import AptManager, FileSearcher
-from ..debian.fix_build import (
+from ognibuild.debian.apt import AptManager, FileSearcher
+from ognibuild.debian.fix_build import (
     resolve_error,
     versioned_package_fixers,
     apt_fixers,
     DebianPackagingContext,
     add_build_dependency,
 )
-from ..resolver.apt import AptRequirement
+from ognibuild.resolver.apt import AptRequirement
 from breezy.commit import NullCommitReporter
 from breezy.tests import TestCaseWithTransport
 
@@ -99,7 +99,7 @@ blah (0.1) UNRELEASED; urgency=medium
         self._apt_files = {}
 
     def resolve(self, error, context=("build",)):
-        from ..session.plain import PlainSession
+        from ognibuild.session.plain import PlainSession
 
         session = PlainSession()
         apt = AptManager(session)
