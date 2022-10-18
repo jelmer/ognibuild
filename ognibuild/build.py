@@ -20,6 +20,8 @@ from functools import partial
 from .buildsystem import NoBuildToolsFound
 from .fix_build import iterate_with_build_fixers
 
+BUILD_LOG_FILENAME = 'build.log'
+
 
 def run_build(session, buildsystems, resolver, fixers):
     # Some things want to write to the user's home directory,
