@@ -19,16 +19,21 @@ from functools import partial
 
 from .buildsystem import NoBuildToolsFound
 from .fix_build import iterate_with_build_fixers
+from .logs import NoLogManager
 
 
-def run_test(session, buildsystems, resolver, fixers):
+def run_test(session, buildsystems, resolver, fixers, log_manager=None):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
+    if log_manager is None:
+        log_manager = NoLogManager()
+
     for buildsystem in buildsystems:
         iterate_with_build_fixers(
-            fixers, partial(buildsystem.test, session, resolver))
+            fixers, log_manager.wrap(
+                partial(buildsystem.test, session, resolver)))
         return
 
     raise NoBuildToolsFound()
