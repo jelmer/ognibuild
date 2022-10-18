@@ -17,10 +17,17 @@
 
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
-from . import Requirement
-from .resolver.apt import AptRequirement, OneOfRequirement
+from debian.changelog import Version
 import logging
 import re
+
+from . import Requirement
+from .requirements import (
+    CargoCrateRequirement,
+    GoPackageRequirement,
+    PythonPackageRequirement,
+)
+from .resolver.apt import AptRequirement, OneOfRequirement
 
 
 @dataclass
@@ -42,6 +49,34 @@ class UpstreamInfo:
             'tarball_url': self.tarball_url,
             'version': self.version
         }
+
+
+def go_base_name(package):
+    (hostname, path) = package.split('/', 1)
+    if hostname == "github.com":
+        hostname = "github"
+    if hostname == "gopkg.in":
+        hostname = "gopkg"
+    path = path.rstrip('/').replace("/", "-")
+    if path.endswith('.git'):
+        path = path[:-4]
+    return (hostname + path).replace("_", "-").lower()
+
+
+def load_crate_info(crate):
+    import urllib.error
+    from urllib.request import urlopen, Request
+    import json
+    http_url = 'https://crates.io/api/v1/crates/%s' % crate
+    headers = {'User-Agent': 'debianize', 'Accept': 'application/json'}
+    http_contents = urlopen(Request(http_url, headers=headers)).read()
+    try:
+        return json.loads(http_contents)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            logging.warning('No crate %r', crate)
+            return None
+        raise
 
 
 def find_python_package_upstream(requirement):
