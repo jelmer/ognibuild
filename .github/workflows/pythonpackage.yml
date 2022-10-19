@@ -45,6 +45,6 @@ jobs:
         if: "matrix.python-version != 'pypy3'"
       - name: Test suite run
         run: |
-          python -m unittest ognibuild.tests.test_suite
+          python -m unittest tests.test_suite
         env:
           PYTHONHASHSEED: random

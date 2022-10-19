@@ -15,7 +15,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from ..buildlog import PROBLEM_CONVERTERS
+from ognibuild.buildlog import PROBLEM_CONVERTERS
 
 from buildlog_consultant import (
     problem_clses,

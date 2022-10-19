@@ -30,6 +30,6 @@ def test_suite():
         names.append("debian_build")
         names.append("debian_fix_build")
         names.append("resolver_apt")
-    module_names = ["ognibuild.tests.test_" + name for name in names]
+    module_names = ["tests.test_" + name for name in names]
     loader = unittest.TestLoader()
     return loader.loadTestsFromNames(module_names)
