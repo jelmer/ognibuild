@@ -31,7 +31,7 @@ import re
 import shlex
 import subprocess
 import sys
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 from debian.changelog import Changelog, Version, ChangeBlock
 from debmutate.changelog import get_maintainer, ChangelogEditor
@@ -145,7 +145,7 @@ def add_dummy_changelog_entry(
     suite: str,
     message: str,
     timestamp: Optional[datetime] = None,
-    maintainer: Optional[str] = None,
+    maintainer: Tuple[Optional[str], Optional[str]] = None,
     allow_reformatting: bool = True,
 ) -> Version:
     """Add a dummy changelog entry to a package.

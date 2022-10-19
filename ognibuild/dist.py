@@ -55,17 +55,20 @@ DIST_LOG_FILENAME = 'dist.log'
 
 
 def run_dist(session, buildsystems, resolver, fixers, target_directory,
-             quiet=False):
+             quiet=False, log_manager=None):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
     logging.info('Using dependency resolver: %s', resolver)
 
+    if log_manager is None:
+        log_manager = NoLogManager()
+
     for buildsystem in buildsystems:
-        filename = iterate_with_build_fixers(fixers, partial(
-            buildsystem.dist, session, resolver, target_directory,
-            quiet=quiet))
+        filename = iterate_with_build_fixers(fixers, log_manager.wrap(
+            partial(buildsystem.dist, session, resolver, target_directory,
+                    quiet=quiet)))
         return filename
 
     raise NoBuildToolsFound()

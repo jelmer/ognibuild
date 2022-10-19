@@ -20,14 +20,18 @@ from typing import Optional
 
 from .buildsystem import NoBuildToolsFound, InstallTarget
 from .fix_build import iterate_with_build_fixers
+from .logs import NoLogManager
 
 
 def run_install(
-        session, buildsystems, resolver, fixers, user: bool = False,
-        prefix: Optional[str] = None):
+        session, buildsystems, resolver, fixers, *, user: bool = False,
+        prefix: Optional[str] = None, log_manager=None):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
+
+    if log_manager is None:
+        log_manager = NoLogManager()
 
     install_target = InstallTarget()
     install_target.user = user
@@ -36,7 +40,9 @@ def run_install(
     for buildsystem in buildsystems:
         iterate_with_build_fixers(
             fixers,
-            partial(buildsystem.install, session, resolver, install_target))
+            log_manager.wrap(
+                partial(buildsystem.install, session, resolver,
+                        install_target)))
         return
 
     raise NoBuildToolsFound()

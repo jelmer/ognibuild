@@ -20,7 +20,6 @@ import subprocess
 import logging
 import os
 import sys
-from typing import Callable, TypeVar
 
 
 @contextmanager
@@ -74,12 +73,9 @@ def rotate_logfile(source_path: str) -> None:
         logging.debug("Storing previous build log at %s", target_path)
 
 
-T = TypeVar('T')
-
-
 class LogManager(object):
 
-    def wrap(self, fn: Callable[[], T]) -> Callable[[], T]:
+    def wrap(self, fn):
         raise NotImplementedError(self.wrap)
 
 
@@ -90,14 +86,14 @@ class DirectoryLogManager(LogManager):
         self.mode = mode
 
     def wrap(self, fn):
-        def _run():
+        def _run(*args, **kwargs):
             rotate_logfile(self.path)
             if self.mode == 'copy':
                 with copy_output(self.path, tee=True):
-                    return fn()
+                    return fn(*args, **kwargs)
             elif self.mode == 'redirect':
                 with copy_output(self.path, tee=False):
-                    return fn()
+                    return fn(*args, **kwargs)
             else:
                 raise NotImplementedError(self.mode)
         return _run
