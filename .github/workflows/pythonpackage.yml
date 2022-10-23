@@ -32,6 +32,8 @@ jobs:
         run: |
           sudo apt update
           sudo apt install python3-wheel libapt-pkg-dev
+          python -m pip install \
+            python_apt@git+https://salsa.debian.org/apt-team/python-apt.git
           python -m pip install -e ".[debian]"
         if: "matrix.python-version != 'pypy3' && matrix.os == 'ubuntu-latest'"
       - name: Style checks
