@@ -220,6 +220,9 @@ def main(argv=None):
         "--target-directory", type=str, default="..", help="Target directory"
     )
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
+    parser.add_argument("--mode", choices=["auto", "vcs", "buildsystem"],
+                        type=str,
+                        help="Mechanism to use to create buildsystem")
     parser.add_argument(
         "--include-controldir", action="store_true",
         help="Clone rather than export."
@@ -247,32 +250,45 @@ def main(argv=None):
         packaging_tree = None
         subdir = None
 
-    try:
-        ret = create_dist_schroot(
-            tree,
-            subdir=subdir,
-            target_dir=os.path.abspath(args.target_directory),
-            packaging_tree=packaging_tree,
-            chroot=args.chroot,
-            include_controldir=args.include_controldir,
-        )
-    except NoBuildToolsFound:
-        logging.info("No build tools found, falling back to simple export.")
+    if args.mode == 'vcs':
         export(tree, "dist.tar.gz", "tgz", None)
-    except NotImplementedError:
-        logging.info(
-            "Build system does not support dist tarball creation, "
-            "falling back to simple export."
-        )
-        export(tree, "dist.tar.gz", "tgz", None)
-    except UnidentifiedError as e:
-        logging.fatal("Unidentified error: %r", e.lines)
-    except DetailedFailure as e:
-        logging.fatal("Identified error during dist creation: %s", e.error)
-    except DistNoTarball:
-        logging.fatal("dist operation did not create a tarball")
-    else:
-        logging.info("Created %s", ret)
+    elif args.mode in ('auto', 'buildsystem'):
+        try:
+            ret = create_dist_schroot(
+                tree,
+                subdir=subdir,
+                target_dir=os.path.abspath(args.target_directory),
+                packaging_tree=packaging_tree,
+                chroot=args.chroot,
+                include_controldir=args.include_controldir,
+            )
+        except NoBuildToolsFound:
+            if args.mode == 'buildsystem':
+                logging.fatal('No build tools found, unable to create tarball')
+                return 1
+            logging.info(
+                "No build tools found, falling back to simple export.")
+            export(tree, "dist.tar.gz", "tgz", None)
+        except NotImplementedError:
+            if args.mode == 'buildsystem':
+                logging.fatal('Unable to ask buildsystem for tarball')
+                return 1
+            logging.info(
+                "Build system does not support dist tarball creation, "
+                "falling back to simple export."
+            )
+            export(tree, "dist.tar.gz", "tgz", None)
+        except UnidentifiedError as e:
+            logging.fatal("Unidentified error: %r", e.lines)
+            return 1
+        except DetailedFailure as e:
+            logging.fatal("Identified error during dist creation: %s", e.error)
+            return 1
+        except DistNoTarball:
+            logging.fatal("dist operation did not create a tarball")
+            return 1
+        else:
+            logging.info("Created %s", ret)
     return 0
 
 
