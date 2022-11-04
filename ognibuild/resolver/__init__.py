@@ -18,7 +18,7 @@
 
 import logging
 import subprocess
-from typing import Optional, List, Type
+from typing import Optional, List, Type, Iterator, Dict
 
 from .. import UnidentifiedError, Requirement
 from ..fix_build import run_detecting_problems
@@ -34,10 +34,10 @@ class Resolver(object):
 
     name: str
 
-    def __init__(self, session, user_local):
-        raise NotImplementedError(self.__init__)
+    def __init__(self, session: Session, user_local: bool):
+        pass
 
-    def install(self, requirements: List[Requirement]):
+    def install(self, requirements: List[Requirement]) -> None:
         raise NotImplementedError(self.install)
 
     def resolve(self, requirement: Requirement) -> Optional[Requirement]:
@@ -46,10 +46,10 @@ class Resolver(object):
     def resolve_all(self, requirement: Requirement) -> List[Requirement]:
         raise NotImplementedError(self.resolve_all)
 
-    def explain(self, requirements: List[Requirement]):
+    def explain(self, requirements: List[Requirement]) -> Iterator[List[str]]:
         raise NotImplementedError(self.explain)
 
-    def env(self):
+    def env(self) -> Dict[str, str]:
         return {}
 
 
