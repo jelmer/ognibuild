@@ -193,13 +193,13 @@ def create_dist_schroot(
                 log_manager=log_manager)
 
 
-if __name__ == "__main__":
+def main(argv=None):
     import argparse
     import breezy.bzr  # noqa: F401
     import breezy.git  # noqa: F401
     from breezy.export import export
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(argv)
     parser.add_argument(
         "--chroot",
         default="unstable-amd64-sbuild",
@@ -273,4 +273,8 @@ if __name__ == "__main__":
         logging.fatal("dist operation did not create a tarball")
     else:
         logging.info("Created %s", ret)
-    sys.exit(0)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
