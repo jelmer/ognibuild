@@ -948,7 +948,10 @@ async def resolve_requirement_apt(
             if not isinstance(ret, list):
                 raise TypeError(ret)
             return ret
-    raise NotImplementedError(type(req))
+    logging.warning(
+        'No way known to convert %s to apt requirement',
+        type(req).__name__)
+    return []
 
 
 def default_tie_breakers(session):
