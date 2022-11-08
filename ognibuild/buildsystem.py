@@ -128,7 +128,7 @@ def xmlparse_simplify_namespaces(path, namespaces):
     for _, el in tree:
         for namespace in namespaces:
             el.tag = el.tag.replace(namespace, "")
-    return tree.root
+    return tree.root  # type: ignore
 
 
 class Pear(BuildSystem):
@@ -162,8 +162,7 @@ class Pear(BuildSystem):
             [guaranteed_which(session, resolver, "pear"), "build", self.path])
 
     def clean(self, session, resolver):
-        self.setup(resolver)
-        # TODO
+        pass  # TODO
 
     def install(self, session, resolver, install_target):
         run_detecting_problems(
@@ -213,12 +212,12 @@ class Pear(BuildSystem):
             logging.warning("Unable to parse package.xml: %s", e)
             return
 
-        if not tree.root:
+        if not tree.root:  # type: ignore
             # No root?
             return
 
         for ns in cls.PEAR_NAMESPACES:
-            if tree.root.tag == '{%s}package' % ns:
+            if tree.root.tag == '{%s}package' % ns:  # type: ignore
                 logging.debug(
                     "Found package.xml with namespace %s, "
                     "assuming pear package.")
@@ -241,7 +240,7 @@ def run_setup(script_name, script_args=None, stop_after="run"):
     if stop_after not in ("init", "config", "commandline", "run"):
         raise ValueError("invalid value for 'stop_after': %r" % (stop_after,))
 
-    core._setup_stop_after = stop_after
+    core._setup_stop_after = stop_after  # type: ignore
 
     save_argv = sys.argv.copy()
     g = {"__file__": script_name, "__name__": "__main__"}
@@ -257,13 +256,13 @@ def run_setup(script_name, script_args=None, stop_after="run"):
         finally:
             os.chdir(old_cwd)
             sys.argv = save_argv
-            core._setup_stop_after = None
+            core._setup_stop_after = None  # type: ignore
     except SystemExit:
         # Hmm, should we do something if exiting with a non-zero code
         # (ie. error)?
         pass
 
-    return core._setup_distribution
+    return core._setup_distribution  # type: ignore
 
 
 _setup_wrapper = """\
@@ -1297,6 +1296,16 @@ class CMake(BuildSystem):
     def test(self, session, resolver):
         raise NotImplementedError(self.test)
 
+    def get_declared_dependencies(self, session, fixers=None):
+        # TODO(jelmer): Find a proper parser for CMakeLists.txt somewhere?
+        with open(os.path.join(self.path, 'CMakeLists.txt'), 'r') as f:
+            for line in f:
+                m = re.match(r'cmake_minimum_required\(\s*VERSION\s+(.*)\s*\)',
+                             line)
+                if m:
+                    yield "build", VagueDependencyRequirement(
+                        'CMake', minimum_version=m.group(1))
+
 
 class Make(BuildSystem):
 
@@ -1545,7 +1554,7 @@ class Cargo(BuildSystem):
                 yield "build", CargoCrateRequirement(
                     name,
                     features=details.get("features", []),
-                    version=details.get("version"),
+                    minimum_version=details.get("version"),
                 )
 
     def test(self, session, resolver):

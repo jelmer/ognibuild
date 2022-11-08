@@ -157,12 +157,14 @@ class PackageDependencyFixer(BuildFixer):
         return req is not None
 
     def fix(self, error, phase):
-        reqs = problem_to_upstream_requirement(error)
-        if reqs is None:
+        req = problem_to_upstream_requirement(error)
+        if req is None:
             return False
 
-        if not isinstance(reqs, list):
-            reqs = [reqs]
+        if not isinstance(req, list):
+            reqs = [req]
+        else:
+            reqs = req
 
         changed = False
         for req in reqs:
@@ -360,8 +362,8 @@ def fix_missing_config_status_input(error, phase, context):
         return False
 
     def add_autogen(mf):
-        rule = any(mf.iter_rules(b"override_dh_autoreconf"))
-        if rule:
+        rule_exists = any(mf.iter_rules(b"override_dh_autoreconf"))
+        if rule_exists:
             return
         rule = mf.add_rule(b"override_dh_autoreconf")
         rule.append_command(b"dh_autoreconf ./autogen.sh")
@@ -665,6 +667,7 @@ def main(argv=None):
     args = parser.parse_args()
     import breezy.git  # noqa: F401
     import breezy.bzr  # noqa: F401
+    from ..session import Session
     from ..session.plain import PlainSession
     from ..session.schroot import SchrootSession
     import tempfile
@@ -687,6 +690,7 @@ def main(argv=None):
                     % output_directory)
 
         tree = WorkingTree.open(".")
+        session: Session
         if args.schroot:
             session = SchrootSession(args.schroot)
         else:

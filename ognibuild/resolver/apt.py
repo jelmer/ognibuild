@@ -16,7 +16,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import asyncio
-from itertools import chain
 import logging
 import os
 import posixpath
@@ -652,7 +651,7 @@ async def resolve_java_class_req(apt_mgr, req):
         logging.warning("unable to find classpath for %s", req.classname)
         return False
     logging.info("Classpath for %s: %r", req.classname, classpath)
-    return await find_reqs_simple(apt_mgr, [classpath])
+    return await find_reqs_simple(apt_mgr, classpath)
 
 
 async def resolve_cmake_file_req(apt_mgr, req):
@@ -1000,9 +999,7 @@ class AptResolver(Resolver):
             else:
                 apt_requirements.append(apt_req)
         if apt_requirements:
-            self.apt.satisfy(
-                [PkgRelation.str(
-                    chain(*[r.relations for r in apt_requirements]))])
+            self.apt.satisfy([r.pkg_relation_str() for r in apt_requirements])
         if still_missing:
             raise UnsatisfiedRequirements(still_missing)
 
@@ -1015,12 +1012,7 @@ class AptResolver(Resolver):
         if apt_requirements:
             yield (
                 self.apt.satisfy_command(
-                    [
-                        PkgRelation.str(
-                            chain(*[r.relations for o, r in apt_requirements])
-                        )
-                    ]
-                ),
+                    [r.pkg_relation_str() for o, r in apt_requirements]),
                 [o for o, r in apt_requirements],
             )
 

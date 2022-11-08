@@ -48,6 +48,7 @@ class DummyAptSearcher(FileSearcher):
 
     async def search_files(self, path, regex=False, case_insensitive=False):
         for p, pkg in sorted(self._apt_files.items()):
+            flags: int
             if case_insensitive:
                 flags = re.I
             else:

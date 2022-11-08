@@ -120,6 +120,7 @@ class LatexPackageRequirement(Requirement):
     def _json(self):
         return self.package
 
+    @classmethod
     def _from_json(cls, package):
         return cls(package)
 

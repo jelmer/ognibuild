@@ -70,6 +70,8 @@ class DistCatcher(object):
         return self
 
     def find_files(self):
+        if self.existing_files is None:
+            raise RuntimeError("Not in context manager")
         for directory in self.directories:
             old_files = self.existing_files[directory]
             possible_new = []

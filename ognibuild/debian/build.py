@@ -145,7 +145,7 @@ def add_dummy_changelog_entry(
     suite: str,
     message: str,
     timestamp: Optional[datetime] = None,
-    maintainer: Tuple[Optional[str], Optional[str]] = None,
+    maintainer: Optional[Tuple[Optional[str], Optional[str]]] = None,
     allow_reformatting: bool = True,
 ) -> Version:
     """Add a dummy changelog entry to a package.

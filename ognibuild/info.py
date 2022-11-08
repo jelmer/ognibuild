@@ -15,11 +15,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from typing import Dict, List
+from . import Requirement
+
 
 def run_info(session, buildsystems, fixers=None):
     for buildsystem in buildsystems:
-        print("%r:" % buildsystem)
-        deps = {}
+        deps: Dict[str, List[Requirement]] = {}
         try:
             for kind, dep in buildsystem.get_declared_dependencies(
                     session, fixers=fixers):

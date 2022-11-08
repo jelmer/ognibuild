@@ -82,6 +82,7 @@ async def handle_apt_simple(request):
 
 def main():
     import argparse
+    from .session import Session
     parser = argparse.ArgumentParser()
     parser.add_argument('--listen-address', type=str, help='Listen address')
     parser.add_argument('--schroot', type=str, help='Schroot session to use')
@@ -107,6 +108,7 @@ def main():
             format="[%(asctime)s] %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S")
 
+    session: Session
     if args.schroot:
         from .session.schroot import SchrootSession
         session = SchrootSession(args.schroot)

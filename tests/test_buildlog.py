@@ -30,10 +30,10 @@ class TestProblemsExists(TestCase):
     def test_exist(self):
         for entry in PROBLEM_CONVERTERS:
             if len(entry) == 2:
-                problem_kind, fn = entry
+                problem_kind, fn = entry  # type: ignore
                 min_version = None
             elif len(entry) == 3:
-                problem_kind, fn, min_version = entry
+                problem_kind, fn, min_version = entry  # type: ignore
             else:
                 raise TypeError(entry)
             if min_version is not None:

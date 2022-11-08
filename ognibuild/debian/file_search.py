@@ -224,7 +224,8 @@ class AptFileFileSearcher(FileSearcher):
         elif process.returncode == 3:
             raise Exception('apt-file cache is empty')
         elif process.returncode != 0:
-            raise Exception("unexpected return code %d" % process.returncode)
+            raise Exception(
+                 "unexpected return code %r" % process.returncode)
 
         for line in output.splitlines(False):
             pkg, path = line.split(b': ')

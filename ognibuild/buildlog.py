@@ -251,12 +251,15 @@ class InstallFixer(BuildFixer):
         return req is not None
 
     def fix(self, error, phase):
-        reqs = problem_to_upstream_requirement(error)
-        if reqs is None:
+        req = problem_to_upstream_requirement(error)
+        if req is None:
             return False
 
-        if not isinstance(reqs, list):
-            reqs = [reqs]
+        reqs: List[Requirement]
+        if not isinstance(req, list):
+            reqs = [req]
+        else:
+            reqs = req
 
         try:
             self.resolver.install(reqs)
@@ -285,12 +288,14 @@ class ExplainInstallFixer(BuildFixer):
         return req is not None
 
     def fix(self, error, phase):
-        reqs = problem_to_upstream_requirement(error)
-        if reqs is None:
+        req = problem_to_upstream_requirement(error)
+        if req is None:
             return False
 
-        if not isinstance(reqs, list):
-            reqs = [reqs]
+        if not isinstance(req, list):
+            reqs = [req]
+        else:
+            reqs = req
 
         explanations = list(self.resolver.explain(reqs))
         if not explanations:
