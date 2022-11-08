@@ -8,3 +8,4 @@ __pycache__
 *.swp
 *.swo
 *.swn
+.mypy_cache
