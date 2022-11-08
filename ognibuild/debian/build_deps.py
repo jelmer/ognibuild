@@ -20,6 +20,7 @@
 
 from debian.deb822 import PkgRelation
 import logging
+from typing import Dict
 
 from breezy.plugins.debian.apt_repo import LocalApt, NoAptSources
 
@@ -37,7 +38,7 @@ class BuildDependencyTieBreaker(object):
         return cls(LocalApt(session.location))
 
     def _count(self):
-        counts = {}
+        counts: Dict[str, int] = {}
         with self.apt:
             for source in self.apt.iter_sources():
                 for field in ['Build-Depends', 'Build-Depends-Indep',

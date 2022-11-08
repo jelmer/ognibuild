@@ -119,7 +119,7 @@ class AptManager(object):
         missing = set(packages)
         import apt_pkg
 
-        with apt_pkg.TagFile(status_path) as tagf:
+        with apt_pkg.TagFile(status_path) as tagf:  # type: ignore
             while missing:
                 tagf.step()
                 if not tagf.section:

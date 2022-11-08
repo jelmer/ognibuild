@@ -112,6 +112,8 @@ class PlainSession(Session):
         return os.path.abspath(path)
 
     def setup_from_vcs(self, tree, include_controldir=None, subdir="package"):
+        if self.es is None:
+            raise RuntimeError("not in context manager")
         from ..vcs import dupe_vcs_tree, export_vcs_tree
 
         if include_controldir is False or (

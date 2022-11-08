@@ -18,6 +18,7 @@
 """Support for accessing UDD."""
 
 import logging
+from typing import Optional
 
 
 class UDD(object):
@@ -32,14 +33,15 @@ class UDD(object):
             host="udd-mirror.debian.net",
         )
 
-    def get_most_popular(self, packages):
+    def get_most_popular(self, packages) -> Optional[str]:
         cursor = self._conn.cursor()
         cursor.execute(
             "SELECT package FROM popcon "
             "WHERE package IN %s ORDER BY insts DESC LIMIT 1",
             (tuple(packages),),
         )
-        return cursor.fetchone()[0]
+        row = cursor.fetchone()
+        return row[0] if row else None
 
 
 def popcon_tie_breaker(candidates):

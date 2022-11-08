@@ -35,7 +35,7 @@ class Resolver(object):
     name: str
 
     def __init__(self, session: Session, user_local: bool):
-        pass
+        raise NotImplementedError
 
     def install(self, requirements: List[Requirement]) -> None:
         raise NotImplementedError(self.install)
@@ -487,13 +487,32 @@ class NpmResolver(Resolver):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.session)
 
-    def install(self, requirements):
+    @classmethod
+    def _to_node_package_req(cls, requirement):
         from ..requirements import (
             NodePackageRequirement,
             NodeModuleRequirement,
             BinaryRequirement,
         )
+        if isinstance(requirement, BinaryRequirement):
+            try:
+                package = NPM_COMMAND_PACKAGES[requirement.binary_name]
+            except KeyError:
+                pass
+            else:
+                return NodePackageRequirement(package)
+        if isinstance(requirement, NodeModuleRequirement):
+            # TODO: Is this legit?
+            parts = requirement.module.split("/")
+            if parts[0].startswith('@'):
+                return NodePackageRequirement('/'.join(parts[:2]))
+            else:
+                return NodePackageRequirement(parts[0])
+        if isinstance(requirement, NodePackageRequirement):
+            return requirement
+        return None
 
+    def install(self, requirements):
         if self.user_local:
             user = None
         else:
@@ -501,46 +520,33 @@ class NpmResolver(Resolver):
 
         missing = []
         for requirement in requirements:
-            if isinstance(requirement, BinaryRequirement):
-                try:
-                    package = NPM_COMMAND_PACKAGES[requirement.binary_name]
-                except KeyError:
-                    pass
-                else:
-                    requirement = NodePackageRequirement(package)
-            if isinstance(requirement, NodeModuleRequirement):
-                # TODO: Is this legit?
-                parts = requirement.module.split("/")
-                if parts[0].startswith('@'):
-                    requirement = NodePackageRequirement('/'.join(parts[:2]))
-                else:
-                    requirement = NodePackageRequirement(parts[0])
-            if not isinstance(requirement, NodePackageRequirement):
+            node_pkg_requirement = self._to_node_package_req(requirement)
+            if node_pkg_requirement is None:
                 missing.append(requirement)
                 continue
             cmd = ["npm", "install"]
             if not self.user_local:
                 cmd.append('-g')
-            cmd.append(requirement.package)
+            cmd.append(node_pkg_requirement.package)
             logging.info("npm: running %r", cmd)
             run_detecting_problems(self.session, cmd, user=user)
         if missing:
             raise UnsatisfiedRequirements(missing)
 
     def explain(self, requirements):
-        from ..requirements import NodePackageRequirement
+        from ..requirements import (
+            NodePackageRequirement,
+            NodeModuleRequirement,
+            BinaryRequirement,
+        )
 
         nodereqs = []
         packages = []
         for requirement in requirements:
-            if not isinstance(requirement, NodePackageRequirement):
-                continue
-            try:
-                package = NPM_COMMAND_PACKAGES[requirement.command]
-            except KeyError:
-                continue
-            nodereqs.append(requirement)
-            packages.append(package)
+            node_pkg_requirement = self._to_node_package_req(requirement)
+            if node_pkg_requirement is not None:
+                packages.append(node_pkg_requirement.package)
+                nodereqs.append(requirement)
         if nodereqs:
             yield (["npm", "-g", "install"] + packages, nodereqs)
 

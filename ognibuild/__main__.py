@@ -97,6 +97,7 @@ def determine_fixers(session, resolver, explain=False):
 
 def main():  # noqa: C901
     import argparse
+    from .session import Session
 
     parser = argparse.ArgumentParser(prog='ogni')
     parser.add_argument(
@@ -162,6 +163,8 @@ def main():  # noqa: C901
         logging.basicConfig(level=logging.DEBUG, format="%(message)s")
     else:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    session: Session
     if args.schroot:
         from .session.schroot import SchrootSession
 
