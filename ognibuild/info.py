@@ -21,7 +21,7 @@ from . import Requirement
 
 def run_info(session, buildsystems, fixers=None):
     for buildsystem in buildsystems:
-        deps: Dict[str, List[Requirement]]  = {}
+        deps: Dict[str, List[Requirement]] = {}
         try:
             for kind, dep in buildsystem.get_declared_dependencies(
                     session, fixers=fixers):

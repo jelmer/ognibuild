@@ -162,7 +162,7 @@ class Pear(BuildSystem):
             [guaranteed_which(session, resolver, "pear"), "build", self.path])
 
     def clean(self, session, resolver):
-        pass # TODO
+        pass  # TODO
 
     def install(self, session, resolver, install_target):
         run_detecting_problems(

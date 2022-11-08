@@ -534,12 +534,6 @@ class NpmResolver(Resolver):
             raise UnsatisfiedRequirements(missing)
 
     def explain(self, requirements):
-        from ..requirements import (
-            NodePackageRequirement,
-            NodeModuleRequirement,
-            BinaryRequirement,
-        )
-
         nodereqs = []
         packages = []
         for requirement in requirements:

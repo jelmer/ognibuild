@@ -16,7 +16,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import asyncio
-from itertools import chain
 import logging
 import os
 import posixpath
@@ -1012,7 +1011,8 @@ class AptResolver(Resolver):
                 apt_requirements.append((r, apt_req))
         if apt_requirements:
             yield (
-                self.apt.satisfy_command([r.pkg_relation_str() for o, r in apt_requirements]),
+                self.apt.satisfy_command(
+                    [r.pkg_relation_str() for o, r in apt_requirements]),
                 [o for o, r in apt_requirements],
             )
 
