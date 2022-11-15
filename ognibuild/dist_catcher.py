@@ -19,6 +19,7 @@ import os
 import logging
 import shutil
 import time
+from typing import Dict
 
 
 class DistNoTarball(Exception):
@@ -45,10 +46,12 @@ def is_dist_file(fn):
 
 
 class DistCatcher(object):
+
+    existing_files: Dict[str, Dict[str, os.DirEntry]]
+
     def __init__(self, directories):
         self.directories = [os.path.abspath(d) for d in directories]
         self.files = []
-        self.existing_files = None
         self.start_time = time.time()
 
     @classmethod

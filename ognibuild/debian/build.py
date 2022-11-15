@@ -46,7 +46,7 @@ from buildlog_consultant.sbuild import (
     worker_failure_from_sbuild_log,
 )
 
-from .. import DetailedFailure as DetailedFailure, UnidentifiedError
+from .. import DetailedFailure, UnidentifiedError
 
 BUILD_LOG_FILENAME = 'build.log'
 
