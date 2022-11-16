@@ -20,6 +20,7 @@ import logging
 import os
 import shlex
 import sys
+import tempfile
 from urllib.parse import urlparse
 from . import UnidentifiedError, DetailedFailure, version_string
 from .buildlog import (
@@ -41,7 +42,7 @@ def display_explain_commands(commands):
     logging.info("Run one or more of the following commands:")
     for command, reqs in commands:
         if isinstance(command, list):
-            command = shlex.join(command)
+            command = shlex.join(command)  # type: ignore
         logging.info(
             "  %s (to install %s)", command, ", ".join(map(str, reqs)))
 
@@ -188,11 +189,12 @@ def main():  # noqa: C901
             import breezy.git  # noqa: F401
             import breezy.bzr  # noqa: F401
             from breezy.branch import Branch
-            from silver_platter.utils import TemporarySprout
             b = Branch.open(args.directory)
             logging.info("Cloning %s", args.directory)
-            wt = es.enter_context(TemporarySprout(b))
-            external_dir, internal_dir = session.setup_from_vcs(wt)
+            td = es.enter_context(tempfile.TemporaryDirectory())
+            to_dir = b.controldir.sprout(td, create_tree_if_local=True)
+            external_dir, internal_dir = session.setup_from_vcs(
+                to_dir.open_workingtree())
         else:
             if parsed_url.scheme == 'file':
                 directory = parsed_url.path

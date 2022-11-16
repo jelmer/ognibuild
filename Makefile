@@ -11,7 +11,7 @@ testsuite:
 check:: typing
 
 typing:
-	mypy --check-untyped-defs ognibuild tests
+	mypy ognibuild tests
 
 coverage:
 	python3 -m coverage run -m unittest tests.test_suite

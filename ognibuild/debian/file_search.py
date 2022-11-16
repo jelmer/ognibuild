@@ -132,7 +132,7 @@ def load_direct_url(url):
             request = Request(url + ext, headers={"User-Agent": USER_AGENT})
             response = urlopen(request)
         except HTTPError as e:
-            if e.status == 404:
+            if e.code == 404:
                 continue
             raise AptFileAccessError(
                 'Unable to access apt URL %s: %s' % (url + ext, e))
