@@ -57,9 +57,9 @@ class PythonPackageRequirement(Requirement):
 
     @classmethod
     def from_requirement_str(cls, text, python_version=None):
-        from requirements.requirement import Requirement
+        from requirements.requirement import Requirement as RequirementEntry
 
-        req = Requirement.parse(text)
+        req = RequirementEntry.parse(text)
         return cls(
             package=req.name, specs=req.specs, python_version=python_version)
 
