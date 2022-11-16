@@ -40,11 +40,16 @@ jobs:
         run: |
           pip install flake8
           python -m flake8
-      - name: Typing checks
+      - name: Typing checks (Linux)
         run: |
           pip install -U mypy types-toml
           python -m mypy ognibuild
-        if: "matrix.python-version != 'pypy3'"
+        if: "matrix.python-version != 'pypy3' && matrix.os == 'ubuntu-latest'"
+      - name: Typing checks (Mac OS X)
+        run: |
+          pip install -U mypy types-toml
+          python -m mypy --ignore-missing-imports ognibuild
+        if: "matrix.python-version != 'pypy3' && matrix.os == 'macos-latest'"
       - name: Test suite run
         run: |
           python -m unittest tests.test_suite
