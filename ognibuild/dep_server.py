@@ -37,6 +37,11 @@ async def handle_health(request):
     return web.Response(text='ok')
 
 
+@routes.get('/ready', name='ready')
+async def handle_ready(request):
+    return web.Response(text='ok')
+
+
 @routes.get('/families', name='families')
 async def handle_families(request):
     return web.json_response(list(Requirement._JSON_DESERIALIZERS.keys()))
