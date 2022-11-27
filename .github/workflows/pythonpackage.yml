@@ -37,6 +37,7 @@ jobs:
           python -m pip install -e ".[debian]"
         if: "matrix.python-version != 'pypy3' && matrix.os == 'ubuntu-latest'"
       - name: Style checks
+        if: always()
         run: |
           pip install flake8
           python -m flake8
@@ -51,6 +52,7 @@ jobs:
           python -m mypy --ignore-missing-imports ognibuild
         if: "matrix.python-version != 'pypy3' && matrix.os == 'macos-latest'"
       - name: Test suite run
+        if: always()
         run: |
           python -m unittest tests.test_suite
         env:
