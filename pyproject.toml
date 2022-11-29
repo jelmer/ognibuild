@@ -13,6 +13,7 @@ module = [
     "breezy.*",
     "buildlog_consultant.*",
     "lz4.*",
+    "ruamel.yaml.*",
     "semver.*",
     "requirements.*",
     "setuptools.config.setupcfg",
