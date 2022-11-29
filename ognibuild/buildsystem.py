@@ -432,10 +432,6 @@ class SetupPy(BuildSystem):
             run_detecting_problems(
                 session, ["tox", "--skip-missing-interpreters"])
             return
-        if self.pyproject:
-            run_detecting_problems(
-                session, ["python3", "-m", "pep517.check", "."])
-            return
         if 'tool:pytest' in self.config or 'pytest' in self.config:
             run_detecting_problems(session, ['pytest'])
             return
@@ -481,7 +477,7 @@ class SetupPy(BuildSystem):
             with DistCatcher([session.external_path("dist")]) as dc:
                 run_detecting_problems(
                     session,
-                    ["python3", "-m", "pep517.build", "--source", "."],
+                    ["python3", "-m", "build", "--sdist", "."],
                 )
             return dc.copy_single(target_directory)
         raise AssertionError("no setup.py or pyproject.toml")
