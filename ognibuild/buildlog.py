@@ -233,6 +233,9 @@ def problem_to_upstream_requirement(
         from .resolver.apt import AptRequirement
         return AptRequirement(problem.relations)
     else:
+        logging.warning(
+            'Unable to determine how to deal with %r',
+            problem)
         return None
 
 
