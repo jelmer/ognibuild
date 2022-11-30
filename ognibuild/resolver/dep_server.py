@@ -39,6 +39,12 @@ class DepServerError(Exception):
         self.inner = inner
 
 
+class RequirementFamilyUnknown(DepServerError):
+
+    def __init__(self, family):
+        self.family = family
+
+
 async def resolve_apt_requirement_dep_server(
         url: str, req: Requirement) -> List[AptRequirement]:
     """Resolve a requirement to an APT requirement with a dep server.
@@ -57,7 +63,12 @@ async def resolve_apt_requirement_dep_server(
                     raise_for_status=True) as resp:
                 return [
                     AptRequirement._from_json(e) for e in await resp.json()]
-        except (ClientConnectorError, ClientResponseError,
+        except ClientResponseError as e:
+            if e.status == 404:
+                if e.headers.get('Reason') == 'family-unknown':
+                    raise RequirementFamilyUnknown()
+            raise DepServerError(e)
+        except (ClientConnectorError,
                 ServerDisconnectedError) as e:
             logging.warning('Unable to contact dep server: %r', e)
             raise DepServerError(e)
