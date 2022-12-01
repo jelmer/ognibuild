@@ -432,7 +432,8 @@ class SetupPy(BuildSystem):
             run_detecting_problems(
                 session, ["tox", "--skip-missing-interpreters"])
             return
-        if 'tool:pytest' in self.config or 'pytest' in self.config:
+        if self.config and (
+                'tool:pytest' in self.config or 'pytest' in self.config):
             run_detecting_problems(session, ['pytest'])
             return
         if self.has_setup_py:
