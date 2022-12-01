@@ -784,7 +784,7 @@ class Gradle(BuildSystem):
                     for line in e.lines
                 ]
             ):
-                raise NotImplementedError
+                raise NotImplementedError from e
             raise
 
     def clean(self, session, resolver):
@@ -918,7 +918,7 @@ class Meson(BuildSystem):
             except UnidentifiedError as e:
                 if ("ninja: error: unknown target 'dist', did you mean 'dino'?"
                         in e.lines):
-                    raise NotImplementedError
+                    raise NotImplementedError from e
                 raise
         return dc.copy_single(target_directory)
 
@@ -1450,13 +1450,13 @@ class Make(BuildSystem):
             except UnidentifiedError as e:
                 if ("make: *** No rule to make target 'dist'.  Stop."
                         in e.lines):
-                    raise NotImplementedError
+                    raise NotImplementedError from e
                 elif ("make[1]: *** No rule to make target 'dist'.  Stop."
                         in e.lines):
-                    raise NotImplementedError
+                    raise NotImplementedError from e
                 elif ("ninja: error: unknown target 'dist', "
                       "did you mean 'dino'?" in e.lines):
-                    raise NotImplementedError
+                    raise NotImplementedError from e
                 elif (
                     "Please try running 'make manifest' and then run "
                     "'make dist' again." in e.lines
@@ -1829,7 +1829,7 @@ class PerlBuildTiny(BuildSystem):
                             session, ["./Build", "manifest"])
                         run_detecting_problems(session, ["./Build", "dist"])
                     elif "No such action 'dist'" in e.lines:
-                        raise NotImplementedError
+                        raise NotImplementedError from e
                     else:
                         raise
         return dc.copy_single(target_directory)

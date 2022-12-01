@@ -153,7 +153,7 @@ def create_dist(
         )
     except OSError as e:
         if e.errno == errno.ENOSPC:
-            raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice())
+            raise DetailedFailure(1, ["mkdtemp"], NoSpaceOnDevice()) from e
         raise
 
     if log_manager is None:

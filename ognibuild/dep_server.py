@@ -52,8 +52,8 @@ async def handle_apt(request):
     js = await request.json()
     try:
         req_js = js['requirement']
-    except KeyError:
-        raise web.HTTPBadRequest(text="json missing 'requirement' key")
+    except KeyError as e:
+        raise web.HTTPBadRequest(text="json missing 'requirement' key") from e
     release = js.get('release')
     if release and release not in SUPPORTED_RELEASES:
         return web.json_response(

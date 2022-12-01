@@ -101,8 +101,8 @@ class Requirement(object):
     def from_json(self, js):
         try:
             family = Requirement._JSON_DESERIALIZERS[js[0]]
-        except KeyError:
-            raise UnknownRequirementFamily(js[0])
+        except KeyError as e:
+            raise UnknownRequirementFamily(js[0]) from e
         return family._from_json(js[1])
 
     def met(self, session):

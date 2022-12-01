@@ -17,5 +17,6 @@ module = [
     "semver.*",
     "requirements.*",
     "setuptools.config.setupcfg",
+    "google.cloud.logging.*",
 ]
 ignore_missing_imports = true

@@ -135,10 +135,10 @@ def load_direct_url(url):
             if e.code == 404:
                 continue
             raise AptFileAccessError(
-                'Unable to access apt URL %s: %s' % (url + ext, e))
+                'Unable to access apt URL %s: %s' % (url + ext, e)) from e
         except URLError as e:
             raise AptFileAccessError(
-                'Unable to access apt URL %s: %s' % (url + ext, e))
+                'Unable to access apt URL %s: %s' % (url + ext, e)) from e
         break
     else:
         raise FileNotFoundError(url)
@@ -170,7 +170,7 @@ def load_apt_cache_file(url, cache_dir):
             f = open(p, "rb")
         except PermissionError as e:
             logging.warning('Unable to open %s: %s', p, e)
-            raise FileNotFoundError(url)
+            raise FileNotFoundError(url) from e
         return _unwrap(f, ext)
     raise FileNotFoundError(url)
 
