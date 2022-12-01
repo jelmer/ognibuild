@@ -107,7 +107,7 @@ def get_build_architecture():
             .decode()
         )
     except subprocess.CalledProcessError as e:
-        raise Exception("Could not find the build architecture: %s" % e)
+        raise Exception("Could not find the build architecture: %s" % e) from e
 
 
 def control_files_in_root(tree: Tree, subpath: str) -> bool:
@@ -250,8 +250,8 @@ def build(
             args, cwd=local_tree.abspath(subpath), stdout=outf, stderr=outf,
             env=env
         )
-    except subprocess.CalledProcessError:
-        raise BuildFailedError()
+    except subprocess.CalledProcessError as e:
+        raise BuildFailedError() from e
 
 
 def build_once(
@@ -291,13 +291,13 @@ def build_once(
                     sbuild_failure.phase, retcode,
                     shlex.split(build_command),
                     sbuild_failure.error,
-                    sbuild_failure.description)
+                    sbuild_failure.description) from e
             else:
                 raise UnidentifiedDebianBuildError(
                     sbuild_failure.stage,
                     sbuild_failure.phase,
                     retcode, shlex.split(build_command),
-                    [], sbuild_failure.description)
+                    [], sbuild_failure.description) from e
 
     cl_entry = get_latest_changelog_entry(local_tree, subpath)
     if cl_entry.package is None:
@@ -316,8 +316,8 @@ class GitBuildpackageMissing(Exception):
 def gbp_dch(path):
     try:
         subprocess.check_call(["gbp", "dch", "--ignore-branch"], cwd=path)
-    except FileNotFoundError:
-        raise GitBuildpackageMissing()
+    except FileNotFoundError as e:
+        raise GitBuildpackageMissing() from e
 
 
 def attempt_build(

@@ -86,18 +86,18 @@ class SchrootSession(Session):
                 .strip()
                 .decode()
             )
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
             stderr.seek(0)
             errlines = stderr.readlines()
             if len(errlines) == 1:
                 raise SessionSetupFailure(
-                    errlines[0].rstrip().decode(), errlines=errlines)
+                    errlines[0].rstrip().decode(), errlines=errlines) from e
             elif len(errlines) == 0:
                 raise SessionSetupFailure(
-                    "No output from schroot", errlines=errlines)
+                    "No output from schroot", errlines=errlines) from e
             else:
                 raise SessionSetupFailure(
-                    errlines[-1].decode(), errlines=errlines)
+                    errlines[-1].decode(), errlines=errlines) from e
         logging.info(
             "Opened schroot session %s (from %s)", self.session_id, self.chroot
         )
@@ -159,7 +159,7 @@ class SchrootSession(Session):
                 self._run_argv(argv, cwd, user, env=env), close_fds=close_fds
             )
         except subprocess.CalledProcessError as e:
-            raise subprocess.CalledProcessError(e.returncode, argv)
+            raise subprocess.CalledProcessError(e.returncode, argv) from e
 
     def check_output(
         self,
@@ -172,7 +172,7 @@ class SchrootSession(Session):
             return subprocess.check_output(
                 self._run_argv(argv, cwd, user, env=env))
         except subprocess.CalledProcessError as e:
-            raise subprocess.CalledProcessError(e.returncode, argv)
+            raise subprocess.CalledProcessError(e.returncode, argv) from e
 
     def Popen(
         self, argv, cwd: Optional[str] = None, user: Optional[str] = None,

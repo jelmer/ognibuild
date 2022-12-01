@@ -65,13 +65,13 @@ async def resolve_apt_requirement_dep_server(
                     AptRequirement._from_json(e) for e in await resp.json()]
         except ClientResponseError as e:
             if e.status == 404:
-                if e.headers.get('Reason') == 'family-unknown':
-                    raise RequirementFamilyUnknown()
-            raise DepServerError(e)
+                if e.headers.get('Reason') == 'family-unknown':  # type: ignore
+                    raise RequirementFamilyUnknown(family=req.family) from e
+            raise DepServerError(e) from e
         except (ClientConnectorError,
                 ServerDisconnectedError) as e:
             logging.warning('Unable to contact dep server: %r', e)
-            raise DepServerError(e)
+            raise DepServerError(e) from e
 
 
 class DepServerAptResolver(AptResolver):
