@@ -195,9 +195,16 @@ def add_build_dependency(context, requirement: AptRequirement):
     if not isinstance(requirement, AptRequirement):
         raise TypeError(requirement)
 
-    control_path = context.abspath("debian/control")
+    if os.path.exists(context.abspath('debian/debcargo.toml')):
+        from debmutate.debcargo import DebcargoControlShimEditor
+        control = DebcargoControlShimEditor.from_debian_dir(
+            context.abspath('debian'))
+    else:
+        control_path = context.abspath("debian/control")
+        control = ControlEditor(path=control_path)
+
     try:
-        with ControlEditor(path=control_path) as updater:
+        with control as updater:
             for binary in updater.binaries:
                 if requirement.touches_package(binary["Package"]):
                     raise CircularDependency(binary["Package"])
