@@ -37,6 +37,11 @@ async def handle_health(request):
     return web.Response(text='ok')
 
 
+@routes.get('/ready', name='ready')
+async def handle_ready(request):
+    return web.Response(text='ok')
+
+
 @routes.get('/families', name='families')
 async def handle_families(request):
     return web.json_response(list(Requirement._JSON_DESERIALIZERS.keys()))
@@ -53,12 +58,14 @@ async def handle_apt(request):
     if release and release not in SUPPORTED_RELEASES:
         return web.json_response(
             {"reason": "unsupported-release", "release": release},
+            headers={'Reason': 'unsupported-release'},
             status=404)
     try:
         req = Requirement.from_json(req_js)
     except UnknownRequirementFamily as e:
         return web.json_response(
-            {"reason": "family-unknown", "family": e.family}, status=404)
+            {"reason": "family-unknown", "family": e.family},
+            headers={"Reason": 'unsupported-family'}, status=404)
     apt_reqs = await resolve_requirement_apt(request.app['apt_mgr'], req)
     return web.json_response([r.pkg_relation_str() for r in apt_reqs])
 
