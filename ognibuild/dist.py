@@ -239,8 +239,9 @@ def main(argv=None):
 
     if args.packaging_directory:
         packaging_tree = WorkingTree.open(args.packaging_directory)
-        with packaging_tree.lock_read():
-            source = Deb822(packaging_tree.get_file("debian/control"))
+        with packaging_tree.lock_read():  # type: ignore
+            source = Deb822(
+                packaging_tree.get_file("debian/control"))  # type: ignore
         package = source["Source"]
         subdir = package
     else:
