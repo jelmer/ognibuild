@@ -55,6 +55,7 @@ class BuildFixer(object):
 def run_detecting_problems(
         session: Session, args: List[str], check_success=None,
         quiet=False, **kwargs) -> List[str]:
+    error: Optional[Problem]
     if not quiet:
         logging.info('Running %r', args)
     if check_success is None:

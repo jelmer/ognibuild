@@ -15,6 +15,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+# TODO(jelmer): don't ignore all typing here
+# type: ignore
+
 """Convert problems found in the buildlog to upstream requirements.
 """
 
