@@ -86,7 +86,7 @@ class UnknownRequirementFamily(Exception):
         self.family = family
 
 
-class Requirement(object):
+class Requirement:
 
     # Name of the family of requirements - e.g. "python-package"
     family: str
@@ -129,16 +129,13 @@ class OneOfRequirement(Requirement):
         self.elements = elements
 
     def met(self, session):
-        for req in self.elements:
-            if req.met(session):
-                return True
-        return False
+        return any(req.met(session) for req in self.elements)
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.elements)
 
 
-class UpstreamOutput(object):
+class UpstreamOutput:
     def __init__(self, family):
         self.family = family
 

@@ -64,7 +64,7 @@ async def resolve_apt_requirement_dep_server(
                 return [
                     AptRequirement._from_json(e) for e in await resp.json()]
         except ClientResponseError as e:
-            if e.status == 404:
+            if e.status == 404:  # noqa: SIM102
                 if e.headers.get('Reason') == 'family-unknown':  # type: ignore
                     raise RequirementFamilyUnknown(family=req.family) from e
             raise DepServerError(e) from e

@@ -30,7 +30,7 @@ class UnsatisfiedRequirements(Exception):
         self.requirements = reqs
 
 
-class Resolver(object):
+class Resolver:
 
     name: str
 

@@ -26,6 +26,7 @@ from typing import Optional, List, Callable, Union, Tuple
 from buildlog_consultant.common import Problem
 
 
+from . import OneOfRequirement
 from .requirements import (
     Requirement,
     BinaryRequirement,
@@ -45,16 +46,11 @@ from .requirements import (
     SprocketsFileRequirement,
     JavaClassRequirement,
     CMakefileRequirement,
-    HaskellPackageRequirement,
-    MavenArtifactRequirement,
-    BoostComponentRequirement,
-    KF5ComponentRequirement,
     GnomeCommonRequirement,
     JDKFileRequirement,
     JDKRequirement,
     JRERequirement,
     PerlModuleRequirement,
-    PerlFileRequirement,
     AutoconfMacroRequirement,
     PythonModuleRequirement,
     PythonPackageRequirement,
@@ -65,9 +61,6 @@ from .requirements import (
     LibtoolRequirement,
     VagueDependencyRequirement,
     IntrospectionTypelibRequirement,
-    PerlPreDeclaredRequirement,
-    LatexPackageRequirement,
-    CargoCrateRequirement,
     StaticLibraryRequirement,
     GnulibDirectoryRequirement,
     LuaModuleRequirement,
@@ -84,7 +77,6 @@ ProblemToRequirementConverter = Callable[[Problem], Optional[Requirement]]
 def map_pytest_arguments_to_plugin(args):
     # TODO(jelmer): Map argument to PytestPluginRequirement
     return None
-
 
 
 PROBLEM_CONVERTERS: List[Union[
@@ -157,6 +149,3 @@ PROBLEM_CONVERTERS: List[Union[
     ('unsupported-pytest-arguments',
      lambda p: map_pytest_arguments_to_plugin(p.args), '0.0.27'),
 ]
-
-
-

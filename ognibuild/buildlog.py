@@ -19,7 +19,7 @@
 """
 
 import logging
-from typing import Optional, List, Callable, Union, Tuple, cast
+from typing import Optional, List, cast
 
 from buildlog_consultant.common import (
     Problem,
@@ -40,52 +40,15 @@ from .fix_build import BuildFixer
 from .requirements import (
     Requirement,
     BinaryRequirement,
-    PathRequirement,
-    PkgConfigRequirement,
-    CHeaderRequirement,
-    JavaScriptRuntimeRequirement,
-    ValaPackageRequirement,
-    GoPackageRequirement,
-    DhAddonRequirement,
-    PhpClassRequirement,
-    RPackageRequirement,
-    NodePackageRequirement,
-    LibraryRequirement,
-    RubyFileRequirement,
-    XmlEntityRequirement,
-    SprocketsFileRequirement,
-    JavaClassRequirement,
-    CMakefileRequirement,
     HaskellPackageRequirement,
     MavenArtifactRequirement,
     BoostComponentRequirement,
     KF5ComponentRequirement,
-    GnomeCommonRequirement,
-    JDKFileRequirement,
-    JDKRequirement,
-    JRERequirement,
-    PerlModuleRequirement,
     PerlFileRequirement,
-    AutoconfMacroRequirement,
-    PythonModuleRequirement,
     PythonPackageRequirement,
-    CertificateAuthorityRequirement,
-    NodeModuleRequirement,
-    QTRequirement,
-    X11Requirement,
-    LibtoolRequirement,
-    VagueDependencyRequirement,
-    IntrospectionTypelibRequirement,
     PerlPreDeclaredRequirement,
     LatexPackageRequirement,
     CargoCrateRequirement,
-    StaticLibraryRequirement,
-    GnulibDirectoryRequirement,
-    LuaModuleRequirement,
-    PHPExtensionRequirement,
-    VcsControlDirectoryAccessRequirement,
-    RubyGemRequirement,
-    QtModuleRequirement,
 )
 from .resolver import UnsatisfiedRequirements
 from .buildlog_converters import PROBLEM_CONVERTERS  # type: ignore
@@ -153,7 +116,8 @@ def problem_to_upstream_requirement(
     elif problem.kind == 'unsatisfied-apt-dependencies':
         from buildlog_consultant.apt import UnsatisfiedAptDependencies
         from .resolver.apt import AptRequirement
-        return AptRequirement(cast(UnsatisfiedAptDependencies, problem).relations)
+        return AptRequirement(
+            cast(UnsatisfiedAptDependencies, problem).relations)
     else:
         logging.warning(
             'Unable to determine how to deal with %r',

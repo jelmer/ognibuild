@@ -35,7 +35,7 @@ class SessionAlreadyOpen(Exception):
         self.session = session
 
 
-class Session(object):
+class Session:
     def __enter__(self) -> "Session":
         return self
 

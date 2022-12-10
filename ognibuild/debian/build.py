@@ -117,9 +117,7 @@ def control_files_in_root(tree: Tree, subpath: str) -> bool:
     control_path = os.path.join(subpath, "control")
     if tree.has_filename(control_path):
         return True
-    if tree.has_filename(control_path + ".in"):
-        return True
-    return False
+    return tree.has_filename(control_path + ".in")
 
 
 def version_add_suffix(version: Version, suffix: str) -> Version:
@@ -303,7 +301,7 @@ def build_once(
     if cl_entry.package is None:
         raise Exception('missing package in changelog entry')
     changes_names = []
-    for kind, entry in find_changes_files(
+    for _kind, entry in find_changes_files(
             output_directory, cl_entry.package, cl_entry.version):
         changes_names.append((entry.name))
     return (changes_names, cl_entry)

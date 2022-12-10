@@ -59,7 +59,7 @@ def run_apt(
     raise UnidentifiedError(retcode, args, lines, secondary=match)
 
 
-class AptManager(object):
+class AptManager:
 
     session: Session
     _searchers: Optional[List[FileSearcher]]
@@ -124,7 +124,7 @@ class AptManager(object):
                 tagf.step()
                 if not tagf.section:
                     break
-                if tagf.section["Package"] in missing:
+                if tagf.section["Package"] in missing:  # noqa: SIM102
                     if tagf.section["Status"] == "install ok installed":
                         missing.remove(tagf.section["Package"])
         return list(missing)

@@ -30,7 +30,7 @@ def copy_output(output_log: str, tee: bool = False):
         p = subprocess.Popen(["tee", output_log], stdin=subprocess.PIPE)
         newfd = p.stdin
     else:
-        newfd = open(output_log, 'wb')
+        newfd = open(output_log, 'wb')  # noqa: SIM115
     os.dup2(newfd.fileno(), sys.stdout.fileno())  # type: ignore
     os.dup2(newfd.fileno(), sys.stderr.fileno())  # type: ignore
     try:
@@ -73,7 +73,7 @@ def rotate_logfile(source_path: str) -> None:
         logging.debug("Storing previous build log at %s", target_path)
 
 
-class LogManager(object):
+class LogManager:
 
     def wrap(self, fn):
         raise NotImplementedError(self.wrap)

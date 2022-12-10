@@ -18,6 +18,7 @@
 """Tie breaking by build deps."""
 
 
+from contextlib import suppress
 from debian.deb822 import PkgRelation
 import logging
 from typing import Dict
@@ -25,7 +26,7 @@ from typing import Dict
 from breezy.plugins.debian.apt_repo import LocalApt, NoAptSources
 
 
-class BuildDependencyTieBreaker(object):
+class BuildDependencyTieBreaker:
     def __init__(self, apt):
         self.apt = apt
         self._counts = None
@@ -61,10 +62,8 @@ class BuildDependencyTieBreaker(object):
                 return None
         by_count = {}
         for req in reqs:
-            try:
+            with suppress(KeyError):
                 by_count[req] = self._counts[list(req.package_names())[0]]
-            except KeyError:
-                pass
         if not by_count:
             return None
         top = max(by_count.items(), key=lambda k: k[1])

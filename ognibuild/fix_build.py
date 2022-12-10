@@ -37,7 +37,7 @@ class FixerLimitReached(Exception):
     """The maximum number of fixes has been reached."""
 
 
-class BuildFixer(object):
+class BuildFixer:
     """Build fixer."""
 
     def can_fix(self, problem: Problem):

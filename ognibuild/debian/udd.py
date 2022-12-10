@@ -21,7 +21,7 @@ import logging
 from typing import Optional
 
 
-class UDD(object):
+class UDD:
     def connect(self):
         import psycopg2
 
