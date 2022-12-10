@@ -66,10 +66,9 @@ def run_dist(session, buildsystems, resolver, fixers, target_directory,
         log_manager = NoLogManager()
 
     for buildsystem in buildsystems:
-        filename = iterate_with_build_fixers(fixers, log_manager.wrap(
+        return iterate_with_build_fixers(fixers, log_manager.wrap(
             partial(buildsystem.dist, session, resolver, target_directory,
                     quiet=quiet)))
-        return filename
 
     raise NoBuildToolsFound()
 
@@ -97,9 +96,8 @@ def dist(session, export_directory, reldir, target_dir, log_manager, *,
     fixers: List[BuildFixer] = [
         UnexpandedAutoconfMacroFixer(session, resolver),
         GnulibDirectoryFixer(session),
-        MissingGoSumEntryFixer(session)]
-
-    fixers.append(InstallFixer(resolver))
+        MissingGoSumEntryFixer(session),
+        InstallFixer(resolver)]
 
     if session.is_temporary:
         # Only muck about with temporary sessions
@@ -117,11 +115,10 @@ def dist(session, export_directory, reldir, target_dir, log_manager, *,
     logging.info('Using dependency resolver: %s', resolver)
 
     for buildsystem in buildsystems:
-        filename = iterate_with_build_fixers(fixers, log_manager.wrap(
+        return iterate_with_build_fixers(fixers, log_manager.wrap(
             partial(
                 buildsystem.dist, session, resolver, target_dir,
                 quiet=quiet)))
-        return filename
 
     raise NoBuildToolsFound()
 
@@ -242,8 +239,9 @@ def main(argv=None):
 
     if args.packaging_directory:
         packaging_tree = WorkingTree.open(args.packaging_directory)
-        with packaging_tree.lock_read():
-            source = Deb822(packaging_tree.get_file("debian/control"))
+        with packaging_tree.lock_read():  # type: ignore
+            source = Deb822(
+                packaging_tree.get_file("debian/control"))  # type: ignore
         package = source["Source"]
         subdir = package
     else:

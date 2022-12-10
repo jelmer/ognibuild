@@ -18,6 +18,7 @@
 
 import apt_pkg
 import asyncio
+from contextlib import suppress
 from datetime import datetime
 from debian.deb822 import Release
 import os
@@ -31,7 +32,7 @@ from .. import USER_AGENT
 from ..session import Session
 
 
-class FileSearcher(object):
+class FileSearcher:
     def search_files(
             self, path: str, regex: bool = False,
             case_insensitive: bool = False) -> AsyncIterator[str]:
@@ -147,10 +148,8 @@ def load_direct_url(url):
 
 def load_url_with_cache(url, cache_dirs):
     for cache_dir in cache_dirs:
-        try:
+        with suppress(FileNotFoundError):
             return load_apt_cache_file(url, cache_dir)
-        except FileNotFoundError:
-            pass
     return load_direct_url(url)
 
 
@@ -167,7 +166,7 @@ def load_apt_cache_file(url, cache_dir):
 
             return lz4.frame.open(p, mode="rb")
         try:
-            f = open(p, "rb")
+            f = open(p, "rb")   # noqa: SIM115
         except PermissionError as e:
             logging.warning('Unable to open %s: %s', p, e)
             raise FileNotFoundError(url) from e
@@ -324,13 +323,11 @@ class RemoteContentsFileSearcher(FileSearcher):
                 if c.match(p):
                     pkg = rest.split(b"/")[-1]
                     ret.append((p, pkg.decode("utf-8")))
-            for p, pkg in sorted(ret):
+            for _p, pkg in sorted(ret):
                 yield pkg
         else:
-            try:
+            with suppress(KeyError):
                 yield self._db[path].split(b"/")[-1].decode("utf-8")
-            except KeyError:
-                pass
 
     def load_file(self, f, url):
         start_time = datetime.now()

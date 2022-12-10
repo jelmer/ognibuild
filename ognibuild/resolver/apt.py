@@ -132,10 +132,7 @@ class AptRequirement(Requirement):
                 yield entry["name"]
 
     def touches_package(self, package):
-        for name in self.package_names():
-            if name == package:
-                return True
-        return False
+        return any(name == package for name in self.package_names())
 
     def satisfied_by(self, binaries, version):
         def binary_pkg_matches(entry, binary):

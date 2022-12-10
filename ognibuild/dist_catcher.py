@@ -15,6 +15,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from contextlib import suppress
 import os
 import logging
 import shutil
@@ -39,13 +40,10 @@ SUPPORTED_DIST_EXTENSIONS = [
 
 
 def is_dist_file(fn):
-    for ext in SUPPORTED_DIST_EXTENSIONS:
-        if fn.endswith(ext):
-            return True
-    return False
+    return any(fn.endswith(ext) for ext in SUPPORTED_DIST_EXTENSIONS)
 
 
-class DistCatcher(object):
+class DistCatcher:
 
     existing_files: Dict[str, Dict[str, os.DirEntry]]
 
@@ -119,10 +117,8 @@ class DistCatcher(object):
 
     def copy_single(self, target_dir):
         for path in self.files:
-            try:
+            with suppress(shutil.SameFileError):
                 shutil.copy(path, target_dir)
-            except shutil.SameFileError:
-                pass
             return os.path.basename(path)
         logging.info("No tarball created :(")
         raise DistNoTarball()

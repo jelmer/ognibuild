@@ -86,9 +86,7 @@ Passphrase: ""
             stdout=subprocess.PIPE,
         )
         p.communicate(SCRIPT)
-        if p.returncode == 0:
-            return True
-        return False
+        return p.returncode == 0
 
 
 class MissingGoSumEntryFixer(BuildFixer):

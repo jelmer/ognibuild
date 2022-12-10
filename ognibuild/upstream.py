@@ -130,7 +130,7 @@ def find_cargo_crate_upstream(requirement):
         for version_info in data['versions']:
             if (not version_info['num'].startswith(
                         requirement.api_version + '.')
-                    and not version_info['num'] == requirement.api_version):
+                    and version_info['num'] != requirement.api_version):
                 continue
             if version is None:
                 version = semver.VersionInfo.parse(version_info['num'])

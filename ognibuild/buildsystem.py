@@ -17,6 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 
+from contextlib import suppress
 import logging
 import os
 import re
@@ -59,7 +60,7 @@ class NoBuildToolsFound(Exception):
     """No supported build tools were found."""
 
 
-class InstallTarget(object):
+class InstallTarget:  # noqa: PIE793
 
     # Whether to prefer user-specific installation
     user: Optional[bool]
@@ -77,7 +78,7 @@ def get_necessary_declared_requirements(resolver, requirements, stages):
     return missing
 
 
-class BuildSystem(object):
+class BuildSystem:
     """A particular buildsystem."""
 
     name: str
@@ -230,10 +231,8 @@ class Pear(BuildSystem):
 
 def run_setup(script_name, script_args=None, stop_after="run"):
     # Import setuptools, just in case it decides to replace distutils
-    try:
+    with suppress(ImportError):
         import setuptools  # noqa: F401
-    except ImportError:
-        pass
     from distutils import core
     import sys
 
@@ -506,9 +505,8 @@ class SetupPy(BuildSystem):
         if self.config:
             python_requires = self.config.get(
                 'options', {}).get('python_requires')
-            if python_requires:
-                if not python_requires.contains('2.7'):
-                    interpreter = 'python3'
+            if python_requires and not python_requires.contains('2.7'):
+                interpreter = 'python3'
         if interpreter is None:
             interpreter = shebang_binary(os.path.join(self.path, "setup.py"))
         if interpreter is None:
@@ -528,7 +526,7 @@ class SetupPy(BuildSystem):
         run_detecting_problems(session, argv, env=env)
 
     def _setup_requires(self):
-        if self.pyproject:
+        if self.pyproject:  # noqa: SIM102
             if "build-system" in self.pyproject:
                 requires = self.pyproject["build-system"].get("requires", [])
                 for require in requires:
@@ -557,7 +555,7 @@ class SetupPy(BuildSystem):
             for require in distribution["tests_require"]:
                 yield "test", PythonPackageRequirement.from_requirement_str(
                     require)
-        if self.pyproject:
+        if self.pyproject:  # noqa: SIM102
             if "build-system" in self.pyproject:
                 requires = self.pyproject["build-system"].get("requires", [])
                 for require in requires:
@@ -627,9 +625,7 @@ class Bazel(BuildSystem):
 
     @classmethod
     def exists(cls, path):
-        if not os.path.exists(os.path.join(path, "BUILD")):
-            return False
-        return True
+        return os.path.exists(os.path.join(path, "BUILD"))
 
     @classmethod
     def probe(cls, path):
@@ -656,9 +652,7 @@ class GnomeShellExtension(BuildSystem):
 
     @classmethod
     def exists(cls, path):
-        if not os.path.exists(os.path.join(path, "metadata.json")):
-            return False
-        return True
+        return os.path.exists(os.path.join(path, "metadata.json"))
 
     @classmethod
     def probe(cls, path):
@@ -777,13 +771,11 @@ class Gradle(BuildSystem):
             run_detecting_problems(session, argv)
         except UnidentifiedError as e:
             if any(
-                [
                     re.match(
                         r"Task '" + task +
                         r"' not found in root project '.*'\.", line
                     )
                     for line in e.lines
-                ]
             ):
                 raise NotImplementedError from e
             raise
@@ -988,11 +980,11 @@ class Npm(BuildSystem):
         return "%s(%r)" % (type(self).__name__, self.path)
 
     def get_declared_dependencies(self, session, fixers=None):
-        for name, unused_version in self.package.get(
+        for name, _version in self.package.get(
                 "dependencies", {}).items():
             # TODO(jelmer): Look at version
             yield "core", NodePackageRequirement(name)
-        for name, unused_version in self.package.get(
+        for name, _version in self.package.get(
                 "devDependencies", {}).items():
             # TODO(jelmer): Look at version
             yield "build", NodePackageRequirement(name)
@@ -1312,10 +1304,10 @@ class Make(BuildSystem):
             self.name = 'makefile.pl'
         elif os.path.exists(os.path.join(path, 'Makefile.am')):
             self.name = 'automake'
-        elif any([os.path.exists(os.path.join(path, n))
-                 for n in ['configure.ac', 'configure.in', 'autogen.sh']]):
+        elif any(os.path.exists(os.path.join(path, n))
+                 for n in ['configure.ac', 'configure.in', 'autogen.sh']):
             self.name = 'autoconf'
-        elif any([n.name.endswith(".pro") for n in os.scandir(path)]):
+        elif any(n.name.endswith(".pro") for n in os.scandir(path)):
             self.name = 'qmake'
         else:
             self.name = "make"
@@ -1326,8 +1318,8 @@ class Make(BuildSystem):
     def setup(self, session, resolver, prefix=None):
         def makefile_exists():
             return any(
-                [session.exists(p)
-                 for p in ["Makefile", "GNUmakefile", "makefile"]]
+                session.exists(p)
+                for p in ["Makefile", "GNUmakefile", "makefile"]
             )
 
         if session.exists("Makefile.PL") and not makefile_exists():
@@ -1362,7 +1354,7 @@ class Make(BuildSystem):
             run_detecting_problems(session, ["./configure"] + extra_args)
 
         if not makefile_exists() and any(
-            [n.name.endswith(".pro") for n in session.scandir(".")]
+            n.name.endswith(".pro") for n in session.scandir(".")
         ):
             run_detecting_problems(session, ["qmake"])
 
@@ -1390,11 +1382,9 @@ class Make(BuildSystem):
                 return True
             if line.startswith("The project was not configured"):
                 return True
-            if re.match(
+            return re.match(
                     r'Makefile:[0-9]+: \*\*\* '
-                    r'You need to run \.\/configure .*', line):
-                return True
-            return False
+                    r'You need to run \.\/configure .*', line)
         if session.exists('build/Makefile'):
             cwd = 'build'
         else:
@@ -1403,7 +1393,7 @@ class Make(BuildSystem):
             run_detecting_problems(session, ["make"] + args, cwd=cwd)
         except UnidentifiedError as e:
             if len(e.lines) < 5 and any(
-                    [_wants_configure(line) for line in e.lines]):
+                    _wants_configure(line) for line in e.lines):
                 extra_args = []
                 if prefix is not None:
                     extra_args.append("--prefix=%s" % prefix)
@@ -1449,13 +1439,14 @@ class Make(BuildSystem):
             try:
                 self._run_make(session, ["dist"])
             except UnidentifiedError as e:
-                if ("make: *** No rule to make target 'dist'.  Stop."
-                        in e.lines):
+                if ("make: *** No rule to make target 'dist'.  "  # noqa:SIM114
+                        "Stop." in e.lines):
                     raise NotImplementedError from e
-                elif ("make[1]: *** No rule to make target 'dist'.  Stop."
-                        in e.lines):
+                elif ("make[1]: "  # noqa:SIM114
+                      "*** No rule to make target 'dist'.  "
+                      "Stop." in e.lines):
                     raise NotImplementedError from e
-                elif ("ninja: error: unknown target 'dist', "
+                elif ("ninja: error: unknown target 'dist', "  # noqa: SIM114
                       "did you mean 'dino'?" in e.lines):
                     raise NotImplementedError from e
                 elif (
@@ -1465,7 +1456,6 @@ class Make(BuildSystem):
                     run_detecting_problems(session, ["make", "manifest"])
                     run_detecting_problems(session, ["make", "dist"])
                 elif any(
-                    [
                         re.match(
                             r"(Makefile|GNUmakefile|makefile):[0-9]+: "
                             r"\*\*\* Missing \'Make.inc\' "
@@ -1473,19 +1463,16 @@ class Make(BuildSystem):
                             r"Stop.", line,
                         )
                         for line in e.lines
-                    ]
                 ):
                     run_detecting_problems(session, ["./configure"])
                     run_detecting_problems(session, ["make", "dist"])
                 elif any(
-                    [
                         re.match(
                             r"Problem opening MANIFEST: "
                             r"No such file or directory "
                             r"at .* line [0-9]+\.", line,
                         )
                         for line in e.lines
-                    ]
                 ):
                     run_detecting_problems(session, ["make", "manifest"])
                     run_detecting_problems(session, ["make", "dist"])
@@ -1504,7 +1491,6 @@ class Make(BuildSystem):
     @classmethod
     def probe(cls, path):
         if any(
-            [
                 os.path.exists(os.path.join(path, p))
                 for p in [
                     "Makefile",
@@ -1515,7 +1501,6 @@ class Make(BuildSystem):
                     "configure.ac",
                     "configure.in",
                 ]
-            ]
         ):
             return cls(path)
         for n in os.scandir(path):
@@ -1642,11 +1627,11 @@ class Golang(BuildSystem):
                             parts[1],
                             parts[2].lstrip("v") if len(parts) > 2 else None
                         )
-                    elif parts[0] == "exclude":
+                    elif parts[0] == "exclude":  # noqa: SIM114
                         pass  # TODO(jelmer): Create conflicts?
-                    elif parts[0] == "replace":
+                    elif parts[0] == "replace":  # noqa: SIM114
                         pass  # TODO(jelmer): do.. something?
-                    elif parts[0] == "module":
+                    elif parts[0] == "module":  # noqa: SIM114
                         pass
                     else:
                         logging.warning(
@@ -1662,8 +1647,8 @@ class Golang(BuildSystem):
             if entry.name.endswith(".go"):
                 return Golang(path)
             if entry.is_dir():
-                for entry in os.scandir(entry.path):
-                    if entry.name.endswith(".go"):
+                for subentry in os.scandir(entry.path):
+                    if subentry.name.endswith(".go"):
                         return Golang(path)
 
 
@@ -1860,11 +1845,9 @@ class PerlBuildTiny(BuildSystem):
                     self.minilla = True
                 else:
                     raise
-        try:
-            with open(os.path.join(self.path, 'META.yml'), 'r') as f:
-                yield from _declared_deps_from_meta_yml(f)
-        except FileNotFoundError:
-            pass
+        with suppress(FileNotFoundError), \
+                open(os.path.join(self.path, 'META.yml'), 'r') as f:
+            yield from _declared_deps_from_meta_yml(f)
 
     @classmethod
     def probe(cls, path):

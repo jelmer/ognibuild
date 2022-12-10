@@ -132,13 +132,11 @@ def main(argv=None):  # noqa: C901
             for build_dep in build_deps:
                 for rel in build_dep.relations:
                     old_str = control.source.get("Build-Depends", "")
-                    new_str = ensure_relation(
-                        old_str,
-                        PkgRelation.str([rel]))
+                    new_str = ensure_relation(old_str, PkgRelation.str([rel]))
                     if old_str != new_str:
                         logging.info('Bumped to %s', rel)
                         control.source["Build-Depends"] = new_str
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

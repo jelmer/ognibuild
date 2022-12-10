@@ -54,10 +54,9 @@ class TestRedirectOutput(TestCase):
     def test_simple(self):
         with tempfile.TemporaryDirectory() as td:
             p = os.path.join(td, 'foo.log')
-            with open(p, 'w') as f:
-                with redirect_output(f):
-                    sys.stdout.write('lala\n')
-                    sys.stdout.flush()
+            with open(p, 'w') as f, redirect_output(f):
+                sys.stdout.write('lala\n')
+                sys.stdout.flush()
             with open(p, 'r') as f:
                 self.assertEqual('lala\n', f.read())
 

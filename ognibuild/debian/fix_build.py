@@ -100,7 +100,7 @@ class CircularDependency(Exception):
         self.package = package
 
 
-class DebianPackagingContext(object):
+class DebianPackagingContext:
     def __init__(
         self, tree, subpath, committer, update_changelog, commit_reporter=None
     ):
@@ -300,9 +300,7 @@ def python_tie_breaker(tree, subpath, reqs):
             return True
         if pkg.startswith("lib%s-" % python_version):
             return True
-        if pkg == r'lib%s-dev' % python_version:
-            return True
-        return False
+        return pkg == r'lib%s-dev' % python_version
 
     for python_version in targeted:
         for req in reqs:
