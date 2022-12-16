@@ -2,6 +2,7 @@ ognibuild (0.0.16-1) UNRELEASED; urgency=low
 
   [ Jelmer Vernooĳ ]
   * New upstream release.
+  * Bump debhelper from old 12 to 13.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Fri, 16 Dec 2022 11:53:36 -0000
 
