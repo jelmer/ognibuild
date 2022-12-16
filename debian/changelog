@@ -1,11 +1,11 @@
-ognibuild (0.0.16-1) UNRELEASED; urgency=low
+ognibuild (0.0.16-1) unstable; urgency=low
 
   [ Jelmer Vernooĳ ]
   * New upstream release.
   * Bump debhelper from old 12 to 13.
   * Update standards version to 4.6.1, no changes needed.
 
- -- Jelmer Vernooij <jelmer@debian.org>  Fri, 16 Dec 2022 11:53:36 -0000
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Fri, 16 Dec 2022 11:59:58 +0000
 
 ognibuild (0.0.6+git20210517.1.8189e91-1) unstable; urgency=low
 
