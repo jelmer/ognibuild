@@ -17,7 +17,7 @@
 
 from functools import partial
 import logging
-from typing import List, Tuple, Callable, Any, Optional
+from typing import List, Tuple, Callable, Optional, TypeVar
 
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
@@ -29,7 +29,15 @@ from . import DetailedFailure, UnidentifiedError
 from .session import Session, run_with_tee
 
 
-class BuildFixer(object):
+# Number of attempts to fix a build before giving up.
+DEFAULT_LIMIT = 200
+
+
+class FixerLimitReached(Exception):
+    """The maximum number of fixes has been reached."""
+
+
+class BuildFixer:
     """Build fixer."""
 
     def can_fix(self, problem: Problem):
@@ -44,7 +52,12 @@ class BuildFixer(object):
         return self._fix(problem, phase)
 
 
-def run_detecting_problems(session: Session, args: List[str], check_success=None, **kwargs):
+def run_detecting_problems(
+        session: Session, args: List[str], check_success=None,
+        quiet=False, **kwargs) -> List[str]:
+    error: Optional[Problem]
+    if not quiet:
+        logging.info('Running %r', args)
     if check_success is None:
         def check_success(retcode, contents):
             return (retcode == 0)
@@ -63,17 +76,26 @@ def run_detecting_problems(session: Session, args: List[str], check_success=None
                 logging.warning("Build failed with unidentified error:")
                 logging.warning("%s", match.line.rstrip("\n"))
             else:
-                logging.warning("Build failed and unable to find cause. Giving up.")
+                logging.warning(
+                    "Build failed and unable to find cause. Giving up.")
             raise UnidentifiedError(retcode, args, lines, secondary=match)
     raise DetailedFailure(retcode, args, error)
 
 
-def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any]):
+T = TypeVar('T')
+
+
+def iterate_with_build_fixers(
+        fixers: List[BuildFixer],
+        cb: Callable[[], T], limit=DEFAULT_LIMIT) -> T:
     """Call cb() until there are no more DetailedFailures we can fix.
 
     Args:
       fixers: List of fixers to use to resolve issues
+      cb: Callable to run the build
+      limit: Maximum number of fixing attempts before giving up
     """
+    attempts = 0
     fixed_errors = []
     while True:
         to_resolve = []
@@ -86,9 +108,13 @@ def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any]):
             logging.info("Identified error: %r", f.error)
             if f.error in fixed_errors:
                 logging.warning(
-                    "Failed to resolve error %r, it persisted. Giving up.", f.error
+                    "Failed to resolve error %r, it persisted. Giving up.",
+                    f.error
                 )
                 raise f
+            attempts += 1
+            if limit is not None and limit <= attempts:
+                raise FixerLimitReached(limit)
             try:
                 resolved = resolve_error(f.error, None, fixers=fixers)
             except DetailedFailure as n:
@@ -100,23 +126,25 @@ def iterate_with_build_fixers(fixers: List[BuildFixer], cb: Callable[[], Any]):
             else:
                 if not resolved:
                     logging.warning(
-                        "Failed to find resolution for error %r. Giving up.", f.error
+                        "Failed to find resolution for error %r. Giving up.",
+                        f.error
                     )
                     raise f
                 fixed_errors.append(f.error)
 
 
 def run_with_build_fixers(
-    session: Session, args: List[str], fixers: Optional[List[BuildFixer]], **kwargs
-):
+     fixers: Optional[List[BuildFixer]], session: Session, args: List[str],
+     quiet: bool = False, **kwargs
+) -> List[str]:
     if fixers is None:
         fixers = []
     return iterate_with_build_fixers(
-        fixers, partial(run_detecting_problems, session, args, **kwargs)
-    )
+        fixers,
+        partial(run_detecting_problems, session, args, quiet=quiet, **kwargs))
 
 
-def resolve_error(error, phase, fixers):
+def resolve_error(error, phase, fixers) -> bool:
     relevant_fixers = []
     for fixer in fixers:
         if fixer.can_fix(error):

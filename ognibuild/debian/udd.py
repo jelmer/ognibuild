@@ -18,9 +18,10 @@
 """Support for accessing UDD."""
 
 import logging
+from typing import Optional
 
 
-class UDD(object):
+class UDD:
     def connect(self):
         import psycopg2
 
@@ -32,13 +33,15 @@ class UDD(object):
             host="udd-mirror.debian.net",
         )
 
-    def get_most_popular(self, packages):
+    def get_most_popular(self, packages) -> Optional[str]:
         cursor = self._conn.cursor()
         cursor.execute(
-            "SELECT package FROM popcon WHERE package IN %s ORDER BY insts DESC LIMIT 1",
+            "SELECT package FROM popcon "
+            "WHERE package IN %s ORDER BY insts DESC LIMIT 1",
             (tuple(packages),),
         )
-        return cursor.fetchone()[0]
+        row = cursor.fetchone()
+        return row[0] if row else None
 
 
 def popcon_tie_breaker(candidates):
@@ -54,7 +57,8 @@ def popcon_tie_breaker(candidates):
     names = {list(c.package_names())[0]: c for c in candidates}
     winner = udd.get_most_popular(list(names.keys()))
     if winner is None:
-        logging.warning("No relevant popcon information found, not ranking by popcon")
+        logging.warning(
+            "No relevant popcon information found, not ranking by popcon")
         return None
     logging.info("Picked winner using popcon")
     return names[winner]

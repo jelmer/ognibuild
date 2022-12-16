@@ -33,7 +33,7 @@ def export_vcs_tree(tree, directory, subpath=""):
         export(tree, directory, "dir", None, subdir=(subpath or None))
     except OSError as e:
         if e.errno == errno.ENOSPC:
-            raise DetailedFailure(1, ["export"], NoSpaceOnDevice())
+            raise DetailedFailure(1, ["export"], NoSpaceOnDevice()) from e
         raise
 
 
@@ -43,11 +43,12 @@ def dupe_vcs_tree(tree, directory):
             tree = tree.basis_tree()
     try:
         result = tree._repository.controldir.sprout(
-            directory, create_tree_if_local=True, revision_id=tree.get_revision_id()
+            directory, create_tree_if_local=True,
+            revision_id=tree.get_revision_id()
         )
     except OSError as e:
         if e.errno == errno.ENOSPC:
-            raise DetailedFailure(1, ["sprout"], NoSpaceOnDevice())
+            raise DetailedFailure(1, ["sprout"], NoSpaceOnDevice()) from e
         raise
     if not result.has_workingtree():
         raise AssertionError

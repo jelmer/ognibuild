@@ -20,6 +20,7 @@ from . import Session, NoSessionOpen, SessionAlreadyOpen
 
 import contextlib
 import os
+import shutil
 import subprocess
 import tempfile
 from typing import Optional, Dict, List
@@ -72,7 +73,8 @@ class PlainSession(Session):
         close_fds: bool = True,
     ):
         argv = self._prepend_user(user, argv)
-        return subprocess.check_call(argv, cwd=cwd, env=env, close_fds=close_fds)
+        return subprocess.check_call(
+            argv, cwd=cwd, env=env, close_fds=close_fds)
 
     def check_output(
         self,
@@ -84,12 +86,18 @@ class PlainSession(Session):
         argv = self._prepend_user(user, argv)
         return subprocess.check_output(argv, cwd=cwd, env=env)
 
-    def Popen(self, args, stdout=None, stderr=None, stdin=None, user=None, cwd=None, env=None):
+    def Popen(
+            self, args, stdout=None, stderr=None, stdin=None, user=None,
+            cwd=None, env=None):
         args = self._prepend_user(user, args)
-        return subprocess.Popen(args, stdout=stdout, stderr=stderr, stdin=stdin, cwd=cwd, env=env)
+        return subprocess.Popen(
+            args, stdout=stdout, stderr=stderr, stdin=stdin, cwd=cwd, env=env)
 
     def exists(self, path):
         return os.path.exists(path)
+
+    def rmtree(self, path):
+        return shutil.rmtree(path)
 
     def scandir(self, path):
         return os.scandir(path)
@@ -104,6 +112,8 @@ class PlainSession(Session):
         return os.path.abspath(path)
 
     def setup_from_vcs(self, tree, include_controldir=None, subdir="package"):
+        if self.es is None:
+            raise RuntimeError("not in context manager")
         from ..vcs import dupe_vcs_tree, export_vcs_tree
 
         if include_controldir is False or (

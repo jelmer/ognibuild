@@ -21,13 +21,27 @@ from typing import Tuple
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
     MissingGitIdentity,
+    MissingGoSumEntry,
     MissingSecretGpgKey,
     MissingAutoconfMacro,
+    MissingGnulibDirectory,
 )
 from ognibuild.requirements import AutoconfMacroRequirement
 from ognibuild.resolver import UnsatisfiedRequirements
 
 from .fix_build import BuildFixer
+
+
+class GnulibDirectoryFixer(BuildFixer):
+    def __init__(self, session):
+        self.session = session
+
+    def can_fix(self, problem: Problem):
+        return isinstance(problem, MissingGnulibDirectory)
+
+    def _fix(self, problem: Problem, phase: Tuple[str, ...]):
+        self.session.check_call(["./gnulib.sh"])
+        return True
 
 
 class GitIdentityFixer(BuildFixer):
@@ -72,9 +86,27 @@ Passphrase: ""
             stdout=subprocess.PIPE,
         )
         p.communicate(SCRIPT)
-        if p.returncode == 0:
-            return True
-        return False
+        return p.returncode == 0
+
+
+class MissingGoSumEntryFixer(BuildFixer):
+    def __init__(self, session):
+        self.session = session
+
+    def __repr__(self):
+        return "%s()" % (type(self).__name__)
+
+    def __str__(self):
+        return "missing go.sum entry fixer"
+
+    def can_fix(self, error):
+        return isinstance(error, MissingGoSumEntry)
+
+    def _fix(self, error, phase):
+        from .fix_build import run_detecting_problems
+        run_detecting_problems(
+            self.session, ["go", "mod", "download", error.package])
+        return True
 
 
 class UnexpandedAutoconfMacroFixer(BuildFixer):

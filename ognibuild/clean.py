@@ -15,16 +15,25 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from functools import partial
+
+from .fix_build import iterate_with_build_fixers
 from .buildsystem import NoBuildToolsFound
+from .logs import NoLogManager
 
 
-def run_clean(session, buildsystems, resolver, fixers):
+def run_clean(session, buildsystems, resolver, fixers, log_manager=None):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
+    if log_manager is None:
+        log_manager = NoLogManager()
+
     for buildsystem in buildsystems:
-        buildsystem.clean(session, resolver, fixers)
+        iterate_with_build_fixers(
+            fixers, log_manager.wrap(
+                partial(buildsystem.clean, session, resolver)))
         return
 
     raise NoBuildToolsFound()

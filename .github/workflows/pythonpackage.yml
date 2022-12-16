@@ -1,6 +1,11 @@
+---
 name: Python package
 
-on: [push, pull_request]
+"on":
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 6 * * *'  # Daily 6AM UTC build
 
 jobs:
   build:
@@ -9,7 +14,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: [3.7, 3.8]
+        python-version: [3.9, '3.10', '3.11']
       fail-fast: false
 
     steps:
@@ -20,28 +25,35 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip flake8 cython
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[remote,dep_server,dev]"
           python setup.py develop
       - name: Install Debian-specific dependencies
         run: |
-          sudo apt install libapt-pkg-dev
-          python -m pip install wheel
-          python -m pip install git+https://salsa.debian.org/apt-team/python-apt
+          sudo apt update
+          sudo apt install python3-wheel libapt-pkg-dev
+          python -m pip install \
+            python_apt@git+https://salsa.debian.org/apt-team/python-apt.git
           python -m pip install -e ".[debian]"
-          python -m pip install testtools
-          mkdir -p ~/.config/breezy/plugins
-          brz branch lp:brz-debian ~/.config/breezy/plugins/debian
         if: "matrix.python-version != 'pypy3' && matrix.os == 'ubuntu-latest'"
       - name: Style checks
+        if: always()
         run: |
+          pip install flake8
           python -m flake8
-      - name: Typing checks
+      - name: Typing checks (Linux)
         run: |
-          pip install -U mypy
+          pip install -U mypy types-toml
           python -m mypy ognibuild
-        if: "matrix.python-version != 'pypy3'"
-      - name: Test suite run
+        if: "matrix.python-version != 'pypy3' && matrix.os == 'ubuntu-latest'"
+      - name: Typing checks (Mac OS X)
         run: |
-          python -m unittest ognibuild.tests.test_suite
+          pip install -U mypy types-toml
+          python -m mypy --ignore-missing-imports ognibuild
+        if: "matrix.python-version != 'pypy3' && matrix.os == 'macos-latest'"
+      - name: Test suite run
+        if: always()
+        run: |
+          python -m unittest tests.test_suite
         env:
           PYTHONHASHSEED: random

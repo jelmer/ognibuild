@@ -1,3 +1,4 @@
+.coverage
 build
 *~
 ognibuild.egg-info
@@ -7,3 +8,4 @@ __pycache__
 *.swp
 *.swo
 *.swn
+.mypy_cache

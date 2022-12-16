@@ -15,10 +15,12 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from contextlib import suppress
 import os
 import logging
 import shutil
 import time
+from typing import Dict
 
 
 class DistNoTarball(Exception):
@@ -38,23 +40,23 @@ SUPPORTED_DIST_EXTENSIONS = [
 
 
 def is_dist_file(fn):
-    for ext in SUPPORTED_DIST_EXTENSIONS:
-        if fn.endswith(ext):
-            return True
-    return False
+    return any(fn.endswith(ext) for ext in SUPPORTED_DIST_EXTENSIONS)
 
 
-class DistCatcher(object):
+class DistCatcher:
+
+    existing_files: Dict[str, Dict[str, os.DirEntry]]
+
     def __init__(self, directories):
         self.directories = [os.path.abspath(d) for d in directories]
         self.files = []
-        self.existing_files = None
         self.start_time = time.time()
 
     @classmethod
     def default(cls, directory):
         return cls(
-            [os.path.join(directory, "dist"), directory, os.path.join(directory, "..")]
+            [os.path.join(directory, "dist"), directory,
+             os.path.join(directory, "..")]
         )
 
     def __enter__(self):
@@ -69,6 +71,8 @@ class DistCatcher(object):
         return self
 
     def find_files(self):
+        if self.existing_files is None:
+            raise RuntimeError("Not in context manager")
         for directory in self.directories:
             old_files = self.existing_files[directory]
             possible_new = []
@@ -87,19 +91,23 @@ class DistCatcher(object):
                     continue
             if len(possible_new) == 1:
                 entry = possible_new[0]
-                logging.info("Found new tarball %s in %s.", entry.name, directory)
+                logging.info(
+                    "Found new tarball %s in %s.", entry.name, directory)
                 self.files.append(entry.path)
                 return entry.name
             elif len(possible_new) > 1:
                 logging.warning(
-                    "Found multiple tarballs %r in %s.", possible_new, directory
+                    "Found multiple tarballs %r in %s.", possible_new,
+                    directory
                 )
                 self.files.extend([entry.path for entry in possible_new])
                 return possible_new[0].name
 
             if len(possible_updated) == 1:
                 entry = possible_updated[0]
-                logging.info("Found updated tarball %s in %s.", entry.name, directory)
+                logging.info(
+                    "Found updated tarball %s in %s.", entry.name,
+                    directory)
                 self.files.append(entry.path)
                 return entry.name
 
@@ -109,10 +117,8 @@ class DistCatcher(object):
 
     def copy_single(self, target_dir):
         for path in self.files:
-            try:
+            with suppress(shutil.SameFileError):
                 shutil.copy(path, target_dir)
-            except shutil.SameFileError:
-                pass
             return os.path.basename(path)
         logging.info("No tarball created :(")
         raise DistNoTarball()

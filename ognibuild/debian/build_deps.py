@@ -18,49 +18,52 @@
 """Tie breaking by build deps."""
 
 
+from contextlib import suppress
+from debian.deb822 import PkgRelation
 import logging
+from typing import Dict
+
+from breezy.plugins.debian.apt_repo import LocalApt, NoAptSources
 
 
-class BuildDependencyTieBreaker(object):
-    def __init__(self, rootdir):
-        self.rootdir = rootdir
+class BuildDependencyTieBreaker:
+    def __init__(self, apt):
+        self.apt = apt
         self._counts = None
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.rootdir)
+        return "%s(%r)" % (type(self).__name__, self.apt)
 
     @classmethod
     def from_session(cls, session):
-        return cls(session.location)
+        return cls(LocalApt(session.location))
 
     def _count(self):
-        counts = {}
-        import apt_pkg
-
-        apt_pkg.init()
-        apt_pkg.config.set("Dir", self.rootdir)
-        apt_cache = apt_pkg.SourceRecords()
-        apt_cache.restart()
-        while apt_cache.step():
-            try:
-                for d in apt_cache.build_depends.values():
-                    for o in d:
-                        for p in o:
-                            counts.setdefault(p[0], 0)
-                            counts[p[0]] += 1
-            except AttributeError:
-                pass
+        counts: Dict[str, int] = {}
+        with self.apt:
+            for source in self.apt.iter_sources():
+                for field in ['Build-Depends', 'Build-Depends-Indep',
+                              'Build-Depends-Arch']:
+                    for r in PkgRelation.parse_relations(
+                            source.get(field, '')):
+                        for p in r:
+                            counts.setdefault(p['name'], 0)
+                            counts[p['name']] += 1
         return counts
 
     def __call__(self, reqs):
         if self._counts is None:
-            self._counts = self._count()
+            try:
+                self._counts = self._count()
+            except NoAptSources:
+                logging.warning(
+                    "No 'deb-src' in sources.list, "
+                    "unable to break build-depends")
+                return None
         by_count = {}
         for req in reqs:
-            try:
+            with suppress(KeyError):
                 by_count[req] = self._counts[list(req.package_names())[0]]
-            except KeyError:
-                pass
         if not by_count:
             return None
         top = max(by_count.items(), key=lambda k: k[1])
@@ -80,5 +83,5 @@ if __name__ == "__main__":
     parser.add_argument("req", nargs="+")
     args = parser.parse_args()
     reqs = [AptRequirement.from_str(req) for req in args.req]
-    tie_breaker = BuildDependencyTieBreaker("/")
+    tie_breaker = BuildDependencyTieBreaker(LocalApt())
     print(tie_breaker(reqs))
