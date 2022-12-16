@@ -1,12 +1,9 @@
 ognibuild (0.0.16-1) UNRELEASED; urgency=low
 
-  [ Debian Janitor ]
-  * New upstream release.
-
   [ Jelmer Vernooĳ ]
   * New upstream release.
 
- -- Debian Janitor <janitor@jelmer.uk>  Fri, 16 Dec 2022 11:53:36 -0000
+ -- Jelmer Vernooij <jelmer@debian.org>  Fri, 16 Dec 2022 11:53:36 -0000
 
 ognibuild (0.0.6+git20210517.1.8189e91-1) unstable; urgency=low
 
