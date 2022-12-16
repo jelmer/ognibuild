@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import os
+from contextlib import suppress
 from debian.deb822 import Deb822
 
 from ..session import Session
@@ -25,15 +26,12 @@ def satisfy_build_deps(session: Session, tree, debian_path):
     source = Deb822(tree.get_file(os.path.join(debian_path, "control")))
     deps = []
     for name in ["Build-Depends", "Build-Depends-Indep", "Build-Depends-Arch"]:
-        try:
+        with suppress(KeyError):
             deps.append(source[name].strip().strip(","))
-        except KeyError:
-            pass
-    for name in ["Build-Conflicts", "Build-Conflicts-Indep", "Build-Conflicts-Arch"]:
-        try:
+    for name in ["Build-Conflicts", "Build-Conflicts-Indep",
+                 "Build-Conflicts-Arch"]:
+        with suppress(KeyError):
             deps.append("Conflicts: " + source[name])
-        except KeyError:
-            pass
     deps = [dep.strip().strip(",") for dep in deps]
     from .apt import AptManager
 

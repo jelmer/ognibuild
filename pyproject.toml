@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.mypy]
+warn_redundant_casts = true
+warn_unused_configs = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "aptsources.*",
+    "breezy.*",
+    "buildlog_consultant.*",
+    "lz4.*",
+    "ruamel.*",
+    "semver.*",
+    "requirements.*",
+    "setuptools.config.setupcfg",
+    "google.cloud.logging.*",
+]
+ignore_missing_imports = true

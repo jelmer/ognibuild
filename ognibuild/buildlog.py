@@ -19,179 +19,69 @@
 """
 
 import logging
+from typing import Optional, List, cast
 
 from buildlog_consultant.common import (
-    MissingPythonModule,
-    MissingPythonDistribution,
-    MissingCHeader,
-    MissingPkgConfig,
-    MissingCommand,
-    MissingFile,
-    MissingJavaScriptRuntime,
-    MissingSprocketsFile,
-    MissingGoPackage,
+    Problem,
     MissingPerlFile,
-    MissingPerlModule,
-    MissingXmlEntity,
-    MissingJDKFile,
-    MissingJDK,
-    MissingJRE,
-    MissingNodeModule,
-    MissingNodePackage,
-    MissingPhpClass,
-    MissingRubyGem,
-    MissingLibrary,
     MissingSetupPyCommand,
-    MissingJavaClass,
-    MissingCSharpCompiler,
-    MissingRPackage,
-    MissingRubyFile,
-    MissingAutoconfMacro,
-    MissingValaPackage,
-    MissingBoostComponents,
+    MissingCMakeComponents,
     MissingXfceDependency,
     MissingHaskellDependencies,
-    MissingVagueDependency,
-    DhAddonLoadFailure,
     MissingMavenArtifacts,
-    MissingIntrospectionTypelib,
-    GnomeCommonMissing,
     MissingGnomeCommonDependency,
-    UnknownCertificateAuthority,
-    CMakeFilesMissing,
-    MissingLibtool,
-    MissingQt,
-    MissingX11,
     MissingPerlPredeclared,
     MissingLatexFile,
     MissingCargoCrate,
-    MissingStaticLibrary,
 )
-from buildlog_consultant.apt import UnsatisfiedAptDependencies
 
+from . import OneOfRequirement
 from .fix_build import BuildFixer
 from .requirements import (
+    Requirement,
     BinaryRequirement,
-    PathRequirement,
-    PkgConfigRequirement,
-    CHeaderRequirement,
-    JavaScriptRuntimeRequirement,
-    ValaPackageRequirement,
-    RubyGemRequirement,
-    GoPackageRequirement,
-    DhAddonRequirement,
-    PhpClassRequirement,
-    RPackageRequirement,
-    NodePackageRequirement,
-    LibraryRequirement,
-    RubyFileRequirement,
-    XmlEntityRequirement,
-    SprocketsFileRequirement,
-    JavaClassRequirement,
-    CMakefileRequirement,
     HaskellPackageRequirement,
     MavenArtifactRequirement,
     BoostComponentRequirement,
-    GnomeCommonRequirement,
-    JDKFileRequirement,
-    JDKRequirement,
-    JRERequirement,
-    PerlModuleRequirement,
+    KF5ComponentRequirement,
     PerlFileRequirement,
-    AutoconfMacroRequirement,
-    PythonModuleRequirement,
     PythonPackageRequirement,
-    CertificateAuthorityRequirement,
-    NodeModuleRequirement,
-    QTRequirement,
-    X11Requirement,
-    LibtoolRequirement,
-    VagueDependencyRequirement,
-    IntrospectionTypelibRequirement,
     PerlPreDeclaredRequirement,
     LatexPackageRequirement,
     CargoCrateRequirement,
-    StaticLibraryRequirement,
 )
 from .resolver import UnsatisfiedRequirements
+from .buildlog_converters import PROBLEM_CONVERTERS  # type: ignore
 
 
-def problem_to_upstream_requirement(problem):  # noqa: C901
-    if isinstance(problem, MissingFile):
-        return PathRequirement(problem.path)
-    elif isinstance(problem, MissingCommand):
-        return BinaryRequirement(problem.command)
-    elif isinstance(problem, MissingPkgConfig):
-        return PkgConfigRequirement(problem.module, problem.minimum_version)
-    elif isinstance(problem, MissingCHeader):
-        return CHeaderRequirement(problem.header)
-    elif isinstance(problem, MissingIntrospectionTypelib):
-        return IntrospectionTypelibRequirement(problem.library)
-    elif isinstance(problem, MissingJavaScriptRuntime):
-        return JavaScriptRuntimeRequirement()
-    elif isinstance(problem, MissingRubyGem):
-        return RubyGemRequirement(problem.gem, problem.version)
-    elif isinstance(problem, MissingValaPackage):
-        return ValaPackageRequirement(problem.package)
-    elif isinstance(problem, MissingGoPackage):
-        return GoPackageRequirement(problem.package)
-    elif isinstance(problem, MissingBoostComponents):
-        return [BoostComponentRequirement(name) for name in problem.components]
-    elif isinstance(problem, DhAddonLoadFailure):
-        return DhAddonRequirement(problem.path)
-    elif isinstance(problem, MissingPhpClass):
-        return PhpClassRequirement(problem.php_class)
-    elif isinstance(problem, MissingRPackage):
-        return RPackageRequirement(problem.package, problem.minimum_version)
-    elif isinstance(problem, MissingNodeModule):
-        return NodeModuleRequirement(problem.module)
-    elif isinstance(problem, MissingStaticLibrary):
-        return StaticLibraryRequirement(problem.library, problem.filename)
-    elif isinstance(problem, MissingNodePackage):
-        return NodePackageRequirement(problem.package)
+def problem_to_upstream_requirement(
+        problem: Problem) -> Optional[Requirement]:  # noqa: C901
+    for entry in PROBLEM_CONVERTERS:
+        kind, fn = entry[:2]
+        if kind == problem.kind:
+            return fn(problem)
+    if isinstance(problem, MissingCMakeComponents):
+        if problem.name.lower() == 'boost':
+            return OneOfRequirement(
+                [BoostComponentRequirement(name)
+                 for name in problem.components])
+        elif problem.name.lower() == 'kf5':
+            return OneOfRequirement(
+                [KF5ComponentRequirement(name) for name in problem.components])
+        return None
     elif isinstance(problem, MissingLatexFile):
         if problem.filename.endswith('.sty'):
             return LatexPackageRequirement(problem.filename[:-4])
         return None
-    elif isinstance(problem, MissingVagueDependency):
-        return VagueDependencyRequirement(problem.name, minimum_version=problem.minimum_version)
-    elif isinstance(problem, MissingLibrary):
-        return LibraryRequirement(problem.library)
-    elif isinstance(problem, MissingRubyFile):
-        return RubyFileRequirement(problem.filename)
-    elif isinstance(problem, MissingXmlEntity):
-        return XmlEntityRequirement(problem.url)
-    elif isinstance(problem, MissingSprocketsFile):
-        return SprocketsFileRequirement(problem.content_type, problem.name)
-    elif isinstance(problem, MissingJavaClass):
-        return JavaClassRequirement(problem.classname)
-    elif isinstance(problem, CMakeFilesMissing):
-        return [CMakefileRequirement(filename) for filename in problem.filenames]
     elif isinstance(problem, MissingHaskellDependencies):
-        return [HaskellPackageRequirement.from_string(dep) for dep in problem.deps]
+        return OneOfRequirement(
+            [HaskellPackageRequirement.from_string(dep)
+             for dep in problem.deps])
     elif isinstance(problem, MissingMavenArtifacts):
-        return [
+        return OneOfRequirement([
             MavenArtifactRequirement.from_str(artifact)
             for artifact in problem.artifacts
-        ]
-    elif isinstance(problem, MissingCSharpCompiler):
-        return BinaryRequirement("msc")
-    elif isinstance(problem, GnomeCommonMissing):
-        return GnomeCommonRequirement()
-    elif isinstance(problem, MissingJDKFile):
-        return JDKFileRequirement(problem.jdk_path, problem.filename)
-    elif isinstance(problem, MissingJDK):
-        return JDKRequirement()
-    elif isinstance(problem, MissingJRE):
-        return JRERequirement()
-    elif isinstance(problem, MissingQt):
-        return QTRequirement()
-    elif isinstance(problem, MissingX11):
-        return X11Requirement()
-    elif isinstance(problem, MissingLibtool):
-        return LibtoolRequirement()
-    elif isinstance(problem, UnknownCertificateAuthority):
-        return CertificateAuthorityRequirement(problem.url)
+        ])
     elif isinstance(problem, MissingPerlPredeclared):
         ret = PerlPreDeclaredRequirement(problem.name)
         try:
@@ -210,39 +100,28 @@ def problem_to_upstream_requirement(problem):  # noqa: C901
             return BinaryRequirement("glib-gettextize")
         else:
             logging.warning(
-                "No known command for gnome-common dependency %s", problem.package
+                "No known command for gnome-common dependency %s",
+                problem.package
             )
             return None
     elif isinstance(problem, MissingXfceDependency):
         if problem.package == "gtk-doc":
             return BinaryRequirement("gtkdocize")
         else:
-            logging.warning("No known command for xfce dependency %s", problem.package)
+            logging.warning(
+                "No known command for xfce dependency %s", problem.package)
             return None
-    elif isinstance(problem, MissingPerlModule):
-        return PerlModuleRequirement(
-            module=problem.module, filename=problem.filename, inc=problem.inc
-        )
     elif isinstance(problem, MissingPerlFile):
         return PerlFileRequirement(filename=problem.filename)
-    elif isinstance(problem, MissingAutoconfMacro):
-        return AutoconfMacroRequirement(problem.macro)
-    elif isinstance(problem, MissingPythonModule):
-        return PythonModuleRequirement(
-            problem.module,
-            python_version=problem.python_version,
-            minimum_version=problem.minimum_version,
-        )
-    elif isinstance(problem, MissingPythonDistribution):
-        return PythonPackageRequirement(
-            problem.distribution,
-            python_version=problem.python_version,
-            minimum_version=problem.minimum_version,
-        )
-    elif isinstance(problem, UnsatisfiedAptDependencies):
+    elif problem.kind == 'unsatisfied-apt-dependencies':
+        from buildlog_consultant.apt import UnsatisfiedAptDependencies
         from .resolver.apt import AptRequirement
-        return AptRequirement(problem.relations)
+        return AptRequirement(
+            cast(UnsatisfiedAptDependencies, problem).relations)
     else:
+        logging.warning(
+            'Unable to determine how to deal with %r',
+            problem)
         return None
 
 
@@ -261,12 +140,15 @@ class InstallFixer(BuildFixer):
         return req is not None
 
     def fix(self, error, phase):
-        reqs = problem_to_upstream_requirement(error)
-        if reqs is None:
+        req = problem_to_upstream_requirement(error)
+        if req is None:
             return False
 
-        if not isinstance(reqs, list):
-            reqs = [reqs]
+        reqs: List[Requirement]
+        if not isinstance(req, list):
+            reqs = [req]
+        else:
+            reqs = req
 
         try:
             self.resolver.install(reqs)
@@ -295,12 +177,14 @@ class ExplainInstallFixer(BuildFixer):
         return req is not None
 
     def fix(self, error, phase):
-        reqs = problem_to_upstream_requirement(error)
-        if reqs is None:
+        req = problem_to_upstream_requirement(error)
+        if req is None:
             return False
 
-        if not isinstance(reqs, list):
-            reqs = [reqs]
+        if not isinstance(req, list):
+            reqs = [req]
+        else:
+            reqs = req
 
         explanations = list(self.resolver.explain(reqs))
         if not explanations:

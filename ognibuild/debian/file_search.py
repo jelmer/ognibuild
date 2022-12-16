@@ -17,12 +17,14 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import apt_pkg
+import asyncio
+from contextlib import suppress
 from datetime import datetime
 from debian.deb822 import Release
 import os
 import re
 import subprocess
-from typing import Iterator, List
+from typing import List, AsyncIterator
 import logging
 
 
@@ -30,11 +32,15 @@ from .. import USER_AGENT
 from ..session import Session
 
 
-class FileSearcher(object):
+class FileSearcher:
     def search_files(
-        self, path: str, regex: bool = False, case_insensitive: bool = False
-    ) -> Iterator[str]:
+            self, path: str, regex: bool = False,
+            case_insensitive: bool = False) -> AsyncIterator[str]:
         raise NotImplementedError(self.search_files)
+
+
+class AptFileAccessError(Exception):
+    """Apt file access error."""
 
 
 class ContentsFileNotFound(Exception):
@@ -71,7 +77,8 @@ def contents_urls_from_sources_entry(source, arches, load_url):
             response = load_url(release_url)
         except FileNotFoundError as e:
             logging.warning(
-                "Unable to download %s or %s: %s", inrelease_url, release_url, e
+                "Unable to download %s or %s: %s", inrelease_url,
+                release_url, e
             )
             return
 
@@ -118,7 +125,7 @@ def _unwrap(f, ext):
 
 
 def load_direct_url(url):
-    from urllib.error import HTTPError
+    from urllib.error import HTTPError, URLError
     from urllib.request import urlopen, Request
 
     for ext in [".xz", ".gz", ""]:
@@ -126,9 +133,13 @@ def load_direct_url(url):
             request = Request(url + ext, headers={"User-Agent": USER_AGENT})
             response = urlopen(request)
         except HTTPError as e:
-            if e.status == 404:
+            if e.code == 404:
                 continue
-            raise
+            raise AptFileAccessError(
+                'Unable to access apt URL %s: %s' % (url + ext, e)) from e
+        except URLError as e:
+            raise AptFileAccessError(
+                'Unable to access apt URL %s: %s' % (url + ext, e)) from e
         break
     else:
         raise FileNotFoundError(url)
@@ -137,10 +148,8 @@ def load_direct_url(url):
 
 def load_url_with_cache(url, cache_dirs):
     for cache_dir in cache_dirs:
-        try:
+        with suppress(FileNotFoundError):
             return load_apt_cache_file(url, cache_dir)
-        except FileNotFoundError:
-            pass
     return load_direct_url(url)
 
 
@@ -157,10 +166,10 @@ def load_apt_cache_file(url, cache_dir):
 
             return lz4.frame.open(p, mode="rb")
         try:
-            f = open(p, "rb")
+            f = open(p, "rb")   # noqa: SIM115
         except PermissionError as e:
             logging.warning('Unable to open %s: %s', p, e)
-            raise FileNotFoundError(url)
+            raise FileNotFoundError(url) from e
         return _unwrap(f, ext)
     raise FileNotFoundError(url)
 
@@ -187,7 +196,7 @@ class AptFileFileSearcher(FileSearcher):
 
     @classmethod
     def from_session(cls, session):
-        logging.info('Using apt-file to search apt contents')
+        logging.debug('Using apt-file to search apt contents')
         if not os.path.exists(session.external_path(cls.CACHE_IS_EMPTY_PATH)):
             from .apt import AptManager
             AptManager.from_session(session).install(['apt-file'])
@@ -195,7 +204,7 @@ class AptFileFileSearcher(FileSearcher):
             session.check_call(['apt-file', 'update'], user='root')
         return cls(session)
 
-    def search_files(self, path, regex=False, case_insensitive=False):
+    async def search_files(self, path, regex=False, case_insensitive=False):
         args = []
         if regex:
             args.append('-x')
@@ -204,15 +213,18 @@ class AptFileFileSearcher(FileSearcher):
         if case_insensitive:
             args.append('-i')
         args.append(path)
-        try:
-            output = self.session.check_output(['/usr/bin/apt-file', 'search'] + args)
-        except subprocess.CalledProcessError as e:
-            if e.returncode == 1:
-                # No results
-                return
-            if e.returncode == 3:
-                raise Exception('apt-file cache is empty')
-            raise
+        process = await asyncio.create_subprocess_exec(
+            '/usr/bin/apt-file', 'search', *args,
+            stdout=asyncio.subprocess.PIPE)
+        (output, error) = await process.communicate(input=None)
+        if process.returncode == 1:
+            # No results
+            return
+        elif process.returncode == 3:
+            raise Exception('apt-file cache is empty')
+        elif process.returncode != 0:
+            raise Exception(
+                 "unexpected return code %r" % process.returncode)
 
         for line in output.splitlines(False):
             pkg, path = line.split(b': ')
@@ -253,7 +265,8 @@ class RemoteContentsFileSearcher(FileSearcher):
             return load_url_with_cache(url, cache_dirs)
 
         urls = list(
-            contents_urls_from_sourceslist(sl, get_build_architecture(), load_url)
+            contents_urls_from_sourceslist(
+                sl, get_build_architecture(), load_url)
         )
         self._load_urls(urls, cache_dirs, load_url)
 
@@ -277,8 +290,8 @@ class RemoteContentsFileSearcher(FileSearcher):
             return load_url_with_cache(url, cache_dirs)
 
         urls = list(
-            contents_urls_from_sourceslist(sl, get_build_architecture(), load_url)
-        )
+            contents_urls_from_sourceslist(
+                sl, get_build_architecture(), load_url))
         self._load_urls(urls, cache_dirs, load_url)
 
     def _load_urls(self, urls, cache_dirs, load_url):
@@ -286,13 +299,16 @@ class RemoteContentsFileSearcher(FileSearcher):
             try:
                 f = load_url(url)
                 self.load_file(f, url)
+            except ConnectionResetError:
+                logging.warning("Connection reset error retrieving %s", url)
+                # TODO(jelmer): Retry?
             except ContentsFileNotFound:
                 logging.warning("Unable to fetch contents file %s", url)
 
     def __setitem__(self, path, package):
         self._db[path] = package
 
-    def search_files(self, path, regex=False, case_insensitive=False):
+    async def search_files(self, path, regex=False, case_insensitive=False):
         path = path.lstrip("/").encode("utf-8", "surrogateescape")
         if case_insensitive and not regex:
             regex = True
@@ -307,13 +323,11 @@ class RemoteContentsFileSearcher(FileSearcher):
                 if c.match(p):
                     pkg = rest.split(b"/")[-1]
                     ret.append((p, pkg.decode("utf-8")))
-            for p, pkg in sorted(ret):
+            for _p, pkg in sorted(ret):
                 yield pkg
         else:
-            try:
+            with suppress(KeyError):
                 yield self._db[path].split(b"/")[-1].decode("utf-8")
-            except KeyError:
-                pass
 
     def load_file(self, f, url):
         start_time = datetime.now()
@@ -338,9 +352,9 @@ class GeneratedFileSearcher(FileSearcher):
                 (path, pkg) = line.strip().split(None, 1)
                 self._db.append(path, pkg)
 
-    def search_files(
-        self, path: str, regex: bool = False, case_insensitive: bool = False
-    ) -> Iterator[str]:
+    async def search_files(
+            self, path: str, regex: bool = False,
+            case_insensitive: bool = False):
         for p, pkg in self._db:
             if regex:
                 flags = 0
@@ -371,16 +385,17 @@ GENERATED_FILE_SEARCHER = GeneratedFileSearcher(
 )
 
 
-def get_packages_for_paths(
+async def get_packages_for_paths(
     paths: List[str],
     searchers: List[FileSearcher],
     regex: bool = False,
     case_insensitive: bool = False,
 ) -> List[str]:
     candidates: List[str] = list()
+    # TODO(jelmer): Combine these, perhaps by creating one gigantic regex?
     for path in paths:
         for searcher in searchers:
-            for pkg in searcher.search_files(
+            async for pkg in searcher.search_files(
                 path, regex=regex, case_insensitive=case_insensitive
             ):
                 if pkg not in candidates:
@@ -393,8 +408,10 @@ def main(argv):
     from ..session.plain import PlainSession
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("path", help="Path to search for.", type=str, nargs="*")
-    parser.add_argument("--regex", "-x", help="Search for regex.", action="store_true")
+    parser.add_argument(
+        "path", help="Path to search for.", type=str, nargs="*")
+    parser.add_argument(
+        "--regex", "-x", help="Search for regex.", action="store_true")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
@@ -403,13 +420,14 @@ def main(argv):
     else:
         logging.basicConfig(level=logging.INFO)
 
-    main_searcher = get_apt_contents_file_searcher(PlainSession())
-    main_searcher.load_local()
-    searchers = [main_searcher, GENERATED_FILE_SEARCHER]
+    with PlainSession() as session:
+        main_searcher = get_apt_contents_file_searcher(session)
+        searchers = [main_searcher, GENERATED_FILE_SEARCHER]
 
-    packages = get_packages_for_paths(args.path, searchers=searchers, regex=args.regex)
-    for package in packages:
-        print(package)
+        packages = asyncio.run(get_packages_for_paths(
+            args.path, searchers=searchers, regex=args.regex))
+        for package in packages:
+            print(package)
 
 
 if __name__ == "__main__":

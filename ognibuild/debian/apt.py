@@ -16,8 +16,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from debian.changelog import Version
 import logging
-from typing import List, Optional
+from typing import List, Optional, Iterable
 
 import os
 from buildlog_consultant.apt import (
@@ -37,7 +38,12 @@ from .file_search import (
 def run_apt(
     session: Session, args: List[str], prefix: Optional[List[str]] = None
 ) -> None:
-    """Run apt."""
+    """Run apt.
+
+    Raises:
+      DetailedFailure: When a known error occurs
+      UnidentifiedError: If an unknown error occurs
+    """
     if prefix is None:
         prefix = []
     args = prefix = ["apt", "-y"] + args
@@ -48,12 +54,12 @@ def run_apt(
     match, error = find_apt_get_failure(lines)
     if error is not None:
         raise DetailedFailure(retcode, args, error)
-    while lines and lines[-1] == "":
+    while lines and lines[-1].rstrip('\n') == "":
         lines.pop(-1)
     raise UnidentifiedError(retcode, args, lines, secondary=match)
 
 
-class AptManager(object):
+class AptManager:
 
     session: Session
     _searchers: Optional[List[FileSearcher]]
@@ -93,13 +99,18 @@ class AptManager(object):
     def package_exists(self, package):
         return package in self.apt_cache
 
-    def package_versions(self, package):
-        return list(self.apt_cache[package].versions)
+    def package_versions(self, package: str) -> Optional[Iterable[Version]]:
+        try:
+            return list(self.apt_cache[package].versions)
+        except KeyError:
+            return None
 
-    def get_packages_for_paths(self, paths, regex=False, case_insensitive=False):
+    async def get_packages_for_paths(
+            self, paths, regex: bool = False, case_insensitive: bool = False):
         logging.debug("Searching for packages containing %r", paths)
-        return get_packages_for_paths(
-            paths, self.searchers(), regex=regex, case_insensitive=case_insensitive
+        return await get_packages_for_paths(
+            paths, self.searchers(), regex=regex,
+            case_insensitive=case_insensitive
         )
 
     def missing(self, packages):
@@ -108,12 +119,12 @@ class AptManager(object):
         missing = set(packages)
         import apt_pkg
 
-        with apt_pkg.TagFile(status_path) as tagf:
+        with apt_pkg.TagFile(status_path) as tagf:  # type: ignore
             while missing:
                 tagf.step()
                 if not tagf.section:
                     break
-                if tagf.section["Package"] in missing:
+                if tagf.section["Package"] in missing:  # noqa: SIM102
                     if tagf.section["Status"] == "install ok installed":
                         missing.remove(tagf.section["Package"])
         return list(missing)

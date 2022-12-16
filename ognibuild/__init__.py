@@ -18,12 +18,14 @@
 
 import os
 import stat
+from typing import List, Dict, Type
 
 
-__version__ = (0, 0, 7)
+__version__ = (0, 0, 16)
+version_string = '.'.join(map(str, __version__))
 
 
-USER_AGENT = "Ognibuild"
+USER_AGENT = f"Ognibuild/{version_string}"
 
 
 class DetailedFailure(Exception):
@@ -31,6 +33,12 @@ class DetailedFailure(Exception):
         self.retcode = retcode
         self.argv = argv
         self.error = error
+
+    def __eq__(self, other):
+        return (isinstance(other, type(self)) and
+                self.retcode == other.retcode and
+                self.argv == other.argv and
+                self.error == other.error)
 
 
 class UnidentifiedError(Exception):
@@ -41,6 +49,13 @@ class UnidentifiedError(Exception):
         self.argv = argv
         self.lines = lines
         self.secondary = secondary
+
+    def __eq__(self, other):
+        return (isinstance(other, type(self)) and
+                self.retcode == other.retcode and
+                self.argv == other.argv and
+                self.lines == other.lines and
+                self.secondary == other.secondary)
 
     def __repr__(self):
         return "<%s(%r, %r, ..., secondary=%r)>" % (
@@ -64,19 +79,63 @@ def shebang_binary(p):
         return os.path.basename(args[0].decode()).strip()
 
 
-class Requirement(object):
-
-    # Name of the family of requirements - e.g. "python-package"
-    family: str
+class UnknownRequirementFamily(Exception):
+    """Requirement family is unknown"""
 
     def __init__(self, family):
         self.family = family
 
+
+class Requirement:
+
+    # Name of the family of requirements - e.g. "python-package"
+    family: str
+
+    _JSON_DESERIALIZERS: Dict[str, Type["Requirement"]] = {}
+
+    @classmethod
+    def _from_json(self, js):
+        raise NotImplementedError(self._from_json)
+
+    @classmethod
+    def from_json(self, js):
+        try:
+            family = Requirement._JSON_DESERIALIZERS[js[0]]
+        except KeyError as e:
+            raise UnknownRequirementFamily(js[0]) from e
+        return family._from_json(js[1])
+
     def met(self, session):
         raise NotImplementedError(self)
 
+    def _json(self):
+        raise NotImplementedError(self._json)
 
-class UpstreamOutput(object):
+    def json(self):
+        return (type(self).family, self._json())
+
+    @classmethod
+    def register_json(cls, subcls):
+        Requirement._JSON_DESERIALIZERS[subcls.family] = subcls
+
+
+class OneOfRequirement(Requirement):
+
+    elements: List[Requirement]
+
+    family = 'or'
+
+    def __init__(self, elements):
+        self.elements = elements
+
+    def met(self, session):
+        return any(req.met(session) for req in self.elements)
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.elements)
+
+
+class UpstreamOutput:
     def __init__(self, family):
         self.family = family
 

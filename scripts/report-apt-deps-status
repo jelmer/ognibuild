@@ -1,0 +1,89 @@
+#!/usr/bin/python3
+
+import argparse
+from contextlib import ExitStack
+import logging
+import sys
+from typing import Dict, List
+
+from ognibuild.buildsystem import NoBuildToolsFound, detect_buildsystems
+from ognibuild.requirements import Requirement
+from ognibuild.resolver.apt import AptResolver
+from ognibuild.session.plain import PlainSession
+
+parser = argparse.ArgumentParser('report-apt-deps-status')
+parser.add_argument('directory', type=str, default='.', nargs='?')
+parser.add_argument(
+    '--detailed', action='store_true', help='Show detailed analysis')
+args = parser.parse_args()
+
+logging.basicConfig(format='%(message)s', level=logging.INFO)
+
+session = PlainSession()
+with ExitStack() as es:
+    es.enter_context(session)
+    session.chdir(args.directory)
+    resolver = AptResolver.from_session(session)
+
+    try:
+        bss = list(detect_buildsystems(args.directory))
+    except NoBuildToolsFound:
+        logging.fatal('No build tools found')
+        sys.exit(1)
+    logging.debug("Detected buildsystems: %s", ", ".join(map(str, bss)))
+    deps: Dict[str, List[Requirement]] = {}
+    for buildsystem in bss:
+        try:
+            declared_reqs = buildsystem.get_declared_dependencies(session, [])
+            for stage, req in declared_reqs:
+                deps.setdefault(stage, []).append(req)
+        except NotImplementedError:
+            logging.warning(
+                'Unable to get dependencies from buildsystem %r, skipping',
+                buildsystem)
+            continue
+
+    if args.detailed:
+        for stage, reqs in deps.items():
+            logging.info("Stage: %s", stage)
+            for req in reqs:
+                apt_req = resolver.resolve(req)
+                logging.info("%s: %s", req, apt_req.pkg_relation_str())
+            logging.info('')
+    else:
+        build_depends = []
+        test_depends = []
+        run_depends = []
+        unresolved = []
+        for stage, reqs in deps.items():
+            for req in reqs:
+                apt_req = resolver.resolve(req)
+                if apt_req is None:
+                    unresolved.append(req)
+                elif stage == 'core':
+                    build_depends.append(apt_req)
+                    run_depends.append(apt_req)
+                elif stage == 'build':
+                    build_depends.append(apt_req)
+                elif stage == 'test':
+                    test_depends.append(apt_req)
+                else:
+                    raise NotImplementedError('stage %s not supported' % stage)
+        if build_depends:
+            logging.info(
+                'Build-Depends: %s',
+                ', '.join([d.pkg_relation_str() for d in build_depends]))
+        if test_depends:
+            logging.info(
+                'Test-Depends: %s',
+                ', '.join([d.pkg_relation_str() for d in test_depends]))
+        if run_depends:
+            logging.info(
+                'Depends: %s',
+                ', '.join([d.pkg_relation_str() for d in run_depends]))
+        if unresolved:
+            sys.stdout.write('\n')
+            logging.warning(
+                'Unable to find apt packages for the following dependencies:')
+            for req in unresolved:
+                logging.warning('* %s', req)

@@ -1,8 +1,12 @@
-ognibuild (0.0.7-1) UNRELEASED; urgency=low
+ognibuild (0.0.16-1) UNRELEASED; urgency=low
 
+  [ Debian Janitor ]
   * New upstream release.
 
- -- Debian Janitor <janitor@jelmer.uk>  Wed, 02 Jun 2021 15:12:48 -0000
+  [ Jelmer Vernooĳ ]
+  * New upstream release.
+
+ -- Debian Janitor <janitor@jelmer.uk>  Fri, 16 Dec 2022 11:53:36 -0000
 
 ognibuild (0.0.6+git20210517.1.8189e91-1) unstable; urgency=low
 

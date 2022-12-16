@@ -15,11 +15,14 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+from contextlib import ExitStack
 import logging
 import os
 import shlex
 import sys
-from . import UnidentifiedError, DetailedFailure
+import tempfile
+from urllib.parse import urlparse
+from . import UnidentifiedError, DetailedFailure, version_string
 from .buildlog import (
     InstallFixer,
     ExplainInstallFixer,
@@ -29,44 +32,44 @@ from .buildlog import (
 from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .resolver import (
     auto_resolver,
-    native_resolvers,
+    select_resolvers,
+    UnsatisfiedRequirements,
 )
-from .resolver.apt import AptResolver
+from .session import SessionSetupFailure
 
 
 def display_explain_commands(commands):
     logging.info("Run one or more of the following commands:")
     for command, reqs in commands:
         if isinstance(command, list):
-            command = shlex.join(command)
-        logging.info("  %s (to install %s)", command, ", ".join(map(str, reqs)))
-
-
-def get_necessary_declared_requirements(resolver, requirements, stages):
-    missing = []
-    for stage, req in requirements:
-        if stage in stages:
-            missing.append(req)
-    return missing
+            command = shlex.join(command)  # type: ignore
+        logging.info(
+            "  %s (to install %s)", command, ", ".join(map(str, reqs)))
 
 
 def install_necessary_declared_requirements(
     session, resolver, fixers, buildsystems, stages, explain=False
 ):
-    relevant = []
-    declared_reqs = []
-    for buildsystem in buildsystems:
-        try:
-            declared_reqs.extend(buildsystem.get_declared_dependencies(session, fixers))
-        except NotImplementedError:
-            logging.warning(
-                "Unable to determine declared dependencies from %r", buildsystem
-            )
-    relevant.extend(
-        get_necessary_declared_requirements(resolver, declared_reqs, stages)
-    )
 
-    install_missing_reqs(session, resolver, relevant, explain=explain)
+    if explain:
+        relevant = []
+        for buildsystem in buildsystems:
+            declared_reqs = buildsystem.get_declared_dependencies(
+                session, fixers)
+            for stage, req in declared_reqs:
+                if stage in stages:
+                    relevant.append(req)
+        install_missing_reqs(session, resolver, relevant, explain=True)
+    else:
+        for buildsystem in buildsystems:
+            try:
+                buildsystem.install_declared_requirements(
+                    stages, session, resolver, fixers)
+            except NotImplementedError:
+                logging.warning(
+                    "Unable to determine declared dependencies from %r",
+                    buildsystem
+                )
 
 
 # Types of dependencies:
@@ -82,6 +85,7 @@ STAGE_MAP = {
     "test": ["test", "build", "core"],
     "build": ["build", "core"],
     "clean": [],
+    "verify": ["build", "core", "test"],
 }
 
 
@@ -94,10 +98,15 @@ def determine_fixers(session, resolver, explain=False):
 
 def main():  # noqa: C901
     import argparse
+    from .session import Session
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(prog='ogni')
     parser.add_argument(
-        "--directory", "-d", type=str, help="Directory for project.", default="."
+        "--version", action="version", version="%(prog)s " + version_string
+    )
+    parser.add_argument(
+        "--directory", "-d", type=str, help="Directory for project.",
+        default="."
     )
     parser.add_argument("--schroot", type=str, help="schroot to run in.")
     parser.add_argument(
@@ -123,6 +132,15 @@ def main():  # noqa: C901
         action="store_true",
         help="Ignore declared dependencies, follow build errors only",
     )
+    parser.add_argument(
+        "--user", action="store_true",
+        help="Install in local-user directories."
+    )
+    parser.add_argument(
+        "--dep-server-url", type=str,
+        help="ognibuild dep server to use",
+        default=os.environ.get('OGNIBUILD_DEPS'))
+
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
     subparsers = parser.add_subparsers(dest="subcommand")
     subparsers.add_parser("dist")
@@ -130,12 +148,11 @@ def main():  # noqa: C901
     subparsers.add_parser("clean")
     subparsers.add_parser("test")
     subparsers.add_parser("info")
+    subparsers.add_parser("verify")
     exec_parser = subparsers.add_parser("exec")
-    exec_parser.add_argument('subargv', nargs=argparse.REMAINDER, help='Command to run.')
+    exec_parser.add_argument(
+        'subargv', nargs=argparse.REMAINDER, help='Command to run.')
     install_parser = subparsers.add_parser("install")
-    install_parser.add_argument(
-        "--user", action="store_true", help="Install in local-user directories."
-    )
     install_parser.add_argument(
         "--prefix", type=str, help='Prefix to install in')
 
@@ -147,6 +164,8 @@ def main():  # noqa: C901
         logging.basicConfig(level=logging.DEBUG, format="%(message)s")
     else:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    session: Session
     if args.schroot:
         from .session.schroot import SchrootSession
 
@@ -155,38 +174,73 @@ def main():  # noqa: C901
         from .session.plain import PlainSession
 
         session = PlainSession()
-    with session:
-        logging.info("Preparing directory %s", args.directory)
-        external_dir, internal_dir = session.setup_from_directory(args.directory)
+
+    with ExitStack() as es:
+        try:
+            es.enter_context(session)
+        except SessionSetupFailure as e:
+            logging.debug('Error lines: %r', e.errlines)
+            logging.fatal('Failed to set up session: %s', e.reason)
+            return 1
+
+        parsed_url = urlparse(args.directory)
+        # TODO(jelmer): Get a list of supported schemes from breezy?
+        if parsed_url.scheme in ('git', 'http', 'https', 'ssh'):
+            import breezy.git  # noqa: F401
+            import breezy.bzr  # noqa: F401
+            from breezy.branch import Branch
+            b = Branch.open(args.directory)
+            logging.info("Cloning %s", args.directory)
+            td = es.enter_context(tempfile.TemporaryDirectory())
+            to_dir = b.controldir.sprout(td, create_tree_if_local=True)
+            external_dir, internal_dir = session.setup_from_vcs(
+                to_dir.open_workingtree())
+        else:
+            if parsed_url.scheme == 'file':
+                directory = parsed_url.path
+            else:
+                directory = args.directory
+            logging.info("Preparing directory %s", directory)
+            external_dir, internal_dir = session.setup_from_directory(
+                directory)
         session.chdir(internal_dir)
         os.chdir(external_dir)
 
         if not session.is_temporary and args.subcommand == 'info':
             args.explain = True
 
-        if args.resolve == "apt":
-            resolver = AptResolver.from_session(session)
-        elif args.resolve == "native":
-            resolver = native_resolvers(session, user_local=args.user)
-        elif args.resolve == "auto":
+        if args.resolve == "auto":
             resolver = auto_resolver(session, explain=args.explain)
+        else:
+            resolver = select_resolvers(
+                session, user_local=args.user,
+                resolvers=args.resolve.split(','),
+                dep_server_url=args.dep_server_url)
         logging.info("Using requirement resolver: %s", resolver)
         fixers = determine_fixers(session, resolver, explain=args.explain)
         try:
             if args.subcommand == "exec":
                 from .fix_build import run_with_build_fixers
-                run_with_build_fixers(session, args.subargv, fixers)
+                run_with_build_fixers(fixers, session, args.subargv)
                 return 0
-            bss = list(detect_buildsystems(args.directory))
+            bss = list(detect_buildsystems(external_dir))
             logging.info("Detected buildsystems: %s", ", ".join(map(str, bss)))
             if not args.ignore_declared_dependencies:
                 stages = STAGE_MAP[args.subcommand]
                 if stages:
-                    logging.info("Checking that declared requirements are present")
+                    logging.info(
+                        "Checking that declared requirements are present")
                     try:
                         install_necessary_declared_requirements(
-                            session, resolver, fixers, bss, stages, explain=args.explain
+                            session, resolver, fixers, bss, stages,
+                            explain=args.explain
                         )
+                    except UnsatisfiedRequirements as e:
+                        logging.info(
+                            'Unable to install declared dependencies:')
+                        for req in e.requirements:
+                            logging.info(' * %s', req)
+                        return 1
                     except ExplainInstall as e:
                         display_explain_commands(e.commands)
                         return 1
@@ -207,11 +261,15 @@ def main():  # noqa: C901
             if args.subcommand == "build":
                 from .build import run_build
 
-                run_build(session, buildsystems=bss, resolver=resolver, fixers=fixers)
+                run_build(
+                    session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
             if args.subcommand == "clean":
                 from .clean import run_clean
 
-                run_clean(session, buildsystems=bss, resolver=resolver, fixers=fixers)
+                run_clean(
+                    session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
             if args.subcommand == "install":
                 from .install import run_install
 
@@ -226,14 +284,42 @@ def main():  # noqa: C901
             if args.subcommand == "test":
                 from .test import run_test
 
-                run_test(session, buildsystems=bss, resolver=resolver, fixers=fixers)
+                run_test(
+                    session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
             if args.subcommand == "info":
                 from .info import run_info
 
                 run_info(session, buildsystems=bss, fixers=fixers)
+
+            if args.subcommand == "verify":
+                from .build import run_build
+                from .test import run_test
+
+                run_build(
+                    session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
+                run_test(
+                    session, buildsystems=bss, resolver=resolver,
+                    fixers=fixers)
+
         except ExplainInstall as e:
             display_explain_commands(e.commands)
-        except (UnidentifiedError, DetailedFailure):
+        except UnidentifiedError:
+            logging.info(
+                'If there is a clear indication of a problem in the build '
+                'log, please consider filing a request to update the patterns '
+                'in buildlog-consultant at '
+                'https://github.com/jelmer/buildlog-consultant/issues/new')
+            return 1
+        except DetailedFailure:
+            if not args.verbose:
+                logging.info(
+                    'Run with --verbose to get more information '
+                    'about steps taken to try to resolve error')
+            logging.info(
+                'Please consider filing a bug report at '
+                'https://github.com/jelmer/ognibuild/issues/new')
             return 1
         except NoBuildToolsFound:
             logging.info("No build tools found.")
