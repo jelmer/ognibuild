@@ -6,6 +6,7 @@ Build-Depends: debhelper-compat (= 13),
                python3-apt,
                python3-breezy,
                python3-breezy.tests,
+	       python3-build,
                python3-buildlog-consultant (>= 0.0.4),
                python3-requirement-parser,
                python3-debmutate,
@@ -31,7 +32,7 @@ Depends: python3-apt,
          python3-toml,
          ${misc:Depends},
          ${python3:Depends},
-Recommends: brz-debian, python3-debmutate
+Recommends: brz-debian, python3-debmutate, python3-build
 Description: Detect and run any build system
  Ognibuild is a simple wrapper with a common interface for invoking any kind of
  build tool.
