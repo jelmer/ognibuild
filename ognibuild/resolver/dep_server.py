@@ -46,7 +46,8 @@ class RequirementFamilyUnknown(DepServerError):
 
 
 async def resolve_apt_requirement_dep_server(
-        url: str, req: Requirement) -> List[AptRequirement]:
+        url: str, req: Requirement,
+        suite: str = 'sid') -> List[AptRequirement]:
     """Resolve a requirement to an APT requirement with a dep server.
 
     Args:
@@ -57,9 +58,10 @@ async def resolve_apt_requirement_dep_server(
     """
     async with ClientSession() as session:
         try:
-            async with session.post(URL(url) / "resolve-apt", headers={
-                    'User-Agent': USER_AGENT},
-                    json={'requirement': req.json()},
+            async with session.post(
+                    URL(url) / "resolve-apt" / suite / req.family, headers={
+                        'User-Agent': USER_AGENT},
+                    json=req.json(),
                     raise_for_status=True) as resp:
                 return [
                     AptRequirement._from_json(e) for e in await resp.json()]
