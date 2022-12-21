@@ -44,6 +44,7 @@ from breezy.workingtree import WorkingTree
 
 from buildlog_consultant.sbuild import (
     worker_failure_from_sbuild_log,
+    DpkgSourceLocalChanges,
 )
 
 from .. import DetailedFailure, UnidentifiedError
@@ -282,6 +283,20 @@ def build_once(
     except BuildFailedError as e:
         with open(build_log_path, "rb") as f:
             sbuild_failure = worker_failure_from_sbuild_log(f)
+
+            # Preserve the diff for later inspection
+            # TODO(jelmer): Move this onto a method on DpkgSourceLocalChanges?
+            if (isinstance(sbuild_failure.error, DpkgSourceLocalChanges)
+                    and getattr(sbuild_failure.error, 'diff_file', None)
+                    and os.path.exists(
+                        sbuild_failure.error.diff_file)):  # type: ignore
+                import shutil
+                diff_file = sbuild_failure.error.diff_file  # type: ignore
+                shutil.copy(
+                    diff_file,
+                    os.path.join(output_directory,
+                                 os.path.basename(diff_file)))
+
             retcode = getattr(e, 'returncode', None)
             if sbuild_failure.error:
                 raise DetailedDebianBuildFailure(
