@@ -21,7 +21,7 @@ from debian.changelog import Version
 import logging
 import re
 
-from . import Requirement
+from . import Requirement, USER_AGENT
 from .requirements import (
     CargoCrateRequirement,
     GoPackageRequirement,
@@ -68,7 +68,7 @@ def load_crate_info(crate):
     from urllib.request import urlopen, Request
     import json
     http_url = 'https://crates.io/api/v1/crates/%s' % crate
-    headers = {'User-Agent': 'debianize', 'Accept': 'application/json'}
+    headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
     http_contents = urlopen(Request(http_url, headers=headers)).read()
     try:
         return json.loads(http_contents)
@@ -84,7 +84,7 @@ def find_python_package_upstream(requirement):
     from urllib.request import urlopen, Request
     import json
     http_url = 'https://pypi.org/pypi/%s/json' % requirement.package
-    headers = {'User-Agent': 'ognibuild', 'Accept': 'application/json'}
+    headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
     try:
         http_contents = urlopen(
             Request(http_url, headers=headers)).read()
