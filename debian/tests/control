@@ -1,4 +1,4 @@
-Test-Command: python3 -m unittest ognibuild.tests.test_suite
+Test-Command: python3 -m unittest tests.test_suite
 Depends: python3,
          @,
          lintian-brush, brz-debian, python3-breezy.tests
