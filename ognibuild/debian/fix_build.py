@@ -534,8 +534,8 @@ def default_fixers(
 def build_incrementally(
     local_tree: WorkingTree,
     apt: AptManager,
-    suffix: str,
-    build_suite: str,
+    suffix: Optional[str],
+    build_suite: Optional[str],
     output_directory: str,
     build_command: str,
     build_changelog_entry,

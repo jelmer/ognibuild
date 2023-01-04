@@ -255,7 +255,7 @@ def build(
 
 def build_once(
     local_tree: WorkingTree,
-    build_suite: str,
+    build_suite: Optional[str],
     output_directory: str,
     build_command: str,
     subpath: str = "",
@@ -335,8 +335,8 @@ def gbp_dch(path):
 
 def attempt_build(
     local_tree: WorkingTree,
-    suffix: str,
-    build_suite: str,
+    suffix: Optional[str],
+    build_suite: Optional[str],
     output_directory: str,
     build_command: str,
     build_changelog_entry: Optional[str] = None,
@@ -363,6 +363,12 @@ def attempt_build(
     if run_gbp_dch and not subpath and hasattr(local_tree.controldir, '_git'):
         gbp_dch(local_tree.abspath(subpath))
     if build_changelog_entry is not None:
+        if suffix is None:
+            raise AssertionError(
+                'build_changelog_entry specified, but suffix is None')
+        if build_suite is None:
+            raise AssertionError(
+                'build_changelog_entry specified, but build_suite is None')
         add_dummy_changelog_entry(
             local_tree, subpath, suffix, build_suite, build_changelog_entry
         )
