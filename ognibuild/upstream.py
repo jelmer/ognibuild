@@ -80,17 +80,21 @@ def load_crate_info(crate):
 
 
 def find_python_package_upstream(requirement):
+    return pypi_upstream_info(requirement.package)
+
+
+def pypi_upstream_info(project):
     import urllib.error
     from urllib.request import urlopen, Request
     import json
-    http_url = 'https://pypi.org/pypi/%s/json' % requirement.package
+    http_url = 'https://pypi.org/pypi/%s/json' % project
     headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
     try:
         http_contents = urlopen(
             Request(http_url, headers=headers)).read()
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            logging.warning('No pypi project %r', requirement.package)
+            logging.warning('No pypi project %r', project)
             return None
         raise
     pypi_data = json.loads(http_contents)
@@ -117,20 +121,20 @@ def find_go_package_upstream(requirement):
             branch_subpath='')
 
 
-def find_cargo_crate_upstream(requirement):
+def cargo_upstream_info(crate, api_version=None):
     import semver
     from debmutate.debcargo import semver_pair
-    data = load_crate_info(requirement.crate)
+    data = load_crate_info(crate)
     if data is None:
         return None
     upstream_branch = data['crate']['repository']
     name = 'rust-' + data['crate']['name'].replace('_', '-')
     version = None
-    if requirement.api_version is not None:
+    if api_version is not None:
         for version_info in data['versions']:
             if (not version_info['num'].startswith(
-                        requirement.api_version + '.')
-                    and version_info['num'] != requirement.api_version):
+                        api_version + '.')
+                    and version_info['num'] != api_version):
                 continue
             if version is None:
                 version = semver.VersionInfo.parse(version_info['num'])
@@ -141,7 +145,7 @@ def find_cargo_crate_upstream(requirement):
             logging.warning(
                 'Unable to find version of crate %s '
                 'that matches API version %s',
-                name, requirement.api_version)
+                name, api_version)
         else:
             name += '-' + semver_pair(str(version))
     return UpstreamInfo(
@@ -149,6 +153,11 @@ def find_cargo_crate_upstream(requirement):
         name=name, version=str(version) if version else None,
         metadata={'X-Cargo-Crate': data['crate']['name']},
         buildsystem='cargo')
+
+
+def find_cargo_crate_upstream(requirement):
+    return cargo_upstream_info(
+        requirement.crate, api_version=requirement.api_version)
 
 
 def apt_to_cargo_requirement(m, rels):
@@ -251,3 +260,22 @@ def find_upstream(requirement: Requirement) -> Optional[UpstreamInfo]:
         return UPSTREAM_FINDER[requirement.family](requirement)
     except KeyError:
         return None
+
+
+def find_upstream_from_repology(name) -> Optional[UpstreamInfo]:
+    if ':' not in name:
+        return None
+    family, name = name.split(':')
+    if family == 'python':
+        return pypi_upstream_info(name)
+    if family == 'go':
+        parts = name.split('-')
+        if parts[0] == 'github':
+            parts[0] = 'github.com'
+        return UpstreamInfo(
+            name=f'golang-{name}',
+            branch_url='https://' + '/'.join(parts),
+            branch_subpath='')
+    if family == 'rust':
+        return cargo_upstream_info(name)
+    return None
