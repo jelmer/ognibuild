@@ -121,12 +121,13 @@ class AptManager:
 
         with apt_pkg.TagFile(status_path) as tagf:  # type: ignore
             while missing:
-                tagf.step()
-                if not tagf.section:
+                tagf.step()  # type: ignore
+                section = tagf.section  # type: ignore
+                if not section:
                     break
-                if tagf.section["Package"] in missing:  # noqa: SIM102
-                    if tagf.section["Status"] == "install ok installed":
-                        missing.remove(tagf.section["Package"])
+                if section["Package"] in missing:  # noqa: SIM102
+                    if section["Status"] == "install ok installed":
+                        missing.remove(section["Package"])
         return list(missing)
 
     def install(self, packages: List[str]) -> None:
