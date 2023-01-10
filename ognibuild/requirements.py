@@ -617,7 +617,6 @@ class StaticLibraryRequirement(Requirement):
         return "Static Library: %s" % self.library
 
 
-
 class RubyFileRequirement(Requirement):
 
     filename: str
