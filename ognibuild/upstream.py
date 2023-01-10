@@ -99,7 +99,8 @@ def pypi_upstream_info(project):
         raise
     pypi_data = json.loads(http_contents)
     upstream_branch = None
-    for name, url in pypi_data['info']['project_urls'].items():
+    project_urls = pypi_data['info']['project_urls']
+    for name, url in (project_urls or {}).items():
         if name.lower() in ('github', 'repository'):
             upstream_branch = url
     tarball_url = None
