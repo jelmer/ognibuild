@@ -599,6 +599,9 @@ class LibraryRequirement(Requirement):
     def __init__(self, library: str):
         self.library = library
 
+    def __str__(self):
+        return "Library: %s" % self.library
+
 
 class StaticLibraryRequirement(Requirement):
 
@@ -609,6 +612,10 @@ class StaticLibraryRequirement(Requirement):
     def __init__(self, library: str, filename: str):
         self.library = library
         self.filename = filename
+
+    def __str__(self):
+        return "Static Library: %s" % self.library
+
 
 
 class RubyFileRequirement(Requirement):
