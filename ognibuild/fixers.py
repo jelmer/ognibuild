@@ -16,7 +16,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 import subprocess
-from typing import Tuple
 
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
@@ -39,7 +38,7 @@ class GnulibDirectoryFixer(BuildFixer):
     def can_fix(self, problem: Problem):
         return isinstance(problem, MissingGnulibDirectory)
 
-    def _fix(self, problem: Problem, phase: Tuple[str, ...]):
+    def _fix(self, problem: Problem, phase: tuple[str, ...]):
         self.session.check_call(["./gnulib.sh"])
         return True
 
@@ -51,7 +50,7 @@ class GitIdentityFixer(BuildFixer):
     def can_fix(self, problem: Problem):
         return isinstance(problem, MissingGitIdentity)
 
-    def _fix(self, problem: Problem, phase: Tuple[str, ...]):
+    def _fix(self, problem: Problem, phase: tuple[str, ...]):
         for name in ["user.email", "user.name"]:
             value = (
                 subprocess.check_output(["git", "config", "--global", name])
@@ -69,7 +68,7 @@ class SecretGpgKeyFixer(BuildFixer):
     def can_fix(self, problem: Problem):
         return isinstance(problem, MissingSecretGpgKey)
 
-    def _fix(self, problem: Problem, phase: Tuple[str, ...]):
+    def _fix(self, problem: Problem, phase: tuple[str, ...]):
         SCRIPT = b"""\
 Key-Type: 1
 Key-Length: 4096
@@ -115,7 +114,7 @@ class UnexpandedAutoconfMacroFixer(BuildFixer):
         self.resolver = resolver
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.resolver)
+        return "{}({!r})".format(type(self).__name__, self.resolver)
 
     def __str__(self):
         return "unexpanded m4 macro fixer (%s)" % self.resolver

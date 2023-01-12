@@ -29,7 +29,7 @@ from functools import partial
 import logging
 import os
 import sys
-from typing import Optional, List
+from typing import Optional
 
 from breezy.tree import Tree
 from breezy.workingtree import WorkingTree
@@ -93,7 +93,7 @@ def dist(session, export_directory, reldir, target_dir, log_manager, *,
     # TODO(jelmer): use scan_buildsystems to also look in subdirectories
     buildsystems = list(detect_buildsystems(export_directory))
     resolver = auto_resolver(session)
-    fixers: List[BuildFixer] = [
+    fixers: list[BuildFixer] = [
         UnexpandedAutoconfMacroFixer(session, resolver),
         GnulibDirectoryFixer(session),
         MissingGoSumEntryFixer(session),

@@ -17,7 +17,6 @@
 
 import asyncio
 import logging
-from typing import List
 
 from aiohttp import (
     ClientSession,
@@ -46,7 +45,7 @@ class RequirementFamilyUnknown(DepServerError):
 
 
 async def resolve_apt_requirement_dep_server(
-        url: str, req: Requirement) -> List[AptRequirement]:
+        url: str, req: Requirement) -> list[AptRequirement]:
     """Resolve a requirement to an APT requirement with a dep server.
 
     Args:
@@ -76,7 +75,7 @@ async def resolve_apt_requirement_dep_server(
 
 class DepServerAptResolver(AptResolver):
     def __init__(self, apt, dep_server_url, tie_breakers=None):
-        super(DepServerAptResolver, self).__init__(
+        super().__init__(
             apt, tie_breakers=tie_breakers)
         self.dep_server_url = dep_server_url
 
@@ -90,10 +89,10 @@ class DepServerAptResolver(AptResolver):
         try:
             req.json()
         except NotImplementedError:
-            return super(DepServerAptResolver, self).resolve_all(req)
+            return super().resolve_all(req)
         try:
             return asyncio.run(
                 resolve_apt_requirement_dep_server(self.dep_server_url, req))
         except DepServerError:
             logging.warning('Falling back to resolving error locally')
-            return super(DepServerAptResolver, self).resolve_all(req)
+            return super().resolve_all(req)

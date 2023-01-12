@@ -21,7 +21,7 @@ import shlex
 import subprocess
 import tempfile
 
-from typing import Optional, List, Dict
+from typing import Optional
 
 
 from . import Session, SessionSetupFailure, NoSessionOpen, SessionAlreadyOpen
@@ -118,10 +118,10 @@ class SchrootSession(Session):
 
     def _run_argv(
         self,
-        argv: List[str],
+        argv: list[str],
         cwd: Optional[str] = None,
         user: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[dict[str, str]] = None,
     ):
         if self.session_id is None:
             raise NoSessionOpen(self)
@@ -138,7 +138,7 @@ class SchrootSession(Session):
                 "-c",
                 " ".join(
                     [
-                        "%s=%s " % (key, shlex.quote(value))
+                        "{}={} ".format(key, shlex.quote(value))
                         for (key, value) in env.items()
                     ]
                     + [shlex.quote(arg) for arg in argv]
@@ -148,10 +148,10 @@ class SchrootSession(Session):
 
     def check_call(
         self,
-        argv: List[str],
+        argv: list[str],
         cwd: Optional[str] = None,
         user: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[dict[str, str]] = None,
         close_fds: bool = True,
     ):
         try:
@@ -163,10 +163,10 @@ class SchrootSession(Session):
 
     def check_output(
         self,
-        argv: List[str],
+        argv: list[str],
         cwd: Optional[str] = None,
         user: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[dict[str, str]] = None,
     ) -> bytes:
         try:
             return subprocess.check_output(
@@ -181,7 +181,7 @@ class SchrootSession(Session):
         return subprocess.Popen(self._run_argv(argv, cwd, user), **kwargs)
 
     def call(
-        self, argv: List[str], cwd: Optional[str] = None,
+        self, argv: list[str], cwd: Optional[str] = None,
         user: Optional[str] = None
     ):
         return subprocess.call(self._run_argv(argv, cwd, user))

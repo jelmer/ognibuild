@@ -25,7 +25,7 @@ import os
 import shutil
 import sys
 import time
-from typing import List, Set, Optional, Type, Tuple
+from typing import Optional
 
 from debian.deb822 import (
     Deb822,
@@ -147,7 +147,7 @@ class PackageDependencyFixer(BuildFixer):
         self.context = context
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.apt_resolver)
+        return "{}({!r})".format(type(self).__name__, self.apt_resolver)
 
     def __str__(self):
         return "upstream requirement fixer(%s)" % self.apt_resolver
@@ -268,16 +268,16 @@ def add_test_dependency(context, testname, requirement):
 
     logging.info("Adding dependency to test %s: %s", testname, desc)
     return context.commit(
-        "Add missing dependency for test %s on %s." % (testname, desc),
+        "Add missing dependency for test {} on {}.".format(testname, desc),
     )
 
 
-def targeted_python_versions(tree: Tree, subpath: str) -> List[str]:
+def targeted_python_versions(tree: Tree, subpath: str) -> list[str]:
     with tree.get_file(os.path.join(subpath, "debian/control")) as f:
         control = Deb822(f)
     build_depends = PkgRelation.parse_relations(
         control.get("Build-Depends", ""))
-    all_build_deps: Set[str] = set()
+    all_build_deps: set[str] = set()
     for or_deps in build_depends:
         all_build_deps.update(or_dep["name"] for or_dep in or_deps)
     targeted = []
@@ -389,7 +389,7 @@ class PgBuildExtOutOfDateControlFixer(BuildFixer):
         return isinstance(problem, NeedPgBuildExtUpdateControl)
 
     def __repr__(self):
-        return "%s()" % (type(self).__name__,)
+        return "{}()".format(type(self).__name__)
 
     def _fix(self, error, phase):
         logging.info("Running 'pg_buildext updatecontrol'")
@@ -427,13 +427,13 @@ def debcargo_coerce_unacceptable_prerelease(error, phase, context):
 
 
 class SimpleBuildFixer(BuildFixer):
-    def __init__(self, packaging_context, problem_cls: Type[Problem], fn):
+    def __init__(self, packaging_context, problem_cls: type[Problem], fn):
         self.context = packaging_context
         self._problem_cls = problem_cls
         self._fn = fn
 
     def __repr__(self):
-        return "%s(%s, %s)" % (
+        return "{}({}, {})".format(
             type(self).__name__,
             self._problem_cls.__name__,
             self._fn.__name__,
@@ -448,14 +448,14 @@ class SimpleBuildFixer(BuildFixer):
 
 class DependencyBuildFixer(BuildFixer):
     def __init__(self, packaging_context, apt_resolver,
-                 problem_cls: Type[Problem], fn):
+                 problem_cls: type[Problem], fn):
         self.context = packaging_context
         self.apt_resolver = apt_resolver
         self._problem_cls = problem_cls
         self._fn = fn
 
     def __repr__(self):
-        return "%s(%s, %s)" % (
+        return "{}({}, {})".format(
             type(self).__name__,
             self._problem_cls.__name__,
             self._fn.__name__,
@@ -492,7 +492,7 @@ def versioned_package_fixers(session, packaging_context, apt: AptManager):
 
 
 def apt_fixers(apt: AptManager, packaging_context,
-               dep_server_url: Optional[str] = None) -> List[BuildFixer]:
+               dep_server_url: Optional[str] = None) -> list[BuildFixer]:
     from ..resolver.apt import AptResolver
     from .udd import popcon_tie_breaker
     from .build_deps import BuildDependencyTieBreaker
@@ -546,12 +546,12 @@ def build_incrementally(
     update_changelog: bool = True,
     apt_repository: Optional[str] = None,
     apt_repository_key: Optional[str] = None,
-    extra_repositories: Optional[List[str]] = None,
-    fixers: Optional[List[BuildFixer]] = None,
+    extra_repositories: Optional[list[str]] = None,
+    fixers: Optional[list[BuildFixer]] = None,
     run_gbp_dch: Optional[bool] = None,
     dep_server_url: Optional[str] = None,
 ):
-    fixed_errors: List[Tuple[Problem, str]] = []
+    fixed_errors: list[tuple[Problem, str]] = []
     if fixers is None:
         fixers = default_fixers(
             local_tree, subpath, apt, committer=committer,
@@ -725,7 +725,7 @@ def main(argv=None):
             elif len(e.phase) == 1:
                 phase = e.phase[0]
             else:
-                phase = "%s (%s)" % (e.phase[0], e.phase[1])
+                phase = "{} ({})".format(e.phase[0], e.phase[1])
             logging.fatal("Error during %s: %s", phase, e.error)
             if not args.output_directory:
                 xdg_cache_dir = os.environ.get(
@@ -735,7 +735,7 @@ def main(argv=None):
                 os.makedirs(buildlogs_dir, exist_ok=True)
                 target_log_file = os.path.join(
                     buildlogs_dir,
-                    '%s-%s.log' % (
+                    '{}-{}.log'.format(
                         os.path.basename(getattr(tree, 'basedir', 'build')),
                         time.strftime('%Y-%m-%d_%H%M%s')))
                 shutil.copy(
@@ -749,7 +749,7 @@ def main(argv=None):
             elif len(e.phase) == 1:
                 phase = e.phase[0]
             else:
-                phase = "%s (%s)" % (e.phase[0], e.phase[1])
+                phase = "{} ({})".format(e.phase[0], e.phase[1])
             logging.fatal("Error during %s: %s", phase, e.description)
             return 1
 

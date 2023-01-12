@@ -16,7 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 from debian.changelog import Version
 import logging
 import re
@@ -38,7 +38,7 @@ class UpstreamInfo:
     branch_subpath: Optional[str] = None
     tarball_url: Optional[str] = None
     version: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def json(self):
         return {

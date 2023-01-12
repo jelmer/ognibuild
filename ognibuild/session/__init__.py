@@ -16,7 +16,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from typing import Optional, List, Dict, Tuple
+from typing import Optional
 import sys
 import subprocess
 
@@ -51,20 +51,20 @@ class Session:
 
     def check_call(
         self,
-        argv: List[str],
+        argv: list[str],
         cwd: Optional[str] = None,
         user: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[dict[str, str]] = None,
         close_fds: bool = True,
     ):
         raise NotImplementedError(self.check_call)
 
     def check_output(
         self,
-        argv: List[str],
+        argv: list[str],
         cwd: Optional[str] = None,
         user: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[dict[str, str]] = None,
     ) -> bytes:
         raise NotImplementedError(self.check_output)
 
@@ -75,7 +75,7 @@ class Session:
         raise NotImplementedError(self.Popen)
 
     def call(
-        self, argv: List[str], cwd: Optional[str] = None,
+        self, argv: list[str], cwd: Optional[str] = None,
         user: Optional[str] = None
     ):
         raise NotImplementedError(self.call)
@@ -93,10 +93,10 @@ class Session:
 
     def setup_from_vcs(
         self, tree, include_controldir: Optional[bool] = None, subdir="package"
-    ) -> Tuple[str, str]:
+    ) -> tuple[str, str]:
         raise NotImplementedError(self.setup_from_vcs)
 
-    def setup_from_directory(self, path, subdir="package") -> Tuple[str, str]:
+    def setup_from_directory(self, path, subdir="package") -> tuple[str, str]:
         raise NotImplementedError(self.setup_from_directory)
 
     def external_path(self, path: str) -> str:
@@ -117,7 +117,7 @@ class SessionSetupFailure(Exception):
 
 
 def run_with_tee(session: Session,
-                 args: List[str], **kwargs) -> Tuple[int, List[str]]:
+                 args: list[str], **kwargs) -> tuple[int, list[str]]:
     if "stdin" not in kwargs:
         kwargs["stdin"] = subprocess.DEVNULL
     p = session.Popen(

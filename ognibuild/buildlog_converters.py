@@ -21,7 +21,7 @@
 """Convert problems found in the buildlog to upstream requirements.
 """
 
-from typing import Optional, List, Callable, Union, Tuple
+from typing import Optional, Callable, Union
 
 from buildlog_consultant.common import Problem
 
@@ -79,9 +79,9 @@ def map_pytest_arguments_to_plugin(args):
     return None
 
 
-PROBLEM_CONVERTERS: List[Union[
-        Tuple[str, ProblemToRequirementConverter],
-        Tuple[str, ProblemToRequirementConverter, str]]] = [
+PROBLEM_CONVERTERS: list[Union[
+        tuple[str, ProblemToRequirementConverter],
+        tuple[str, ProblemToRequirementConverter, str]]] = [
     ('missing-file', lambda p: PathRequirement(p.path)),
     ('command-missing', lambda p: BinaryRequirement(p.command)),
     ('valac-cannot-compile', lambda p: VagueDependencyRequirement('valac'),
