@@ -18,7 +18,6 @@
 
 import os
 import stat
-from typing import List, Dict, Type
 
 
 __version__ = (0, 0, 16)
@@ -58,7 +57,7 @@ class UnidentifiedError(Exception):
                 self.secondary == other.secondary)
 
     def __repr__(self):
-        return "<%s(%r, %r, ..., secondary=%r)>" % (
+        return "<{}({!r}, {!r}, ..., secondary={!r})>".format(
             type(self).__name__,
             self.retcode,
             self.argv,
@@ -91,7 +90,7 @@ class Requirement:
     # Name of the family of requirements - e.g. "python-package"
     family: str
 
-    _JSON_DESERIALIZERS: Dict[str, Type["Requirement"]] = {}
+    _JSON_DESERIALIZERS: dict[str, type["Requirement"]] = {}
 
     @classmethod
     def _from_json(self, js):
@@ -121,7 +120,7 @@ class Requirement:
 
 class OneOfRequirement(Requirement):
 
-    elements: List[Requirement]
+    elements: list[Requirement]
 
     family = 'or'
 
@@ -132,7 +131,7 @@ class OneOfRequirement(Requirement):
         return any(req.met(session) for req in self.elements)
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.elements)
+        return "{}({!r})".format(type(self).__name__, self.elements)
 
 
 class UpstreamOutput:

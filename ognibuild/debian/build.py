@@ -31,7 +31,7 @@ import re
 import shlex
 import subprocess
 import sys
-from typing import Optional, List, Tuple
+from typing import Optional
 
 from debian.changelog import Changelog, Version, ChangeBlock
 from debmutate.changelog import get_maintainer, ChangelogEditor
@@ -64,7 +64,7 @@ class ChangelogNotEditable(Exception):
 class DetailedDebianBuildFailure(DetailedFailure):
 
     def __init__(self, stage, phase, retcode, argv, error, description):
-        super(DetailedDebianBuildFailure, self).__init__(retcode, argv, error)
+        super().__init__(retcode, argv, error)
         self.stage = stage
         self.phase = phase
         self.description = description
@@ -74,7 +74,7 @@ class UnidentifiedDebianBuildError(UnidentifiedError):
 
     def __init__(self, stage, phase, retcode, argv, lines, description,
                  secondary=None):
-        super(UnidentifiedDebianBuildError, self).__init__(
+        super().__init__(
             retcode, argv, lines, secondary)
         self.stage = stage
         self.phase = phase
@@ -92,7 +92,7 @@ def find_changes_files(path: str, package: str, version: Version):
     non_epoch_version = version.upstream_version or ''
     if version.debian_version is not None:
         non_epoch_version += "-%s" % version.debian_version
-    c = re.compile('%s_%s_(.*).changes' % (
+    c = re.compile('{}_{}_(.*).changes'.format(
         re.escape(package), re.escape(non_epoch_version)))
     for entry in os.scandir(path):
         m = c.match(entry.name)
@@ -144,7 +144,7 @@ def add_dummy_changelog_entry(
     suite: str,
     message: str,
     timestamp: Optional[datetime] = None,
-    maintainer: Optional[Tuple[Optional[str], Optional[str]]] = None,
+    maintainer: Optional[tuple[Optional[str], Optional[str]]] = None,
     allow_reformatting: bool = True,
 ) -> Version:
     """Add a dummy changelog entry to a package.
@@ -197,7 +197,7 @@ def _builddeb_command(
         result_dir: Optional[str] = None,
         apt_repository: Optional[str] = None,
         apt_repository_key: Optional[str] = None,
-        extra_repositories: Optional[List[str]] = None):
+        extra_repositories: Optional[list[str]] = None):
     for repo in extra_repositories or []:
         build_command += " --extra-repository=" + shlex.quote(repo)
     args = [
@@ -227,7 +227,7 @@ def build(
     source_date_epoch: Optional[int] = None,
     apt_repository: Optional[str] = None,
     apt_repository_key: Optional[str] = None,
-    extra_repositories: Optional[List[str]] = None,
+    extra_repositories: Optional[list[str]] = None,
 ):
     args = _builddeb_command(
         build_command=build_command,
@@ -236,7 +236,7 @@ def build(
         apt_repository_key=apt_repository_key,
         extra_repositories=extra_repositories)
 
-    outf.write("Running %r\n" % (build_command,))
+    outf.write("Running {!r}\n".format(build_command))
     outf.flush()
     env = dict(os.environ.items())
     if distribution is not None:
@@ -262,7 +262,7 @@ def build_once(
     source_date_epoch: Optional[int] = None,
     apt_repository: Optional[str] = None,
     apt_repository_key: Optional[str] = None,
-    extra_repositories: Optional[List[str]] = None
+    extra_repositories: Optional[list[str]] = None
 ):
     build_log_path = os.path.join(output_directory, BUILD_LOG_FILENAME)
     logging.debug("Writing build log to %s", build_log_path)
@@ -318,7 +318,7 @@ def build_once(
     changes_names = []
     for _kind, entry in find_changes_files(
             output_directory, cl_entry.package, cl_entry.version):
-        changes_names.append((entry.name))
+        changes_names.append(entry.name)
     return (changes_names, cl_entry)
 
 
@@ -345,7 +345,7 @@ def attempt_build(
     run_gbp_dch: bool = False,
     apt_repository: Optional[str] = None,
     apt_repository_key: Optional[str] = None,
-    extra_repositories: Optional[List[str]] = None
+    extra_repositories: Optional[list[str]] = None
 ):
     """Attempt a build, with a custom distribution set.
 

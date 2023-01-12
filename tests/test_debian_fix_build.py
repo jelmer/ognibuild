@@ -66,7 +66,7 @@ class DummyAptSearcher(FileSearcher):
 
 class ResolveErrorTests(TestCaseWithTransport):
     def setUp(self):
-        super(ResolveErrorTests, self).setUp()
+        super().setUp()
         self.tree = self.make_branch_and_tree(".")
         self.build_tree_contents(
             [
@@ -117,7 +117,7 @@ blah (0.1) UNRELEASED; urgency=medium
         return resolve_error(error, ("build",), fixers)
 
     def get_build_deps(self):
-        with open(self.tree.abspath("debian/control"), "r") as f:
+        with open(self.tree.abspath("debian/control")) as f:
             return next(Deb822.iter_paragraphs(f)).get("Build-Depends", "")
 
     def test_missing_command_unknown(self):
@@ -252,7 +252,7 @@ blah (0.1) UNRELEASED; urgency=medium
 class AddBuildDependencyTests(TestCaseWithTransport):
 
     def setUp(self):
-        super(AddBuildDependencyTests, self).setUp()
+        super().setUp()
         self.tree = self.make_branch_and_tree(".")
         self.build_tree_contents(
             [

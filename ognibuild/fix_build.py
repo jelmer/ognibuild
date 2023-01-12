@@ -17,7 +17,7 @@
 
 from functools import partial
 import logging
-from typing import List, Tuple, Callable, Optional, TypeVar
+from typing import Callable, Optional, TypeVar
 
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
@@ -43,18 +43,18 @@ class BuildFixer:
     def can_fix(self, problem: Problem):
         raise NotImplementedError(self.can_fix)
 
-    def _fix(self, problem: Problem, phase: Tuple[str, ...]):
+    def _fix(self, problem: Problem, phase: tuple[str, ...]):
         raise NotImplementedError(self._fix)
 
-    def fix(self, problem: Problem, phase: Tuple[str, ...]):
+    def fix(self, problem: Problem, phase: tuple[str, ...]):
         if not self.can_fix(problem):
             return None
         return self._fix(problem, phase)
 
 
 def run_detecting_problems(
-        session: Session, args: List[str], check_success=None,
-        quiet=False, **kwargs) -> List[str]:
+        session: Session, args: list[str], check_success=None,
+        quiet=False, **kwargs) -> list[str]:
     error: Optional[Problem]
     if not quiet:
         logging.info('Running %r', args)
@@ -86,7 +86,7 @@ T = TypeVar('T')
 
 
 def iterate_with_build_fixers(
-        fixers: List[BuildFixer],
+        fixers: list[BuildFixer],
         cb: Callable[[], T], limit=DEFAULT_LIMIT) -> T:
     """Call cb() until there are no more DetailedFailures we can fix.
 
@@ -134,9 +134,9 @@ def iterate_with_build_fixers(
 
 
 def run_with_build_fixers(
-     fixers: Optional[List[BuildFixer]], session: Session, args: List[str],
+     fixers: Optional[list[BuildFixer]], session: Session, args: list[str],
      quiet: bool = False, **kwargs
-) -> List[str]:
+) -> list[str]:
     if fixers is None:
         fixers = []
     return iterate_with_build_fixers(
