@@ -171,6 +171,7 @@ def add_dummy_changelog_entry(
                 tree.abspath(path),  # type: ignore
                 allow_reformatting=allow_reformatting) as editor:
             version = version_add_suffix(editor[0].version, suffix)
+            logging.debug('Adding dummy changelog entry %s for build', version)
             editor.auto_version(version, timestamp=timestamp)
             editor.add_entry(
                 summary=[message], maintainer=maintainer, timestamp=timestamp,
@@ -383,3 +384,53 @@ def attempt_build(
         apt_repository_key=apt_repository_key,
         extra_repositories=extra_repositories,
     )
+
+
+def main():
+    import breezy.bzr  # noqa: F401
+    import breezy.git  # noqa: F401
+    from breezy.workingtree import WorkingTree
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument('--suffix', type=str)
+    parser.add_argument('--build-command', type=str, default=DEFAULT_BUILDER)
+    parser.add_argument('--output-directory', type=str, default='..')
+    parser.add_argument('--build-suite', type=str)
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--build-changelog-entry', type=str)
+    args = parser.parse_args()
+
+    wt, subpath = WorkingTree.open_containing('.')
+
+    if args.debug:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+
+    logging.basicConfig(format='%(message)s', level=level)
+
+    logging.info('Using output directory %s', args.output_directory)
+
+    if args.suffix and not args.build_changelog_entry:
+        parser.error('--suffix requires --build-changelog-entry')
+
+    if args.build_changelog_entry and not args.build_suite:
+        parser.error('--build-changelog-entry requires --build-suite')
+
+    try:
+        attempt_build(
+            wt, subpath=subpath, suffix=args.suffix,
+            build_command=args.build_command,
+            output_directory=args.output_directory,
+            build_changelog_entry=args.build_changelog_entry,
+            build_suite=args.build_suite)
+    except UnidentifiedDebianBuildError as e:
+        logging.fatal(
+            'build failed during %s: %s', e.phase, e.description)
+        return 1
+
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
