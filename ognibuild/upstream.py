@@ -69,14 +69,14 @@ def load_crate_info(crate):
     import json
     http_url = 'https://crates.io/api/v1/crates/%s' % crate
     headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
-    http_contents = urlopen(Request(http_url, headers=headers)).read()
     try:
-        return json.loads(http_contents)
+        resp = urlopen(Request(http_url, headers=headers))
     except urllib.error.HTTPError as e:
         if e.code == 404:
             logging.warning('No crate %r', crate)
             return None
         raise
+    return json.loads(resp.read())
 
 
 def find_python_package_upstream(requirement):
