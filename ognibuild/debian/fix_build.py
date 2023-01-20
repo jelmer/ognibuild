@@ -663,6 +663,8 @@ def main(argv=None):
         default=DEFAULT_MAX_ITERATIONS,
         help='Maximum number of issues to attempt to fix before giving up.')
     build_behaviour.add_argument("--schroot", type=str, help="chroot to use.")
+    build_behaviour.add_argument(
+        "--unshare", type=str, help="unshare tarball to use.")
     parser.add_argument(
         "--dep-server-url", type=str,
         help="ognibuild dep server to use",
@@ -675,6 +677,7 @@ def main(argv=None):
     from ..session import Session
     from ..session.plain import PlainSession
     from ..session.schroot import SchrootSession
+    from ..session.unshare import UnshareSession
     import tempfile
     import contextlib
 
@@ -700,6 +703,9 @@ def main(argv=None):
             # TODO(jelmer): pass in package name as part of session prefix
             session = SchrootSession(
                 args.schroot, session_prefix="deb-fix-build")
+        elif args.unshare:
+            session = UnshareSession.from_tarball(
+                args.unshare, name="deb-fix-build")
         else:
             session = PlainSession()
 
