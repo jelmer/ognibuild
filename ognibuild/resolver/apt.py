@@ -944,6 +944,9 @@ async def resolve_requirement_apt(
                 return []
             if not isinstance(ret, list):
                 raise TypeError(ret)
+            logging.debug(
+                'Trying to resolve %r by installing one of %r',
+                req, ret)
             return ret
     logging.warning(
         'No way known to convert %s to apt requirement',

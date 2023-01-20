@@ -697,7 +697,9 @@ def main(argv=None):
         tree = WorkingTree.open(".")
         session: Session
         if args.schroot:
-            session = SchrootSession(args.schroot)
+            # TODO(jelmer): pass in package name as part of session prefix
+            session = SchrootSession(
+                args.schroot, session_prefix="deb-fix-build")
         else:
             session = PlainSession()
 
