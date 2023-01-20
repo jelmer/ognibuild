@@ -138,7 +138,8 @@ def main():
     session: Session
     if args.schroot:
         from .session.schroot import SchrootSession
-        session = SchrootSession(args.schroot)
+        session = SchrootSession(
+            args.schroot, session_prefix="ognibuild-dep-server")
     else:
         from .session.plain import PlainSession
         session = PlainSession()

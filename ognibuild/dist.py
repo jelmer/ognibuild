@@ -179,7 +179,8 @@ def create_dist_schroot(
       include_controldir: Whether to include the version control directory
       subdir: subdirectory in the tree to operate in
     """
-    with SchrootSession(chroot) as session:
+    # TODO(jelmer): pass in package name as part of session prefix
+    with SchrootSession(chroot, session_prefix="ognibuild-dist") as session:
         if packaging_tree is not None:
             from .debian import satisfy_build_deps
 

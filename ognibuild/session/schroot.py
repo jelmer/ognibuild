@@ -17,7 +17,9 @@
 
 import logging
 import os
+import random
 import shlex
+import string
 import subprocess
 import tempfile
 
@@ -27,19 +29,30 @@ from typing import Optional
 from . import Session, SessionSetupFailure, NoSessionOpen, SessionAlreadyOpen
 
 
+def sanitize_session_name(name):
+    return ''.join([x for x in name if x.isalnum() or x in '_-.'])
+
+
+def generate_session_id(prefix):
+    suffix = ''.join(random.choice(string.ascii_lowercase) for i in range(8))
+    return sanitize_session_name(prefix) + '-' + suffix
+
+
 class SchrootSession(Session):
 
     _cwd: Optional[str]
     _location: Optional[str]
     chroot: str
     session_id: Optional[str]
+    session_prefix: Optional[str]
 
-    def __init__(self, chroot: str):
+    def __init__(self, chroot: str, *, session_prefix: Optional[str] = None):
         if not isinstance(chroot, str):
             raise TypeError("not a valid chroot: %r" % chroot)
         self.chroot = chroot
         self._location = None
         self._cwd = None
+        self._session_prefix = session_prefix
         self.session_id = None
 
     def _get_location(self) -> str:
@@ -79,10 +92,15 @@ class SchrootSession(Session):
         if self.session_id is not None:
             raise SessionAlreadyOpen(self)
         stderr = tempfile.TemporaryFile()
+        extra_args = []
+        if self._session_prefix:
+            sanitized_session_name = generate_session_id(self._session_prefix)
+            extra_args.extend(["-n", sanitized_session_name])
         try:
             self.session_id = (
                 subprocess.check_output(
-                    ["schroot", "-c", self.chroot, "-b"], stderr=stderr)
+                    ["schroot", "-c", self.chroot, "-b"] + extra_args,
+                    stderr=stderr)
                 .strip()
                 .decode()
             )
