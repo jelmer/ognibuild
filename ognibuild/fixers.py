@@ -15,6 +15,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+import re
 import subprocess
 
 from buildlog_consultant import Problem
@@ -24,6 +25,7 @@ from buildlog_consultant.common import (
     MissingSecretGpgKey,
     MissingAutoconfMacro,
     MissingGnulibDirectory,
+    MinimumAutoconfTooOld,
 )
 from ognibuild.requirements import AutoconfMacroRequirement
 from ognibuild.resolver import UnsatisfiedRequirements
@@ -86,6 +88,36 @@ Passphrase: ""
         )
         p.communicate(SCRIPT)
         return p.returncode == 0
+
+
+class MinimumAutoconfFixer(BuildFixer):
+    def __init__(self, session):
+        self.session = session
+
+    def can_fix(self, problem: Problem):
+        return isinstance(problem, MinimumAutoconfTooOld)
+
+    def _fix(self, error, phase):
+        for name in ['configure.ac', 'configure.in']:
+            try:
+                with open(self.session.external_path(name), 'rb') as f:
+                    lines = list(f.readlines())
+            except FileNotFoundError:
+                continue
+            pattern = re.compile(br'AC_PREREQ\((.*)\)')
+            for i, line in enumerate(lines):
+                m = pattern.fullmatch(line)
+                if not m:
+                    continue
+                lines[i] = (
+                    f'AC_PREREQ([{error.minimum_version}])'.encode('ascii'))
+            else:
+                lines.insert(
+                    0, f'AC_PREREQ([{error.minimum_version}])'.encode('ascii'))
+            with open(self.session.external_path(name), 'wb') as f:
+                f.writelines(lines)
+            return True
+        return False
 
 
 class MissingGoSumEntryFixer(BuildFixer):
