@@ -27,21 +27,27 @@ def copy_output(output_log: str, tee: bool = False):
     old_stdout = os.dup(sys.stdout.fileno())
     old_stderr = os.dup(sys.stderr.fileno())
     if tee:
-        p = subprocess.Popen(["tee", output_log], stdin=subprocess.PIPE)
+        p = subprocess.Popen(
+            ["tee", output_log], bufsize=0, stdin=subprocess.PIPE)
         newfd = p.stdin
     else:
+        p = None
         newfd = open(output_log, 'wb')  # noqa: SIM115
-    os.dup2(newfd.fileno(), sys.stdout.fileno())  # type: ignore
-    os.dup2(newfd.fileno(), sys.stderr.fileno())  # type: ignore
+    fileno = newfd.fileno()
+    assert fileno is not None
+    os.dup2(fileno, sys.stdout.fileno())  # type: ignore
+    os.dup2(fileno, sys.stderr.fileno())  # type: ignore
     try:
         yield
     finally:
         sys.stdout.flush()
         sys.stderr.flush()
+        if p:
+            p.communicate(b"", timeout=5.0)
+        else:
+            newfd.close()
         os.dup2(old_stdout, sys.stdout.fileno())
         os.dup2(old_stderr, sys.stderr.fileno())
-        if newfd is not None:
-            newfd.close()
 
 
 @contextmanager
