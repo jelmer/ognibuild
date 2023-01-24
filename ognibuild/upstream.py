@@ -309,7 +309,8 @@ def perl_upstream_info(module, version=None):
     if data is None:
         return None
     release_metadata = data['release']['_source']['metadata']
-    branch_url = release_metadata['resources']['repository']['url']
+    release_resources = release_metadata.get('resources', {})
+    branch_url = release_resources.get('repository', {}).get('url')
     return UpstreamInfo(
         name='lib%s-perl' % (module.lower().replace('::', '-')),
         version=data['version'],
@@ -354,10 +355,47 @@ def find_upstream_from_repology(name, version=None) -> Optional[UpstreamInfo]:
     if family == 'node':
         return npm_upstream_info(name, version)
     if family == 'perl':
-        return perl_upstream_info(name, version)
+        module = '::'.join([x.capitalize() for x in name.split('-')])
+        return perl_upstream_info(module, version)
     # apmod, coq, cursors, deadbeef, emacs, erlang, fonts, fortunes, fusefs,
     # gimp, gstreamer, gtktheme, haskell, raku, ros, haxe, icons, java, js,
     # julia, ladspa, lisp, lua, lv2, mingw, nextcloud, nginx, nim, ocaml,
     # opencpn, rhythmbox texlive, tryton, vapoursynth, vdr, vim, xdrv,
     # xemacs
     return None
+
+
+if __name__ == '__main__':
+    import argparse
+    import sys
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--json', action='store_true')
+    parser.add_argument('name', type=str)
+    parser.add_argument('version', type=str, nargs='?', default=None)
+    args = parser.parse_args()
+
+    logging.basicConfig(format='%(message)s', level=logging.INFO)
+
+    upstream_info = find_upstream_from_repology(args.name, args.version)
+    if upstream_info is None:
+        logging.fatal('Unable to find upstream info for repology %s',
+                      args.name)
+        sys.exit(1)
+
+    if args.json:
+        import json
+        json.dump(upstream_info.json(), sys.stdout)
+        sys.exit(0)
+
+    if upstream_info.name:
+        logging.info('Name: %s', upstream_info.name)
+    if upstream_info.version:
+        logging.info('Version: %s', upstream_info.version)
+    if upstream_info.buildsystem:
+        logging.info('Buildsystem: %s', upstream_info.buildsystem)
+    if upstream_info.branch_url:
+        logging.info(
+            'Branch: %s [%s]', upstream_info.branch_url,
+            upstream_info.branch_subpath)
+    if upstream_info.tarball_url:
+        logging.info('Tarball URL: %s', upstream_info.tarball_url)
