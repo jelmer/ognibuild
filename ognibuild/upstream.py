@@ -278,8 +278,18 @@ def npm_upstream_info(package, version=None):
         version_data = versions[version]
     else:
         version_data = versions[max(versions.keys())]
+    if 'repository' in version_data:
+        try:
+            branch_url = version_data['repository']['url']
+        except TypeError:
+            logging.warning(
+                'Unexpectedly formatted repository data: %r',
+                version_data['repository'])
+        branch_url = None
+    else:
+        branch_url = None
     return UpstreamInfo(
-        branch_url=version_data['repository']['url'], branch_subpath='',
+        branch_url=branch_url, branch_subpath='',
         name='node-%s' % package,
         tarball_url=version_data['dist']['tarball'])
 
