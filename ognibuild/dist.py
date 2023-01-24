@@ -84,6 +84,7 @@ def dist(session, export_directory, reldir, target_dir, log_manager, *,
         SecretGpgKeyFixer,
         UnexpandedAutoconfMacroFixer,
         GnulibDirectoryFixer,
+        MinimumAutoconfFixer,
     )
 
     if version:
@@ -96,6 +97,7 @@ def dist(session, export_directory, reldir, target_dir, log_manager, *,
     fixers: list[BuildFixer] = [
         UnexpandedAutoconfMacroFixer(session, resolver),
         GnulibDirectoryFixer(session),
+        MinimumAutoconfFixer(session),
         MissingGoSumEntryFixer(session),
         InstallFixer(resolver)]
 

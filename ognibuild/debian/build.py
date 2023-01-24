@@ -292,7 +292,7 @@ def build_once(
                     and os.path.exists(
                         sbuild_failure.error.diff_file)):  # type: ignore
                 import shutil
-                diff_file = sbuild_failure.error.diff_file  # type: ignore
+                diff_file: str = sbuild_failure.error.diff_file  # type: ignore
                 shutil.copy(
                     diff_file,
                     os.path.join(output_directory,
