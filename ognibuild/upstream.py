@@ -122,6 +122,10 @@ def find_go_package_upstream(requirement):
             branch_subpath='')
 
 
+def find_perl_module_upstream(requirement):
+    return perl_upstream_info(requirement.module)
+
+
 def cargo_upstream_info(crate, version=None, api_version=None):
     import semver
     from debmutate.debcargo import semver_pair
@@ -259,7 +263,7 @@ def load_npm_package(package):
         resp = urlopen(Request(http_url, headers=headers))
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            logging.warning('No npm package %r', crate)
+            logging.warning('No npm package %r', package)
             return None
         raise
     return json.loads(resp.read())
@@ -284,10 +288,40 @@ def find_npm_upstream(requirement):
     return npm_upstream_info(requirement.package)
 
 
+def load_cpan_module(module):
+    import urllib.error
+    from urllib.request import urlopen, Request
+    import json
+    http_url = f'https://fastapi.metacpan.org/v1/module/{module}?join=release'
+    headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
+    try:
+        resp = urlopen(Request(http_url, headers=headers))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            logging.warning('No CPAN module %r', module)
+            return None
+        raise
+    return json.loads(resp.read())
+
+
+def perl_upstream_info(module, version=None):
+    data = load_cpan_module(module)
+    if data is None:
+        return None
+    release_metadata = data['release']['_source']['metadata']
+    branch_url = release_metadata['resources']['repository']['url']
+    return UpstreamInfo(
+        name='lib%s-perl' % (module.lower().replace('::', '-')),
+        version=data['version'],
+        branch_url=branch_url, branch_subpath='',
+        tarball_url=data['download_url'])
+
+
 UPSTREAM_FINDER = {
     'python-package': find_python_package_upstream,
     'npm-package': find_npm_upstream,
     'go-package': find_go_package_upstream,
+    'perl-module': find_perl_module_upstream,
     'cargo-crate': find_cargo_crate_upstream,
     'apt': find_apt_upstream,
     'or': find_or_upstream,
@@ -319,9 +353,11 @@ def find_upstream_from_repology(name, version=None) -> Optional[UpstreamInfo]:
         return cargo_upstream_info(name, version=version)
     if family == 'node':
         return npm_upstream_info(name, version)
+    if family == 'perl':
+        return perl_upstream_info(name, version)
     # apmod, coq, cursors, deadbeef, emacs, erlang, fonts, fortunes, fusefs,
-    # gimp, gstreamer, gtktheme, haskell, raku, ros, haxe, icons, java, js, julia,
-    # ladspa, lisp, lua, lv2, mingw, nextcloud, nginx, nim, ocaml, perl,
+    # gimp, gstreamer, gtktheme, haskell, raku, ros, haxe, icons, java, js,
+    # julia, ladspa, lisp, lua, lv2, mingw, nextcloud, nginx, nim, ocaml,
     # opencpn, rhythmbox texlive, tryton, vapoursynth, vdr, vim, xdrv,
     # xemacs
     return None
