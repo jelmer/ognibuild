@@ -318,12 +318,44 @@ def perl_upstream_info(module, version=None):
         tarball_url=data['download_url'])
 
 
+def load_hackage_package(package, version=None):
+    import urllib.error
+    from urllib.request import urlopen, Request
+    import json
+
+    headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
+    http_url = f'https://hackage.haskell.org/package/{package}'
+    try:
+        resp = urlopen(Request(http_url, headers=headers))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            logging.warning('No hackage package %r', package)
+            return None
+        raise
+    return json.loads(resp.read())
+
+
+def haskell_upstream_info(package, version=None):
+    data = load_hackage_package(package, version)
+    if data is None:
+        return None
+    # The haskell API is a bit limited..
+    if version is None:
+        version = max(data)
+    return UpstreamInfo(name=f'haskell-{package}', version=version)
+
+
+def find_haskell_package_upstream(requirement):
+    return haskell_upstream_info(requirement.package)
+
+
 UPSTREAM_FINDER = {
     'python-package': find_python_package_upstream,
     'npm-package': find_npm_upstream,
     'go-package': find_go_package_upstream,
     'perl-module': find_perl_module_upstream,
     'cargo-crate': find_cargo_crate_upstream,
+    'haskell-package': find_haskell_package_upstream,
     'apt': find_apt_upstream,
     'or': find_or_upstream,
     }
@@ -357,6 +389,8 @@ def find_upstream_from_repology(name, version=None) -> Optional[UpstreamInfo]:
     if family == 'perl':
         module = '::'.join([x.capitalize() for x in name.split('-')])
         return perl_upstream_info(module, version)
+    if family == 'haskell':
+        return haskell_upstream_info(name, version)
     # apmod, coq, cursors, deadbeef, emacs, erlang, fonts, fortunes, fusefs,
     # gimp, gstreamer, gtktheme, haskell, raku, ros, haxe, icons, java, js,
     # julia, ladspa, lisp, lua, lv2, mingw, nextcloud, nginx, nim, ocaml,
