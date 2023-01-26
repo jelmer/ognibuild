@@ -281,11 +281,11 @@ def npm_upstream_info(package, version=None):
     if 'repository' in version_data:
         try:
             branch_url = version_data['repository']['url']
-        except TypeError:
+        except (TypeError, KeyError):
             logging.warning(
                 'Unexpectedly formatted repository data: %r',
                 version_data['repository'])
-        branch_url = None
+            branch_url = None
     else:
         branch_url = None
     return UpstreamInfo(
