@@ -273,7 +273,7 @@ def npm_upstream_info(package, version=None):
     data = load_npm_package(package)
     if data is None:
         return None
-    versions = data['versions']
+    versions = data.get('versions', {})
     if version is not None:
         version_data = versions[version]
     else:
