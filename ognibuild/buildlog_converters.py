@@ -82,6 +82,18 @@ def map_pytest_arguments_to_plugin(args):
     return None
 
 
+def map_pytest_config_option_to_plugin(name):
+    if name == 'asyncio_mode':
+        return PytestPluginRequirement('asyncio')
+    return None
+
+
+def map_pytest_fixture_to_plugin(name):
+    if name == 'aiohttp_client':
+        return PytestPluginRequirement('aiohttp')
+    return None
+
+
 PROBLEM_CONVERTERS: list[Union[
         tuple[str, ProblemToRequirementConverter],
         tuple[str, ProblemToRequirementConverter, str]]] = [
@@ -151,4 +163,8 @@ PROBLEM_CONVERTERS: list[Union[
      lambda p: CertificateAuthorityRequirement(p.url)),
     ('unsupported-pytest-arguments',
      lambda p: map_pytest_arguments_to_plugin(p.args), '0.0.27'),
+    ('unsupported-pytest-config-option',
+     lambda p: map_pytest_config_option_to_plugin(p.name), '0.0.34'),
+    ('missing-pytest-fixture',
+     lambda p: map_pytest_fixture_to_plugin(p.fixture)),
 ]
