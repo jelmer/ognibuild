@@ -79,6 +79,7 @@ from ..requirements import (
     IntrospectionTypelibRequirement,
     PHPExtensionRequirement,
     VcsControlDirectoryAccessRequirement,
+    PytestPluginRequirement,
 )
 
 
@@ -855,6 +856,10 @@ async def resolve_kf5_component_req(apt_mgr, req):
         regex=True)
 
 
+async def resolve_pytest_plugin_req(apt_mgr, req):
+    return [AptRequirement.simple(f'python3-pytest-{req.plugin}')]
+
+
 async def resolve_vcs_access_req(apt_mgr, req):
     PKG_MAP = {
         'hg': 'mercurial',
@@ -931,6 +936,7 @@ APT_REQUIREMENT_RESOLVERS: list[tuple[
     (PHPExtensionRequirement, resolve_php_extension_req),
     (OctavePackageRequirement, resolve_octave_pkg_req),
     (VcsControlDirectoryAccessRequirement, resolve_vcs_access_req),
+    (PytestPluginRequirement, resolve_pytest_plugin_req),
     (OneOfRequirement, resolve_oneof_req),
 ]
 
