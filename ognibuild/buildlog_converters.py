@@ -88,10 +88,27 @@ def map_pytest_config_option_to_plugin(name):
     return None
 
 
+# TODO(jelmer): populate this using an automated process
+PYTEST_FIXTURE_TO_PLUGIN = {
+    'aiohttp_client': 'aiohttp',
+    'aiohttp_client_cls': 'aiohttp',
+    'aiohttp_server': 'aiohttp',
+    'aiohttp_raw_server': 'aiohttp',
+    'mock': 'mock',
+    'benchmark': 'benchmark',
+    'event_loop': 'asyncio',
+    'unused_tcp_port': 'asyncio',
+    'unused_udp_port': 'asyncio',
+    'unused_tcp_port_factory': 'asyncio',
+    'unused_udp_port_factory': 'asyncio',
+}
+
+
 def map_pytest_fixture_to_plugin(name):
-    if name == 'aiohttp_client':
-        return PytestPluginRequirement('aiohttp')
-    return None
+    try:
+        return PytestPluginRequirement(PYTEST_FIXTURE_TO_PLUGIN[name])
+    except KeyError:
+        return None
 
 
 PROBLEM_CONVERTERS: list[Union[
