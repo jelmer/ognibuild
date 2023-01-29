@@ -616,6 +616,23 @@ def build_incrementally(
             rotate_logfile(os.path.join(output_directory, BUILD_LOG_FILENAME))
 
 
+def rescue_build_log(output_directory, *, tree=None):
+    xdg_cache_dir = os.environ.get(
+        'XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
+    buildlogs_dir = os.path.join(
+        xdg_cache_dir, 'ognibuild', 'buildlogs')
+    os.makedirs(buildlogs_dir, exist_ok=True)
+    target_log_file = os.path.join(
+        buildlogs_dir,
+        '{}-{}.log'.format(
+            os.path.basename(getattr(tree, 'basedir', 'build')),
+            time.strftime('%Y-%m-%d_%H%M%s')))
+    shutil.copy(
+        os.path.join(output_directory, 'build.log'),
+        target_log_file)
+    logging.info('Build log available in %s', target_log_file)
+
+
 def main(argv=None):
     import argparse
 
@@ -730,20 +747,7 @@ def main(argv=None):
                 phase = "{} ({})".format(e.phase[0], e.phase[1])
             logging.fatal("Error during %s: %s", phase, e.error)
             if not args.output_directory:
-                xdg_cache_dir = os.environ.get(
-                    'XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
-                buildlogs_dir = os.path.join(
-                    xdg_cache_dir, 'ognibuild', 'buildlogs')
-                os.makedirs(buildlogs_dir, exist_ok=True)
-                target_log_file = os.path.join(
-                    buildlogs_dir,
-                    '{}-{}.log'.format(
-                        os.path.basename(getattr(tree, 'basedir', 'build')),
-                        time.strftime('%Y-%m-%d_%H%M%s')))
-                shutil.copy(
-                    os.path.join(output_directory, 'build.log'),
-                    target_log_file)
-                logging.info('Build log available in %s', target_log_file)
+                rescue_build_log(output_directory, tree=tree)
             return 1
         except UnidentifiedDebianBuildError as e:
             if e.phase is None:
@@ -753,6 +757,8 @@ def main(argv=None):
             else:
                 phase = "{} ({})".format(e.phase[0], e.phase[1])
             logging.fatal("Error during %s: %s", phase, e.description)
+            if not args.output_directory:
+                rescue_build_log(output_directory, tree=tree)
             return 1
 
         logging.info(
