@@ -273,7 +273,7 @@ def npm_upstream_info(package, version=None):
     data = load_npm_package(package)
     if data is None:
         return None
-    versions = data['versions']
+    versions = data.get('versions', {})
     if version is not None:
         version_data = versions[version]
     else:
@@ -331,10 +331,9 @@ def perl_upstream_info(module, version=None):
 def load_hackage_package(package, version=None):
     import urllib.error
     from urllib.request import urlopen, Request
-    import json
 
-    headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
-    http_url = f'https://hackage.haskell.org/package/{package}'
+    headers = {'User-Agent': USER_AGENT}
+    http_url = f'https://hackage.haskell.org/package/{package}/{package}.cabal'
     try:
         resp = urlopen(Request(http_url, headers=headers))
     except urllib.error.HTTPError as e:
@@ -342,17 +341,16 @@ def load_hackage_package(package, version=None):
             logging.warning('No hackage package %r', package)
             return None
         raise
-    return json.loads(resp.read())
+    return resp.read()
 
 
 def haskell_upstream_info(package, version=None):
     data = load_hackage_package(package, version)
     if data is None:
         return None
-    # The haskell API is a bit limited..
-    if version is None:
-        version = max(data)
-    return UpstreamInfo(name=f'haskell-{package}', version=version)
+    # TODO(jelmer): parse cabal file
+    # upstream-ontologist has a parser..
+    return UpstreamInfo(name=f'haskell-{package}')
 
 
 def find_haskell_package_upstream(requirement):
