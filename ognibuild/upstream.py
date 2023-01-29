@@ -321,7 +321,6 @@ def perl_upstream_info(module, version=None):
 def load_hackage_package(package, version=None):
     import urllib.error
     from urllib.request import urlopen, Request
-    import json
 
     headers = {'User-Agent': USER_AGENT}
     http_url = f'https://hackage.haskell.org/package/{package}/{package}.cabal'
