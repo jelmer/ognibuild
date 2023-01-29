@@ -68,6 +68,7 @@ from .requirements import (
     VcsControlDirectoryAccessRequirement,
     RubyGemRequirement,
     QtModuleRequirement,
+    PytestPluginRequirement,
 )
 
 
@@ -75,7 +76,9 @@ ProblemToRequirementConverter = Callable[[Problem], Optional[Requirement]]
 
 
 def map_pytest_arguments_to_plugin(args):
-    # TODO(jelmer): Map argument to PytestPluginRequirement
+    for arg in args:
+        if arg.startswith('--cov'):
+            return PytestPluginRequirement('cov')
     return None
 
 
