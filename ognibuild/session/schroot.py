@@ -244,16 +244,19 @@ class SchrootSession(Session):
         fullpath = self.external_path(path)
         return shutil.rmtree(fullpath)
 
+    def _build_tempdir(self, build_dir="/build") -> str:
+        return self.check_output(
+            ["mktemp", "-d", "-p", build_dir],
+            cwd="/").decode().rstrip("\n")
+
     def setup_from_vcs(
         self, tree, include_controldir: Optional[bool] = None, subdir="package"
     ):
         from ..vcs import dupe_vcs_tree, export_vcs_tree
 
-        build_dir = os.path.join(self.location, "build")
-        directory = tempfile.mkdtemp(dir=build_dir)
-        reldir = "/" + os.path.relpath(directory, self.location)
+        reldir = self._build_tempdir()
 
-        export_directory = os.path.join(directory, subdir)
+        export_directory = os.path.join(self.external_path(reldir), subdir)
         if not include_controldir:
             export_vcs_tree(tree, export_directory)
         else:
@@ -264,10 +267,8 @@ class SchrootSession(Session):
     def setup_from_directory(self, path, subdir="package"):
         import shutil
 
-        build_dir = os.path.join(self.location, "build")
-        directory = tempfile.mkdtemp(dir=build_dir)
-        reldir = "/" + os.path.relpath(directory, self.location)
-        export_directory = os.path.join(directory, subdir)
+        reldir = self._build_tempdir()
+        export_directory = os.path.join(self.external_path(reldir), subdir)
         shutil.copytree(path, export_directory, symlinks=True)
         return export_directory, os.path.join(reldir, subdir)
 
