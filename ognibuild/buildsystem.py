@@ -1416,7 +1416,10 @@ class Make(BuildSystem):
             try:
                 self._run_make(session, [target])
             except UnidentifiedError as e:
-                if (("make: *** No rule to make target '%s'.  Stop." % target)
+                if (f"make: *** No rule to make target '{target}'.  Stop."
+                        in e.lines):
+                    pass
+                if (f"make[1]: *** No rule to make target '{target}'.  Stop."
                         in e.lines):
                     pass
                 else:
