@@ -533,42 +533,31 @@ def default_fixers(
 
 def build_incrementally(
     local_tree: WorkingTree,
-    apt: AptManager,
     suffix: Optional[str],
     build_suite: Optional[str],
     output_directory: str,
     build_command: str,
-    build_changelog_entry,
-    committer: Optional[str] = None,
+    fixers: list[BuildFixer],
+    build_changelog_entry: Optional[str] = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     subpath: str = "",
     source_date_epoch=None,
-    update_changelog: bool = True,
     apt_repository: Optional[str] = None,
     apt_repository_key: Optional[str] = None,
     extra_repositories: Optional[list[str]] = None,
-    fixers: Optional[list[BuildFixer]] = None,
-    run_gbp_dch: Optional[bool] = None,
-    dep_server_url: Optional[str] = None,
+    run_gbp_dch: bool = False
 ):
     fixed_errors: list[tuple[Problem, str]] = []
-    if fixers is None:
-        fixers = default_fixers(
-            local_tree, subpath, apt, committer=committer,
-            update_changelog=update_changelog,
-            dep_server_url=dep_server_url)
     logging.info("Using fixers: %r", fixers)
-    if run_gbp_dch is None:
-        run_gbp_dch = (update_changelog is False)
     while True:
         try:
             return attempt_build(
-                local_tree,
-                suffix,
-                build_suite,
-                output_directory,
-                build_command,
-                build_changelog_entry,
+                local_tree=local_tree,
+                suffix=suffix,
+                build_suite=build_suite,
+                output_directory=output_directory,
+                build_command=build_command,
+                build_changelog_entry=build_changelog_entry,
                 subpath=subpath,
                 source_date_epoch=source_date_epoch,
                 run_gbp_dch=run_gbp_dch,
@@ -711,7 +700,7 @@ def main(argv=None):
                     'output directory %s is not a directory'
                     % output_directory)
 
-        tree = WorkingTree.open(".")
+        tree, subpath = WorkingTree.open_containing(".")
         session: Session
         if args.schroot:
             # TODO(jelmer): pass in package name as part of session prefix
@@ -724,19 +713,21 @@ def main(argv=None):
 
         apt = AptManager(session)
 
+        fixers = default_fixers(
+            tree, subpath, apt, committer=args.committer,
+            update_changelog=args.update_changelog,
+            dep_server_url=args.dep_server_url)
+
         try:
             (changes_filenames, cl_entry) = build_incrementally(
-                tree,
-                apt,
-                args.suffix,
-                args.suite,
-                output_directory,
-                args.build_command,
-                None,
-                committer=args.committer,
-                update_changelog=args.update_changelog,
+                local_tree=tree,
+                suffix=args.suffix,
+                build_suite=args.suite,
+                output_directory=output_directory,
+                build_command=args.build_command,
+                fixers=fixers,
                 max_iterations=args.max_iterations,
-                dep_server_url=args.dep_server_url,
+                run_gbp_dch=(args.update_changelog is False),
             )
         except DetailedDebianBuildFailure as e:
             if e.phase is None:
