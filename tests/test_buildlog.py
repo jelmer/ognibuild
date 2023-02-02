@@ -43,8 +43,10 @@ class TestProblemsExists(TestCase):
                     continue
             else:
                 min_version_tuple = None
-            self.assertTrue(
-                problem_kind in problem_clses,
+            self.assertIn(
+                problem_kind,
+                problem_clses,
                 f"{problem_kind} (>= {min_version_tuple}) "
                 f"does not exist in known buildlog-consultant "
-                f"(= {buildlog_consultant_version}) problem kinds")
+                f"(= {buildlog_consultant_version}) problem kinds"
+            )
