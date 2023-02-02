@@ -90,7 +90,7 @@ def problem_to_upstream_requirement(
             return ret
     elif isinstance(problem, MissingCargoCrate):
         # TODO(jelmer): handle problem.requirements
-        return CargoCrateRequirement(problem.crate)
+        return CargoCrateRequirement(problem.create)
     elif isinstance(problem, MissingSetupPyCommand):
         if problem.command == "test":
             return PythonPackageRequirement("setuptools")

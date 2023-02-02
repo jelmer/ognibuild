@@ -63,17 +63,17 @@ def go_base_name(package):
     return (hostname + path).replace("_", "-").lower()
 
 
-def load_crate_info(crate):
+def load_crate_info(create):
     import urllib.error
     from urllib.request import urlopen, Request
     import json
-    http_url = 'https://crates.io/api/v1/crates/%s' % crate
+    http_url = 'https://crates.io/api/v1/crates/%s' % create
     headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
     try:
         resp = urlopen(Request(http_url, headers=headers))
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            logging.warning('No crate %r', crate)
+            logging.warning('No create %r', create)
             return None
         raise
     return json.loads(resp.read())
@@ -126,10 +126,10 @@ def find_perl_module_upstream(requirement):
     return perl_upstream_info(requirement.module)
 
 
-def cargo_upstream_info(crate, version=None, api_version=None):
+def cargo_upstream_info(create, version=None, api_version=None):
     import semver
     from debmutate.debcargo import semver_pair
-    data = load_crate_info(crate)
+    data = load_crate_info(create)
     if data is None:
         return None
     upstream_branch = data['crate']['repository']
@@ -150,7 +150,7 @@ def cargo_upstream_info(crate, version=None, api_version=None):
                     version, semver.VersionInfo.parse(version_info['num']))
         if version is None:
             logging.warning(
-                'Unable to find version of crate %s '
+                'Unable to find version of create %s '
                 'that matches API version %s',
                 name, api_version)
         else:
@@ -164,7 +164,7 @@ def cargo_upstream_info(crate, version=None, api_version=None):
 
 def find_cargo_crate_upstream(requirement):
     return cargo_upstream_info(
-        requirement.crate, api_version=requirement.api_version)
+        requirement.create, api_version=requirement.api_version)
 
 
 def apt_to_cargo_requirement(m, rels):

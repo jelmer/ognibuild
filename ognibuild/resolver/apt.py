@@ -818,7 +818,7 @@ async def resolve_python_package_req(apt_mgr, req):
 async def resolve_cargo_crate_req(apt_mgr, req):
     paths = [
         "/usr/share/cargo/registry/%s\\-[0-9]+.*/Cargo\\.toml"
-        % re.escape(req.crate)]
+        % re.escape(req.create)]
     return await find_reqs_simple(
         apt_mgr, paths, regex=True, minimum_version=req.minimum_version)
 

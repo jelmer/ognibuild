@@ -372,15 +372,15 @@ class NodeModuleRequirement(Requirement):
 
 class CargoCrateRequirement(Requirement):
 
-    crate: str
+    create: str
     features: set[str]
     api_version: Optional[str]
     minimum_version: Optional[str]
     family = "cargo-crate"
 
-    def __init__(self, crate, features=None, api_version=None,
+    def __init__(self, create, features=None, api_version=None,
                  minimum_version=None):
-        self.crate = crate
+        self.create = create
         if features is None:
             features = set()
         self.features = features
@@ -392,15 +392,15 @@ class CargoCrateRequirement(Requirement):
             "{}({!r}, features={!r}, api_version={!r}, minimum_version={!r})"
             .format(
                 type(self).__name__,
-                self.crate,
+                self.create,
                 self.features,
                 self.api_version,
                 self.minimum_version,
             ))
 
     def __str__(self):
-        ret = "cargo crate: {} {}".format(
-            self.crate,
+        ret = "cargo create: {} {}".format(
+            self.create,
             self.api_version or "")
         if self.features:
             ret += " (%s)" % (", ".join(sorted(self.features)))

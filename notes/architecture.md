@@ -19,7 +19,7 @@ ognibuild can then invoke "fixers" to address Problems. Fixers can do things
 like e.g. upgrade configure.ac to a newer version, or invoke autoreconf.
 
 A list of possible fixers can be provided. Each fixer will be called
-(in order) until one of them claims to ahve fixed the issue.
+(in order) until one of them claims to have fixed the issue.
 
 Problems can be converted to Requirements by RequirementFixer
 
