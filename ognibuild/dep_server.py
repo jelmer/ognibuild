@@ -70,6 +70,26 @@ async def handle_apt(request):
     return web.json_response([r.pkg_relation_str() for r in apt_reqs])
 
 
+@routes.post('/resolve-apt/{release}/{family}', name='resolve-apt-new')
+async def handle_apt_new(request):
+    js = await request.json()
+    js['family'] = request.match_info['family']
+    release = request.match_info['release']
+    if release not in SUPPORTED_RELEASES:
+        return web.json_response(
+            {"reason": "unsupported-release", "release": release},
+            headers={'Reason': 'unsupported-release'},
+            status=404)
+    try:
+        req = Requirement.from_json(js)
+    except UnknownRequirementFamily as e:
+        return web.json_response(
+            {"reason": "family-unknown", "family": e.family},
+            headers={"Reason": 'unsupported-family'}, status=404)
+    apt_reqs = await resolve_requirement_apt(request.app['apt_mgr'], req)
+    return web.json_response([r.pkg_relation_str() for r in apt_reqs])
+
+
 @routes.get('/resolve-apt/{release}/{family}:{arg}', name='resolve-apt-simple')
 async def handle_apt_simple(request):
     if request.match_info['release'] not in SUPPORTED_RELEASES:
@@ -118,7 +138,8 @@ def main():
     session: Session
     if args.schroot:
         from .session.schroot import SchrootSession
-        session = SchrootSession(args.schroot)
+        session = SchrootSession(
+            args.schroot, session_prefix="ognibuild-dep-server")
     else:
         from .session.plain import PlainSession
         session = PlainSession()

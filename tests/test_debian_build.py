@@ -153,7 +153,7 @@ janitor (0.1-1jan+some2) some-fixes; urgency=medium
 
 class BuildArchitectureTests(TestCase):
     def setUp(self):
-        super(BuildArchitectureTests, self).setUp()
+        super().setUp()
         if not os.path.exists("/usr/bin/dpkg-architecture"):
             self.skipTest("not a debian system")
 

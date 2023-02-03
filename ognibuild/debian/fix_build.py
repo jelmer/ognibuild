@@ -25,7 +25,7 @@ import os
 import shutil
 import sys
 import time
-from typing import List, Set, Optional, Type, Tuple
+from typing import Optional
 
 from debian.deb822 import (
     Deb822,
@@ -147,7 +147,7 @@ class PackageDependencyFixer(BuildFixer):
         self.context = context
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.apt_resolver)
+        return "{}({!r})".format(type(self).__name__, self.apt_resolver)
 
     def __str__(self):
         return "upstream requirement fixer(%s)" % self.apt_resolver
@@ -268,16 +268,16 @@ def add_test_dependency(context, testname, requirement):
 
     logging.info("Adding dependency to test %s: %s", testname, desc)
     return context.commit(
-        "Add missing dependency for test %s on %s." % (testname, desc),
+        "Add missing dependency for test {} on {}.".format(testname, desc),
     )
 
 
-def targeted_python_versions(tree: Tree, subpath: str) -> List[str]:
+def targeted_python_versions(tree: Tree, subpath: str) -> list[str]:
     with tree.get_file(os.path.join(subpath, "debian/control")) as f:
         control = Deb822(f)
     build_depends = PkgRelation.parse_relations(
         control.get("Build-Depends", ""))
-    all_build_deps: Set[str] = set()
+    all_build_deps: set[str] = set()
     for or_deps in build_depends:
         all_build_deps.update(or_dep["name"] for or_dep in or_deps)
     targeted = []
@@ -389,7 +389,7 @@ class PgBuildExtOutOfDateControlFixer(BuildFixer):
         return isinstance(problem, NeedPgBuildExtUpdateControl)
 
     def __repr__(self):
-        return "%s()" % (type(self).__name__,)
+        return "{}()".format(type(self).__name__)
 
     def _fix(self, error, phase):
         logging.info("Running 'pg_buildext updatecontrol'")
@@ -427,13 +427,13 @@ def debcargo_coerce_unacceptable_prerelease(error, phase, context):
 
 
 class SimpleBuildFixer(BuildFixer):
-    def __init__(self, packaging_context, problem_cls: Type[Problem], fn):
+    def __init__(self, packaging_context, problem_cls: type[Problem], fn):
         self.context = packaging_context
         self._problem_cls = problem_cls
         self._fn = fn
 
     def __repr__(self):
-        return "%s(%s, %s)" % (
+        return "{}({}, {})".format(
             type(self).__name__,
             self._problem_cls.__name__,
             self._fn.__name__,
@@ -448,14 +448,14 @@ class SimpleBuildFixer(BuildFixer):
 
 class DependencyBuildFixer(BuildFixer):
     def __init__(self, packaging_context, apt_resolver,
-                 problem_cls: Type[Problem], fn):
+                 problem_cls: type[Problem], fn):
         self.context = packaging_context
         self.apt_resolver = apt_resolver
         self._problem_cls = problem_cls
         self._fn = fn
 
     def __repr__(self):
-        return "%s(%s, %s)" % (
+        return "{}({}, {})".format(
             type(self).__name__,
             self._problem_cls.__name__,
             self._fn.__name__,
@@ -492,7 +492,7 @@ def versioned_package_fixers(session, packaging_context, apt: AptManager):
 
 
 def apt_fixers(apt: AptManager, packaging_context,
-               dep_server_url: Optional[str] = None) -> List[BuildFixer]:
+               dep_server_url: Optional[str] = None) -> list[BuildFixer]:
     from ..resolver.apt import AptResolver
     from .udd import popcon_tie_breaker
     from .build_deps import BuildDependencyTieBreaker
@@ -533,42 +533,31 @@ def default_fixers(
 
 def build_incrementally(
     local_tree: WorkingTree,
-    apt: AptManager,
-    suffix: str,
-    build_suite: str,
+    suffix: Optional[str],
+    build_suite: Optional[str],
     output_directory: str,
     build_command: str,
-    build_changelog_entry,
-    committer: Optional[str] = None,
+    fixers: list[BuildFixer],
+    build_changelog_entry: Optional[str] = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     subpath: str = "",
     source_date_epoch=None,
-    update_changelog: bool = True,
     apt_repository: Optional[str] = None,
     apt_repository_key: Optional[str] = None,
-    extra_repositories: Optional[List[str]] = None,
-    fixers: Optional[List[BuildFixer]] = None,
-    run_gbp_dch: Optional[bool] = None,
-    dep_server_url: Optional[str] = None,
+    extra_repositories: Optional[list[str]] = None,
+    run_gbp_dch: bool = False
 ):
-    fixed_errors: List[Tuple[Problem, str]] = []
-    if fixers is None:
-        fixers = default_fixers(
-            local_tree, subpath, apt, committer=committer,
-            update_changelog=update_changelog,
-            dep_server_url=dep_server_url)
+    fixed_errors: list[tuple[Problem, str]] = []
     logging.info("Using fixers: %r", fixers)
-    if run_gbp_dch is None:
-        run_gbp_dch = (update_changelog is False)
     while True:
         try:
             return attempt_build(
-                local_tree,
-                suffix,
-                build_suite,
-                output_directory,
-                build_command,
-                build_changelog_entry,
+                local_tree=local_tree,
+                suffix=suffix,
+                build_suite=build_suite,
+                output_directory=output_directory,
+                build_command=build_command,
+                build_changelog_entry=build_changelog_entry,
                 subpath=subpath,
                 source_date_epoch=source_date_epoch,
                 run_gbp_dch=run_gbp_dch,
@@ -614,6 +603,23 @@ def build_incrementally(
                 raise e
             fixed_errors.append((e.error, e.phase))
             rotate_logfile(os.path.join(output_directory, BUILD_LOG_FILENAME))
+
+
+def rescue_build_log(output_directory, *, tree=None):
+    xdg_cache_dir = os.environ.get(
+        'XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
+    buildlogs_dir = os.path.join(
+        xdg_cache_dir, 'ognibuild', 'buildlogs')
+    os.makedirs(buildlogs_dir, exist_ok=True)
+    target_log_file = os.path.join(
+        buildlogs_dir,
+        '{}-{}.log'.format(
+            os.path.basename(getattr(tree, 'basedir', 'build')),
+            time.strftime('%Y-%m-%d_%H%M%s')))
+    shutil.copy(
+        os.path.join(output_directory, 'build.log'),
+        target_log_file)
+    logging.info('Build log available in %s', target_log_file)
 
 
 def main(argv=None):
@@ -694,10 +700,12 @@ def main(argv=None):
                     'output directory %s is not a directory'
                     % output_directory)
 
-        tree = WorkingTree.open(".")
+        tree, subpath = WorkingTree.open_containing(".")
         session: Session
         if args.schroot:
-            session = SchrootSession(args.schroot)
+            # TODO(jelmer): pass in package name as part of session prefix
+            session = SchrootSession(
+                args.schroot, session_prefix="deb-fix-build")
         else:
             session = PlainSession()
 
@@ -705,19 +713,21 @@ def main(argv=None):
 
         apt = AptManager(session)
 
+        fixers = default_fixers(
+            tree, subpath, apt, committer=args.committer,
+            update_changelog=args.update_changelog,
+            dep_server_url=args.dep_server_url)
+
         try:
             (changes_filenames, cl_entry) = build_incrementally(
-                tree,
-                apt,
-                args.suffix,
-                args.suite,
-                output_directory,
-                args.build_command,
-                None,
-                committer=args.committer,
-                update_changelog=args.update_changelog,
+                local_tree=tree,
+                suffix=args.suffix,
+                build_suite=args.suite,
+                output_directory=output_directory,
+                build_command=args.build_command,
+                fixers=fixers,
                 max_iterations=args.max_iterations,
-                dep_server_url=args.dep_server_url,
+                run_gbp_dch=(args.update_changelog is False),
             )
         except DetailedDebianBuildFailure as e:
             if e.phase is None:
@@ -725,23 +735,10 @@ def main(argv=None):
             elif len(e.phase) == 1:
                 phase = e.phase[0]
             else:
-                phase = "%s (%s)" % (e.phase[0], e.phase[1])
+                phase = "{} ({})".format(e.phase[0], e.phase[1])
             logging.fatal("Error during %s: %s", phase, e.error)
             if not args.output_directory:
-                xdg_cache_dir = os.environ.get(
-                    'XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
-                buildlogs_dir = os.path.join(
-                    xdg_cache_dir, 'ognibuild', 'buildlogs')
-                os.makedirs(buildlogs_dir, exist_ok=True)
-                target_log_file = os.path.join(
-                    buildlogs_dir,
-                    '%s-%s.log' % (
-                        os.path.basename(getattr(tree, 'basedir', 'build')),
-                        time.strftime('%Y-%m-%d_%H%M%s')))
-                shutil.copy(
-                    os.path.join(output_directory, 'build.log'),
-                    target_log_file)
-                logging.info('Build log available in %s', target_log_file)
+                rescue_build_log(output_directory, tree=tree)
             return 1
         except UnidentifiedDebianBuildError as e:
             if e.phase is None:
@@ -749,8 +746,10 @@ def main(argv=None):
             elif len(e.phase) == 1:
                 phase = e.phase[0]
             else:
-                phase = "%s (%s)" % (e.phase[0], e.phase[1])
+                phase = "{} ({})".format(e.phase[0], e.phase[1])
             logging.fatal("Error during %s: %s", phase, e.description)
+            if not args.output_directory:
+                rescue_build_log(output_directory, tree=tree)
             return 1
 
         logging.info(

@@ -19,7 +19,7 @@
 """
 
 import logging
-from typing import Optional, List, cast
+from typing import Optional, cast
 
 from buildlog_consultant.common import (
     Problem,
@@ -130,7 +130,7 @@ class InstallFixer(BuildFixer):
         self.resolver = resolver
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.resolver)
+        return "{}({!r})".format(type(self).__name__, self.resolver)
 
     def __str__(self):
         return "upstream requirement fixer(%s)" % self.resolver
@@ -144,7 +144,7 @@ class InstallFixer(BuildFixer):
         if req is None:
             return False
 
-        reqs: List[Requirement]
+        reqs: list[Requirement]
         if not isinstance(req, list):
             reqs = [req]
         else:
@@ -167,7 +167,7 @@ class ExplainInstallFixer(BuildFixer):
         self.resolver = resolver
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.resolver)
+        return "{}({!r})".format(type(self).__name__, self.resolver)
 
     def __str__(self):
         return "upstream requirement install explainer(%s)" % self.resolver

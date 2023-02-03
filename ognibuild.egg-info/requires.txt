@@ -1,26 +1,26 @@
 breezy>=3.2
 buildlog-consultant>=0.0.29
 requirements-parser
-toml
-setuptools
 ruamel.yaml
+setuptools
+toml
 
 [debian]
-debmutate
-python_debian
-python_apt
 brz-debian
+debmutate
 lz4
+python_apt
+python_debian
 
 [dep_server]
 aiohttp
 aiohttp-openmetrics
 
 [dev]
-testtools
-types-setuptools
-types-psycopg2
 google-cloud-logging
+testtools
+types-psycopg2
+types-setuptools
 
 [gcp]
 google-cloud-logging

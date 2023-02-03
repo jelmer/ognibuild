@@ -18,7 +18,8 @@
 
 import logging
 import subprocess
-from typing import Optional, List, Type, Iterator, Dict
+from typing import Optional
+from collections.abc import Iterator
 
 from .. import UnidentifiedError, Requirement
 from ..fix_build import run_detecting_problems
@@ -37,19 +38,19 @@ class Resolver:
     def __init__(self, session: Session, user_local: bool):
         raise NotImplementedError
 
-    def install(self, requirements: List[Requirement]) -> None:
+    def install(self, requirements: list[Requirement]) -> None:
         raise NotImplementedError(self.install)
 
     def resolve(self, requirement: Requirement) -> Optional[Requirement]:
         raise NotImplementedError(self.resolve)
 
-    def resolve_all(self, requirement: Requirement) -> List[Requirement]:
+    def resolve_all(self, requirement: Requirement) -> list[Requirement]:
         raise NotImplementedError(self.resolve_all)
 
-    def explain(self, requirements: List[Requirement]) -> Iterator[List[str]]:
+    def explain(self, requirements: list[Requirement]) -> Iterator[list[str]]:
         raise NotImplementedError(self.explain)
 
-    def env(self) -> Dict[str, str]:
+    def env(self) -> dict[str, str]:
         return {}
 
 
@@ -65,7 +66,7 @@ class CPANResolver(Resolver):
         return self.name
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.session)
+        return "{}({!r})".format(type(self).__name__, self.session)
 
     def _cmd(self, reqs):
         ret = ["cpan", "-i"]
@@ -130,7 +131,7 @@ class TlmgrResolver(Resolver):
             return self.repository
 
     def __repr__(self):
-        return "%s(%r, %r)" % (
+        return "{}({!r}, {!r})".format(
             type(self).__name__, self.session, self.repository)
 
     def _cmd(self, reqs):
@@ -182,7 +183,7 @@ class CTANResolver(TlmgrResolver):
     name = "ctan"
 
     def __init__(self, session, user_local=False):
-        super(CTANResolver, self).__init__(
+        super().__init__(
             session, "ctan", user_local=user_local)
 
 
@@ -199,14 +200,16 @@ class RResolver(Resolver):
         return self.name
 
     def __repr__(self):
-        return "%s(%r, %r)" % (type(self).__name__, self.session, self.repos)
+        return "{}({!r}, {!r})".format(
+            type(self).__name__, self.session, self.repos)
 
     def _cmd(self, req):
         # TODO(jelmer: Handle self.user_local
         return [
             "R",
             "-e",
-            "install.packages('%s', repos=%r)" % (req.package, self.repos),
+            "install.packages('{}', repos={!r})"
+            .format(req.package, self.repos),
         ]
 
     def explain(self, requirements):
@@ -251,7 +254,7 @@ class OctaveForgeResolver(Resolver):
         return self.name
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.session)
+        return "{}({!r})".format(type(self).__name__, self.session)
 
     def _cmd(self, req):
         # TODO(jelmer: Handle self.user_local
@@ -292,7 +295,7 @@ class CRANResolver(RResolver):
     name = "cran"
 
     def __init__(self, session, user_local=False):
-        super(CRANResolver, self).__init__(
+        super().__init__(
             session, "http://cran.r-project.org", user_local=user_local
         )
 
@@ -301,7 +304,7 @@ class BioconductorResolver(RResolver):
     name = "bioconductor"
 
     def __init__(self, session, user_local=False):
-        super(BioconductorResolver, self).__init__(
+        super().__init__(
             session, "https://hedgehog.fhcrc.org/bioconductor",
             user_local=user_local
         )
@@ -319,7 +322,7 @@ class HackageResolver(Resolver):
         return self.name
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.session)
+        return "{}({!r})".format(type(self).__name__, self.session)
 
     def _cmd(self, reqs):
         extra_args = []
@@ -371,7 +374,7 @@ class PypiResolver(Resolver):
         return self.name
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.session)
+        return "{}({!r})".format(type(self).__name__, self.session)
 
     def _cmd(self, reqs):
         extra_args = []
@@ -425,7 +428,7 @@ class GoResolver(Resolver):
         return self.name
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.session)
+        return "{}({!r})".format(type(self).__name__, self.session)
 
     def install(self, requirements):
         from ..requirements import GoPackageRequirement
@@ -485,7 +488,7 @@ class NpmResolver(Resolver):
         return self.name
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.session)
+        return "{}({!r})".format(type(self).__name__, self.session)
 
     @classmethod
     def _to_node_package_req(cls, requirement):
@@ -550,7 +553,7 @@ class StackedResolver(Resolver):
         self.subs = subs
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.subs)
+        return "{}({!r})".format(type(self).__name__, self.subs)
 
     def __str__(self):
         return "[" + ", ".join(map(str, self.subs)) + "]"
@@ -578,7 +581,7 @@ class StackedResolver(Resolver):
             raise UnsatisfiedRequirements(requirements)
 
 
-NATIVE_RESOLVER_CLS: List[Type[Resolver]] = [
+NATIVE_RESOLVER_CLS: list[type[Resolver]] = [
     CPANResolver,
     CTANResolver,
     PypiResolver,

@@ -24,7 +24,7 @@ from debian.deb822 import Release
 import os
 import re
 import subprocess
-from typing import List, AsyncIterator
+from collections.abc import AsyncIterator
 import logging
 
 
@@ -68,11 +68,11 @@ def contents_urls_from_sources_entry(source, arches, load_url):
         dists_url = base_url + "/dists"
     else:
         dists_url = base_url
-    inrelease_url = "%s/%s/InRelease" % (dists_url, name)
+    inrelease_url = "{}/{}/InRelease".format(dists_url, name)
     try:
         response = load_url(inrelease_url)
     except FileNotFoundError:
-        release_url = "%s/%s/Release" % (dists_url, name)
+        release_url = "{}/{}/Release".format(dists_url, name)
         try:
             response = load_url(release_url)
         except FileNotFoundError as e:
@@ -92,14 +92,14 @@ def contents_urls_from_sources_entry(source, arches, load_url):
     if components:
         for component in components:
             for arch in arches:
-                contents_files.add("%s/Contents-%s" % (component, arch))
+                contents_files.add("{}/Contents-{}".format(component, arch))
     else:
         for arch in arches:
-            contents_files.add("Contents-%s" % (arch,))
+            contents_files.add("Contents-{}".format(arch))
 
     for fn in contents_files:
         if fn in existing_names:
-            url = "%s/%s/%s" % (dists_url, name, fn)
+            url = "{}/{}/{}".format(dists_url, name, fn)
             yield url
 
 
@@ -136,10 +136,10 @@ def load_direct_url(url):
             if e.code == 404:
                 continue
             raise AptFileAccessError(
-                'Unable to access apt URL %s: %s' % (url + ext, e)) from e
+                'Unable to access apt URL {}: {}'.format(url + ext, e)) from e
         except URLError as e:
             raise AptFileAccessError(
-                'Unable to access apt URL %s: %s' % (url + ext, e)) from e
+                'Unable to access apt URL {}: {}'.format(url + ext, e)) from e
         break
     else:
         raise FileNotFoundError(url)
@@ -259,7 +259,7 @@ class RemoteContentsFileSearcher(FileSearcher):
 
         from .build import get_build_architecture
 
-        cache_dirs = set(["/var/lib/apt/lists"])
+        cache_dirs = {"/var/lib/apt/lists"}
 
         def load_url(url):
             return load_url_with_cache(url, cache_dirs)
@@ -279,12 +279,10 @@ class RemoteContentsFileSearcher(FileSearcher):
 
         from .build import get_build_architecture
 
-        cache_dirs = set(
-            [
+        cache_dirs = {
                 os.path.join(session.location, "var/lib/apt/lists"),
                 "/var/lib/apt/lists",
-            ]
-        )
+        }
 
         def load_url(url):
             return load_url_with_cache(url, cache_dirs)
@@ -347,7 +345,7 @@ class GeneratedFileSearcher(FileSearcher):
         return self
 
     def load_from_path(self, path):
-        with open(path, "r") as f:
+        with open(path) as f:
             for line in f:
                 (path, pkg) = line.strip().split(None, 1)
                 self._db.append(path, pkg)
@@ -386,12 +384,12 @@ GENERATED_FILE_SEARCHER = GeneratedFileSearcher(
 
 
 async def get_packages_for_paths(
-    paths: List[str],
-    searchers: List[FileSearcher],
+    paths: list[str],
+    searchers: list[FileSearcher],
     regex: bool = False,
     case_insensitive: bool = False,
-) -> List[str]:
-    candidates: List[str] = list()
+) -> list[str]:
+    candidates: list[str] = list()
     # TODO(jelmer): Combine these, perhaps by creating one gigantic regex?
     for path in paths:
         for searcher in searchers:

@@ -19,7 +19,7 @@
 import posixpath
 import re
 import subprocess
-from typing import Optional, List, Set
+from typing import Optional
 
 from . import Requirement
 
@@ -42,7 +42,7 @@ class PythonPackageRequirement(Requirement):
         self.specs = specs
 
     def __repr__(self):
-        return "%s(%r, python_version=%r, specs=%r)" % (
+        return "{}({!r}, python_version={!r}, specs={!r})".format(
             type(self).__name__,
             self.package,
             self.python_version,
@@ -51,9 +51,9 @@ class PythonPackageRequirement(Requirement):
 
     def __str__(self):
         if self.specs:
-            return "python package: %s (%r)" % (self.package, self.specs)
+            return "python package: {} ({!r})".format(self.package, self.specs)
         else:
-            return "python package: %s" % (self.package,)
+            return "python package: {}".format(self.package)
 
     @classmethod
     def from_requirement_str(cls, text, python_version=None):
@@ -65,7 +65,7 @@ class PythonPackageRequirement(Requirement):
 
     def requirement_str(self):
         if self.specs:
-            return '%s;%s' % (
+            return '{};{}'.format(
                 self.package, ','.join([''.join(s) for s in self.specs]))
         return self.package
 
@@ -115,7 +115,7 @@ class LatexPackageRequirement(Requirement):
         self.package = package
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.package)
+        return "{}({!r})".format(type(self).__name__, self.package)
 
     def _json(self):
         return self.package
@@ -152,7 +152,7 @@ class PhpPackageRequirement(Requirement):
         return cls(*js)
 
     def __repr__(self):
-        return "%s(%r, %r, %r, %r)" % (
+        return "{}({!r}, {!r}, {!r}, {!r})".format(
             type(self).__name__,
             self.package,
             self.channel,
@@ -180,7 +180,7 @@ class BinaryRequirement(Requirement):
         return cls(js)
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.binary_name)
+        return "{}({!r})".format(type(self).__name__, self.binary_name)
 
     def met(self, session):
         p = session.Popen(
@@ -204,7 +204,7 @@ class PHPExtensionRequirement(Requirement):
         self.extension = extension
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.extension)
+        return "{}({!r})".format(type(self).__name__, self.extension)
 
 
 class PytestPluginRequirement(Requirement):
@@ -217,26 +217,26 @@ class PytestPluginRequirement(Requirement):
         self.plugin = plugin
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.plugin)
+        return "{}({!r})".format(type(self).__name__, self.plugin)
 
 
 class VcsControlDirectoryAccessRequirement(Requirement):
 
-    vcs: List[str]
+    vcs: list[str]
     family = "vcs-access"
 
     def __init__(self, vcs):
         self.vcs = vcs
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.vcs)
+        return "{}({!r})".format(type(self).__name__, self.vcs)
 
 
 class PerlModuleRequirement(Requirement):
 
     module: str
     filename: Optional[str]
-    inc: Optional[List[str]]
+    inc: Optional[list[str]]
     family = "perl-module"
 
     def __init__(self, module, filename=None, inc=None):
@@ -249,7 +249,7 @@ class PerlModuleRequirement(Requirement):
         return self.module.replace("::", "/") + ".pm"
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.module)
+        return "{}({!r})".format(type(self).__name__, self.module)
 
 
 class VagueDependencyRequirement(Requirement):
@@ -291,11 +291,11 @@ class VagueDependencyRequirement(Requirement):
         return any(x.met(session) for x in self.expand())
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.name)
+        return "{}({!r})".format(type(self).__name__, self.name)
 
     def __str__(self):
         if self.minimum_version:
-            return "%s >= %s" % (self.name, self.minimum_version)
+            return "{} >= {}".format(self.name, self.minimum_version)
         return self.name
 
 
@@ -308,7 +308,7 @@ class NodePackageRequirement(Requirement):
         self.package = package
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.package)
+        return "{}({!r})".format(type(self).__name__, self.package)
 
 
 class LuaModuleRequirement(Requirement):
@@ -320,7 +320,7 @@ class LuaModuleRequirement(Requirement):
         self.module = module
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.module)
+        return "{}({!r})".format(type(self).__name__, self.module)
 
 
 class PerlPreDeclaredRequirement(Requirement):
@@ -355,7 +355,7 @@ class PerlPreDeclaredRequirement(Requirement):
         return PerlModuleRequirement(module=module)
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.name)
+        return "{}({!r})".format(type(self).__name__, self.name)
 
 
 class NodeModuleRequirement(Requirement):
@@ -367,13 +367,13 @@ class NodeModuleRequirement(Requirement):
         self.module = module
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.module)
+        return "{}({!r})".format(type(self).__name__, self.module)
 
 
 class CargoCrateRequirement(Requirement):
 
     crate: str
-    features: Set[str]
+    features: set[str]
     api_version: Optional[str]
     minimum_version: Optional[str]
     family = "cargo-crate"
@@ -388,16 +388,18 @@ class CargoCrateRequirement(Requirement):
         self.minimum_version = minimum_version
 
     def __repr__(self):
-        return "%s(%r, features=%r, api_version=%r, minimum_version=%r)" % (
-            type(self).__name__,
-            self.crate,
-            self.features,
-            self.api_version,
-            self.minimum_version,
-        )
+        return (
+            "{}({!r}, features={!r}, api_version={!r}, minimum_version={!r})"
+            .format(
+                type(self).__name__,
+                self.crate,
+                self.features,
+                self.api_version,
+                self.minimum_version,
+            ))
 
     def __str__(self):
-        ret = "cargo crate: %s %s" % (
+        ret = "cargo crate: {} {}".format(
             self.crate,
             self.api_version or "")
         if self.features:
@@ -417,7 +419,7 @@ class PkgConfigRequirement(Requirement):
         self.minimum_version = minimum_version
 
     def __repr__(self):
-        return "%s(%r, minimum_version=%r)" % (
+        return "{}({!r}, minimum_version={!r})".format(
             type(self).__name__, self.module, self.minimum_version)
 
 
@@ -430,7 +432,7 @@ class PathRequirement(Requirement):
         self.path = path
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
 
 class CHeaderRequirement(Requirement):
@@ -442,7 +444,7 @@ class CHeaderRequirement(Requirement):
         self.header = header
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.header)
+        return "{}({!r})".format(type(self).__name__, self.header)
 
 
 class JavaScriptRuntimeRequirement(Requirement):
@@ -480,12 +482,12 @@ class GoPackageRequirement(Requirement):
         self.version = version
 
     def __repr__(self):
-        return "%s(%r, version=%r)" % (
+        return "{}({!r}, version={!r})".format(
             type(self).__name__, self.package, self.version)
 
     def __str__(self):
         if self.version:
-            return "go package: %s (= %s)" % (self.package, self.version)
+            return "go package: {} (= {})".format(self.package, self.version)
         return "go package: %s" % self.package
 
 
@@ -530,7 +532,7 @@ class RPackageRequirement(Requirement):
         self.minimum_version = minimum_version
 
     def __repr__(self):
-        return "%s(%r, minimum_version=%r)" % (
+        return "{}({!r}, minimum_version={!r})".format(
             type(self).__name__,
             self.package,
             self.minimum_version,
@@ -538,10 +540,10 @@ class RPackageRequirement(Requirement):
 
     def __str__(self):
         if self.minimum_version:
-            return "R package: %s (>= %s)" % (
+            return "R package: {} (>= {})".format(
                 self.package, self.minimum_version)
         else:
-            return "R package: %s" % (self.package,)
+            return "R package: {}".format(self.package)
 
     @classmethod
     def from_str(cls, text):
@@ -566,7 +568,7 @@ class OctavePackageRequirement(Requirement):
         self.minimum_version = minimum_version
 
     def __repr__(self):
-        return "%s(%r, minimum_version=%r)" % (
+        return "{}({!r}, minimum_version={!r})".format(
             type(self).__name__,
             self.package,
             self.minimum_version,
@@ -574,10 +576,10 @@ class OctavePackageRequirement(Requirement):
 
     def __str__(self):
         if self.minimum_version:
-            return "Octave package: %s (>= %s)" % (
+            return "Octave package: {} (>= {})".format(
                 self.package, self.minimum_version)
         else:
-            return "Octave package: %s" % (self.package,)
+            return "Octave package: {}".format(self.package)
 
     @classmethod
     def from_str(cls, text):
@@ -599,6 +601,9 @@ class LibraryRequirement(Requirement):
     def __init__(self, library: str):
         self.library = library
 
+    def __str__(self):
+        return "Library: %s" % self.library
+
 
 class StaticLibraryRequirement(Requirement):
 
@@ -609,6 +614,9 @@ class StaticLibraryRequirement(Requirement):
     def __init__(self, library: str, filename: str):
         self.library = library
         self.filename = filename
+
+    def __str__(self):
+        return "Static Library: %s" % self.library
 
 
 class RubyFileRequirement(Requirement):
@@ -690,16 +698,18 @@ class MavenArtifactRequirement(Requirement):
         self.kind = kind
 
     def __str__(self):
-        return "maven requirement: %s:%s:%s" % (
+        return "maven requirement: {}:{}:{}".format(
             self.group_id,
             self.artifact_id,
             self.version,
         )
 
     def __repr__(self):
-        return "%s(group_id=%r, artifact_id=%r, version=%r, kind=%r)" % (
-            type(self).__name__, self.group_id, self.artifact_id,
-            self.version, self.kind)
+        return (
+            "{}(group_id={!r}, artifact_id={!r}, version={!r}, kind={!r})"
+            .format(
+                type(self).__name__, self.group_id, self.artifact_id,
+                self.version, self.kind))
 
     @classmethod
     def from_str(cls, text):
@@ -843,7 +853,7 @@ class PythonModuleRequirement(Requirement):
         return p.returncode == 0
 
     def __repr__(self):
-        return "%s(%r, python_version=%r, minimum_version=%r)" % (
+        return "{}({!r}, python_version={!r}, minimum_version={!r})".format(
             type(self).__name__, self.module, self.python_version,
             self.minimum_version)
 

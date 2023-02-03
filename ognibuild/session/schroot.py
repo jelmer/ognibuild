@@ -17,14 +17,25 @@
 
 import logging
 import os
+import random
 import shlex
+import string
 import subprocess
 import tempfile
 
-from typing import Optional, List, Dict
+from typing import Optional
 
 
 from . import Session, SessionSetupFailure, NoSessionOpen, SessionAlreadyOpen
+
+
+def sanitize_session_name(name):
+    return ''.join([x for x in name if x.isalnum() or x in '_-.'])
+
+
+def generate_session_id(prefix):
+    suffix = ''.join(random.choice(string.ascii_lowercase) for i in range(8))
+    return sanitize_session_name(prefix) + '-' + suffix
 
 
 class SchrootSession(Session):
@@ -33,13 +44,15 @@ class SchrootSession(Session):
     _location: Optional[str]
     chroot: str
     session_id: Optional[str]
+    session_prefix: Optional[str]
 
-    def __init__(self, chroot: str):
+    def __init__(self, chroot: str, *, session_prefix: Optional[str] = None):
         if not isinstance(chroot, str):
             raise TypeError("not a valid chroot: %r" % chroot)
         self.chroot = chroot
         self._location = None
         self._cwd = None
+        self._session_prefix = session_prefix
         self.session_id = None
 
     def _get_location(self) -> str:
@@ -79,10 +92,15 @@ class SchrootSession(Session):
         if self.session_id is not None:
             raise SessionAlreadyOpen(self)
         stderr = tempfile.TemporaryFile()
+        extra_args = []
+        if self._session_prefix:
+            sanitized_session_name = generate_session_id(self._session_prefix)
+            extra_args.extend(["-n", sanitized_session_name])
         try:
             self.session_id = (
                 subprocess.check_output(
-                    ["schroot", "-c", self.chroot, "-b"], stderr=stderr)
+                    ["schroot", "-c", self.chroot, "-b"] + extra_args,
+                    stderr=stderr)
                 .strip()
                 .decode()
             )
@@ -118,10 +136,10 @@ class SchrootSession(Session):
 
     def _run_argv(
         self,
-        argv: List[str],
+        argv: list[str],
         cwd: Optional[str] = None,
         user: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[dict[str, str]] = None,
     ):
         if self.session_id is None:
             raise NoSessionOpen(self)
@@ -138,7 +156,7 @@ class SchrootSession(Session):
                 "-c",
                 " ".join(
                     [
-                        "%s=%s " % (key, shlex.quote(value))
+                        "{}={} ".format(key, shlex.quote(value))
                         for (key, value) in env.items()
                     ]
                     + [shlex.quote(arg) for arg in argv]
@@ -148,10 +166,10 @@ class SchrootSession(Session):
 
     def check_call(
         self,
-        argv: List[str],
+        argv: list[str],
         cwd: Optional[str] = None,
         user: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[dict[str, str]] = None,
         close_fds: bool = True,
     ):
         try:
@@ -163,10 +181,10 @@ class SchrootSession(Session):
 
     def check_output(
         self,
-        argv: List[str],
+        argv: list[str],
         cwd: Optional[str] = None,
         user: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[dict[str, str]] = None,
     ) -> bytes:
         try:
             return subprocess.check_output(
@@ -181,7 +199,7 @@ class SchrootSession(Session):
         return subprocess.Popen(self._run_argv(argv, cwd, user), **kwargs)
 
     def call(
-        self, argv: List[str], cwd: Optional[str] = None,
+        self, argv: list[str], cwd: Optional[str] = None,
         user: Optional[str] = None
     ):
         return subprocess.call(self._run_argv(argv, cwd, user))
@@ -226,16 +244,19 @@ class SchrootSession(Session):
         fullpath = self.external_path(path)
         return shutil.rmtree(fullpath)
 
+    def _build_tempdir(self, build_dir="/build") -> str:
+        return self.check_output(
+            ["mktemp", "-d", "-p", build_dir],
+            cwd="/").decode().rstrip("\n")
+
     def setup_from_vcs(
         self, tree, include_controldir: Optional[bool] = None, subdir="package"
     ):
         from ..vcs import dupe_vcs_tree, export_vcs_tree
 
-        build_dir = os.path.join(self.location, "build")
-        directory = tempfile.mkdtemp(dir=build_dir)
-        reldir = "/" + os.path.relpath(directory, self.location)
+        reldir = self._build_tempdir()
 
-        export_directory = os.path.join(directory, subdir)
+        export_directory = os.path.join(self.external_path(reldir), subdir)
         if not include_controldir:
             export_vcs_tree(tree, export_directory)
         else:
@@ -246,10 +267,8 @@ class SchrootSession(Session):
     def setup_from_directory(self, path, subdir="package"):
         import shutil
 
-        build_dir = os.path.join(self.location, "build")
-        directory = tempfile.mkdtemp(dir=build_dir)
-        reldir = "/" + os.path.relpath(directory, self.location)
-        export_directory = os.path.join(directory, subdir)
+        reldir = self._build_tempdir()
+        export_directory = os.path.join(self.external_path(reldir), subdir)
         shutil.copytree(path, export_directory, symlinks=True)
         return export_directory, os.path.join(reldir, subdir)
 
