@@ -36,7 +36,7 @@ class TestCopyOutput(TestCase):
             with copy_output(p, tee=False):
                 sys.stdout.write('lala\n')
                 sys.stdout.flush()
-            with open(p, 'r') as f:
+            with open(p) as f:
                 self.assertEqual('lala\n', f.read())
 
     def test_tee(self):
@@ -45,7 +45,7 @@ class TestCopyOutput(TestCase):
             with copy_output(p, tee=True):
                 sys.stdout.write('lala\n')
                 sys.stdout.flush()
-            with open(p, 'r') as f:
+            with open(p) as f:
                 self.assertEqual('lala\n', f.read())
 
 
@@ -57,7 +57,7 @@ class TestRedirectOutput(TestCase):
             with open(p, 'w') as f, redirect_output(f):
                 sys.stdout.write('lala\n')
                 sys.stdout.flush()
-            with open(p, 'r') as f:
+            with open(p) as f:
                 self.assertEqual('lala\n', f.read())
 
 
@@ -90,5 +90,5 @@ class TestLogManager(TestCase):
                 sys.stdout.flush()
             fn = lm.wrap(writesomething)
             fn()
-            with open(p, 'r') as f:
+            with open(p) as f:
                 self.assertEqual('foo\n', f.read())

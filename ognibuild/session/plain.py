@@ -23,7 +23,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from typing import Optional, Dict, List
+from typing import Optional
 
 
 class PlainSession(Session):
@@ -45,7 +45,7 @@ class PlainSession(Session):
         return args
 
     def __repr__(self):
-        return "%s()" % (type(self).__name__,)
+        return "{}()".format(type(self).__name__)
 
     def __enter__(self) -> "Session":
         if self.es is not None:
@@ -66,10 +66,10 @@ class PlainSession(Session):
 
     def check_call(
         self,
-        argv: List[str],
+        argv: list[str],
         cwd: Optional[str] = None,
         user: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[dict[str, str]] = None,
         close_fds: bool = True,
     ):
         argv = self._prepend_user(user, argv)
@@ -78,10 +78,10 @@ class PlainSession(Session):
 
     def check_output(
         self,
-        argv: List[str],
+        argv: list[str],
         cwd: Optional[str] = None,
         user: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[dict[str, str]] = None,
     ) -> bytes:
         argv = self._prepend_user(user, argv)
         return subprocess.check_output(argv, cwd=cwd, env=env)

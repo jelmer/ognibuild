@@ -16,12 +16,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 from debian.changelog import Version
 import logging
 import re
 
-from . import Requirement
+from . import Requirement, USER_AGENT
 from .requirements import (
     CargoCrateRequirement,
     GoPackageRequirement,
@@ -38,7 +38,7 @@ class UpstreamInfo:
     branch_subpath: Optional[str] = None
     tarball_url: Optional[str] = None
     version: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def json(self):
         return {
@@ -68,34 +68,39 @@ def load_crate_info(crate):
     from urllib.request import urlopen, Request
     import json
     http_url = 'https://crates.io/api/v1/crates/%s' % crate
-    headers = {'User-Agent': 'debianize', 'Accept': 'application/json'}
-    http_contents = urlopen(Request(http_url, headers=headers)).read()
+    headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
     try:
-        return json.loads(http_contents)
+        resp = urlopen(Request(http_url, headers=headers))
     except urllib.error.HTTPError as e:
         if e.code == 404:
             logging.warning('No crate %r', crate)
             return None
         raise
+    return json.loads(resp.read())
 
 
 def find_python_package_upstream(requirement):
+    return pypi_upstream_info(requirement.package)
+
+
+def pypi_upstream_info(project, version=None):
     import urllib.error
     from urllib.request import urlopen, Request
     import json
-    http_url = 'https://pypi.org/pypi/%s/json' % requirement.package
-    headers = {'User-Agent': 'ognibuild', 'Accept': 'application/json'}
+    http_url = 'https://pypi.org/pypi/%s/json' % project
+    headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
     try:
         http_contents = urlopen(
             Request(http_url, headers=headers)).read()
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            logging.warning('No pypi project %r', requirement.package)
+            logging.warning('No pypi project %r', project)
             return None
         raise
     pypi_data = json.loads(http_contents)
     upstream_branch = None
-    for name, url in pypi_data['info']['project_urls'].items():
+    project_urls = pypi_data['info']['project_urls']
+    for name, url in (project_urls or {}).items():
         if name.lower() in ('github', 'repository'):
             upstream_branch = url
     tarball_url = None
@@ -117,20 +122,26 @@ def find_go_package_upstream(requirement):
             branch_subpath='')
 
 
-def find_cargo_crate_upstream(requirement):
+def find_perl_module_upstream(requirement):
+    return perl_upstream_info(requirement.module)
+
+
+def cargo_upstream_info(crate, version=None, api_version=None):
     import semver
     from debmutate.debcargo import semver_pair
-    data = load_crate_info(requirement.crate)
+    data = load_crate_info(crate)
     if data is None:
         return None
     upstream_branch = data['crate']['repository']
     name = 'rust-' + data['crate']['name'].replace('_', '-')
     version = None
-    if requirement.api_version is not None:
+    if version is not None:
+        pass
+    elif api_version is not None:
         for version_info in data['versions']:
             if (not version_info['num'].startswith(
-                        requirement.api_version + '.')
-                    and version_info['num'] != requirement.api_version):
+                        api_version + '.')
+                    and version_info['num'] != api_version):
                 continue
             if version is None:
                 version = semver.VersionInfo.parse(version_info['num'])
@@ -141,7 +152,7 @@ def find_cargo_crate_upstream(requirement):
             logging.warning(
                 'Unable to find version of crate %s '
                 'that matches API version %s',
-                name, requirement.api_version)
+                name, api_version)
         else:
             name += '-' + semver_pair(str(version))
     return UpstreamInfo(
@@ -149,6 +160,11 @@ def find_cargo_crate_upstream(requirement):
         name=name, version=str(version) if version else None,
         metadata={'X-Cargo-Crate': data['crate']['name']},
         buildsystem='cargo')
+
+
+def find_cargo_crate_upstream(requirement):
+    return cargo_upstream_info(
+        requirement.crate, api_version=requirement.api_version)
 
 
 def apt_to_cargo_requirement(m, rels):
@@ -237,10 +253,117 @@ def find_or_upstream(requirement: OneOfRequirement) -> Optional[UpstreamInfo]:
     return None
 
 
+def load_npm_package(package):
+    import urllib.error
+    from urllib.request import urlopen, Request
+    import json
+    http_url = f'https://registry.npmjs.org/{package}'
+    headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
+    try:
+        resp = urlopen(Request(http_url, headers=headers))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            logging.warning('No npm package %r', package)
+            return None
+        raise
+    return json.loads(resp.read())
+
+
+def npm_upstream_info(package, version=None):
+    data = load_npm_package(package)
+    if data is None:
+        return None
+    versions = data.get('versions', {})
+    if version is not None:
+        version_data = versions[version]
+    else:
+        version_data = versions[max(versions.keys())]
+    if 'repository' in version_data:
+        try:
+            branch_url = version_data['repository']['url']
+        except (TypeError, KeyError):
+            logging.warning(
+                'Unexpectedly formatted repository data: %r',
+                version_data['repository'])
+            branch_url = None
+    else:
+        branch_url = None
+    return UpstreamInfo(
+        branch_url=branch_url, branch_subpath='',
+        name='node-%s' % package,
+        tarball_url=version_data['dist']['tarball'])
+
+
+def find_npm_upstream(requirement):
+    return npm_upstream_info(requirement.package)
+
+
+def load_cpan_module(module):
+    import urllib.error
+    from urllib.request import urlopen, Request
+    import json
+    http_url = f'https://fastapi.metacpan.org/v1/module/{module}?join=release'
+    headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
+    try:
+        resp = urlopen(Request(http_url, headers=headers))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            logging.warning('No CPAN module %r', module)
+            return None
+        raise
+    return json.loads(resp.read())
+
+
+def perl_upstream_info(module, version=None):
+    data = load_cpan_module(module)
+    if data is None:
+        return None
+    release_metadata = data['release']['_source']['metadata']
+    release_resources = release_metadata.get('resources', {})
+    branch_url = release_resources.get('repository', {}).get('url')
+    return UpstreamInfo(
+        name='lib%s-perl' % (module.lower().replace('::', '-')),
+        version=data['version'],
+        branch_url=branch_url, branch_subpath='',
+        tarball_url=data['download_url'])
+
+
+def load_hackage_package(package, version=None):
+    import urllib.error
+    from urllib.request import urlopen, Request
+
+    headers = {'User-Agent': USER_AGENT}
+    http_url = f'https://hackage.haskell.org/package/{package}/{package}.cabal'
+    try:
+        resp = urlopen(Request(http_url, headers=headers))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            logging.warning('No hackage package %r', package)
+            return None
+        raise
+    return resp.read()
+
+
+def haskell_upstream_info(package, version=None):
+    data = load_hackage_package(package, version)
+    if data is None:
+        return None
+    # TODO(jelmer): parse cabal file
+    # upstream-ontologist has a parser..
+    return UpstreamInfo(name=f'haskell-{package}')
+
+
+def find_haskell_package_upstream(requirement):
+    return haskell_upstream_info(requirement.package)
+
+
 UPSTREAM_FINDER = {
     'python-package': find_python_package_upstream,
+    'npm-package': find_npm_upstream,
     'go-package': find_go_package_upstream,
+    'perl-module': find_perl_module_upstream,
     'cargo-crate': find_cargo_crate_upstream,
+    'haskell-package': find_haskell_package_upstream,
     'apt': find_apt_upstream,
     'or': find_or_upstream,
     }
@@ -251,3 +374,70 @@ def find_upstream(requirement: Requirement) -> Optional[UpstreamInfo]:
         return UPSTREAM_FINDER[requirement.family](requirement)
     except KeyError:
         return None
+
+
+def find_upstream_from_repology(name, version=None) -> Optional[UpstreamInfo]:
+    if ':' not in name:
+        return None
+    family, name = name.split(':')
+    if family == 'python':
+        return pypi_upstream_info(name, version)
+    if family == 'go':
+        parts = name.split('-')
+        if parts[0] == 'github':
+            parts[0] = 'github.com'
+        return UpstreamInfo(
+            name=f'golang-{name}',
+            branch_url='https://' + '/'.join(parts),
+            branch_subpath='')
+    if family == 'rust':
+        return cargo_upstream_info(name, version=version)
+    if family == 'node':
+        return npm_upstream_info(name, version)
+    if family == 'perl':
+        module = '::'.join([x.capitalize() for x in name.split('-')])
+        return perl_upstream_info(module, version)
+    if family == 'haskell':
+        return haskell_upstream_info(name, version)
+    # apmod, coq, cursors, deadbeef, emacs, erlang, fonts, fortunes, fusefs,
+    # gimp, gstreamer, gtktheme, haskell, raku, ros, haxe, icons, java, js,
+    # julia, ladspa, lisp, lua, lv2, mingw, nextcloud, nginx, nim, ocaml,
+    # opencpn, rhythmbox texlive, tryton, vapoursynth, vdr, vim, xdrv,
+    # xemacs
+    return None
+
+
+if __name__ == '__main__':
+    import argparse
+    import sys
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--json', action='store_true')
+    parser.add_argument('name', type=str)
+    parser.add_argument('version', type=str, nargs='?', default=None)
+    args = parser.parse_args()
+
+    logging.basicConfig(format='%(message)s', level=logging.INFO)
+
+    upstream_info = find_upstream_from_repology(args.name, args.version)
+    if upstream_info is None:
+        logging.fatal('Unable to find upstream info for repology %s',
+                      args.name)
+        sys.exit(1)
+
+    if args.json:
+        import json
+        json.dump(upstream_info.json(), sys.stdout)
+        sys.exit(0)
+
+    if upstream_info.name:
+        logging.info('Name: %s', upstream_info.name)
+    if upstream_info.version:
+        logging.info('Version: %s', upstream_info.version)
+    if upstream_info.buildsystem:
+        logging.info('Buildsystem: %s', upstream_info.buildsystem)
+    if upstream_info.branch_url:
+        logging.info(
+            'Branch: %s [%s]', upstream_info.branch_url,
+            upstream_info.branch_subpath)
+    if upstream_info.tarball_url:
+        logging.info('Tarball URL: %s', upstream_info.tarball_url)

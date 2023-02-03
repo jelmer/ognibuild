@@ -31,7 +31,7 @@ import re
 import shlex
 import subprocess
 import sys
-from typing import Optional, List, Tuple
+from typing import Optional
 
 from debian.changelog import Changelog, Version, ChangeBlock
 from debmutate.changelog import get_maintainer, ChangelogEditor
@@ -44,6 +44,7 @@ from breezy.workingtree import WorkingTree
 
 from buildlog_consultant.sbuild import (
     worker_failure_from_sbuild_log,
+    DpkgSourceLocalChanges,
 )
 
 from .. import DetailedFailure, UnidentifiedError
@@ -63,7 +64,7 @@ class ChangelogNotEditable(Exception):
 class DetailedDebianBuildFailure(DetailedFailure):
 
     def __init__(self, stage, phase, retcode, argv, error, description):
-        super(DetailedDebianBuildFailure, self).__init__(retcode, argv, error)
+        super().__init__(retcode, argv, error)
         self.stage = stage
         self.phase = phase
         self.description = description
@@ -73,7 +74,7 @@ class UnidentifiedDebianBuildError(UnidentifiedError):
 
     def __init__(self, stage, phase, retcode, argv, lines, description,
                  secondary=None):
-        super(UnidentifiedDebianBuildError, self).__init__(
+        super().__init__(
             retcode, argv, lines, secondary)
         self.stage = stage
         self.phase = phase
@@ -91,7 +92,7 @@ def find_changes_files(path: str, package: str, version: Version):
     non_epoch_version = version.upstream_version or ''
     if version.debian_version is not None:
         non_epoch_version += "-%s" % version.debian_version
-    c = re.compile('%s_%s_(.*).changes' % (
+    c = re.compile('{}_{}_(.*).changes'.format(
         re.escape(package), re.escape(non_epoch_version)))
     for entry in os.scandir(path):
         m = c.match(entry.name)
@@ -143,7 +144,7 @@ def add_dummy_changelog_entry(
     suite: str,
     message: str,
     timestamp: Optional[datetime] = None,
-    maintainer: Optional[Tuple[Optional[str], Optional[str]]] = None,
+    maintainer: Optional[tuple[Optional[str], Optional[str]]] = None,
     allow_reformatting: bool = True,
 ) -> Version:
     """Add a dummy changelog entry to a package.
@@ -170,6 +171,7 @@ def add_dummy_changelog_entry(
                 tree.abspath(path),  # type: ignore
                 allow_reformatting=allow_reformatting) as editor:
             version = version_add_suffix(editor[0].version, suffix)
+            logging.debug('Adding dummy changelog entry %s for build', version)
             editor.auto_version(version, timestamp=timestamp)
             editor.add_entry(
                 summary=[message], maintainer=maintainer, timestamp=timestamp,
@@ -196,7 +198,7 @@ def _builddeb_command(
         result_dir: Optional[str] = None,
         apt_repository: Optional[str] = None,
         apt_repository_key: Optional[str] = None,
-        extra_repositories: Optional[List[str]] = None):
+        extra_repositories: Optional[list[str]] = None):
     for repo in extra_repositories or []:
         build_command += " --extra-repository=" + shlex.quote(repo)
     args = [
@@ -226,7 +228,7 @@ def build(
     source_date_epoch: Optional[int] = None,
     apt_repository: Optional[str] = None,
     apt_repository_key: Optional[str] = None,
-    extra_repositories: Optional[List[str]] = None,
+    extra_repositories: Optional[list[str]] = None,
 ):
     args = _builddeb_command(
         build_command=build_command,
@@ -235,7 +237,7 @@ def build(
         apt_repository_key=apt_repository_key,
         extra_repositories=extra_repositories)
 
-    outf.write("Running %r\n" % (build_command,))
+    outf.write("Running {!r}\n".format(build_command))
     outf.flush()
     env = dict(os.environ.items())
     if distribution is not None:
@@ -254,14 +256,14 @@ def build(
 
 def build_once(
     local_tree: WorkingTree,
-    build_suite: str,
+    build_suite: Optional[str],
     output_directory: str,
     build_command: str,
     subpath: str = "",
     source_date_epoch: Optional[int] = None,
     apt_repository: Optional[str] = None,
     apt_repository_key: Optional[str] = None,
-    extra_repositories: Optional[List[str]] = None
+    extra_repositories: Optional[list[str]] = None
 ):
     build_log_path = os.path.join(output_directory, BUILD_LOG_FILENAME)
     logging.debug("Writing build log to %s", build_log_path)
@@ -282,6 +284,20 @@ def build_once(
     except BuildFailedError as e:
         with open(build_log_path, "rb") as f:
             sbuild_failure = worker_failure_from_sbuild_log(f)
+
+            # Preserve the diff for later inspection
+            # TODO(jelmer): Move this onto a method on DpkgSourceLocalChanges?
+            if (isinstance(sbuild_failure.error, DpkgSourceLocalChanges)
+                    and getattr(sbuild_failure.error, 'diff_file', None)
+                    and os.path.exists(
+                        sbuild_failure.error.diff_file)):  # type: ignore
+                import shutil
+                diff_file: str = sbuild_failure.error.diff_file  # type: ignore
+                shutil.copy(
+                    diff_file,
+                    os.path.join(output_directory,
+                                 os.path.basename(diff_file)))
+
             retcode = getattr(e, 'returncode', None)
             if sbuild_failure.error:
                 raise DetailedDebianBuildFailure(
@@ -303,7 +319,7 @@ def build_once(
     changes_names = []
     for _kind, entry in find_changes_files(
             output_directory, cl_entry.package, cl_entry.version):
-        changes_names.append((entry.name))
+        changes_names.append(entry.name)
     return (changes_names, cl_entry)
 
 
@@ -320,8 +336,8 @@ def gbp_dch(path):
 
 def attempt_build(
     local_tree: WorkingTree,
-    suffix: str,
-    build_suite: str,
+    suffix: Optional[str],
+    build_suite: Optional[str],
     output_directory: str,
     build_command: str,
     build_changelog_entry: Optional[str] = None,
@@ -330,7 +346,7 @@ def attempt_build(
     run_gbp_dch: bool = False,
     apt_repository: Optional[str] = None,
     apt_repository_key: Optional[str] = None,
-    extra_repositories: Optional[List[str]] = None
+    extra_repositories: Optional[list[str]] = None
 ):
     """Attempt a build, with a custom distribution set.
 
@@ -348,6 +364,12 @@ def attempt_build(
     if run_gbp_dch and not subpath and hasattr(local_tree.controldir, '_git'):
         gbp_dch(local_tree.abspath(subpath))
     if build_changelog_entry is not None:
+        if suffix is None:
+            raise AssertionError(
+                'build_changelog_entry specified, but suffix is None')
+        if build_suite is None:
+            raise AssertionError(
+                'build_changelog_entry specified, but build_suite is None')
         add_dummy_changelog_entry(
             local_tree, subpath, suffix, build_suite, build_changelog_entry
         )
@@ -362,3 +384,53 @@ def attempt_build(
         apt_repository_key=apt_repository_key,
         extra_repositories=extra_repositories,
     )
+
+
+def main():
+    import breezy.bzr  # noqa: F401
+    import breezy.git  # noqa: F401
+    from breezy.workingtree import WorkingTree
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument('--suffix', type=str)
+    parser.add_argument('--build-command', type=str, default=DEFAULT_BUILDER)
+    parser.add_argument('--output-directory', type=str, default='..')
+    parser.add_argument('--build-suite', type=str)
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--build-changelog-entry', type=str)
+    args = parser.parse_args()
+
+    wt, subpath = WorkingTree.open_containing('.')
+
+    if args.debug:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+
+    logging.basicConfig(format='%(message)s', level=level)
+
+    logging.info('Using output directory %s', args.output_directory)
+
+    if args.suffix and not args.build_changelog_entry:
+        parser.error('--suffix requires --build-changelog-entry')
+
+    if args.build_changelog_entry and not args.build_suite:
+        parser.error('--build-changelog-entry requires --build-suite')
+
+    try:
+        attempt_build(
+            wt, subpath=subpath, suffix=args.suffix,
+            build_command=args.build_command,
+            output_directory=args.output_directory,
+            build_changelog_entry=args.build_changelog_entry,
+            build_suite=args.build_suite)
+    except UnidentifiedDebianBuildError as e:
+        logging.fatal(
+            'build failed during %s: %s', e.phase, e.description)
+        return 1
+
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

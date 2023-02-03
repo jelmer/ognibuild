@@ -21,7 +21,8 @@ from contextlib import suppress
 import logging
 import os
 import re
-from typing import Optional, Tuple, Type, List, Iterable
+from typing import Optional
+from collections.abc import Iterable
 import warnings
 
 from . import shebang_binary, UnidentifiedError
@@ -237,7 +238,8 @@ def run_setup(script_name, script_args=None, stop_after="run"):
     import sys
 
     if stop_after not in ("init", "config", "commandline", "run"):
-        raise ValueError("invalid value for 'stop_after': %r" % (stop_after,))
+        raise ValueError(
+            "invalid value for 'stop_after': {!r}".format(stop_after))
 
     core._setup_stop_after = stop_after  # type: ignore
 
@@ -346,7 +348,7 @@ class SetupPy(BuildSystem):
     def load_toml(self):
         import toml
 
-        with open(os.path.join(self.path, "pyproject.toml"), "r") as pf:
+        with open(os.path.join(self.path, "pyproject.toml")) as pf:
             return toml.load(pf)
 
     def load_setup_cfg(self):
@@ -424,7 +426,7 @@ class SetupPy(BuildSystem):
             return json.load(output_f)
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     def test(self, session, resolver):
         if os.path.exists(os.path.join(self.path, "tox.ini")):
@@ -621,7 +623,7 @@ class Bazel(BuildSystem):
         self.path = path
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     @classmethod
     def exists(cls, path):
@@ -648,7 +650,7 @@ class GnomeShellExtension(BuildSystem):
         self.path = path
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     @classmethod
     def exists(cls, path):
@@ -669,7 +671,7 @@ class GnomeShellExtension(BuildSystem):
 
     def get_declared_dependencies(self, session, fixers=None):
         import json
-        with open(os.path.join(self.path, 'metadata.json'), 'r') as f:
+        with open(os.path.join(self.path, 'metadata.json')) as f:
             metadata = json.load(f)
         if 'shell-version' in metadata:
             # TODO(jelmer): Somehow represent supported versions
@@ -684,7 +686,7 @@ class Octave(BuildSystem):
         self.path = path
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     @classmethod
     def exists(cls, path):
@@ -733,7 +735,7 @@ class Gradle(BuildSystem):
         self.executable = executable
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     @classmethod
     def exists(cls, path):
@@ -810,7 +812,7 @@ class R(BuildSystem):
         self.path = path
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     def build(self, session, resolver):
         pass
@@ -887,7 +889,7 @@ class Meson(BuildSystem):
         self.path = path
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     def _setup(self, session):
         if not session.exists("build"):
@@ -973,11 +975,11 @@ class Npm(BuildSystem):
 
         self.path = path
 
-        with open(path, "r") as f:
+        with open(path) as f:
             self.package = json.load(f)
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     def get_declared_dependencies(self, session, fixers=None):
         for name, _version in self.package.get(
@@ -1191,7 +1193,7 @@ class RunTests(BuildSystem):
         self.path = path
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     @classmethod
     def probe(cls, path):
@@ -1248,7 +1250,7 @@ class CMake(BuildSystem):
         self.builddir = 'build'
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     def setup(self, session, resolver):
         if not session.exists(self.builddir):
@@ -1287,7 +1289,7 @@ class CMake(BuildSystem):
 
     def get_declared_dependencies(self, session, fixers=None):
         # TODO(jelmer): Find a proper parser for CMakeLists.txt somewhere?
-        with open(os.path.join(self.path, 'CMakeLists.txt'), 'r') as f:
+        with open(os.path.join(self.path, 'CMakeLists.txt')) as f:
             for line in f:
                 m = re.match(r'cmake_minimum_required\(\s*VERSION\s+(.*)\s*\)',
                              line)
@@ -1313,7 +1315,7 @@ class Make(BuildSystem):
             self.name = "make"
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     def setup(self, session, resolver, prefix=None):
         def makefile_exists():
@@ -1414,7 +1416,10 @@ class Make(BuildSystem):
             try:
                 self._run_make(session, [target])
             except UnidentifiedError as e:
-                if (("make: *** No rule to make target '%s'.  Stop." % target)
+                if (f"make: *** No rule to make target '{target}'.  Stop."
+                        in e.lines):
+                    pass
+                if (f"make[1]: *** No rule to make target '{target}'.  Stop."
                         in e.lines):
                     pass
                 else:
@@ -1514,14 +1519,14 @@ class Cargo(BuildSystem):
     name = "cargo"
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     def __init__(self, path):
         from toml.decoder import load
 
         self.path = path
 
-        with open(path, "r") as f:
+        with open(path) as f:
             self.cargo = load(f)
 
     def install_declared_requirements(self, stages, session, resolver, fixers):
@@ -1618,7 +1623,7 @@ class Golang(BuildSystem):
     def get_declared_dependencies(self, session, fixers=None):
         go_mod_path = os.path.join(self.path, "go.mod")
         if os.path.exists(go_mod_path):
-            with open(go_mod_path, "r") as f:
+            with open(go_mod_path) as f:
                 for parts in _parse_go_mod(f):
                     if parts[0] == "go":
                         yield "build", GoRequirement(parts[1])
@@ -1660,7 +1665,7 @@ class Maven(BuildSystem):
         self.path = path
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     @classmethod
     def probe(cls, path):
@@ -1715,7 +1720,7 @@ class Cabal(BuildSystem):
         self.path = path
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     def _run(self, session, args):
         try:
@@ -1758,7 +1763,7 @@ class Composer(BuildSystem):
         self.path = path
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     @classmethod
     def probe(cls, path):
@@ -1776,7 +1781,7 @@ class PerlBuildTiny(BuildSystem):
         self.minilla = os.path.exists(os.path.join(self.path, "minil.toml"))
 
     def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.path)
+        return "{}({!r})".format(type(self).__name__, self.path)
 
     def setup(self, session, fixers=None):
         run_with_build_fixers(fixers, session, ["perl", "Build.PL"])
@@ -1846,7 +1851,7 @@ class PerlBuildTiny(BuildSystem):
                 else:
                     raise
         with suppress(FileNotFoundError), \
-                open(os.path.join(self.path, 'META.yml'), 'r') as f:
+                open(os.path.join(self.path, 'META.yml')) as f:
             yield from _declared_deps_from_meta_yml(f)
 
     @classmethod
@@ -1857,7 +1862,7 @@ class PerlBuildTiny(BuildSystem):
             return cls(path)
 
 
-BUILDSYSTEM_CLSES: List[Type[BuildSystem]] = [
+BUILDSYSTEM_CLSES: list[type[BuildSystem]] = [
     Pear,
     SetupPy,
     Npm,
@@ -1883,14 +1888,14 @@ BUILDSYSTEM_CLSES: List[Type[BuildSystem]] = [
 ]
 
 
-def lookup_buildsystem_cls(name: str) -> Type[BuildSystem]:
+def lookup_buildsystem_cls(name: str) -> type[BuildSystem]:
     for bs in BUILDSYSTEM_CLSES:
         if bs.name == name:
             return bs
     raise KeyError(name)
 
 
-def scan_buildsystems(path: str) -> List[Tuple[str, BuildSystem]]:
+def scan_buildsystems(path: str) -> list[tuple[str, BuildSystem]]:
     """Detect build systems."""
     ret = []
     ret.extend([(".", bs) for bs in detect_buildsystems(path) if bs])
@@ -1913,7 +1918,7 @@ def detect_buildsystems(path: str) -> Iterable[BuildSystem]:
             yield bs
 
 
-def get_buildsystem(path: str) -> Tuple[str, BuildSystem]:
+def get_buildsystem(path: str) -> tuple[str, BuildSystem]:
     for subpath, buildsystem in scan_buildsystems(path):
         return subpath, buildsystem
 

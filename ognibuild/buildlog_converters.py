@@ -21,7 +21,7 @@
 """Convert problems found in the buildlog to upstream requirements.
 """
 
-from typing import Optional, List, Callable, Union, Tuple
+from typing import Optional, Callable, Union
 
 from buildlog_consultant.common import Problem
 
@@ -68,6 +68,7 @@ from .requirements import (
     VcsControlDirectoryAccessRequirement,
     RubyGemRequirement,
     QtModuleRequirement,
+    PytestPluginRequirement,
 )
 
 
@@ -75,13 +76,44 @@ ProblemToRequirementConverter = Callable[[Problem], Optional[Requirement]]
 
 
 def map_pytest_arguments_to_plugin(args):
-    # TODO(jelmer): Map argument to PytestPluginRequirement
+    for arg in args:
+        if arg.startswith('--cov'):
+            return PytestPluginRequirement('cov')
     return None
 
 
-PROBLEM_CONVERTERS: List[Union[
-        Tuple[str, ProblemToRequirementConverter],
-        Tuple[str, ProblemToRequirementConverter, str]]] = [
+def map_pytest_config_option_to_plugin(name):
+    if name == 'asyncio_mode':
+        return PytestPluginRequirement('asyncio')
+    return None
+
+
+# TODO(jelmer): populate this using an automated process
+PYTEST_FIXTURE_TO_PLUGIN = {
+    'aiohttp_client': 'aiohttp',
+    'aiohttp_client_cls': 'aiohttp',
+    'aiohttp_server': 'aiohttp',
+    'aiohttp_raw_server': 'aiohttp',
+    'mock': 'mock',
+    'benchmark': 'benchmark',
+    'event_loop': 'asyncio',
+    'unused_tcp_port': 'asyncio',
+    'unused_udp_port': 'asyncio',
+    'unused_tcp_port_factory': 'asyncio',
+    'unused_udp_port_factory': 'asyncio',
+}
+
+
+def map_pytest_fixture_to_plugin(name):
+    try:
+        return PytestPluginRequirement(PYTEST_FIXTURE_TO_PLUGIN[name])
+    except KeyError:
+        return None
+
+
+PROBLEM_CONVERTERS: list[Union[
+        tuple[str, ProblemToRequirementConverter],
+        tuple[str, ProblemToRequirementConverter, str]]] = [
     ('missing-file', lambda p: PathRequirement(p.path)),
     ('command-missing', lambda p: BinaryRequirement(p.command)),
     ('valac-cannot-compile', lambda p: VagueDependencyRequirement('valac'),
@@ -148,4 +180,8 @@ PROBLEM_CONVERTERS: List[Union[
      lambda p: CertificateAuthorityRequirement(p.url)),
     ('unsupported-pytest-arguments',
      lambda p: map_pytest_arguments_to_plugin(p.args), '0.0.27'),
+    ('unsupported-pytest-config-option',
+     lambda p: map_pytest_config_option_to_plugin(p.name), '0.0.34'),
+    ('missing-pytest-fixture',
+     lambda p: map_pytest_fixture_to_plugin(p.fixture)),
 ]

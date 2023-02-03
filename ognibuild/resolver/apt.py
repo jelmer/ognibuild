@@ -20,7 +20,8 @@ import logging
 import os
 import posixpath
 import re
-from typing import Optional, List, Tuple, Callable, Type, Awaitable
+from typing import Optional, Callable
+from collections.abc import Awaitable
 
 from debian.changelog import Version
 from debian.deb822 import PkgRelation
@@ -78,6 +79,7 @@ from ..requirements import (
     IntrospectionTypelibRequirement,
     PHPExtensionRequirement,
     VcsControlDirectoryAccessRequirement,
+    PytestPluginRequirement,
 )
 
 
@@ -86,7 +88,7 @@ class AptRequirement(Requirement):
     family = "apt"
 
     def __init__(self, relations):
-        super(AptRequirement, self).__init__()
+        super().__init__()
         if not isinstance(relations, list):
             raise TypeError(relations)
         self.relations = relations
@@ -123,7 +125,7 @@ class AptRequirement(Requirement):
         return "apt requirement: %s" % self.pkg_relation_str()
 
     def __repr__(self):
-        return "%s.from_str(%r)" % (
+        return "{}.from_str({!r})".format(
             type(self).__name__, self.pkg_relation_str())
 
     def package_names(self):
@@ -167,9 +169,9 @@ async def resolve_perl_predeclared_req(apt_mgr, req):
 
 
 async def find_package_names(
-    apt_mgr: AptManager, paths: List[str], regex: bool = False,
+    apt_mgr: AptManager, paths: list[str], regex: bool = False,
     case_insensitive: bool = False
-) -> List[str]:
+) -> list[str]:
     if not isinstance(paths, list):
         raise TypeError(paths)
     return await apt_mgr.get_packages_for_paths(paths, regex, case_insensitive)
@@ -177,11 +179,11 @@ async def find_package_names(
 
 async def find_reqs_simple(
     apt_mgr: AptManager,
-    paths: List[str],
+    paths: list[str],
     regex: bool = False,
     minimum_version=None,
     case_insensitive=False,
-) -> List[str]:
+) -> list[str]:
     if not isinstance(paths, list):
         raise TypeError(paths)
     return [
@@ -849,9 +851,13 @@ async def resolve_boost_component_req(apt_mgr, req):
 
 async def resolve_kf5_component_req(apt_mgr, req):
     return await find_reqs_simple(
-        apt_mgr, ["/usr/lib/.*/cmake/KF5%s/KF5%sConfig\\.cmake" % (
+        apt_mgr, ["/usr/lib/.*/cmake/KF5{}/KF5{}Config\\.cmake".format(
             re.escape(req.name), re.escape(req.name))],
         regex=True)
+
+
+async def resolve_pytest_plugin_req(apt_mgr, req):
+    return [AptRequirement.simple(f'python3-pytest-{req.plugin}')]
 
 
 async def resolve_vcs_access_req(apt_mgr, req):
@@ -879,9 +885,9 @@ async def resolve_oneof_req(apt_mgr, req):
         return option
 
 
-APT_REQUIREMENT_RESOLVERS: List[Tuple[
-        Type[Requirement], Callable[
-            [AptManager, Requirement], Awaitable[List[AptRequirement]]]]] = [
+APT_REQUIREMENT_RESOLVERS: list[tuple[
+        type[Requirement], Callable[
+            [AptManager, Requirement], Awaitable[list[AptRequirement]]]]] = [
     (AptRequirement, resolve_apt_req),
     (BinaryRequirement, resolve_binary_req),
     (VagueDependencyRequirement, resolve_vague_dep_req),
@@ -930,12 +936,13 @@ APT_REQUIREMENT_RESOLVERS: List[Tuple[
     (PHPExtensionRequirement, resolve_php_extension_req),
     (OctavePackageRequirement, resolve_octave_pkg_req),
     (VcsControlDirectoryAccessRequirement, resolve_vcs_access_req),
+    (PytestPluginRequirement, resolve_pytest_plugin_req),
     (OneOfRequirement, resolve_oneof_req),
 ]
 
 
 async def resolve_requirement_apt(
-        apt_mgr, req: Requirement) -> List[AptRequirement]:
+        apt_mgr, req: Requirement) -> list[AptRequirement]:
     for rr_class, rr_fn in APT_REQUIREMENT_RESOLVERS:
         if isinstance(req, rr_class):
             ret = await rr_fn(apt_mgr, req)
@@ -943,6 +950,9 @@ async def resolve_requirement_apt(
                 return []
             if not isinstance(ret, list):
                 raise TypeError(ret)
+            logging.debug(
+                'Trying to resolve %r by installing one of %r',
+                req, ret)
             return ret
     logging.warning(
         'No way known to convert %s to apt requirement',
@@ -970,7 +980,7 @@ class AptResolver(Resolver):
         return "apt"
 
     def __repr__(self):
-        return "%s(%r, %r)" % (
+        return "{}({!r}, {!r})".format(
             type(self).__name__, self.apt, self.tie_breakers)
 
     @classmethod

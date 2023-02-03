@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: ognibuild
-Version: 0.0.16
+Version: 0.0.18
 Summary: Detect and run any build system
 Home-page: https://jelmer.uk/code/ognibuild
 Maintainer: Jelmer Vernooĳ
@@ -13,10 +13,10 @@ Classifier: Programming Language :: Python :: 3.6
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Operating System :: POSIX
 Requires-Python: >=3.9
-Provides-Extra: dev
 Provides-Extra: debian
-Provides-Extra: remote
 Provides-Extra: dep_server
+Provides-Extra: dev
 Provides-Extra: gcp
+Provides-Extra: remote
 License-File: LICENSE
 License-File: AUTHORS

@@ -18,7 +18,8 @@
 
 from debian.changelog import Version
 import logging
-from typing import List, Optional, Iterable
+from typing import Optional
+from collections.abc import Iterable
 
 import os
 from buildlog_consultant.apt import (
@@ -36,7 +37,7 @@ from .file_search import (
 
 
 def run_apt(
-    session: Session, args: List[str], prefix: Optional[List[str]] = None
+    session: Session, args: list[str], prefix: Optional[list[str]] = None
 ) -> None:
     """Run apt.
 
@@ -62,7 +63,7 @@ def run_apt(
 class AptManager:
 
     session: Session
-    _searchers: Optional[List[FileSearcher]]
+    _searchers: Optional[list[FileSearcher]]
 
     def __init__(self, session, prefix=None):
         self.session = session
@@ -121,22 +122,23 @@ class AptManager:
 
         with apt_pkg.TagFile(status_path) as tagf:  # type: ignore
             while missing:
-                tagf.step()
-                if not tagf.section:
+                tagf.step()  # type: ignore
+                section = tagf.section  # type: ignore
+                if not section:
                     break
-                if tagf.section["Package"] in missing:  # noqa: SIM102
-                    if tagf.section["Status"] == "install ok installed":
-                        missing.remove(tagf.section["Package"])
+                if section["Package"] in missing:  # noqa: SIM102
+                    if section["Status"] == "install ok installed":
+                        missing.remove(section["Package"])
         return list(missing)
 
-    def install(self, packages: List[str]) -> None:
+    def install(self, packages: list[str]) -> None:
         logging.info("Installing using apt: %r", packages)
         packages = self.missing(packages)
         if packages:
             run_apt(self.session, ["install"] + packages, prefix=self.prefix)
 
-    def satisfy(self, deps: List[str]) -> None:
+    def satisfy(self, deps: list[str]) -> None:
         run_apt(self.session, ["satisfy"] + deps, prefix=self.prefix)
 
-    def satisfy_command(self, deps: List[str]) -> List[str]:
+    def satisfy_command(self, deps: list[str]) -> list[str]:
         return self.prefix + ["apt", "satisfy"] + deps

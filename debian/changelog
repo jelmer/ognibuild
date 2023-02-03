@@ -1,3 +1,9 @@
+ognibuild (0.0.18-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Fri, 03 Feb 2023 02:11:29 -0000
+
 ognibuild (0.0.16-2) unstable; urgency=medium
 
   * Add missing recommends on python3-build.
