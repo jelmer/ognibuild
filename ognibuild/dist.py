@@ -134,6 +134,7 @@ def create_dist(
     subdir: Optional[str] = None,
     log_manager: Optional[LogManager] = None,
     version: Optional[str] = None,
+    subpath: str = ""
 ) -> Optional[str]:
     """Create a dist tarball for a tree.
 
@@ -158,7 +159,8 @@ def create_dist(
     if log_manager is None:
         log_manager = NoLogManager()
 
-    return dist(session, export_directory, reldir, target_dir,
+    return dist(session, os.path.join(export_directory, subpath),
+                os.path.join(reldir, subpath), target_dir,
                 log_manager=log_manager, version=version)
 
 
@@ -171,6 +173,7 @@ def create_dist_schroot(
     include_controldir: bool = True,
     subdir: Optional[str] = None,
     log_manager: Optional[LogManager] = None,
+    subpath: str = "",
 ) -> Optional[str]:
     """Create a dist tarball for a tree.
 
@@ -188,7 +191,7 @@ def create_dist_schroot(
 
             satisfy_build_deps(session, packaging_tree, packaging_subpath)
         return create_dist(
-                session, tree, target_dir,
+                session, tree, target_dir, subpath=subpath,
                 include_controldir=include_controldir, subdir=subdir,
                 log_manager=log_manager)
 
@@ -235,7 +238,7 @@ def main(argv=None):
     else:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    tree = WorkingTree.open(args.directory)
+    tree, subpath = WorkingTree.open_containing(args.directory)
 
     packaging_tree: Optional[WorkingTree]
     subdir: Optional[str]
@@ -262,6 +265,7 @@ def main(argv=None):
                 packaging_tree=packaging_tree,
                 chroot=args.chroot,
                 include_controldir=args.include_controldir,
+                subpath=subpath,
             )
         except NoBuildToolsFound:
             if args.mode == 'buildsystem':
@@ -269,7 +273,7 @@ def main(argv=None):
                 return 1
             logging.info(
                 "No build tools found, falling back to simple export.")
-            export(tree, "dist.tar.gz", "tgz", None)
+            export(tree, "dist.tar.gz", "tgz", None, subdir=subpath)
         except NotImplementedError:
             if args.mode == 'buildsystem':
                 logging.fatal('Unable to ask buildsystem for tarball')
@@ -278,7 +282,7 @@ def main(argv=None):
                 "Build system does not support dist tarball creation, "
                 "falling back to simple export."
             )
-            export(tree, "dist.tar.gz", "tgz", None)
+            export(tree, "dist.tar.gz", "tgz", None, subdir=subpath)
         except UnidentifiedError as e:
             logging.fatal("Unidentified error: %r", e.lines)
             return 1
