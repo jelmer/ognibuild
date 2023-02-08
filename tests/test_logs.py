@@ -18,6 +18,7 @@
 import os
 import sys
 import tempfile
+import time
 from unittest import TestCase
 
 from ognibuild.logs import (
@@ -44,6 +45,12 @@ class TestCopyOutput(TestCase):
             p = os.path.join(td, 'foo.log')
             with copy_output(p, tee=True):
                 sys.stdout.write('lala\n')
+                for i in range(10):
+                    if os.path.exists(p):
+                        break
+                    time.sleep(1)
+                else:
+                    raise AssertionError(f'path {p} did not appear')
                 sys.stdout.flush()
             with open(p) as f:
                 self.assertEqual('lala\n', f.read())
