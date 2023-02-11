@@ -20,6 +20,9 @@ from typing import Optional, Any
 from debian.changelog import Version
 import logging
 import re
+import urllib.error
+from urllib.request import urlopen, Request
+
 
 from . import Requirement, USER_AGENT
 from .requirements import (
@@ -64,8 +67,6 @@ def go_base_name(package):
 
 
 def load_crate_info(crate):
-    import urllib.error
-    from urllib.request import urlopen, Request
     import json
     http_url = 'https://crates.io/api/v1/crates/%s' % crate
     headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
@@ -84,8 +85,6 @@ def find_python_package_upstream(requirement):
 
 
 def pypi_upstream_info(project, version=None):
-    import urllib.error
-    from urllib.request import urlopen, Request
     import json
     http_url = 'https://pypi.org/pypi/%s/json' % project
     headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
@@ -254,8 +253,6 @@ def find_or_upstream(requirement: OneOfRequirement) -> Optional[UpstreamInfo]:
 
 
 def load_npm_package(package):
-    import urllib.error
-    from urllib.request import urlopen, Request
     import json
     http_url = f'https://registry.npmjs.org/{package}'
     headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
@@ -299,8 +296,6 @@ def find_npm_upstream(requirement):
 
 
 def load_cpan_module(module):
-    import urllib.error
-    from urllib.request import urlopen, Request
     import json
     http_url = f'https://fastapi.metacpan.org/v1/module/{module}?join=release'
     headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
@@ -329,9 +324,6 @@ def perl_upstream_info(module, version=None):
 
 
 def load_hackage_package(package, version=None):
-    import urllib.error
-    from urllib.request import urlopen, Request
-
     headers = {'User-Agent': USER_AGENT}
     http_url = f'https://hackage.haskell.org/package/{package}/{package}.cabal'
     try:
@@ -357,6 +349,41 @@ def find_haskell_package_upstream(requirement):
     return haskell_upstream_info(requirement.package)
 
 
+def load_rubygem(gem):
+    headers = {'User-Agent': USER_AGENT}
+    http_url = f'https://rubygems.org/api/v1/gems/{gem}.json'
+    try:
+        resp = urlopen(Request(http_url, headers=headers))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            logging.warning('No rubygem %r', gem)
+            return None
+        raise
+    return json.load(resp)
+
+
+def rubygem_upstream_info(gem):
+    data = load_rubygem(gem)
+    if data is None:
+        return None
+    metadata = {}
+    homepage = data.get('homepage_uri')
+    if homepage:
+        metadata['Homepage'] = homepage
+    bug_tracker = data.get('bug_tracker_uri')
+    if bug_tracker:
+        metadata['Bug-Database'] = bug_tracker
+    return UpstreamInfo(
+        name=f"ruby-{gem}",
+        branch_url=data['source_code_uri'],
+        version=data['version'],
+        metadata=metadata)
+
+
+def find_rubygem_upstream(req):
+    return rubygem_upstream_info(req.gem)
+
+
 UPSTREAM_FINDER = {
     'python-package': find_python_package_upstream,
     'npm-package': find_npm_upstream,
@@ -366,6 +393,7 @@ UPSTREAM_FINDER = {
     'haskell-package': find_haskell_package_upstream,
     'apt': find_apt_upstream,
     'or': find_or_upstream,
+    'gem': find_rubygem_upstream,
     }
 
 
