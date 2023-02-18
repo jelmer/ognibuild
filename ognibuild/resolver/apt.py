@@ -141,8 +141,9 @@ class AptRequirement(Requirement):
             # TODO(jelmer): check versions
             if entry['name'] == binary['Package']:
                 return True
-            for provides_top in PkgRelation.parse_relations(
-                    binary.get('Provides', '')):
+            provides_str = binary.get('Provides', '').replace(
+                '${binary:Version}', str(version))
+            for provides_top in PkgRelation.parse_relations(provides_str):
                 for provides in provides_top:
                     if entry['name'] == provides['name']:
                         return True
