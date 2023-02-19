@@ -43,6 +43,10 @@ class UpstreamInfo:
     version: Optional[str] = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def version(self):
+        return self.metadata.get('Version')
+
     def json(self):
         return {
             'name': self.name,
@@ -155,11 +159,13 @@ def cargo_upstream_info(crate, version=None, api_version=None):
                 name, api_version)
         else:
             name += '-' + semver_pair(str(version))
+    metadata = {'Cargo-Crate': data['crate']['name']}
+    if version:
+        metadata['Version'] = str(version)
+
     return UpstreamInfo(
         branch_url=upstream_branch, branch_subpath=None,
-        name=name, version=str(version) if version else None,
-        metadata={'Cargo-Crate': data['crate']['name']},
-        buildsystem='cargo')
+        name=name, metadata=metadata, buildsystem='cargo')
 
 
 def find_cargo_crate_upstream(requirement):
@@ -317,9 +323,11 @@ def perl_upstream_info(module, version=None):
     release_metadata = data['release']['_source']['metadata']
     release_resources = release_metadata.get('resources', {})
     branch_url = release_resources.get('repository', {}).get('url')
+    metadata = {}
+    metadata['Version'] = data['version']
     return UpstreamInfo(
         name='lib%s-perl' % (module.lower().replace('::', '-')),
-        version=data['version'],
+        metadata=metadata,
         branch_url=branch_url, branch_subpath='',
         tarball_url=data['download_url'])
 
@@ -374,10 +382,10 @@ def rubygem_upstream_info(gem):
     bug_tracker = data.get('bug_tracker_uri')
     if bug_tracker:
         metadata['Bug-Database'] = bug_tracker
+    metadata['Version'] = data['version']
     return UpstreamInfo(
         name=f"ruby-{gem}",
         branch_url=data['source_code_uri'],
-        version=data['version'],
         metadata=metadata)
 
 
