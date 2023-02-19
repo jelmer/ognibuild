@@ -131,6 +131,7 @@ def cargo_upstream_info(crate, version=None, api_version=None):
     data = load_crate_info(crate)
     if data is None:
         return None
+    # TODO(jelmer): Use upstream ontologist to parse upstream metadata
     upstream_branch = data['crate']['repository']
     name = 'rust-' + data['crate']['name'].replace('_', '-')
     version = None
@@ -157,7 +158,7 @@ def cargo_upstream_info(crate, version=None, api_version=None):
     return UpstreamInfo(
         branch_url=upstream_branch, branch_subpath=None,
         name=name, version=str(version) if version else None,
-        metadata={'X-Cargo-Crate': data['crate']['name']},
+        metadata={'Cargo-Crate': data['crate']['name']},
         buildsystem='cargo')
 
 
