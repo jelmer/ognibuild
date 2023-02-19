@@ -41,7 +41,6 @@ class UpstreamInfo:
     branch_url: Optional[str] = None
     branch_subpath: Optional[str] = None
     tarball_url: Optional[str] = None
-    version: Optional[str] = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
