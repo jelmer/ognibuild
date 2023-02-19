@@ -19,6 +19,7 @@ import errno
 
 from breezy.errors import NotBranchError
 from breezy.export import export
+from breezy.revisiontree import RevisionTree
 from breezy.tree import Tree
 from breezy.workingtree import WorkingTree
 
@@ -42,6 +43,7 @@ def dupe_vcs_tree(tree: Tree, directory: str) -> None:
     with tree.lock_read():
         if isinstance(tree, WorkingTree):
             tree = tree.basis_tree()
+    assert isinstance(tree, RevisionTree)
     try:
         result = tree._repository.controldir.sprout(
             directory, create_tree_if_local=True,
