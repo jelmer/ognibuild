@@ -29,6 +29,7 @@ from .requirements import (
     CargoCrateRequirement,
     GoPackageRequirement,
     PythonPackageRequirement,
+    RubyGemRequirement,
 )
 from .resolver.apt import AptRequirement, OneOfRequirement
 
@@ -118,8 +119,12 @@ def pypi_upstream_info(project, version=None):
 
 def find_go_package_upstream(requirement):
     if requirement.package.startswith('github.com/'):
+        metadata = {
+            'Go-Import-Path': requirement.package,
+        }
         return UpstreamInfo(
             name='golang-%s' % go_base_name(requirement.package),
+            metadata=metadata,
             branch_url='https://%s' % '/'.join(
                 requirement.package.split('/')[:3]),
             branch_subpath='')
@@ -208,6 +213,17 @@ def apt_to_python_requirement(m, rels):
         minimum_version=minimum_version)
 
 
+def apt_to_ruby_requirement(m, rels):
+    if not rels:
+        minimum_version = None
+    elif len(rels) == 1 and rels[0][0] == '>=':
+        minimum_version = Version(rels[0][1]).upstream_version
+    else:
+        logging.warning('Unable to parse Debian version %r', rels)
+        minimum_version = None
+    return RubyGemRequirement(m.group(1), minimum_version)
+
+
 def apt_to_go_requirement(m, rels):
     parts = m.group(1).split('-')
     if parts[0] == 'github':
@@ -228,6 +244,7 @@ BINARY_PACKAGE_UPSTREAM_MATCHERS = [
     (r'librust-(.*)-([^-+]+)(\+.*?)-dev', apt_to_cargo_requirement),
     (r'python([0-9.]*)-(.*)', apt_to_python_requirement),
     (r'golang-(.*)-dev', apt_to_go_requirement),
+    (r'ruby-(.*)', apt_to_ruby_requirement),
 ]
 
 
