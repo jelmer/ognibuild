@@ -1,11 +1,12 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=61.2"]
 build-backend = "setuptools.build_meta"
 
 [tool.mypy]
 warn_redundant_casts = true
 warn_unused_configs = true
 check_untyped_defs = true
+ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
 module = [
@@ -20,3 +21,80 @@ module = [
     "google.cloud.logging.*",
 ]
 ignore_missing_imports = true
+
+[project]
+name = "ognibuild"
+description = "Detect and run any build system"
+maintainers = [{name = "Jelmer Vernooĳ", email = "jelmer@jelmer.uk"}]
+license = {text = "GNU GPLv2 or later"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+    "Programming Language :: Python :: 3.5",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Operating System :: POSIX",
+]
+urls = {Homepage = "https://jelmer.uk/code/ognibuild"}
+requires-python = ">=3.9"
+dependencies = [
+    "breezy>=3.2",
+    "buildlog-consultant>=0.0.29",
+    "requirements-parser",
+    "toml",
+    "setuptools",
+    "ruamel.yaml",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "testtools",
+    "types-setuptools",
+    "types-psycopg2",
+    "google-cloud-logging",
+]
+debian = [
+    "debmutate",
+    "python_debian",
+    "python_apt",
+    "brz-debian",
+    "lz4",
+]
+remote = [
+    "breezy",
+    "dulwich",
+]
+dep_server = [
+    "aiohttp",
+    "aiohttp-openmetrics",
+]
+gcp = ["google-cloud-logging"]
+testing = [
+    "testtools",
+    "types-toml",
+]
+
+[project.scripts]
+ogni = "ognibuild.__main__:main"
+deb-fix-build = "ognibuild.debian.fix_build:main"
+deb-upstream-deps = "ognibuild.debian.upstream_deps:main"
+
+[tool.setuptools]
+packages = [
+    "ognibuild",
+    "ognibuild.debian",
+    "ognibuild.resolver",
+    "ognibuild.session",
+]
+script-files = ["scripts/report-apt-deps-status"]
+include-package-data = false
+
+[tool.setuptools.package-data]
+ognibuild = ["py.typed"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ognibuild.__version__"}
+
+[tool.distutils.bdist_wheel]
+universal = 1
