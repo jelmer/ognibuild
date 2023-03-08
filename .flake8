@@ -1,4 +1,5 @@
-[flake8]
+banned-modules = "silver-platter = Should not use silver-platter"
+exclude = "build,.eggs/"
 extend-ignore = E203, E266, E501, W293, W291
 max-line-length = 88
 max-complexity = 18
