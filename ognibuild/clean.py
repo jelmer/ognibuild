@@ -17,8 +17,8 @@
 
 from functools import partial
 
-from .fix_build import iterate_with_build_fixers
 from .buildsystem import NoBuildToolsFound
+from .fix_build import iterate_with_build_fixers
 from .logs import NoLogManager
 
 

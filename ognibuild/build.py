@@ -21,7 +21,6 @@ from .buildsystem import NoBuildToolsFound
 from .fix_build import iterate_with_build_fixers
 from .logs import NoLogManager
 
-
 BUILD_LOG_FILENAME = 'build.log'
 
 

@@ -19,28 +19,27 @@ import asyncio
 import logging
 
 from aiohttp import (
-    ClientSession,
     ClientConnectorError,
     ClientResponseError,
+    ClientSession,
     ServerDisconnectedError,
 )
 from yarl import URL
 
-
-from .. import Requirement, USER_AGENT
+from .. import USER_AGENT, Requirement
 from ..debian.apt import AptManager
 from .apt import AptRequirement, AptResolver
 
 
 class DepServerError(Exception):
 
-    def __init__(self, inner):
+    def __init__(self, inner) -> None:
         self.inner = inner
 
 
 class RequirementFamilyUnknown(DepServerError):
 
-    def __init__(self, family):
+    def __init__(self, family) -> None:
         self.family = family
 
 
@@ -74,7 +73,7 @@ async def resolve_apt_requirement_dep_server(
 
 
 class DepServerAptResolver(AptResolver):
-    def __init__(self, apt, dep_server_url, tie_breakers=None):
+    def __init__(self, apt, dep_server_url, tie_breakers=None) -> None:
         super().__init__(
             apt, tie_breakers=tie_breakers)
         self.dep_server_url = dep_server_url

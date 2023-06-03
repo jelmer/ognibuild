@@ -16,8 +16,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from . import Session, NoSessionOpen, SessionAlreadyOpen
-
 import contextlib
 import os
 import shutil
@@ -25,13 +23,15 @@ import subprocess
 import tempfile
 from typing import Optional
 
+from . import NoSessionOpen, Session, SessionAlreadyOpen
+
 
 class PlainSession(Session):
     """Session ignoring user."""
 
     location = "/"
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.es = None
 
     def _prepend_user(self, user, args):
@@ -44,8 +44,8 @@ class PlainSession(Session):
                 args = ["sudo", "-u", user] + args
         return args
 
-    def __repr__(self):
-        return "{}()".format(type(self).__name__)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
 
     def __enter__(self) -> "Session":
         if self.es is not None:

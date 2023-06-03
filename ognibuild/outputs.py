@@ -20,27 +20,27 @@ from . import UpstreamOutput
 
 
 class BinaryOutput(UpstreamOutput):
-    def __init__(self, name):
+    def __init__(self, name) -> None:
         super().__init__("binary")
         self.name = name
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.name)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.name!r})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "binary: %s" % self.name
 
 
 class PythonPackageOutput(UpstreamOutput):
-    def __init__(self, name, python_version=None):
+    def __init__(self, name, python_version=None) -> None:
         super().__init__("python-package")
         self.name = name
         self.python_version = python_version
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "python package: %s" % self.name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({!r}, python_version={!r})".format(
             type(self).__name__,
             self.name,
@@ -49,12 +49,12 @@ class PythonPackageOutput(UpstreamOutput):
 
 
 class RPackageOutput(UpstreamOutput):
-    def __init__(self, name):
+    def __init__(self, name) -> None:
         super().__init__("r-package")
         self.name = name
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "R package: %s" % self.name
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.name)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.name!r})"

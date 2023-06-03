@@ -17,8 +17,8 @@
 
 import re
 
-from debian.deb822 import Deb822
-
+from breezy.commit import NullCommitReporter
+from breezy.tests import TestCaseWithTransport
 from buildlog_consultant.common import (
     MissingCommand,
     MissingGoPackage,
@@ -29,21 +29,21 @@ from buildlog_consultant.common import (
     MissingRubyGem,
     MissingValaPackage,
 )
+from debian.deb822 import Deb822
+
 from ognibuild.debian.apt import AptManager, FileSearcher
 from ognibuild.debian.fix_build import (
-    resolve_error,
-    versioned_package_fixers,
-    apt_fixers,
     DebianPackagingContext,
     add_build_dependency,
+    apt_fixers,
+    resolve_error,
+    versioned_package_fixers,
 )
 from ognibuild.resolver.apt import AptRequirement
-from breezy.commit import NullCommitReporter
-from breezy.tests import TestCaseWithTransport
 
 
 class DummyAptSearcher(FileSearcher):
-    def __init__(self, files):
+    def __init__(self, files) -> None:
         self._apt_files = files
 
     async def search_files(self, path, regex=False, case_insensitive=False):

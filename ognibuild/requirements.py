@@ -32,7 +32,7 @@ class PythonPackageRequirement(Requirement):
 
     def __init__(
             self, package, python_version=None, specs=None,
-            minimum_version=None):
+            minimum_version=None) -> None:
         self.package = package
         self.python_version = python_version
         if specs is None:
@@ -41,7 +41,7 @@ class PythonPackageRequirement(Requirement):
             specs.append((">=", minimum_version))
         self.specs = specs
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({!r}, python_version={!r}, specs={!r})".format(
             type(self).__name__,
             self.package,
@@ -49,11 +49,11 @@ class PythonPackageRequirement(Requirement):
             self.specs,
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.specs:
-            return "python package: {} ({!r})".format(self.package, self.specs)
+            return f"python package: {self.package} ({self.specs!r})"
         else:
-            return "python package: {}".format(self.package)
+            return f"python package: {self.package}"
 
     @classmethod
     def from_requirement_str(cls, text, python_version=None):
@@ -111,11 +111,11 @@ class LatexPackageRequirement(Requirement):
 
     family = "latex-package"
 
-    def __init__(self, package: str):
+    def __init__(self, package: str) -> None:
         self.package = package
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.package)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.package!r})"
 
     def _json(self):
         return self.package
@@ -138,7 +138,7 @@ class PhpPackageRequirement(Requirement):
         channel: Optional[str] = None,
         min_version: Optional[str] = None,
         max_version: Optional[str] = None,
-    ):
+    ) -> None:
         self.package = package
         self.channel = channel
         self.min_version = min_version
@@ -151,7 +151,7 @@ class PhpPackageRequirement(Requirement):
     def _from_json(cls, js):
         return cls(*js)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({!r}, {!r}, {!r}, {!r})".format(
             type(self).__name__,
             self.package,
@@ -169,7 +169,7 @@ class BinaryRequirement(Requirement):
     family = "binary"
     binary_name: str
 
-    def __init__(self, binary_name):
+    def __init__(self, binary_name) -> None:
         self.binary_name = binary_name
 
     def _json(self):
@@ -179,8 +179,8 @@ class BinaryRequirement(Requirement):
     def _from_json(cls, js):
         return cls(js)
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.binary_name)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.binary_name!r})"
 
     def met(self, session):
         p = session.Popen(
@@ -200,11 +200,11 @@ class PHPExtensionRequirement(Requirement):
     family = "php-extension"
     extension: str
 
-    def __init__(self, extension: str):
+    def __init__(self, extension: str) -> None:
         self.extension = extension
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.extension)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.extension!r})"
 
 
 class PytestPluginRequirement(Requirement):
@@ -213,11 +213,11 @@ class PytestPluginRequirement(Requirement):
 
     plugin: str
 
-    def __init__(self, plugin: str):
+    def __init__(self, plugin: str) -> None:
         self.plugin = plugin
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.plugin)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.plugin!r})"
 
 
 class VcsControlDirectoryAccessRequirement(Requirement):
@@ -225,11 +225,11 @@ class VcsControlDirectoryAccessRequirement(Requirement):
     vcs: list[str]
     family = "vcs-access"
 
-    def __init__(self, vcs):
+    def __init__(self, vcs) -> None:
         self.vcs = vcs
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.vcs)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.vcs!r})"
 
 
 class PerlModuleRequirement(Requirement):
@@ -239,7 +239,7 @@ class PerlModuleRequirement(Requirement):
     inc: Optional[list[str]]
     family = "perl-module"
 
-    def __init__(self, module, filename=None, inc=None):
+    def __init__(self, module, filename=None, inc=None) -> None:
         self.module = module
         self.filename = filename
         self.inc = inc
@@ -248,8 +248,8 @@ class PerlModuleRequirement(Requirement):
     def relfilename(self):
         return self.module.replace("::", "/") + ".pm"
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.module)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.module!r})"
 
 
 class VagueDependencyRequirement(Requirement):
@@ -258,7 +258,7 @@ class VagueDependencyRequirement(Requirement):
     family = "vague"
     minimum_version: Optional[str] = None
 
-    def __init__(self, name, minimum_version=None):
+    def __init__(self, name, minimum_version=None) -> None:
         self.name = name
         self.minimum_version = minimum_version
 
@@ -290,12 +290,12 @@ class VagueDependencyRequirement(Requirement):
     def met(self, session):
         return any(x.met(session) for x in self.expand())
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.name)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.name!r})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.minimum_version:
-            return "{} >= {}".format(self.name, self.minimum_version)
+            return f"{self.name} >= {self.minimum_version}"
         return self.name
 
 
@@ -304,11 +304,11 @@ class NodePackageRequirement(Requirement):
     package: str
     family = "npm-package"
 
-    def __init__(self, package):
+    def __init__(self, package) -> None:
         self.package = package
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.package)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.package!r})"
 
 
 class LuaModuleRequirement(Requirement):
@@ -316,11 +316,11 @@ class LuaModuleRequirement(Requirement):
     module: str
     family = "lua-module"
 
-    def __init__(self, module):
+    def __init__(self, module) -> None:
         self.module = module
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.module)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.module!r})"
 
 
 class PerlPreDeclaredRequirement(Requirement):
@@ -347,15 +347,15 @@ class PerlPreDeclaredRequirement(Requirement):
 
     family = "perl-predeclared"
 
-    def __init__(self, name):
+    def __init__(self, name) -> None:
         self.name = name
 
     def lookup_module(self):
         module = self.KNOWN_MODULES[self.name]
         return PerlModuleRequirement(module=module)
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.name)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.name!r})"
 
 
 class NodeModuleRequirement(Requirement):
@@ -363,11 +363,11 @@ class NodeModuleRequirement(Requirement):
     module: str
     family = "npm-module"
 
-    def __init__(self, module):
+    def __init__(self, module) -> None:
         self.module = module
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.module)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.module!r})"
 
 
 class CargoCrateRequirement(Requirement):
@@ -379,7 +379,7 @@ class CargoCrateRequirement(Requirement):
     family = "cargo-crate"
 
     def __init__(self, crate, features=None, api_version=None,
-                 minimum_version=None):
+                 minimum_version=None) -> None:
         self.crate = crate
         if features is None:
             features = set()
@@ -387,7 +387,7 @@ class CargoCrateRequirement(Requirement):
         self.api_version = api_version
         self.minimum_version = minimum_version
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             "{}({!r}, features={!r}, api_version={!r}, minimum_version={!r})"
             .format(
@@ -398,7 +398,7 @@ class CargoCrateRequirement(Requirement):
                 self.minimum_version,
             ))
 
-    def __str__(self):
+    def __str__(self) -> str:
         ret = "cargo crate: {} {}".format(
             self.crate,
             self.api_version or "")
@@ -414,11 +414,11 @@ class PkgConfigRequirement(Requirement):
     module: str
     family = "pkg-config"
 
-    def __init__(self, module, minimum_version=None):
+    def __init__(self, module, minimum_version=None) -> None:
         self.module = module
         self.minimum_version = minimum_version
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({!r}, minimum_version={!r})".format(
             type(self).__name__, self.module, self.minimum_version)
 
@@ -428,11 +428,11 @@ class PathRequirement(Requirement):
     path: str
     family = "path"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
 
 class CHeaderRequirement(Requirement):
@@ -440,11 +440,11 @@ class CHeaderRequirement(Requirement):
     header: str
     family = "c-header"
 
-    def __init__(self, header):
+    def __init__(self, header) -> None:
         self.header = header
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.header)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.header!r})"
 
 
 class JavaScriptRuntimeRequirement(Requirement):
@@ -456,7 +456,7 @@ class ValaPackageRequirement(Requirement):
     package: str
     family = "vala"
 
-    def __init__(self, package: str):
+    def __init__(self, package: str) -> None:
         self.package = package
 
 
@@ -466,7 +466,7 @@ class RubyGemRequirement(Requirement):
     minimum_version: Optional[str]
     family = "gem"
 
-    def __init__(self, gem: str, minimum_version: Optional[str]):
+    def __init__(self, gem: str, minimum_version: Optional[str]) -> None:
         self.gem = gem
         self.minimum_version = minimum_version
 
@@ -477,17 +477,17 @@ class GoPackageRequirement(Requirement):
     version: Optional[str]
     family = "go-package"
 
-    def __init__(self, package: str, version: Optional[str] = None):
+    def __init__(self, package: str, version: Optional[str] = None) -> None:
         self.package = package
         self.version = version
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({!r}, version={!r})".format(
             type(self).__name__, self.package, self.version)
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.version:
-            return "go package: {} (= {})".format(self.package, self.version)
+            return f"go package: {self.package} (= {self.version})"
         return "go package: %s" % self.package
 
 
@@ -496,10 +496,10 @@ class GoRequirement(Requirement):
     version: Optional[str]
     family = "go"
 
-    def __init__(self, version: Optional[str] = None):
+    def __init__(self, version: Optional[str] = None) -> None:
         self.version = version
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "go %s" % self.version
 
 
@@ -508,7 +508,7 @@ class DhAddonRequirement(Requirement):
     path: str
     family = "dh-addon"
 
-    def __init__(self, path: str):
+    def __init__(self, path: str) -> None:
         self.path = path
 
 
@@ -517,7 +517,7 @@ class PhpClassRequirement(Requirement):
     php_class: str
     family = "php-class"
 
-    def __init__(self, php_class: str):
+    def __init__(self, php_class: str) -> None:
         self.php_class = php_class
 
 
@@ -527,23 +527,23 @@ class RPackageRequirement(Requirement):
     minimum_version: Optional[str]
     family = "r-package"
 
-    def __init__(self, package: str, minimum_version: Optional[str] = None):
+    def __init__(self, package: str, minimum_version: Optional[str] = None) -> None:
         self.package = package
         self.minimum_version = minimum_version
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({!r}, minimum_version={!r})".format(
             type(self).__name__,
             self.package,
             self.minimum_version,
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.minimum_version:
             return "R package: {} (>= {})".format(
                 self.package, self.minimum_version)
         else:
-            return "R package: {}".format(self.package)
+            return f"R package: {self.package}"
 
     @classmethod
     def from_str(cls, text):
@@ -563,23 +563,23 @@ class OctavePackageRequirement(Requirement):
     minimum_version: Optional[str]
     family = "octave-package"
 
-    def __init__(self, package: str, minimum_version: Optional[str] = None):
+    def __init__(self, package: str, minimum_version: Optional[str] = None) -> None:
         self.package = package
         self.minimum_version = minimum_version
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({!r}, minimum_version={!r})".format(
             type(self).__name__,
             self.package,
             self.minimum_version,
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.minimum_version:
             return "Octave package: {} (>= {})".format(
                 self.package, self.minimum_version)
         else:
-            return "Octave package: {}".format(self.package)
+            return f"Octave package: {self.package}"
 
     @classmethod
     def from_str(cls, text):
@@ -598,10 +598,10 @@ class LibraryRequirement(Requirement):
     library: str
     family = "lib"
 
-    def __init__(self, library: str):
+    def __init__(self, library: str) -> None:
         self.library = library
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Library: %s" % self.library
 
 
@@ -611,11 +611,11 @@ class StaticLibraryRequirement(Requirement):
     filename: str
     family = "static-lib"
 
-    def __init__(self, library: str, filename: str):
+    def __init__(self, library: str, filename: str) -> None:
         self.library = library
         self.filename = filename
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Static Library: %s" % self.library
 
 
@@ -624,7 +624,7 @@ class RubyFileRequirement(Requirement):
     filename: str
     family = "ruby-file"
 
-    def __init__(self, filename: str):
+    def __init__(self, filename: str) -> None:
         self.filename = filename
 
 
@@ -633,7 +633,7 @@ class XmlEntityRequirement(Requirement):
     url: str
     family = "xml-entity"
 
-    def __init__(self, url: str):
+    def __init__(self, url: str) -> None:
         self.url = url
 
 
@@ -643,7 +643,7 @@ class SprocketsFileRequirement(Requirement):
     name: str
     family = "sprockets-file"
 
-    def __init__(self, content_type: str, name: str):
+    def __init__(self, content_type: str, name: str) -> None:
         self.content_type = content_type
         self.name = name
 
@@ -653,7 +653,7 @@ class JavaClassRequirement(Requirement):
     classname: str
     family = "java-class"
 
-    def __init__(self, classname: str):
+    def __init__(self, classname: str) -> None:
         self.classname = classname
 
 
@@ -663,7 +663,7 @@ class CMakefileRequirement(Requirement):
     version: Optional[str]
     family = "cmake-file"
 
-    def __init__(self, filename: str, version=None):
+    def __init__(self, filename: str, version=None) -> None:
         self.filename = filename
         self.version = version
 
@@ -673,7 +673,7 @@ class HaskellPackageRequirement(Requirement):
     package: str
     family = "haskell-package"
 
-    def __init__(self, package: str, specs=None):
+    def __init__(self, package: str, specs=None) -> None:
         self.package = package
         self.specs = specs
 
@@ -691,20 +691,20 @@ class MavenArtifactRequirement(Requirement):
     kind: Optional[str]
     family = "maven-artifact"
 
-    def __init__(self, group_id, artifact_id, version=None, kind=None):
+    def __init__(self, group_id, artifact_id, version=None, kind=None) -> None:
         self.group_id = group_id
         self.artifact_id = artifact_id
         self.version = version
         self.kind = kind
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "maven requirement: {}:{}:{}".format(
             self.group_id,
             self.artifact_id,
             self.version,
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             "{}(group_id={!r}, artifact_id={!r}, version={!r}, kind={!r})"
             .format(
@@ -741,7 +741,7 @@ class JDKFileRequirement(Requirement):
     filename: str
     family = "jdk-file"
 
-    def __init__(self, jdk_path: str, filename: str):
+    def __init__(self, jdk_path: str, filename: str) -> None:
         self.jdk_path = jdk_path
         self.filename = filename
 
@@ -761,7 +761,7 @@ class JRERequirement(Requirement):
 class QtModuleRequirement(Requirement):
     family = "qt-module"
 
-    def __init__(self, module):
+    def __init__(self, module) -> None:
         self.module = module
 
 
@@ -776,7 +776,7 @@ class X11Requirement(Requirement):
 class CertificateAuthorityRequirement(Requirement):
     family = "ca-cert"
 
-    def __init__(self, url):
+    def __init__(self, url) -> None:
         self.url = url
 
 
@@ -785,7 +785,7 @@ class PerlFileRequirement(Requirement):
     filename: str
     family = "perl-file"
 
-    def __init__(self, filename: str):
+    def __init__(self, filename: str) -> None:
         self.filename = filename
 
 
@@ -794,7 +794,7 @@ class AutoconfMacroRequirement(Requirement):
     family = "autoconf-macro"
     macro: str
 
-    def __init__(self, macro: str):
+    def __init__(self, macro: str) -> None:
         self.macro = macro
 
     def _json(self):
@@ -815,7 +815,7 @@ class LibtoolRequirement(Requirement):
 class IntrospectionTypelibRequirement(Requirement):
     family = "introspection-type-lib"
 
-    def __init__(self, library):
+    def __init__(self, library) -> None:
         self.library = library
 
 
@@ -826,7 +826,7 @@ class PythonModuleRequirement(Requirement):
     minimum_version: Optional[str]
     family = "python-module"
 
-    def __init__(self, module, python_version=None, minimum_version=None):
+    def __init__(self, module, python_version=None, minimum_version=None) -> None:
         self.module = module
         self.python_version = python_version
         self.minimum_version = minimum_version
@@ -852,7 +852,7 @@ class PythonModuleRequirement(Requirement):
         p.communicate()
         return p.returncode == 0
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({!r}, python_version={!r}, minimum_version={!r})".format(
             type(self).__name__, self.module, self.python_version,
             self.minimum_version)
@@ -863,7 +863,7 @@ class BoostComponentRequirement(Requirement):
     name: str
     family = "boost-component"
 
-    def __init__(self, name):
+    def __init__(self, name) -> None:
         self.name = name
 
 
@@ -872,7 +872,7 @@ class KF5ComponentRequirement(Requirement):
     name: str
     family = "kf5-component"
 
-    def __init__(self, name):
+    def __init__(self, name) -> None:
         self.name = name
 
 
@@ -881,5 +881,5 @@ class GnulibDirectoryRequirement(Requirement):
     directory: str
     family = "gnulib"
 
-    def __init__(self, directory):
+    def __init__(self, directory) -> None:
         self.directory = directory

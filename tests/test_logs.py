@@ -22,10 +22,10 @@ import time
 from unittest import TestCase
 
 from ognibuild.logs import (
+    DirectoryLogManager,
     copy_output,
     redirect_output,
     rotate_logfile,
-    DirectoryLogManager,
 )
 
 

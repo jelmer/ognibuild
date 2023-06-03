@@ -17,7 +17,6 @@
 
 from unittest import TestCase
 
-
 from ognibuild.resolver.apt import get_possible_python3_paths_for_python_object
 
 

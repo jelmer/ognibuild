@@ -19,11 +19,12 @@
 import logging
 import os
 import sys
+
+from debian.deb822 import PkgRelation
+from debmutate.control import ControlEditor, ensure_relation
+
 from ognibuild.buildlog import InstallFixer
 from ognibuild.resolver.apt import AptResolver
-
-from debmutate.control import ControlEditor, ensure_relation
-from debian.deb822 import PkgRelation
 
 
 def get_project_wide_deps(
@@ -35,8 +36,8 @@ def get_project_wide_deps(
         external_dir, internal_dir = session.setup_from_vcs(
             wt, os.path.join(subpath, buildsystem_subpath))
 
-        from ognibuild.debian.udd import popcon_tie_breaker
         from ognibuild.debian.build_deps import BuildDependencyTieBreaker
+        from ognibuild.debian.udd import popcon_tie_breaker
         apt_resolver = AptResolver.from_session(
             session, tie_breakers=[
                 BuildDependencyTieBreaker.from_session(session),
@@ -74,8 +75,8 @@ def main(argv=None):  # noqa: C901
     from breezy.errors import NotBranchError
     from breezy.workingtree import WorkingTree
     breezy.initialize()  # type: ignore
-    import breezy.git  # noqa: E402
     import breezy.bzr  # noqa: E402
+    import breezy.git  # noqa: E402
 
     from ognibuild.buildsystem import scan_buildsystems
     from ognibuild.session.plain import PlainSession

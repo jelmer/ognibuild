@@ -14,25 +14,26 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from contextlib import ExitStack
 import logging
 import os
 import shlex
 import sys
 import tempfile
+from contextlib import ExitStack
 from urllib.parse import urlparse
-from . import UnidentifiedError, DetailedFailure, version_string
+
+from . import DetailedFailure, UnidentifiedError, version_string
 from .buildlog import (
-    InstallFixer,
-    ExplainInstallFixer,
     ExplainInstall,
+    ExplainInstallFixer,
+    InstallFixer,
     install_missing_reqs,
 )
 from .buildsystem import NoBuildToolsFound, detect_buildsystems
 from .resolver import (
+    UnsatisfiedRequirements,
     auto_resolver,
     select_resolvers,
-    UnsatisfiedRequirements,
 )
 from .session import SessionSetupFailure
 
@@ -97,6 +98,7 @@ def determine_fixers(session, resolver, explain=False):
 
 def main():  # noqa: C901
     import argparse
+
     from .session import Session
 
     parser = argparse.ArgumentParser(prog='ogni')
@@ -185,8 +187,8 @@ def main():  # noqa: C901
         parsed_url = urlparse(args.directory)
         # TODO(jelmer): Get a list of supported schemes from breezy?
         if parsed_url.scheme in ('git', 'http', 'https', 'ssh'):
-            import breezy.git  # noqa: F401
             import breezy.bzr  # noqa: F401
+            import breezy.git  # noqa: F401
             from breezy.branch import Branch
             b = Branch.open(args.directory)
             logging.info("Cloning %s", args.directory)
@@ -244,7 +246,7 @@ def main():  # noqa: C901
                         display_explain_commands(e.commands)
                         return 1
             if args.subcommand == "dist":
-                from .dist import run_dist, DistNoTarball
+                from .dist import DistNoTarball, run_dist
 
                 try:
                     run_dist(

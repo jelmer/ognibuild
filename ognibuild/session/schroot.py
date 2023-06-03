@@ -22,11 +22,9 @@ import shlex
 import string
 import subprocess
 import tempfile
-
 from typing import Optional
 
-
-from . import Session, SessionSetupFailure, NoSessionOpen, SessionAlreadyOpen
+from . import NoSessionOpen, Session, SessionAlreadyOpen, SessionSetupFailure
 
 
 def sanitize_session_name(name):
@@ -46,7 +44,7 @@ class SchrootSession(Session):
     session_id: Optional[str]
     session_prefix: Optional[str]
 
-    def __init__(self, chroot: str, *, session_prefix: Optional[str] = None):
+    def __init__(self, chroot: str, *, session_prefix: Optional[str] = None) -> None:
         if not isinstance(chroot, str):
             raise TypeError("not a valid chroot: %r" % chroot)
         self.chroot = chroot
@@ -156,7 +154,7 @@ class SchrootSession(Session):
                 "-c",
                 " ".join(
                     [
-                        "{}={} ".format(key, shlex.quote(value))
+                        f"{key}={shlex.quote(value)} "
                         for (key, value) in env.items()
                     ]
                     + [shlex.quote(arg) for arg in argv]

@@ -20,74 +20,73 @@ import logging
 import os
 import posixpath
 import re
-from typing import Optional, Callable
 from collections.abc import Awaitable
+from typing import Callable, Optional
 
 from debian.changelog import Version
 from debian.deb822 import PkgRelation
 
-from ..debian.apt import AptManager
-
-from . import Resolver, UnsatisfiedRequirements
 from .. import OneOfRequirement
+from ..debian.apt import AptManager
 from ..requirements import (
-    Requirement,
-    CargoCrateRequirement,
+    AutoconfMacroRequirement,
     BinaryRequirement,
+    BoostComponentRequirement,
+    CargoCrateRequirement,
+    CertificateAuthorityRequirement,
     CHeaderRequirement,
-    PkgConfigRequirement,
-    PathRequirement,
-    JavaScriptRuntimeRequirement,
-    ValaPackageRequirement,
-    RubyGemRequirement,
+    CMakefileRequirement,
+    DhAddonRequirement,
+    GnomeCommonRequirement,
     GoPackageRequirement,
     GoRequirement,
-    DhAddonRequirement,
-    PhpClassRequirement,
-    PhpPackageRequirement,
-    RPackageRequirement,
-    NodeModuleRequirement,
-    NodePackageRequirement,
-    LibraryRequirement,
-    BoostComponentRequirement,
-    KF5ComponentRequirement,
-    StaticLibraryRequirement,
-    RubyFileRequirement,
-    XmlEntityRequirement,
-    OctavePackageRequirement,
-    SprocketsFileRequirement,
-    JavaClassRequirement,
-    CMakefileRequirement,
     HaskellPackageRequirement,
-    MavenArtifactRequirement,
-    GnomeCommonRequirement,
+    IntrospectionTypelibRequirement,
+    JavaClassRequirement,
+    JavaScriptRuntimeRequirement,
     JDKFileRequirement,
     JDKRequirement,
     JRERequirement,
-    QTRequirement,
-    QtModuleRequirement,
-    X11Requirement,
-    PerlModuleRequirement,
+    KF5ComponentRequirement,
+    LibraryRequirement,
+    LibtoolRequirement,
+    MavenArtifactRequirement,
+    NodeModuleRequirement,
+    NodePackageRequirement,
+    OctavePackageRequirement,
+    PathRequirement,
     PerlFileRequirement,
-    AutoconfMacroRequirement,
+    PerlModuleRequirement,
+    PerlPreDeclaredRequirement,
+    PhpClassRequirement,
+    PHPExtensionRequirement,
+    PhpPackageRequirement,
+    PkgConfigRequirement,
+    PytestPluginRequirement,
     PythonModuleRequirement,
     PythonPackageRequirement,
-    CertificateAuthorityRequirement,
-    LibtoolRequirement,
+    QtModuleRequirement,
+    QTRequirement,
+    Requirement,
+    RPackageRequirement,
+    RubyFileRequirement,
+    RubyGemRequirement,
+    SprocketsFileRequirement,
+    StaticLibraryRequirement,
     VagueDependencyRequirement,
-    PerlPreDeclaredRequirement,
-    IntrospectionTypelibRequirement,
-    PHPExtensionRequirement,
+    ValaPackageRequirement,
     VcsControlDirectoryAccessRequirement,
-    PytestPluginRequirement,
+    X11Requirement,
+    XmlEntityRequirement,
 )
+from . import Resolver, UnsatisfiedRequirements
 
 
 class AptRequirement(Requirement):
 
     family = "apt"
 
-    def __init__(self, relations):
+    def __init__(self, relations) -> None:
         super().__init__()
         if not isinstance(relations, list):
             raise TypeError(relations)
@@ -121,10 +120,10 @@ class AptRequirement(Requirement):
         return (isinstance(self, type(other))
                 and self.relations == other.relations)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "apt requirement: %s" % self.pkg_relation_str()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}.from_str({!r})".format(
             type(self).__name__, self.pkg_relation_str())
 
@@ -962,8 +961,8 @@ async def resolve_requirement_apt(
 
 
 def default_tie_breakers(session):
-    from ..debian.udd import popcon_tie_breaker
     from ..debian.build_deps import BuildDependencyTieBreaker
+    from ..debian.udd import popcon_tie_breaker
     return [
         BuildDependencyTieBreaker.from_session(session),
         popcon_tie_breaker,
@@ -971,16 +970,16 @@ def default_tie_breakers(session):
 
 
 class AptResolver(Resolver):
-    def __init__(self, apt, tie_breakers=None):
+    def __init__(self, apt, tie_breakers=None) -> None:
         self.apt = apt
         if tie_breakers is None:
             tie_breakers = default_tie_breakers(apt.session)
         self.tie_breakers = tie_breakers
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "apt"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({!r}, {!r})".format(
             type(self).__name__, self.apt, self.tie_breakers)
 

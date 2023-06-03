@@ -17,16 +17,17 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 
-from contextlib import suppress
 import logging
 import os
 import re
-from typing import Optional
-from collections.abc import Iterable
 import warnings
+from collections.abc import Iterable
+from contextlib import suppress
+from typing import Optional
 
-from . import shebang_binary, UnidentifiedError
+from . import UnidentifiedError, shebang_binary
 from .dist_catcher import DistCatcher
+from .fix_build import run_detecting_problems, run_with_build_fixers
 from .outputs import (
     BinaryOutput,
     PythonPackageOutput,
@@ -34,19 +35,18 @@ from .outputs import (
 )
 from .requirements import (
     BinaryRequirement,
-    PythonPackageRequirement,
-    PerlModuleRequirement,
-    NodePackageRequirement,
     CargoCrateRequirement,
-    RPackageRequirement,
-    OctavePackageRequirement,
-    PhpPackageRequirement,
-    MavenArtifactRequirement,
-    GoRequirement,
     GoPackageRequirement,
+    GoRequirement,
+    MavenArtifactRequirement,
+    NodePackageRequirement,
+    OctavePackageRequirement,
+    PerlModuleRequirement,
+    PhpPackageRequirement,
+    PythonPackageRequirement,
+    RPackageRequirement,
     VagueDependencyRequirement,
 )
-from .fix_build import run_with_build_fixers, run_detecting_problems
 from .session import which
 
 
@@ -84,7 +84,7 @@ class BuildSystem:
 
     name: str
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
     def dist(
@@ -142,7 +142,7 @@ class Pear(BuildSystem):
         "http://pear.php.net/dtd/package-2.1",
         ]
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
     def dist(self, session, resolver, target_directory: str,
@@ -234,12 +234,12 @@ def run_setup(script_name, script_args=None, stop_after="run"):
     # Import setuptools, just in case it decides to replace distutils
     with suppress(ImportError):
         import setuptools  # noqa: F401
-    from distutils import core
     import sys
+    from distutils import core
 
     if stop_after not in ("init", "config", "commandline", "run"):
         raise ValueError(
-            "invalid value for 'stop_after': {!r}".format(stop_after))
+            f"invalid value for 'stop_after': {stop_after!r}")
 
     core._setup_stop_after = stop_after  # type: ignore
 
@@ -320,7 +320,7 @@ class SetupPy(BuildSystem):
     name = "setup.py"
     DEFAULT_PYTHON = "python3"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
         if os.path.exists(os.path.join(self.path, "setup.py")):
             self.has_setup_py = True
@@ -394,8 +394,8 @@ class SetupPy(BuildSystem):
         }
 
     def _extract_setup_in_session(self, session, fixers=None):
-        import tempfile
         import json
+        import tempfile
 
         interpreter = self._determine_interpreter()
         output_f = tempfile.NamedTemporaryFile(
@@ -425,8 +425,8 @@ class SetupPy(BuildSystem):
             output_f.seek(0)
             return json.load(output_f)
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     def test(self, session, resolver):
         if os.path.exists(os.path.join(self.path, "tox.ini")):
@@ -619,11 +619,11 @@ class Bazel(BuildSystem):
 
     name = "bazel"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     @classmethod
     def exists(cls, path):
@@ -646,11 +646,11 @@ class GnomeShellExtension(BuildSystem):
 
     name = "gnome-shell-extension"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     @classmethod
     def exists(cls, path):
@@ -682,11 +682,11 @@ class Octave(BuildSystem):
 
     name = "octave"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     @classmethod
     def exists(cls, path):
@@ -730,12 +730,12 @@ class Gradle(BuildSystem):
 
     name = "gradle"
 
-    def __init__(self, path, executable="gradle"):
+    def __init__(self, path, executable="gradle") -> None:
         self.path = path
         self.executable = executable
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     @classmethod
     def exists(cls, path):
@@ -808,11 +808,11 @@ class R(BuildSystem):
 
     name = "R"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     def build(self, session, resolver):
         pass
@@ -885,11 +885,11 @@ class Meson(BuildSystem):
 
     name = "meson"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     def _setup(self, session):
         if not session.exists("build"):
@@ -970,7 +970,7 @@ class Npm(BuildSystem):
 
     name = "npm"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         import json
 
         self.path = path
@@ -978,8 +978,8 @@ class Npm(BuildSystem):
         with open(path) as f:
             self.package = json.load(f)
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     def get_declared_dependencies(self, session, fixers=None):
         for name, _version in self.package.get(
@@ -1037,7 +1037,7 @@ class Waf(BuildSystem):
 
     name = "waf"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
     def setup(self, session, resolver):
@@ -1077,7 +1077,7 @@ class Gem(BuildSystem):
 
     name = "gem"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
     def dist(self, session, resolver, target_directory, quiet=False):
@@ -1108,7 +1108,7 @@ class DistZilla(BuildSystem):
 
     name = "dist-zilla"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
         self.dist_inkt_class = None
         with open(self.path, "rb") as f:
@@ -1189,11 +1189,11 @@ class RunTests(BuildSystem):
 
     name = "runtests"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     @classmethod
     def probe(cls, path):
@@ -1245,12 +1245,12 @@ class CMake(BuildSystem):
 
     name = "cmake"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
         self.builddir = 'build'
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     def setup(self, session, resolver):
         if not session.exists(self.builddir):
@@ -1300,7 +1300,7 @@ class CMake(BuildSystem):
 
 class Make(BuildSystem):
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
         if os.path.exists(os.path.join(path, 'Makefile.PL')):
             self.name = 'makefile.pl'
@@ -1314,8 +1314,8 @@ class Make(BuildSystem):
         else:
             self.name = "make"
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     def setup(self, session, resolver, prefix=None):
         def makefile_exists():
@@ -1518,10 +1518,10 @@ class Cargo(BuildSystem):
 
     name = "cargo"
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         from toml.decoder import load
 
         self.path = path
@@ -1602,10 +1602,10 @@ class Golang(BuildSystem):
 
     name = "golang"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "%s()" % (type(self).__name__)
 
     def test(self, session, resolver):
@@ -1661,11 +1661,11 @@ class Maven(BuildSystem):
 
     name = "maven"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     @classmethod
     def probe(cls, path):
@@ -1716,11 +1716,11 @@ class Cabal(BuildSystem):
 
     name = "cabal"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     def _run(self, session, args):
         try:
@@ -1759,11 +1759,11 @@ class Composer(BuildSystem):
 
     name = "composer"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     @classmethod
     def probe(cls, path):
@@ -1776,12 +1776,12 @@ class PerlBuildTiny(BuildSystem):
 
     name = "perl-build-tiny"
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
         self.minilla = os.path.exists(os.path.join(self.path, "minil.toml"))
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.path)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
 
     def setup(self, session, fixers=None):
         run_with_build_fixers(fixers, session, ["perl", "Build.PL"])

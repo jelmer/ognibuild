@@ -16,22 +16,22 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from debian.changelog import Version
 import logging
-from typing import Optional
-from collections.abc import Iterable
-
 import os
+from collections.abc import Iterable
+from typing import Optional
+
 from buildlog_consultant.apt import (
     find_apt_get_failure,
 )
+from debian.changelog import Version
 
 from .. import DetailedFailure, UnidentifiedError
-from ..session import Session, run_with_tee, get_user
+from ..session import Session, get_user, run_with_tee
 from .file_search import (
+    GENERATED_FILE_SEARCHER,
     FileSearcher,
     get_apt_contents_file_searcher,
-    GENERATED_FILE_SEARCHER,
     get_packages_for_paths,
 )
 
@@ -65,7 +65,7 @@ class AptManager:
     session: Session
     _searchers: Optional[list[FileSearcher]]
 
-    def __init__(self, session, prefix=None):
+    def __init__(self, session, prefix=None) -> None:
         self.session = session
         self._apt_cache = None
         self._searchers = None

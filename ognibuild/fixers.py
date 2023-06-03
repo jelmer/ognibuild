@@ -20,13 +20,14 @@ import subprocess
 
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
+    MinimumAutoconfTooOld,
+    MissingAutoconfMacro,
     MissingGitIdentity,
+    MissingGnulibDirectory,
     MissingGoSumEntry,
     MissingSecretGpgKey,
-    MissingAutoconfMacro,
-    MissingGnulibDirectory,
-    MinimumAutoconfTooOld,
 )
+
 from ognibuild.requirements import AutoconfMacroRequirement
 from ognibuild.resolver import UnsatisfiedRequirements
 
@@ -34,7 +35,7 @@ from .fix_build import BuildFixer
 
 
 class GnulibDirectoryFixer(BuildFixer):
-    def __init__(self, session):
+    def __init__(self, session) -> None:
         self.session = session
 
     def can_fix(self, problem: Problem):
@@ -46,7 +47,7 @@ class GnulibDirectoryFixer(BuildFixer):
 
 
 class GitIdentityFixer(BuildFixer):
-    def __init__(self, session):
+    def __init__(self, session) -> None:
         self.session = session
 
     def can_fix(self, problem: Problem):
@@ -64,7 +65,7 @@ class GitIdentityFixer(BuildFixer):
 
 
 class SecretGpgKeyFixer(BuildFixer):
-    def __init__(self, session):
+    def __init__(self, session) -> None:
         self.session = session
 
     def can_fix(self, problem: Problem):
@@ -91,7 +92,7 @@ Passphrase: ""
 
 
 class MinimumAutoconfFixer(BuildFixer):
-    def __init__(self, session):
+    def __init__(self, session) -> None:
         self.session = session
 
     def can_fix(self, problem: Problem):
@@ -121,13 +122,13 @@ class MinimumAutoconfFixer(BuildFixer):
 
 
 class MissingGoSumEntryFixer(BuildFixer):
-    def __init__(self, session):
+    def __init__(self, session) -> None:
         self.session = session
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "%s()" % (type(self).__name__)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "missing go.sum entry fixer"
 
     def can_fix(self, error):
@@ -141,14 +142,14 @@ class MissingGoSumEntryFixer(BuildFixer):
 
 
 class UnexpandedAutoconfMacroFixer(BuildFixer):
-    def __init__(self, session, resolver):
+    def __init__(self, session, resolver) -> None:
         self.session = session
         self.resolver = resolver
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.resolver)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.resolver!r})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "unexpanded m4 macro fixer (%s)" % self.resolver
 
     def can_fix(self, error):

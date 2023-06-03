@@ -15,19 +15,18 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from functools import partial
 import logging
+from functools import partial
 from typing import Callable, Optional, TypeVar
 
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
-    find_build_failure_description,
     MissingCommand,
+    find_build_failure_description,
 )
 
 from . import DetailedFailure, UnidentifiedError
 from .session import Session, run_with_tee
-
 
 # Number of attempts to fix a build before giving up.
 DEFAULT_LIMIT = 200
