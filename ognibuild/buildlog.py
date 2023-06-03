@@ -15,43 +15,42 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-"""Convert problems found in the buildlog to upstream requirements.
-"""
+"""Convert problems found in the buildlog to upstream requirements."""
 
 import logging
 from typing import Optional, cast
 
 from buildlog_consultant.common import (
-    Problem,
-    MissingPerlFile,
-    MissingSetupPyCommand,
-    MissingCMakeComponents,
-    MissingXfceDependency,
-    MissingHaskellDependencies,
-    MissingMavenArtifacts,
-    MissingGnomeCommonDependency,
-    MissingPerlPredeclared,
-    MissingLatexFile,
     MissingCargoCrate,
+    MissingCMakeComponents,
+    MissingGnomeCommonDependency,
+    MissingHaskellDependencies,
+    MissingLatexFile,
+    MissingMavenArtifacts,
+    MissingPerlFile,
+    MissingPerlPredeclared,
+    MissingSetupPyCommand,
+    MissingXfceDependency,
+    Problem,
 )
 
 from . import OneOfRequirement
+from .buildlog_converters import PROBLEM_CONVERTERS  # type: ignore
 from .fix_build import BuildFixer
 from .requirements import (
-    Requirement,
     BinaryRequirement,
-    HaskellPackageRequirement,
-    MavenArtifactRequirement,
     BoostComponentRequirement,
-    KF5ComponentRequirement,
-    PerlFileRequirement,
-    PythonPackageRequirement,
-    PerlPreDeclaredRequirement,
-    LatexPackageRequirement,
     CargoCrateRequirement,
+    HaskellPackageRequirement,
+    KF5ComponentRequirement,
+    LatexPackageRequirement,
+    MavenArtifactRequirement,
+    PerlFileRequirement,
+    PerlPreDeclaredRequirement,
+    PythonPackageRequirement,
+    Requirement,
 )
 from .resolver import UnsatisfiedRequirements
-from .buildlog_converters import PROBLEM_CONVERTERS  # type: ignore
 
 
 def problem_to_upstream_requirement(
@@ -115,6 +114,7 @@ def problem_to_upstream_requirement(
         return PerlFileRequirement(filename=problem.filename)
     elif problem.kind == 'unsatisfied-apt-dependencies':
         from buildlog_consultant.apt import UnsatisfiedAptDependencies
+
         from .resolver.apt import AptRequirement
         return AptRequirement(
             cast(UnsatisfiedAptDependencies, problem).relations)
@@ -126,13 +126,13 @@ def problem_to_upstream_requirement(
 
 
 class InstallFixer(BuildFixer):
-    def __init__(self, resolver):
+    def __init__(self, resolver) -> None:
         self.resolver = resolver
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.resolver)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.resolver!r})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "upstream requirement fixer(%s)" % self.resolver
 
     def can_fix(self, error):
@@ -158,18 +158,18 @@ class InstallFixer(BuildFixer):
 
 
 class ExplainInstall(Exception):
-    def __init__(self, commands):
+    def __init__(self, commands) -> None:
         self.commands = commands
 
 
 class ExplainInstallFixer(BuildFixer):
-    def __init__(self, resolver):
+    def __init__(self, resolver) -> None:
         self.resolver = resolver
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.resolver)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.resolver!r})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "upstream requirement install explainer(%s)" % self.resolver
 
     def can_fix(self, error):

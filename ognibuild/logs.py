@@ -15,11 +15,11 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from contextlib import contextmanager
-import subprocess
 import logging
 import os
+import subprocess
 import sys
+from contextlib import contextmanager
 
 
 @contextmanager
@@ -81,7 +81,7 @@ class LogManager:
 
 class DirectoryLogManager(LogManager):
 
-    def __init__(self, path, mode):
+    def __init__(self, path, mode) -> None:
         self.path = path
         self.mode = mode
 

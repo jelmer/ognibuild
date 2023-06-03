@@ -19,17 +19,16 @@ import datetime
 import os
 import sys
 
+from breezy.tests import TestCase, TestCaseWithTransport
 from debian.changelog import Version
 
 from ognibuild.debian.build import (
+    DEFAULT_BUILDER,
+    _builddeb_command,
     add_dummy_changelog_entry,
     get_build_architecture,
     version_add_suffix,
-    _builddeb_command,
-    DEFAULT_BUILDER,
 )
-
-from breezy.tests import TestCaseWithTransport, TestCase
 
 
 class AddDummyChangelogEntryTests(TestCaseWithTransport):

@@ -25,31 +25,27 @@ __all__ = [
 ]
 
 import errno
-from functools import partial
 import logging
 import os
 import sys
+from functools import partial
 from typing import Optional
 
 from breezy.tree import Tree
 from breezy.workingtree import WorkingTree
-
 from buildlog_consultant.common import (
     NoSpaceOnDevice,
 )
-
 from debian.deb822 import Deb822
 
-
 from . import DetailedFailure, UnidentifiedError
+from .buildsystem import NoBuildToolsFound
 from .dist_catcher import DistNoTarball
 from .fix_build import iterate_with_build_fixers
 from .logs import LogManager, NoLogManager
-from .buildsystem import NoBuildToolsFound
 from .resolver import auto_resolver
 from .session import Session
 from .session.schroot import SchrootSession
-
 
 DIST_LOG_FILENAME = 'dist.log'
 
@@ -75,16 +71,16 @@ def run_dist(session, buildsystems, resolver, fixers, target_directory,
 
 def dist(session, export_directory, reldir, target_dir, log_manager, *,
          version: Optional[str] = None, quiet=False):
-    from .fix_build import BuildFixer
-    from .buildsystem import detect_buildsystems
     from .buildlog import InstallFixer
+    from .buildsystem import detect_buildsystems
+    from .fix_build import BuildFixer
     from .fixers import (
         GitIdentityFixer,
+        GnulibDirectoryFixer,
+        MinimumAutoconfFixer,
         MissingGoSumEntryFixer,
         SecretGpgKeyFixer,
         UnexpandedAutoconfMacroFixer,
-        GnulibDirectoryFixer,
-        MinimumAutoconfFixer,
     )
 
     if version:
@@ -198,6 +194,7 @@ def create_dist_schroot(
 
 def main(argv=None):
     import argparse
+
     import breezy.bzr  # noqa: F401
     import breezy.git  # noqa: F401
     from breezy.export import export

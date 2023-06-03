@@ -16,22 +16,22 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from typing import Optional
-import sys
 import subprocess
+import sys
+from typing import Optional
 
 
 class NoSessionOpen(Exception):
     """There is no session open."""
 
-    def __init__(self, session):
+    def __init__(self, session) -> None:
         self.session = session
 
 
 class SessionAlreadyOpen(Exception):
     """There is already a session open."""
 
-    def __init__(self, session):
+    def __init__(self, session) -> None:
         self.session = session
 
 
@@ -111,7 +111,7 @@ class Session:
 class SessionSetupFailure(Exception):
     """Session failed to be set up."""
 
-    def __init__(self, reason, errlines=None):
+    def __init__(self, reason, errlines=None) -> None:
         self.reason = reason
         self.errlines = errlines
 

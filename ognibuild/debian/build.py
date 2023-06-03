@@ -24,28 +24,26 @@ __all__ = [
     "UnidentifiedDebianBuildError",
 ]
 
-from datetime import datetime
 import logging
 import os
 import re
 import shlex
 import subprocess
 import sys
+from datetime import datetime
 from typing import Optional
-
-from debian.changelog import Changelog, Version, ChangeBlock
-from debmutate.changelog import get_maintainer, ChangelogEditor
-from debmutate.reformatting import GeneratedFile
 
 from breezy.mutabletree import MutableTree
 from breezy.plugins.debian.builder import BuildFailedError
 from breezy.tree import Tree
 from breezy.workingtree import WorkingTree
-
 from buildlog_consultant.sbuild import (
-    worker_failure_from_sbuild_log,
     DpkgSourceLocalChanges,
+    worker_failure_from_sbuild_log,
 )
+from debian.changelog import ChangeBlock, Changelog, Version
+from debmutate.changelog import ChangelogEditor, get_maintainer
+from debmutate.reformatting import GeneratedFile
 
 from .. import DetailedFailure, UnidentifiedError
 
@@ -57,13 +55,13 @@ DEFAULT_BUILDER = "sbuild --no-clean-source"
 class ChangelogNotEditable(Exception):
     """Changelog can not be edited."""
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.path = path
 
 
 class DetailedDebianBuildFailure(DetailedFailure):
 
-    def __init__(self, stage, phase, retcode, argv, error, description):
+    def __init__(self, stage, phase, retcode, argv, error, description) -> None:
         super().__init__(retcode, argv, error)
         self.stage = stage
         self.phase = phase
@@ -73,7 +71,7 @@ class DetailedDebianBuildFailure(DetailedFailure):
 class UnidentifiedDebianBuildError(UnidentifiedError):
 
     def __init__(self, stage, phase, retcode, argv, lines, description,
-                 secondary=None):
+                 secondary=None) -> None:
         super().__init__(
             retcode, argv, lines, secondary)
         self.stage = stage
@@ -84,7 +82,7 @@ class UnidentifiedDebianBuildError(UnidentifiedError):
 class MissingChangesFile(Exception):
     """Expected changes file was not written."""
 
-    def __init__(self, filename):
+    def __init__(self, filename) -> None:
         self.filename = filename
 
 
@@ -157,7 +155,6 @@ def add_dummy_changelog_entry(
     Returns:
       version of the newly added entry
     """
-
     if control_files_in_root(tree, subpath):
         path = os.path.join(subpath, "changelog")
     else:
@@ -237,7 +234,7 @@ def build(
         apt_repository_key=apt_repository_key,
         extra_repositories=extra_repositories)
 
-    outf.write("Running {!r}\n".format(build_command))
+    outf.write(f"Running {build_command!r}\n")
     outf.flush()
     env = dict(os.environ.items())
     if distribution is not None:
@@ -324,7 +321,7 @@ def build_once(
 
 
 class GitBuildpackageMissing(Exception):
-    """git-buildpackage is not installed"""
+    """git-buildpackage is not installed."""
 
 
 def gbp_dch(path):
@@ -387,10 +384,11 @@ def attempt_build(
 
 
 def main():
+    from argparse import ArgumentParser
+
     import breezy.bzr  # noqa: F401
     import breezy.git  # noqa: F401
     from breezy.workingtree import WorkingTree
-    from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('--suffix', type=str)
     parser.add_argument('--build-command', type=str, default=DEFAULT_BUILDER)

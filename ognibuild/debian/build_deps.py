@@ -18,20 +18,20 @@
 """Tie breaking by build deps."""
 
 
-from contextlib import suppress
-from debian.deb822 import PkgRelation
 import logging
+from contextlib import suppress
 
 from breezy.plugins.debian.apt_repo import LocalApt, NoAptSources
+from debian.deb822 import PkgRelation
 
 
 class BuildDependencyTieBreaker:
-    def __init__(self, apt):
+    def __init__(self, apt) -> None:
         self.apt = apt
         self._counts = None
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.apt)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.apt!r})"
 
     @classmethod
     def from_session(cls, session):
@@ -76,6 +76,7 @@ class BuildDependencyTieBreaker:
 
 if __name__ == "__main__":
     import argparse
+
     from ..resolver.apt import AptRequirement
 
     parser = argparse.ArgumentParser()

@@ -15,11 +15,11 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from contextlib import suppress
-import os
 import logging
+import os
 import shutil
 import time
+from contextlib import suppress
 
 
 class DistNoTarball(Exception):
@@ -46,7 +46,7 @@ class DistCatcher:
 
     existing_files: dict[str, dict[str, os.DirEntry]]
 
-    def __init__(self, directories):
+    def __init__(self, directories) -> None:
         self.directories = [os.path.abspath(d) for d in directories]
         self.files = []
         self.start_time = time.time()

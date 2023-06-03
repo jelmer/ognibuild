@@ -18,16 +18,16 @@
 
 import logging
 import subprocess
-from typing import Optional
 from collections.abc import Iterator
+from typing import Optional
 
-from .. import UnidentifiedError, Requirement
+from .. import Requirement, UnidentifiedError
 from ..fix_build import run_detecting_problems
 from ..session import Session
 
 
 class UnsatisfiedRequirements(Exception):
-    def __init__(self, reqs):
+    def __init__(self, reqs) -> None:
         self.requirements = reqs
 
 
@@ -35,7 +35,7 @@ class Resolver:
 
     name: str
 
-    def __init__(self, session: Session, user_local: bool):
+    def __init__(self, session: Session, user_local: bool) -> None:
         raise NotImplementedError
 
     def install(self, requirements: list[Requirement]) -> None:
@@ -57,16 +57,16 @@ class Resolver:
 class CPANResolver(Resolver):
     name = "cpan"
 
-    def __init__(self, session, user_local=False, skip_tests=True):
+    def __init__(self, session, user_local=False, skip_tests=True) -> None:
         self.session = session
         self.user_local = user_local
         self.skip_tests = skip_tests
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.session)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.session!r})"
 
     def _cmd(self, reqs):
         ret = ["cpan", "-i"]
@@ -118,19 +118,19 @@ class CPANResolver(Resolver):
 
 
 class TlmgrResolver(Resolver):
-    def __init__(self, session, repository: str, user_local=False):
+    def __init__(self, session, repository: str, user_local=False) -> None:
         self.session = session
         self.user_local = user_local
         self.repository = repository
 
-    def __str__(self):
+    def __str__(self) -> str:
         if (self.repository.startswith('http://')
                 or self.repository.startswith('https://')):
             return 'tlmgr(%r)' % self.repository
         else:
             return self.repository
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({!r}, {!r})".format(
             type(self).__name__, self.session, self.repository)
 
@@ -182,7 +182,7 @@ class TlmgrResolver(Resolver):
 class CTANResolver(TlmgrResolver):
     name = "ctan"
 
-    def __init__(self, session, user_local=False):
+    def __init__(self, session, user_local=False) -> None:
         super().__init__(
             session, "ctan", user_local=user_local)
 
@@ -191,15 +191,15 @@ class RResolver(Resolver):
 
     name: str
 
-    def __init__(self, session, repos, user_local=False):
+    def __init__(self, session, repos, user_local=False) -> None:
         self.session = session
         self.repos = repos
         self.user_local = user_local
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({!r}, {!r})".format(
             type(self).__name__, self.session, self.repos)
 
@@ -246,15 +246,15 @@ class RResolver(Resolver):
 class OctaveForgeResolver(Resolver):
     name = "octave-forge"
 
-    def __init__(self, session, user_local=False):
+    def __init__(self, session, user_local=False) -> None:
         self.session = session
         self.user_local = user_local
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.session)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.session!r})"
 
     def _cmd(self, req):
         # TODO(jelmer: Handle self.user_local
@@ -294,7 +294,7 @@ class OctaveForgeResolver(Resolver):
 class CRANResolver(RResolver):
     name = "cran"
 
-    def __init__(self, session, user_local=False):
+    def __init__(self, session, user_local=False) -> None:
         super().__init__(
             session, "http://cran.r-project.org", user_local=user_local
         )
@@ -303,7 +303,7 @@ class CRANResolver(RResolver):
 class BioconductorResolver(RResolver):
     name = "bioconductor"
 
-    def __init__(self, session, user_local=False):
+    def __init__(self, session, user_local=False) -> None:
         super().__init__(
             session, "https://hedgehog.fhcrc.org/bioconductor",
             user_local=user_local
@@ -314,15 +314,15 @@ class HackageResolver(Resolver):
 
     name = "hackage"
 
-    def __init__(self, session, user_local=False):
+    def __init__(self, session, user_local=False) -> None:
         self.session = session
         self.user_local = user_local
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.session)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.session!r})"
 
     def _cmd(self, reqs):
         extra_args = []
@@ -366,15 +366,15 @@ class PypiResolver(Resolver):
 
     name = "pypi"
 
-    def __init__(self, session, user_local=False):
+    def __init__(self, session, user_local=False) -> None:
         self.session = session
         self.user_local = user_local
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.session)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.session!r})"
 
     def _cmd(self, reqs):
         extra_args = []
@@ -420,15 +420,15 @@ class GoResolver(Resolver):
 
     name = "go"
 
-    def __init__(self, session, user_local):
+    def __init__(self, session, user_local) -> None:
         self.session = session
         self.user_local = user_local
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.session)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.session!r})"
 
     def install(self, requirements):
         from ..requirements import GoPackageRequirement
@@ -479,23 +479,23 @@ NPM_COMMAND_PACKAGES = {
 class NpmResolver(Resolver):
     name = "npm"
 
-    def __init__(self, session, user_local=False):
+    def __init__(self, session, user_local=False) -> None:
         self.session = session
         self.user_local = user_local
         # TODO(jelmer): Handle user_local
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.session)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.session!r})"
 
     @classmethod
     def _to_node_package_req(cls, requirement):
         from ..requirements import (
-            NodePackageRequirement,
-            NodeModuleRequirement,
             BinaryRequirement,
+            NodeModuleRequirement,
+            NodePackageRequirement,
         )
         if isinstance(requirement, BinaryRequirement):
             try:
@@ -549,13 +549,13 @@ class NpmResolver(Resolver):
 
 
 class StackedResolver(Resolver):
-    def __init__(self, subs):
+    def __init__(self, subs) -> None:
         self.subs = subs
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.subs)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.subs!r})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "[" + ", ".join(map(str, self.subs)) + "]"
 
     def env(self):
@@ -635,8 +635,8 @@ def auto_resolver(session: Session, explain: bool = False,
                   system_wide: Optional[bool] = None,
                   dep_server_url: Optional[str] = None):
     # if session is SchrootSession or if we're root, use apt
-    from ..session.schroot import SchrootSession
     from ..session import get_user
+    from ..session.schroot import SchrootSession
 
     user = get_user(session)
     resolvers = []

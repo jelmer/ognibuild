@@ -15,16 +15,16 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from dataclasses import dataclass, field
-from typing import Optional, Any
-from debian.changelog import Version
 import logging
 import re
 import urllib.error
-from urllib.request import urlopen, Request
+from dataclasses import dataclass, field
+from typing import Any, Optional
+from urllib.request import Request, urlopen
 
+from debian.changelog import Version
 
-from . import Requirement, USER_AGENT
+from . import USER_AGENT, Requirement
 from .requirements import (
     CargoCrateRequirement,
     GoPackageRequirement,

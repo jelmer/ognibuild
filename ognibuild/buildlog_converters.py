@@ -18,59 +18,56 @@
 # TODO(jelmer): don't ignore all typing here
 # type: ignore
 
-"""Convert problems found in the buildlog to upstream requirements.
-"""
+"""Convert problems found in the buildlog to upstream requirements."""
 
-from typing import Optional, Callable, Union
+from typing import Callable, Optional, Union
 
 from buildlog_consultant.common import Problem
 
-
 from . import OneOfRequirement
 from .requirements import (
-    Requirement,
+    AutoconfMacroRequirement,
     BinaryRequirement,
-    PathRequirement,
-    PkgConfigRequirement,
+    CertificateAuthorityRequirement,
     CHeaderRequirement,
-    JavaScriptRuntimeRequirement,
-    ValaPackageRequirement,
-    GoPackageRequirement,
-    DhAddonRequirement,
-    PhpClassRequirement,
-    RPackageRequirement,
-    NodePackageRequirement,
-    LibraryRequirement,
-    RubyFileRequirement,
-    XmlEntityRequirement,
-    SprocketsFileRequirement,
-    JavaClassRequirement,
     CMakefileRequirement,
+    DhAddonRequirement,
     GnomeCommonRequirement,
+    GnulibDirectoryRequirement,
+    GoPackageRequirement,
+    IntrospectionTypelibRequirement,
+    JavaClassRequirement,
+    JavaScriptRuntimeRequirement,
     JDKFileRequirement,
     JDKRequirement,
     JRERequirement,
+    LibraryRequirement,
+    LibtoolRequirement,
+    LuaModuleRequirement,
+    NodeModuleRequirement,
+    NodePackageRequirement,
+    PathRequirement,
     PerlModuleRequirement,
-    AutoconfMacroRequirement,
+    PhpClassRequirement,
+    PHPExtensionRequirement,
+    PkgConfigRequirement,
+    PytestPluginRequirement,
     PythonModuleRequirement,
     PythonPackageRequirement,
-    CertificateAuthorityRequirement,
-    NodeModuleRequirement,
-    QTRequirement,
-    X11Requirement,
-    LibtoolRequirement,
-    VagueDependencyRequirement,
-    IntrospectionTypelibRequirement,
-    StaticLibraryRequirement,
-    GnulibDirectoryRequirement,
-    LuaModuleRequirement,
-    PHPExtensionRequirement,
-    VcsControlDirectoryAccessRequirement,
-    RubyGemRequirement,
     QtModuleRequirement,
-    PytestPluginRequirement,
+    QTRequirement,
+    Requirement,
+    RPackageRequirement,
+    RubyFileRequirement,
+    RubyGemRequirement,
+    SprocketsFileRequirement,
+    StaticLibraryRequirement,
+    VagueDependencyRequirement,
+    ValaPackageRequirement,
+    VcsControlDirectoryAccessRequirement,
+    X11Requirement,
+    XmlEntityRequirement,
 )
-
 
 ProblemToRequirementConverter = Callable[[Problem], Optional[Requirement]]
 

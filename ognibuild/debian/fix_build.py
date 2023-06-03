@@ -19,76 +19,72 @@ __all__ = [
     "build_incrementally",
 ]
 
-from functools import partial
 import logging
 import os
 import shutil
 import sys
 import time
+from functools import partial
 from typing import Optional
 
+from breezy.commit import NullCommitReporter, PointlessCommit
+from breezy.plugins.debian.changelog import debcommit
+from breezy.tree import Tree
+from breezy.workingtree import WorkingTree
+from breezy.workspace import reset_tree
+from buildlog_consultant import Problem
+from buildlog_consultant.apt import (
+    AptFetchFailure,
+)
+from buildlog_consultant.common import (
+    MissingAutomakeInput,
+    MissingConfigStatusInput,
+    MissingConfigure,
+    MissingPerlFile,
+    NeedPgBuildExtUpdateControl,
+)
+from buildlog_consultant.sbuild import (
+    DebcargoUnacceptableComparator,
+    DebcargoUnacceptablePredicate,
+)
 from debian.deb822 import (
     Deb822,
     PkgRelation,
 )
-
-from breezy.commit import PointlessCommit, NullCommitReporter
-from breezy.tree import Tree
-from breezy.workingtree import WorkingTree
-
+from debmutate._rules import (
+    dh_invoke_add_with,
+    update_rules,
+)
 from debmutate.changelog import ChangelogEditor
 from debmutate.control import (
-    ensure_relation,
     ControlEditor,
-)
-from debmutate.debhelper import (
-    get_debhelper_compat_level,
+    ensure_relation,
 )
 from debmutate.deb822 import (
     Deb822Editor,
+)
+from debmutate.debhelper import (
+    get_debhelper_compat_level,
 )
 from debmutate.reformatting import (
     FormattingUnpreservable,
     GeneratedFile,
 )
 
-from breezy.workspace import reset_tree
-
-from debmutate._rules import (
-    dh_invoke_add_with,
-    update_rules,
-)
-
-from breezy.plugins.debian.changelog import debcommit
-from buildlog_consultant import Problem
-from buildlog_consultant.apt import (
-    AptFetchFailure,
-)
-from buildlog_consultant.common import (
-    MissingConfigStatusInput,
-    MissingAutomakeInput,
-    MissingConfigure,
-    NeedPgBuildExtUpdateControl,
-    MissingPerlFile,
-)
-from buildlog_consultant.sbuild import (
-    DebcargoUnacceptablePredicate,
-    DebcargoUnacceptableComparator,
-    )
-
-from .build import (
-    DetailedDebianBuildFailure,
-    UnidentifiedDebianBuildError,
-    )
-from ..logs import rotate_logfile
 from ..buildlog import problem_to_upstream_requirement
 from ..fix_build import BuildFixer, resolve_error
+from ..logs import rotate_logfile
 from ..resolver.apt import (
     AptRequirement,
 )
 from .apt import AptManager
-from .build import attempt_build, DEFAULT_BUILDER, BUILD_LOG_FILENAME
-
+from .build import (
+    BUILD_LOG_FILENAME,
+    DEFAULT_BUILDER,
+    DetailedDebianBuildFailure,
+    UnidentifiedDebianBuildError,
+    attempt_build,
+)
 
 DEFAULT_MAX_ITERATIONS = 10
 
@@ -96,14 +92,14 @@ DEFAULT_MAX_ITERATIONS = 10
 class CircularDependency(Exception):
     """Adding dependency would introduce cycle."""
 
-    def __init__(self, package):
+    def __init__(self, package) -> None:
         self.package = package
 
 
 class DebianPackagingContext:
     def __init__(
         self, tree, subpath, committer, update_changelog, commit_reporter=None
-    ):
+    ) -> None:
         self.tree = tree
         self.subpath = subpath
         self.committer = committer
@@ -142,14 +138,14 @@ class DebianPackagingContext:
 
 
 class PackageDependencyFixer(BuildFixer):
-    def __init__(self, context, apt_resolver):
+    def __init__(self, context, apt_resolver) -> None:
         self.apt_resolver = apt_resolver
         self.context = context
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.apt_resolver)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.apt_resolver!r})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "upstream requirement fixer(%s)" % self.apt_resolver
 
     def can_fix(self, error):
@@ -268,7 +264,7 @@ def add_test_dependency(context, testname, requirement):
 
     logging.info("Adding dependency to test %s: %s", testname, desc)
     return context.commit(
-        "Add missing dependency for test {} on {}.".format(testname, desc),
+        f"Add missing dependency for test {testname} on {desc}.",
     )
 
 
@@ -380,7 +376,7 @@ def fix_missing_config_status_input(error, phase, context):
 
 
 class PgBuildExtOutOfDateControlFixer(BuildFixer):
-    def __init__(self, packaging_context, session, apt):
+    def __init__(self, packaging_context, session, apt) -> None:
         self.session = session
         self.context = packaging_context
         self.apt = apt
@@ -388,8 +384,8 @@ class PgBuildExtOutOfDateControlFixer(BuildFixer):
     def can_fix(self, problem):
         return isinstance(problem, NeedPgBuildExtUpdateControl)
 
-    def __repr__(self):
-        return "{}()".format(type(self).__name__)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
 
     def _fix(self, error, phase):
         logging.info("Running 'pg_buildext updatecontrol'")
@@ -427,12 +423,12 @@ def debcargo_coerce_unacceptable_prerelease(error, phase, context):
 
 
 class SimpleBuildFixer(BuildFixer):
-    def __init__(self, packaging_context, problem_cls: type[Problem], fn):
+    def __init__(self, packaging_context, problem_cls: type[Problem], fn) -> None:
         self.context = packaging_context
         self._problem_cls = problem_cls
         self._fn = fn
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({}, {})".format(
             type(self).__name__,
             self._problem_cls.__name__,
@@ -448,13 +444,13 @@ class SimpleBuildFixer(BuildFixer):
 
 class DependencyBuildFixer(BuildFixer):
     def __init__(self, packaging_context, apt_resolver,
-                 problem_cls: type[Problem], fn):
+                 problem_cls: type[Problem], fn) -> None:
         self.context = packaging_context
         self.apt_resolver = apt_resolver
         self._problem_cls = problem_cls
         self._fn = fn
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}({}, {})".format(
             type(self).__name__,
             self._problem_cls.__name__,
@@ -494,8 +490,8 @@ def versioned_package_fixers(session, packaging_context, apt: AptManager):
 def apt_fixers(apt: AptManager, packaging_context,
                dep_server_url: Optional[str] = None) -> list[BuildFixer]:
     from ..resolver.apt import AptResolver
-    from .udd import popcon_tie_breaker
     from .build_deps import BuildDependencyTieBreaker
+    from .udd import popcon_tie_breaker
 
     apt_tie_breakers = [
         partial(python_tie_breaker, packaging_context.tree,
@@ -676,13 +672,15 @@ def main(argv=None):
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
 
     args = parser.parse_args()
-    import breezy.git  # noqa: F401
+    import contextlib
+    import tempfile
+
     import breezy.bzr  # noqa: F401
+    import breezy.git  # noqa: F401
+
     from ..session import Session
     from ..session.plain import PlainSession
     from ..session.schroot import SchrootSession
-    import tempfile
-    import contextlib
 
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG, format="%(message)s")
@@ -735,7 +733,7 @@ def main(argv=None):
             elif len(e.phase) == 1:
                 phase = e.phase[0]
             else:
-                phase = "{} ({})".format(e.phase[0], e.phase[1])
+                phase = f"{e.phase[0]} ({e.phase[1]})"
             logging.fatal("Error during %s: %s", phase, e.error)
             if not args.output_directory:
                 rescue_build_log(output_directory, tree=tree)
@@ -746,7 +744,7 @@ def main(argv=None):
             elif len(e.phase) == 1:
                 phase = e.phase[0]
             else:
-                phase = "{} ({})".format(e.phase[0], e.phase[1])
+                phase = f"{e.phase[0]} ({e.phase[1]})"
             logging.fatal("Error during %s: %s", phase, e.description)
             if not args.output_directory:
                 rescue_build_log(output_directory, tree=tree)

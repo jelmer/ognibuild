@@ -19,7 +19,6 @@
 import os
 import stat
 
-
 __version__ = (0, 0, 18)
 version_string = '.'.join(map(str, __version__))
 
@@ -28,7 +27,7 @@ USER_AGENT = f"Ognibuild/{version_string}"
 
 
 class DetailedFailure(Exception):
-    def __init__(self, retcode, argv, error):
+    def __init__(self, retcode, argv, error) -> None:
         self.retcode = retcode
         self.argv = argv
         self.error = error
@@ -43,7 +42,7 @@ class DetailedFailure(Exception):
 class UnidentifiedError(Exception):
     """An unidentified error."""
 
-    def __init__(self, retcode, argv, lines, secondary=None):
+    def __init__(self, retcode, argv, lines, secondary=None) -> None:
         self.retcode = retcode
         self.argv = argv
         self.lines = lines
@@ -56,7 +55,7 @@ class UnidentifiedError(Exception):
                 self.lines == other.lines and
                 self.secondary == other.secondary)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<{}({!r}, {!r}, ..., secondary={!r})>".format(
             type(self).__name__,
             self.retcode,
@@ -79,9 +78,9 @@ def shebang_binary(p):
 
 
 class UnknownRequirementFamily(Exception):
-    """Requirement family is unknown"""
+    """Requirement family is unknown."""
 
-    def __init__(self, family):
+    def __init__(self, family) -> None:
         self.family = family
 
 
@@ -124,18 +123,18 @@ class OneOfRequirement(Requirement):
 
     family = 'or'
 
-    def __init__(self, elements):
+    def __init__(self, elements) -> None:
         self.elements = elements
 
     def met(self, session):
         return any(req.met(session) for req in self.elements)
 
-    def __repr__(self):
-        return "{}({!r})".format(type(self).__name__, self.elements)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.elements!r})"
 
 
 class UpstreamOutput:
-    def __init__(self, family):
+    def __init__(self, family) -> None:
         self.family = family
 
     def get_declared_dependencies(self):

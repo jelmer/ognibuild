@@ -15,14 +15,16 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-from ognibuild.buildlog import PROBLEM_CONVERTERS
+from unittest import TestCase
 
 from buildlog_consultant import (
-    problem_clses,
     __version__ as buildlog_consultant_version,
 )
+from buildlog_consultant import (
+    problem_clses,
+)
 
-from unittest import TestCase
+from ognibuild.buildlog import PROBLEM_CONVERTERS
 
 
 class TestProblemsExists(TestCase):

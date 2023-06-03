@@ -16,17 +16,17 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import apt_pkg
 import asyncio
-from contextlib import suppress
-from datetime import datetime
-from debian.deb822 import Release
+import logging
 import os
 import re
 import subprocess
 from collections.abc import AsyncIterator
-import logging
+from contextlib import suppress
+from datetime import datetime
 
+import apt_pkg
+from debian.deb822 import Release
 
 from .. import USER_AGENT
 from ..session import Session
@@ -68,11 +68,11 @@ def contents_urls_from_sources_entry(source, arches, load_url):
         dists_url = base_url + "/dists"
     else:
         dists_url = base_url
-    inrelease_url = "{}/{}/InRelease".format(dists_url, name)
+    inrelease_url = f"{dists_url}/{name}/InRelease"
     try:
         response = load_url(inrelease_url)
     except FileNotFoundError:
-        release_url = "{}/{}/Release".format(dists_url, name)
+        release_url = f"{dists_url}/{name}/Release"
         try:
             response = load_url(release_url)
         except FileNotFoundError as e:
@@ -92,14 +92,14 @@ def contents_urls_from_sources_entry(source, arches, load_url):
     if components:
         for component in components:
             for arch in arches:
-                contents_files.add("{}/Contents-{}".format(component, arch))
+                contents_files.add(f"{component}/Contents-{arch}")
     else:
         for arch in arches:
-            contents_files.add("Contents-{}".format(arch))
+            contents_files.add(f"Contents-{arch}")
 
     for fn in contents_files:
         if fn in existing_names:
-            url = "{}/{}/{}".format(dists_url, name, fn)
+            url = f"{dists_url}/{name}/{fn}"
             yield url
 
 
@@ -126,7 +126,7 @@ def _unwrap(f, ext):
 
 def load_direct_url(url):
     from urllib.error import HTTPError, URLError
-    from urllib.request import urlopen, Request
+    from urllib.request import Request, urlopen
 
     for ext in [".xz", ".gz", ""]:
         try:
@@ -136,10 +136,10 @@ def load_direct_url(url):
             if e.code == 404:
                 continue
             raise AptFileAccessError(
-                'Unable to access apt URL {}: {}'.format(url + ext, e)) from e
+                f'Unable to access apt URL {url + ext}: {e}') from e
         except URLError as e:
             raise AptFileAccessError(
-                'Unable to access apt URL {}: {}'.format(url + ext, e)) from e
+                f'Unable to access apt URL {url + ext}: {e}') from e
         break
     else:
         raise FileNotFoundError(url)
@@ -178,7 +178,7 @@ class AptFileFileSearcher(FileSearcher):
 
     CACHE_IS_EMPTY_PATH = '/usr/share/apt-file/is-cache-empty'
 
-    def __init__(self, session: Session):
+    def __init__(self, session: Session) -> None:
         self.session = session
 
     @classmethod
@@ -239,7 +239,7 @@ def get_apt_contents_file_searcher(session):
 
 
 class RemoteContentsFileSearcher(FileSearcher):
-    def __init__(self):
+    def __init__(self) -> None:
         self._db = {}
 
     @classmethod
@@ -303,7 +303,7 @@ class RemoteContentsFileSearcher(FileSearcher):
             except ContentsFileNotFound:
                 logging.warning("Unable to fetch contents file %s", url)
 
-    def __setitem__(self, path, package):
+    def __setitem__(self, path, package) -> None:
         self._db[path] = package
 
     async def search_files(self, path, regex=False, case_insensitive=False):
@@ -335,7 +335,7 @@ class RemoteContentsFileSearcher(FileSearcher):
 
 
 class GeneratedFileSearcher(FileSearcher):
-    def __init__(self, db):
+    def __init__(self, db) -> None:
         self._db = db
 
     @classmethod
@@ -403,6 +403,7 @@ async def get_packages_for_paths(
 
 def main(argv):
     import argparse
+
     from ..session.plain import PlainSession
 
     parser = argparse.ArgumentParser()

@@ -17,6 +17,7 @@
 
 import os
 from contextlib import suppress
+
 from debian.deb822 import Deb822
 
 from ..session import Session

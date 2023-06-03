@@ -22,7 +22,6 @@ from breezy.export import export
 from breezy.revisiontree import RevisionTree
 from breezy.tree import Tree
 from breezy.workingtree import WorkingTree
-
 from buildlog_consultant.sbuild import (
     NoSpaceOnDevice,
 )

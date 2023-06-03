@@ -109,6 +109,7 @@ async def handle_apt_simple(request):
 
 def main():
     import argparse
+
     from .session import Session
     parser = argparse.ArgumentParser()
     parser.add_argument('--listen-address', type=str, help='Listen address')

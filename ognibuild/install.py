@@ -18,7 +18,7 @@
 from functools import partial
 from typing import Optional
 
-from .buildsystem import NoBuildToolsFound, InstallTarget
+from .buildsystem import InstallTarget, NoBuildToolsFound
 from .fix_build import iterate_with_build_fixers
 from .logs import NoLogManager
 
