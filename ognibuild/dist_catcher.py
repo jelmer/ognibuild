@@ -48,7 +48,7 @@ class DistCatcher:
 
     def __init__(self, directories) -> None:
         self.directories = [os.path.abspath(d) for d in directories]
-        self.files = []
+        self.files: list[str] = []
         self.start_time = time.time()
 
     @classmethod

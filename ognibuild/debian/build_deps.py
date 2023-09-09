@@ -62,7 +62,8 @@ class BuildDependencyTieBreaker:
         by_count = {}
         for req in reqs:
             with suppress(KeyError):
-                by_count[req] = self._counts[list(req.package_names())[0]]
+                by_count[req] = (
+                    self._counts[list(req.package_names())[0]])  # type: ignore
         if not by_count:
             return None
         top = max(by_count.items(), key=lambda k: k[1])

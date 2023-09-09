@@ -240,7 +240,7 @@ def get_apt_contents_file_searcher(session):
 
 class RemoteContentsFileSearcher(FileSearcher):
     def __init__(self) -> None:
-        self._db = {}
+        self._db: dict[str, bytes] = {}
 
     @classmethod
     def from_session(cls, session):
@@ -321,8 +321,8 @@ class RemoteContentsFileSearcher(FileSearcher):
                 if c.match(p):
                     pkg = rest.split(b"/")[-1]
                     ret.append((p, pkg.decode("utf-8")))
-            for _p, pkg in sorted(ret):
-                yield pkg
+            for _p, package in sorted(ret):
+                yield package
         else:
             with suppress(KeyError):
                 yield self._db[path].split(b"/")[-1].decode("utf-8")

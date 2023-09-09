@@ -44,7 +44,8 @@ class SchrootSession(Session):
     session_id: Optional[str]
     session_prefix: Optional[str]
 
-    def __init__(self, chroot: str, *, session_prefix: Optional[str] = None) -> None:
+    def __init__(self, chroot: str, *,
+                 session_prefix: Optional[str] = None) -> None:
         if not isinstance(chroot, str):
             raise TypeError("not a valid chroot: %r" % chroot)
         self.chroot = chroot
