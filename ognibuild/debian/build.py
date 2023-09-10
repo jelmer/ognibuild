@@ -61,7 +61,8 @@ class ChangelogNotEditable(Exception):
 
 class DetailedDebianBuildFailure(DetailedFailure):
 
-    def __init__(self, stage, phase, retcode, argv, error, description) -> None:
+    def __init__(self, stage, phase, retcode, argv, error,
+                 description) -> None:
         super().__init__(retcode, argv, error)
         self.stage = stage
         self.phase = phase

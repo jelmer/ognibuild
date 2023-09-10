@@ -19,7 +19,7 @@
 import logging
 import os
 from collections.abc import Iterable
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from buildlog_consultant.apt import (
     find_apt_get_failure,
@@ -34,6 +34,9 @@ from .file_search import (
     get_apt_contents_file_searcher,
     get_packages_for_paths,
 )
+
+if TYPE_CHECKING:
+    import apt
 
 
 def run_apt(
@@ -64,6 +67,7 @@ class AptManager:
 
     session: Session
     _searchers: Optional[list[FileSearcher]]
+    _apt_cache: Optional["apt.Cache"]
 
     def __init__(self, session, prefix=None) -> None:
         self.session = session

@@ -527,7 +527,8 @@ class RPackageRequirement(Requirement):
     minimum_version: Optional[str]
     family = "r-package"
 
-    def __init__(self, package: str, minimum_version: Optional[str] = None) -> None:
+    def __init__(self, package: str,
+                 minimum_version: Optional[str] = None) -> None:
         self.package = package
         self.minimum_version = minimum_version
 
@@ -563,7 +564,8 @@ class OctavePackageRequirement(Requirement):
     minimum_version: Optional[str]
     family = "octave-package"
 
-    def __init__(self, package: str, minimum_version: Optional[str] = None) -> None:
+    def __init__(self, package: str,
+                 minimum_version: Optional[str] = None) -> None:
         self.package = package
         self.minimum_version = minimum_version
 
@@ -826,7 +828,8 @@ class PythonModuleRequirement(Requirement):
     minimum_version: Optional[str]
     family = "python-module"
 
-    def __init__(self, module, python_version=None, minimum_version=None) -> None:
+    def __init__(self, module, python_version=None,
+                 minimum_version=None) -> None:
         self.module = module
         self.python_version = python_version
         self.minimum_version = minimum_version

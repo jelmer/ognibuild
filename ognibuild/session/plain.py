@@ -29,7 +29,8 @@ from . import NoSessionOpen, Session, SessionAlreadyOpen
 class PlainSession(Session):
     """Session ignoring user."""
 
-    location = "/"
+    location: str = "/"
+    es: Optional[contextlib.ExitStack]
 
     def __init__(self) -> None:
         self.es = None

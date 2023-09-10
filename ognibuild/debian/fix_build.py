@@ -423,7 +423,8 @@ def debcargo_coerce_unacceptable_prerelease(error, phase, context):
 
 
 class SimpleBuildFixer(BuildFixer):
-    def __init__(self, packaging_context, problem_cls: type[Problem], fn) -> None:
+    def __init__(self, packaging_context,
+                 problem_cls: type[Problem], fn) -> None:
         self.context = packaging_context
         self._problem_cls = problem_cls
         self._fn = fn
