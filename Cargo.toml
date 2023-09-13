@@ -10,6 +10,7 @@ homepage = "https://github.com/jelmer/ognibuild"
 
 [dependencies]
 pyo3 = { workspace = true, features=["auto-initialize"]}
+rand = "0.8.5"
 
 [workspace.dependencies]
 pyo3 = "0.19"
