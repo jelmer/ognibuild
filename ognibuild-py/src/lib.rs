@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 
 #[pyfunction]
 fn sanitize_session_name(name: &str) -> String {
-    ognibuild::sanitize_session_name(name)
+    ognibuild::session::schroot::sanitize_session_name(name)
 }
 
 #[pymodule]
