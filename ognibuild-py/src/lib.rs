@@ -12,11 +12,12 @@ fn generate_session_id(name: &str) -> String {
 
 #[pyfunction]
 pub fn export_vcs_tree(
-    tree: &dyn breezyshim::tree::Tree,
-    directory: &std::path::Path,
-    subpath: Option<&std::path::Path>,
+    tree: PyObject,
+    directory: std::path::PathBuf,
+    subpath: Option<std::path::PathBuf>,
 ) -> Result<(), PyErr> {
-    ognibuild::vcs::export_vcs_tree(tree, directory, subpath)
+    let tree = breezyshim::tree::RevisionTree(tree);
+    ognibuild::vcs::export_vcs_tree(&tree, &directory, subpath.as_deref())
 }
 
 #[pymodule]
