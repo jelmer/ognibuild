@@ -1,13 +1,25 @@
 [package]
 name = "ognibuild"
-version = "0.0.19"
-authors = [ "Jelmer Vernooij <jelmer@jelmer.uk>",]
+version = { workspace = true }
+authors = [ "Jelmer Vernooij <jelmer@jelmer.uk>"]
 edition = "2021"
 license = "GPL-2.0+"
 description = "Detect and run any build system"
 repository = "https://github.com/jelmer/ognibuild.git"
 homepage = "https://github.com/jelmer/ognibuild"
 
-[dependencies.pyo3]
-version = "0.18"
-features = [ "auto-initialize",]
+[dependencies]
+breezyshim = { workspace = true }
+libc = "0.2.148"
+pyo3 = { workspace = true, features=["auto-initialize"]}
+rand = "0.8.5"
+
+[workspace.dependencies]
+pyo3 = "0.19"
+breezyshim = "0.1.27"
+
+[workspace]
+members = ["ognibuild-py"]
+
+[workspace.package]
+version = "0.0.18"

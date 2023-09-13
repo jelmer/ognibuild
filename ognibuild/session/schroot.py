@@ -17,23 +17,23 @@
 
 import logging
 import os
-import random
 import shlex
-import string
 import subprocess
 import tempfile
 from typing import Optional
 
 from . import NoSessionOpen, Session, SessionAlreadyOpen, SessionSetupFailure
 
+from .._ognibuild_rs import (
+    sanitize_session_name,
+    generate_session_id,
+)
 
-def sanitize_session_name(name):
-    return ''.join([x for x in name if x.isalnum() or x in '_-.'])
-
-
-def generate_session_id(prefix):
-    suffix = ''.join(random.choice(string.ascii_lowercase) for i in range(8))
-    return sanitize_session_name(prefix) + '-' + suffix
+__all__ = [
+    'sanitize_session_name',
+    'generate_session_id',
+    'SchrootSession',
+]
 
 
 class SchrootSession(Session):
