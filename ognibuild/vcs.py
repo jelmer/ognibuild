@@ -18,7 +18,6 @@
 import errno
 
 from breezy.errors import NotBranchError
-from breezy.export import export
 from breezy.revisiontree import RevisionTree
 from breezy.tree import Tree
 from breezy.workingtree import WorkingTree
@@ -27,15 +26,13 @@ from buildlog_consultant.sbuild import (
 )
 
 from . import DetailedFailure
+from ._ognibuild_rs import (
+    export_vcs_tree,
+)
 
-
-def export_vcs_tree(tree: Tree, directory: str, subpath: str = "") -> None:
-    try:
-        export(tree, directory, "dir", None, subdir=(subpath or None))
-    except OSError as e:
-        if e.errno == errno.ENOSPC:
-            raise DetailedFailure(1, ["export"], NoSpaceOnDevice()) from e
-        raise
+__all__ = [
+    'export_vcs_tree',
+]
 
 
 def dupe_vcs_tree(tree: Tree, directory: str) -> None:

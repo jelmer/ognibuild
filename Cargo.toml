@@ -9,11 +9,14 @@ repository = "https://github.com/jelmer/ognibuild.git"
 homepage = "https://github.com/jelmer/ognibuild"
 
 [dependencies]
+breezyshim = { workspace = true }
+libc = "0.2.148"
 pyo3 = { workspace = true, features=["auto-initialize"]}
 rand = "0.8.5"
 
 [workspace.dependencies]
 pyo3 = "0.19"
+breezyshim = "0.1.27"
 
 [workspace]
 members = ["ognibuild-py"]
