@@ -26,9 +26,7 @@ from typing import Optional
 
 from . import NoSessionOpen, Session, SessionAlreadyOpen, SessionSetupFailure
 
-
-def sanitize_session_name(name):
-    return ''.join([x for x in name if x.isalnum() or x in '_-.'])
+from .._ognibuild_rs import sanitize_session_name
 
 
 def generate_session_id(prefix):

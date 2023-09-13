@@ -1,0 +1,14 @@
+[package]
+name = "ognibuild-py"
+version = { workspace = true }
+authors = [ "Jelmer Vernooij <jelmer@jelmer.uk>"]
+edition = "2021"
+license = "GPL-2.0+"
+description = "Python bindings for ognibuild"
+
+[dependencies]
+ognibuild = { path = ".." }
+pyo3 = { workspace = true, features=["auto-initialize"]}
+
+[lib]
+crate-type = ["cdylib"]
