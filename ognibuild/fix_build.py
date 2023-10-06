@@ -15,9 +15,16 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+__all__ = [
+    'resolve_error',
+    'iterate_with_build_fixers',
+    'run_with_build_fixers',
+    'run_detecting_problems',
+]
+
 import logging
 from functools import partial
-from typing import Callable, Optional, TypeVar
+from typing import Callable, Optional
 
 from buildlog_consultant import Problem
 from buildlog_consultant.common import (
@@ -27,9 +34,7 @@ from buildlog_consultant.common import (
 
 from . import DetailedFailure, UnidentifiedError
 from .session import Session, run_with_tee
-
-# Number of attempts to fix a build before giving up.
-DEFAULT_LIMIT = 200
+from ._ognibuild_rs import resolve_error, iterate_with_build_fixers
 
 
 class FixerLimitReached(Exception):
@@ -52,7 +57,8 @@ class BuildFixer:
 
 
 def run_detecting_problems(
-        session: Session, args: list[str], check_success=None,
+        session: Session, args: list[str],
+        check_success: Optional[Callable[[int, list[str]], bool]] = None,
         quiet=False, **kwargs) -> list[str]:
     error: Optional[Problem]
     if not quiet:
@@ -81,57 +87,6 @@ def run_detecting_problems(
     raise DetailedFailure(retcode, args, error)
 
 
-T = TypeVar('T')
-
-
-def iterate_with_build_fixers(
-        fixers: list[BuildFixer],
-        cb: Callable[[], T], limit=DEFAULT_LIMIT) -> T:
-    """Call cb() until there are no more DetailedFailures we can fix.
-
-    Args:
-      fixers: List of fixers to use to resolve issues
-      cb: Callable to run the build
-      limit: Maximum number of fixing attempts before giving up
-    """
-    attempts = 0
-    fixed_errors = []
-    while True:
-        to_resolve = []
-        try:
-            return cb()
-        except DetailedFailure as e:
-            to_resolve.append(e)
-        while to_resolve:
-            f = to_resolve.pop(-1)
-            logging.info("Identified error: %r", f.error)
-            if f.error in fixed_errors:
-                logging.warning(
-                    "Failed to resolve error %r, it persisted. Giving up.",
-                    f.error
-                )
-                raise f
-            attempts += 1
-            if limit is not None and limit <= attempts:
-                raise FixerLimitReached(limit)
-            try:
-                resolved = resolve_error(f.error, None, fixers=fixers)
-            except DetailedFailure as n:
-                logging.info("New error %r while resolving %r", n, f)
-                if n in to_resolve:
-                    raise
-                to_resolve.append(f)
-                to_resolve.append(n)
-            else:
-                if not resolved:
-                    logging.warning(
-                        "Failed to find resolution for error %r. Giving up.",
-                        f.error
-                    )
-                    raise f
-                fixed_errors.append(f.error)
-
-
 def run_with_build_fixers(
      fixers: Optional[list[BuildFixer]], session: Session, args: list[str],
      quiet: bool = False, **kwargs
@@ -141,19 +96,3 @@ def run_with_build_fixers(
     return iterate_with_build_fixers(
         fixers,
         partial(run_detecting_problems, session, args, quiet=quiet, **kwargs))
-
-
-def resolve_error(error, phase, fixers) -> bool:
-    relevant_fixers = []
-    for fixer in fixers:
-        if fixer.can_fix(error):
-            relevant_fixers.append(fixer)
-    if not relevant_fixers:
-        logging.warning("No fixer found for %r", error)
-        return False
-    for fixer in relevant_fixers:
-        logging.info("Attempting to use fixer %s to address %r", fixer, error)
-        made_changes = fixer.fix(error, phase)
-        if made_changes:
-            return True
-    return False
