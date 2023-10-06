@@ -36,9 +36,6 @@ from . import DetailedFailure, UnidentifiedError
 from .session import Session, run_with_tee
 from ._ognibuild_rs import resolve_error, iterate_with_build_fixers
 
-# Number of attempts to fix a build before giving up.
-DEFAULT_LIMIT = 200
-
 
 class FixerLimitReached(Exception):
     """The maximum number of fixes has been reached."""
