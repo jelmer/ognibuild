@@ -9,7 +9,7 @@ description = "Python bindings for ognibuild"
 [dependencies]
 breezyshim = { workspace = true }
 ognibuild = { path = ".." }
-pyo3 = { workspace = true, features=["auto-initialize"]}
+pyo3 = { workspace = true, features=["extension-module"]}
 
 [lib]
 crate-type = ["cdylib"]

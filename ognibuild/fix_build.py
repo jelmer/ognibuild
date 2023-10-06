@@ -58,7 +58,7 @@ class BuildFixer:
 
 def run_detecting_problems(
         session: Session, args: list[str],
-        check_success: Callable[[int, list[str]], bool] | None = None,
+        check_success: Optional[Callable[[int, list[str]], bool]] = None,
         quiet=False, **kwargs) -> list[str]:
     error: Optional[Problem]
     if not quiet:

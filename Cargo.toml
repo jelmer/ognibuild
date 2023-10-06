@@ -12,7 +12,7 @@ homepage = "https://github.com/jelmer/ognibuild"
 breezyshim = { workspace = true }
 libc = "0.2.148"
 log = "0.4.20"
-pyo3 = { workspace = true, features=["auto-initialize"]}
+pyo3 = { workspace = true }
 rand = "0.8.5"
 
 [workspace.dependencies]
