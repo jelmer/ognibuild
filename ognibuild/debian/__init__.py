@@ -29,8 +29,11 @@ def satisfy_build_deps(session: Session, tree, debian_path):
     for name in ["Build-Depends", "Build-Depends-Indep", "Build-Depends-Arch"]:
         with suppress(KeyError):
             deps.append(source[name].strip().strip(","))
-    for name in ["Build-Conflicts", "Build-Conflicts-Indep",
-                 "Build-Conflicts-Arch"]:
+    for name in [
+        "Build-Conflicts",
+        "Build-Conflicts-Indep",
+        "Build-Conflicts-Arch",
+    ]:
         with suppress(KeyError):
             deps.append("Conflicts: " + source[name])
     deps = [dep.strip().strip(",") for dep in deps]

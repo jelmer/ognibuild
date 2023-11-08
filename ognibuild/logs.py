@@ -30,7 +30,7 @@ def copy_output(output_log: str, tee: bool = False):
         p = subprocess.Popen(["tee", output_log], stdin=subprocess.PIPE)
         newfd = p.stdin
     else:
-        newfd = open(output_log, 'wb')  # noqa: SIM115
+        newfd = open(output_log, "wb")  # noqa: SIM115
     os.dup2(newfd.fileno(), sys.stdout.fileno())  # type: ignore
     os.dup2(newfd.fileno(), sys.stderr.fileno())  # type: ignore
     try:
@@ -66,7 +66,8 @@ def rotate_logfile(source_path: str) -> None:
         (directory_path, name) = os.path.split(source_path)
         i = 1
         while os.path.exists(
-                os.path.join(directory_path, "%s.%d" % (name, i))):
+            os.path.join(directory_path, "%s.%d" % (name, i))
+        ):
             i += 1
         target_path = os.path.join(directory_path, "%s.%d" % (name, i))
         os.rename(source_path, target_path)
@@ -74,13 +75,11 @@ def rotate_logfile(source_path: str) -> None:
 
 
 class LogManager:
-
     def wrap(self, fn):
         raise NotImplementedError(self.wrap)
 
 
 class DirectoryLogManager(LogManager):
-
     def __init__(self, path, mode) -> None:
         self.path = path
         self.mode = mode
@@ -88,18 +87,18 @@ class DirectoryLogManager(LogManager):
     def wrap(self, fn):
         def _run(*args, **kwargs):
             rotate_logfile(self.path)
-            if self.mode == 'copy':
+            if self.mode == "copy":
                 with copy_output(self.path, tee=True):
                     return fn(*args, **kwargs)
-            elif self.mode == 'redirect':
+            elif self.mode == "redirect":
                 with copy_output(self.path, tee=False):
                     return fn(*args, **kwargs)
             else:
                 raise NotImplementedError(self.mode)
+
         return _run
 
 
 class NoLogManager(LogManager):
-
     def wrap(self, fn):
         return fn

@@ -24,8 +24,15 @@ from .logs import NoLogManager
 
 
 def run_install(
-        session, buildsystems, resolver, fixers, *, user: bool = False,
-        prefix: Optional[str] = None, log_manager=None):
+    session,
+    buildsystems,
+    resolver,
+    fixers,
+    *,
+    user: bool = False,
+    prefix: Optional[str] = None,
+    log_manager=None,
+):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
@@ -41,8 +48,9 @@ def run_install(
         iterate_with_build_fixers(
             fixers,
             log_manager.wrap(
-                partial(buildsystem.install, session, resolver,
-                        install_target)))
+                partial(buildsystem.install, session, resolver, install_target)
+            ),
+        )
         return
 
     raise NoBuildToolsFound()

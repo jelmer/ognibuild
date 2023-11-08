@@ -58,7 +58,8 @@ def popcon_tie_breaker(candidates):
     winner = udd.get_most_popular(list(names.keys()))
     if winner is None:
         logging.warning(
-            "No relevant popcon information found, not ranking by popcon")
+            "No relevant popcon information found, not ranking by popcon"
+        )
         return None
     logging.info("Picked winner using popcon")
     return names[winner]

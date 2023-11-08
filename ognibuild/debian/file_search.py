@@ -34,8 +34,8 @@ from ..session import Session
 
 class FileSearcher:
     def search_files(
-            self, path: str, regex: bool = False,
-            case_insensitive: bool = False) -> AsyncIterator[str]:
+        self, path: str, regex: bool = False, case_insensitive: bool = False
+    ) -> AsyncIterator[str]:
         raise NotImplementedError(self.search_files)
 
 
@@ -77,8 +77,10 @@ def contents_urls_from_sources_entry(source, arches, load_url):
             response = load_url(release_url)
         except FileNotFoundError as e:
             logging.warning(
-                "Unable to download %s or %s: %s", inrelease_url,
-                release_url, e
+                "Unable to download %s or %s: %s",
+                inrelease_url,
+                release_url,
+                e,
             )
             return
 
@@ -136,10 +138,12 @@ def load_direct_url(url):
             if e.code == 404:
                 continue
             raise AptFileAccessError(
-                f'Unable to access apt URL {url + ext}: {e}') from e
+                f"Unable to access apt URL {url + ext}: {e}"
+            ) from e
         except URLError as e:
             raise AptFileAccessError(
-                f'Unable to access apt URL {url + ext}: {e}') from e
+                f"Unable to access apt URL {url + ext}: {e}"
+            ) from e
         break
     else:
         raise FileNotFoundError(url)
@@ -166,17 +170,16 @@ def load_apt_cache_file(url, cache_dir):
 
             return lz4.frame.open(p, mode="rb")
         try:
-            f = open(p, "rb")   # noqa: SIM115
+            f = open(p, "rb")  # noqa: SIM115
         except PermissionError as e:
-            logging.warning('Unable to open %s: %s', p, e)
+            logging.warning("Unable to open %s: %s", p, e)
             raise FileNotFoundError(url) from e
         return _unwrap(f, ext)
     raise FileNotFoundError(url)
 
 
 class AptFileFileSearcher(FileSearcher):
-
-    CACHE_IS_EMPTY_PATH = '/usr/share/apt-file/is-cache-empty'
+    CACHE_IS_EMPTY_PATH = "/usr/share/apt-file/is-cache-empty"
 
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -196,39 +199,42 @@ class AptFileFileSearcher(FileSearcher):
 
     @classmethod
     def from_session(cls, session):
-        logging.debug('Using apt-file to search apt contents')
+        logging.debug("Using apt-file to search apt contents")
         if not os.path.exists(session.external_path(cls.CACHE_IS_EMPTY_PATH)):
             from .apt import AptManager
-            AptManager.from_session(session).install(['apt-file'])
+
+            AptManager.from_session(session).install(["apt-file"])
         if not cls.has_cache(session):
-            session.check_call(['apt-file', 'update'], user='root')
+            session.check_call(["apt-file", "update"], user="root")
         return cls(session)
 
     async def search_files(self, path, regex=False, case_insensitive=False):
         args = []
         if regex:
-            args.append('-x')
+            args.append("-x")
         else:
-            args.append('-F')
+            args.append("-F")
         if case_insensitive:
-            args.append('-i')
+            args.append("-i")
         args.append(path)
         process = await asyncio.create_subprocess_exec(
-            '/usr/bin/apt-file', 'search', *args,
-            stdout=asyncio.subprocess.PIPE)
+            "/usr/bin/apt-file",
+            "search",
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+        )
         (output, error) = await process.communicate(input=None)
         if process.returncode == 1:
             # No results
             return
         elif process.returncode == 3:
-            raise Exception('apt-file cache is empty')
+            raise Exception("apt-file cache is empty")
         elif process.returncode != 0:
-            raise Exception(
-                 "unexpected return code %r" % process.returncode)
+            raise Exception("unexpected return code %r" % process.returncode)
 
         for line in output.splitlines(False):
-            pkg, path = line.split(b': ')
-            yield pkg.decode('utf-8')
+            pkg, path = line.split(b": ")
+            yield pkg.decode("utf-8")
 
 
 def get_apt_contents_file_searcher(session):
@@ -266,7 +272,8 @@ class RemoteContentsFileSearcher(FileSearcher):
 
         urls = list(
             contents_urls_from_sourceslist(
-                sl, get_build_architecture(), load_url)
+                sl, get_build_architecture(), load_url
+            )
         )
         self._load_urls(urls, cache_dirs, load_url)
 
@@ -280,8 +287,8 @@ class RemoteContentsFileSearcher(FileSearcher):
         from .build import get_build_architecture
 
         cache_dirs = {
-                os.path.join(session.location, "var/lib/apt/lists"),
-                "/var/lib/apt/lists",
+            os.path.join(session.location, "var/lib/apt/lists"),
+            "/var/lib/apt/lists",
         }
 
         def load_url(url):
@@ -289,7 +296,9 @@ class RemoteContentsFileSearcher(FileSearcher):
 
         urls = list(
             contents_urls_from_sourceslist(
-                sl, get_build_architecture(), load_url))
+                sl, get_build_architecture(), load_url
+            )
+        )
         self._load_urls(urls, cache_dirs, load_url)
 
     def _load_urls(self, urls, cache_dirs, load_url):
@@ -351,8 +360,8 @@ class GeneratedFileSearcher(FileSearcher):
                 self._db.append(path, pkg)
 
     async def search_files(
-            self, path: str, regex: bool = False,
-            case_insensitive: bool = False):
+        self, path: str, regex: bool = False, case_insensitive: bool = False
+    ):
         for p, pkg in self._db:
             if regex:
                 flags = 0
@@ -408,9 +417,11 @@ def main(argv):
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "path", help="Path to search for.", type=str, nargs="*")
+        "path", help="Path to search for.", type=str, nargs="*"
+    )
     parser.add_argument(
-        "--regex", "-x", help="Search for regex.", action="store_true")
+        "--regex", "-x", help="Search for regex.", action="store_true"
+    )
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
@@ -423,8 +434,11 @@ def main(argv):
         main_searcher = get_apt_contents_file_searcher(session)
         searchers = [main_searcher, GENERATED_FILE_SEARCHER]
 
-        packages = asyncio.run(get_packages_for_paths(
-            args.path, searchers=searchers, regex=args.regex))
+        packages = asyncio.run(
+            get_packages_for_paths(
+                args.path, searchers=searchers, regex=args.regex
+            )
+        )
         for package in packages:
             print(package)
 

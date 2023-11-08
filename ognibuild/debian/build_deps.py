@@ -41,13 +41,17 @@ class BuildDependencyTieBreaker:
         counts: dict[str, int] = {}
         with self.apt:
             for source in self.apt.iter_sources():
-                for field in ['Build-Depends', 'Build-Depends-Indep',
-                              'Build-Depends-Arch']:
+                for field in [
+                    "Build-Depends",
+                    "Build-Depends-Indep",
+                    "Build-Depends-Arch",
+                ]:
                     for r in PkgRelation.parse_relations(
-                            source.get(field, '')):
+                        source.get(field, "")
+                    ):
                         for p in r:
-                            counts.setdefault(p['name'], 0)
-                            counts[p['name']] += 1
+                            counts.setdefault(p["name"], 0)
+                            counts[p["name"]] += 1
         return counts
 
     def __call__(self, reqs):
@@ -57,19 +61,19 @@ class BuildDependencyTieBreaker:
             except NoAptSources:
                 logging.warning(
                     "No 'deb-src' in sources.list, "
-                    "unable to break build-depends")
+                    "unable to break build-depends"
+                )
                 return None
         by_count = {}
         for req in reqs:
             with suppress(KeyError):
-                by_count[req] = (
-                    self._counts[list(req.package_names())[0]])  # type: ignore
+                by_count[req] = self._counts[list(req.package_names())[0]]  # type: ignore
         if not by_count:
             return None
         top = max(by_count.items(), key=lambda k: k[1])
         logging.info(
             "Breaking tie between [%s] to %s based on build-depends count",
-            ', '.join([repr(r.pkg_relation_str()) for r in reqs]),
+            ", ".join([repr(r.pkg_relation_str()) for r in reqs]),
             repr(top[0].pkg_relation_str()),
         )
         return top[0]

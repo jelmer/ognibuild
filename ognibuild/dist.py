@@ -47,30 +47,54 @@ from .resolver import auto_resolver
 from .session import Session
 from .session.schroot import SchrootSession
 
-DIST_LOG_FILENAME = 'dist.log'
+DIST_LOG_FILENAME = "dist.log"
 
 
-def run_dist(session, buildsystems, resolver, fixers, target_directory,
-             quiet=False, log_manager=None):
+def run_dist(
+    session,
+    buildsystems,
+    resolver,
+    fixers,
+    target_directory,
+    quiet=False,
+    log_manager=None,
+):
     # Some things want to write to the user's home directory,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
-    logging.info('Using dependency resolver: %s', resolver)
+    logging.info("Using dependency resolver: %s", resolver)
 
     if log_manager is None:
         log_manager = NoLogManager()
 
     for buildsystem in buildsystems:
-        return iterate_with_build_fixers(fixers, log_manager.wrap(
-            partial(buildsystem.dist, session, resolver, target_directory,
-                    quiet=quiet)))
+        return iterate_with_build_fixers(
+            fixers,
+            log_manager.wrap(
+                partial(
+                    buildsystem.dist,
+                    session,
+                    resolver,
+                    target_directory,
+                    quiet=quiet,
+                )
+            ),
+        )
 
     raise NoBuildToolsFound()
 
 
-def dist(session, export_directory, reldir, target_dir, log_manager, *,
-         version: Optional[str] = None, quiet=False):
+def dist(
+    session,
+    export_directory,
+    reldir,
+    target_dir,
+    log_manager,
+    *,
+    version: Optional[str] = None,
+    quiet=False,
+):
     from .buildlog import InstallFixer
     from .buildsystem import detect_buildsystems
     from .fix_build import BuildFixer
@@ -85,7 +109,7 @@ def dist(session, export_directory, reldir, target_dir, log_manager, *,
 
     if version:
         # TODO(jelmer): Shouldn't include backend-specific code here
-        os.environ['SETUPTOOLS_SCM_PRETEND_VERSION'] = version
+        os.environ["SETUPTOOLS_SCM_PRETEND_VERSION"] = version
 
     # TODO(jelmer): use scan_buildsystems to also look in subdirectories
     buildsystems = list(detect_buildsystems(export_directory))
@@ -95,14 +119,17 @@ def dist(session, export_directory, reldir, target_dir, log_manager, *,
         GnulibDirectoryFixer(session),
         MinimumAutoconfFixer(session),
         MissingGoSumEntryFixer(session),
-        InstallFixer(resolver)]
+        InstallFixer(resolver),
+    ]
 
     if session.is_temporary:
         # Only muck about with temporary sessions
-        fixers.extend([
-            GitIdentityFixer(session),
-            SecretGpgKeyFixer(session),
-        ])
+        fixers.extend(
+            [
+                GitIdentityFixer(session),
+                SecretGpgKeyFixer(session),
+            ]
+        )
 
     session.chdir(reldir)
 
@@ -110,13 +137,21 @@ def dist(session, export_directory, reldir, target_dir, log_manager, *,
     # e.g. pip caches in ~/.cache
     session.create_home()
 
-    logging.info('Using dependency resolver: %s', resolver)
+    logging.info("Using dependency resolver: %s", resolver)
 
     for buildsystem in buildsystems:
-        return iterate_with_build_fixers(fixers, log_manager.wrap(
-            partial(
-                buildsystem.dist, session, resolver, target_dir,
-                quiet=quiet)))
+        return iterate_with_build_fixers(
+            fixers,
+            log_manager.wrap(
+                partial(
+                    buildsystem.dist,
+                    session,
+                    resolver,
+                    target_dir,
+                    quiet=quiet,
+                )
+            ),
+        )
 
     raise NoBuildToolsFound()
 
@@ -130,7 +165,7 @@ def create_dist(
     subdir: Optional[str] = None,
     log_manager: Optional[LogManager] = None,
     version: Optional[str] = None,
-    subpath: str = ""
+    subpath: str = "",
 ) -> Optional[str]:
     """Create a dist tarball for a tree.
 
@@ -155,9 +190,14 @@ def create_dist(
     if log_manager is None:
         log_manager = NoLogManager()
 
-    return dist(session, os.path.join(export_directory, subpath),
-                os.path.join(reldir, subpath), target_dir,
-                log_manager=log_manager, version=version)
+    return dist(
+        session,
+        os.path.join(export_directory, subpath),
+        os.path.join(reldir, subpath),
+        target_dir,
+        log_manager=log_manager,
+        version=version,
+    )
 
 
 def create_dist_schroot(
@@ -187,9 +227,14 @@ def create_dist_schroot(
 
             satisfy_build_deps(session, packaging_tree, packaging_subpath)
         return create_dist(
-                session, tree, target_dir, subpath=subpath,
-                include_controldir=include_controldir, subdir=subdir,
-                log_manager=log_manager)
+            session,
+            tree,
+            target_dir,
+            subpath=subpath,
+            include_controldir=include_controldir,
+            subdir=subdir,
+            log_manager=log_manager,
+        )
 
 
 def main(argv=None):
@@ -220,12 +265,16 @@ def main(argv=None):
         "--target-directory", type=str, default="..", help="Target directory"
     )
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
-    parser.add_argument("--mode", choices=["auto", "vcs", "buildsystem"],
-                        type=str,
-                        help="Mechanism to use to create buildsystem")
     parser.add_argument(
-        "--include-controldir", action="store_true",
-        help="Clone rather than export."
+        "--mode",
+        choices=["auto", "vcs", "buildsystem"],
+        type=str,
+        help="Mechanism to use to create buildsystem",
+    )
+    parser.add_argument(
+        "--include-controldir",
+        action="store_true",
+        help="Clone rather than export.",
     )
 
     args = parser.parse_args()
@@ -243,17 +292,16 @@ def main(argv=None):
     if args.packaging_directory:
         packaging_tree = WorkingTree.open(args.packaging_directory)
         with packaging_tree.lock_read():  # type: ignore
-            source = Deb822(
-                packaging_tree.get_file("debian/control"))  # type: ignore
+            source = Deb822(packaging_tree.get_file("debian/control"))  # type: ignore
         package = source["Source"]
         subdir = package
     else:
         packaging_tree = None
         subdir = None
 
-    if args.mode == 'vcs':
+    if args.mode == "vcs":
         export(tree, "dist.tar.gz", "tgz", None)
-    elif args.mode in ('auto', 'buildsystem'):
+    elif args.mode in ("auto", "buildsystem"):
         try:
             ret = create_dist_schroot(
                 tree,
@@ -265,15 +313,16 @@ def main(argv=None):
                 subpath=subpath,
             )
         except NoBuildToolsFound:
-            if args.mode == 'buildsystem':
-                logging.fatal('No build tools found, unable to create tarball')
+            if args.mode == "buildsystem":
+                logging.fatal("No build tools found, unable to create tarball")
                 return 1
             logging.info(
-                "No build tools found, falling back to simple export.")
+                "No build tools found, falling back to simple export."
+            )
             export(tree, "dist.tar.gz", "tgz", None, subdir=subpath)
         except NotImplementedError:
-            if args.mode == 'buildsystem':
-                logging.fatal('Unable to ask buildsystem for tarball')
+            if args.mode == "buildsystem":
+                logging.fatal("Unable to ask buildsystem for tarball")
                 return 1
             logging.info(
                 "Build system does not support dist tarball creation, "

@@ -69,14 +69,19 @@ class Session:
         raise NotImplementedError(self.check_output)
 
     def Popen(
-        self, argv, cwd: Optional[str] = None, user: Optional[str] = None,
-        **kwargs
+        self,
+        argv,
+        cwd: Optional[str] = None,
+        user: Optional[str] = None,
+        **kwargs,
     ):
         raise NotImplementedError(self.Popen)
 
     def call(
-        self, argv: list[str], cwd: Optional[str] = None,
-        user: Optional[str] = None
+        self,
+        argv: list[str],
+        cwd: Optional[str] = None,
+        user: Optional[str] = None,
     ):
         raise NotImplementedError(self.call)
 
@@ -116,12 +121,14 @@ class SessionSetupFailure(Exception):
         self.errlines = errlines
 
 
-def run_with_tee(session: Session,
-                 args: list[str], **kwargs) -> tuple[int, list[str]]:
+def run_with_tee(
+    session: Session, args: list[str], **kwargs
+) -> tuple[int, list[str]]:
     if "stdin" not in kwargs:
         kwargs["stdin"] = subprocess.DEVNULL
     p = session.Popen(
-        args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs)
+        args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs
+    )
     contents = []
     while p.poll() is None:
         line = p.stdout.readline()
@@ -132,8 +139,11 @@ def run_with_tee(session: Session,
 
 
 def get_user(session):
-    return session.check_output(
-        ["sh", "-c", "echo $USER"], cwd="/").decode().strip()
+    return (
+        session.check_output(["sh", "-c", "echo $USER"], cwd="/")
+        .decode()
+        .strip()
+    )
 
 
 def which(session, name):

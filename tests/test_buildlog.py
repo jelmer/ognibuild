@@ -28,7 +28,6 @@ from ognibuild.buildlog import PROBLEM_CONVERTERS
 
 
 class TestProblemsExists(TestCase):
-
     def test_exist(self):
         for entry in PROBLEM_CONVERTERS:
             if len(entry) == 2:
@@ -40,7 +39,8 @@ class TestProblemsExists(TestCase):
                 raise TypeError(entry)
             if min_version is not None:
                 min_version_tuple = tuple(
-                    [int(x) for x in min_version.split('.')])
+                    [int(x) for x in min_version.split(".")]
+                )
                 if buildlog_consultant_version < min_version_tuple:
                     continue
             else:
@@ -50,5 +50,5 @@ class TestProblemsExists(TestCase):
                 problem_clses,
                 f"{problem_kind} (>= {min_version_tuple}) "
                 f"does not exist in known buildlog-consultant "
-                f"(= {buildlog_consultant_version}) problem kinds"
+                f"(= {buildlog_consultant_version}) problem kinds",
             )

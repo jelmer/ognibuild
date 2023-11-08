@@ -32,7 +32,6 @@ class UnsatisfiedRequirements(Exception):
 
 
 class Resolver:
-
     name: str
 
     def __init__(self, session: Session, user_local: bool) -> None:
@@ -124,9 +123,10 @@ class TlmgrResolver(Resolver):
         self.repository = repository
 
     def __str__(self) -> str:
-        if (self.repository.startswith('http://')
-                or self.repository.startswith('https://')):
-            return 'tlmgr(%r)' % self.repository
+        if self.repository.startswith("http://") or self.repository.startswith(
+            "https://"
+        ):
+            return "tlmgr(%r)" % self.repository
         else:
             return self.repository
 
@@ -169,9 +169,11 @@ class TlmgrResolver(Resolver):
             try:
                 run_detecting_problems(self.session, cmd, user=user)
             except UnidentifiedError as e:
-                if ("tlmgr: user mode not initialized, "
-                        "please read the documentation!") in e.lines:
-                    self.session.check_call(['tlmgr', 'init-usertree'])
+                if (
+                    "tlmgr: user mode not initialized, "
+                    "please read the documentation!"
+                ) in e.lines:
+                    self.session.check_call(["tlmgr", "init-usertree"])
                 else:
                     raise
         if missing:
@@ -182,12 +184,10 @@ class CTANResolver(TlmgrResolver):
     name = "ctan"
 
     def __init__(self, session, user_local=False) -> None:
-        super().__init__(
-            session, "ctan", user_local=user_local)
+        super().__init__(session, "ctan", user_local=user_local)
 
 
 class RResolver(Resolver):
-
     name: str
 
     def __init__(self, session, repos, user_local=False) -> None:
@@ -206,8 +206,7 @@ class RResolver(Resolver):
         return [
             "R",
             "-e",
-            f"install.packages('{req.package}', repos={self.repos!r})"
-            ,
+            f"install.packages('{req.package}', repos={self.repos!r})",
         ]
 
     def explain(self, requirements):
@@ -303,13 +302,13 @@ class BioconductorResolver(RResolver):
 
     def __init__(self, session, user_local=False) -> None:
         super().__init__(
-            session, "https://hedgehog.fhcrc.org/bioconductor",
-            user_local=user_local
+            session,
+            "https://hedgehog.fhcrc.org/bioconductor",
+            user_local=user_local,
         )
 
 
 class HackageResolver(Resolver):
-
     name = "hackage"
 
     def __init__(self, session, user_local=False) -> None:
@@ -326,8 +325,9 @@ class HackageResolver(Resolver):
         extra_args = []
         if self.user_local:
             extra_args.append("--user")
-        return (["cabal", "install"] + extra_args
-                + [req.package for req in reqs])
+        return (
+            ["cabal", "install"] + extra_args + [req.package for req in reqs]
+        )
 
     def install(self, requirements):
         from ..requirements import HaskellPackageRequirement
@@ -361,7 +361,6 @@ class HackageResolver(Resolver):
 
 
 class PypiResolver(Resolver):
-
     name = "pypi"
 
     def __init__(self, session, user_local=False) -> None:
@@ -415,7 +414,6 @@ class PypiResolver(Resolver):
 
 
 class GoResolver(Resolver):
-
     name = "go"
 
     def __init__(self, session, user_local) -> None:
@@ -495,6 +493,7 @@ class NpmResolver(Resolver):
             NodeModuleRequirement,
             NodePackageRequirement,
         )
+
         if isinstance(requirement, BinaryRequirement):
             try:
                 package = NPM_COMMAND_PACKAGES[requirement.binary_name]
@@ -505,8 +504,8 @@ class NpmResolver(Resolver):
         if isinstance(requirement, NodeModuleRequirement):
             # TODO: Is this legit?
             parts = requirement.module.split("/")
-            if parts[0].startswith('@'):
-                return NodePackageRequirement('/'.join(parts[:2]))
+            if parts[0].startswith("@"):
+                return NodePackageRequirement("/".join(parts[:2]))
             else:
                 return NodePackageRequirement(parts[0])
         if isinstance(requirement, NodePackageRequirement):
@@ -527,7 +526,7 @@ class NpmResolver(Resolver):
                 continue
             cmd = ["npm", "install"]
             if not self.user_local:
-                cmd.append('-g')
+                cmd.append("-g")
             cmd.append(node_pkg_requirement.package)
             logging.info("npm: running %r", cmd)
             run_detecting_problems(self.session, cmd, user=user)
@@ -594,11 +593,13 @@ NATIVE_RESOLVER_CLS: list[type[Resolver]] = [
 
 def native_resolvers(session, user_local):
     return StackedResolver(
-        [kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
+        [kls(session, user_local) for kls in NATIVE_RESOLVER_CLS]
+    )
 
 
-def select_resolvers(session, user_local, resolvers,
-                     dep_server_url=None) -> Optional[Resolver]:
+def select_resolvers(
+    session, user_local, resolvers, dep_server_url=None
+) -> Optional[Resolver]:
     selected = []
     for resolver in resolvers:
         for kls in NATIVE_RESOLVER_CLS:
@@ -606,19 +607,26 @@ def select_resolvers(session, user_local, resolvers,
                 selected.append(kls(session, user_local))
                 break
         else:
-            if resolver == 'native':
-                selected.extend([
-                    kls(session, user_local) for kls in NATIVE_RESOLVER_CLS])
-            elif resolver == 'apt':
+            if resolver == "native":
+                selected.extend(
+                    [kls(session, user_local) for kls in NATIVE_RESOLVER_CLS]
+                )
+            elif resolver == "apt":
                 if user_local:
                     raise NotImplementedError(
-                        'user local not supported for apt')
+                        "user local not supported for apt"
+                    )
                 if dep_server_url:
                     from .dep_server import DepServerAptResolver
-                    selected.append(DepServerAptResolver.from_session(
-                        session, dep_server_url))
+
+                    selected.append(
+                        DepServerAptResolver.from_session(
+                            session, dep_server_url
+                        )
+                    )
                 else:
                     from .apt import AptResolver
+
                     selected.append(AptResolver.from_session(session))
             else:
                 raise KeyError(resolver)
@@ -629,9 +637,12 @@ def select_resolvers(session, user_local, resolvers,
     return StackedResolver(selected)
 
 
-def auto_resolver(session: Session, explain: bool = False,
-                  system_wide: Optional[bool] = None,
-                  dep_server_url: Optional[str] = None):
+def auto_resolver(
+    session: Session,
+    explain: bool = False,
+    system_wide: Optional[bool] = None,
+    dep_server_url: Optional[str] = None,
+):
     # if session is SchrootSession or if we're root, use apt
     from ..session import get_user
     from ..session.schroot import SchrootSession
@@ -653,10 +664,13 @@ def auto_resolver(session: Session, explain: bool = False,
         else:
             if dep_server_url:
                 from .dep_server import DepServerAptResolver
+
                 resolvers.append(
-                    DepServerAptResolver.from_session(session, dep_server_url))
+                    DepServerAptResolver.from_session(session, dep_server_url)
+                )
             else:
                 resolvers.append(AptResolver.from_session(session))
-    resolvers.extend([kls(session, not system_wide)
-                      for kls in NATIVE_RESOLVER_CLS])
+    resolvers.extend(
+        [kls(session, not system_wide) for kls in NATIVE_RESOLVER_CLS]
+    )
     return StackedResolver(resolvers)

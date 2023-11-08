@@ -16,10 +16,10 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 __all__ = [
-    'resolve_error',
-    'iterate_with_build_fixers',
-    'run_with_build_fixers',
-    'run_detecting_problems',
+    "resolve_error",
+    "iterate_with_build_fixers",
+    "run_with_build_fixers",
+    "run_detecting_problems",
 ]
 
 import logging
@@ -57,15 +57,20 @@ class BuildFixer:
 
 
 def run_detecting_problems(
-        session: Session, args: list[str],
-        check_success: Optional[Callable[[int, list[str]], bool]] = None,
-        quiet=False, **kwargs) -> list[str]:
+    session: Session,
+    args: list[str],
+    check_success: Optional[Callable[[int, list[str]], bool]] = None,
+    quiet=False,
+    **kwargs,
+) -> list[str]:
     error: Optional[Problem]
     if not quiet:
-        logging.info('Running %r', args)
+        logging.info("Running %r", args)
     if check_success is None:
+
         def check_success(retcode, contents):
-            return (retcode == 0)
+            return retcode == 0
+
     try:
         retcode, contents = run_with_tee(session, args, **kwargs)
     except FileNotFoundError:
@@ -82,17 +87,22 @@ def run_detecting_problems(
                 logging.warning("%s", match.line.rstrip("\n"))
             else:
                 logging.warning(
-                    "Build failed and unable to find cause. Giving up.")
+                    "Build failed and unable to find cause. Giving up."
+                )
             raise UnidentifiedError(retcode, args, lines, secondary=match)
     raise DetailedFailure(retcode, args, error)
 
 
 def run_with_build_fixers(
-     fixers: Optional[list[BuildFixer]], session: Session, args: list[str],
-     quiet: bool = False, **kwargs
+    fixers: Optional[list[BuildFixer]],
+    session: Session,
+    args: list[str],
+    quiet: bool = False,
+    **kwargs,
 ) -> list[str]:
     if fixers is None:
         fixers = []
     return iterate_with_build_fixers(
         fixers,
-        partial(run_detecting_problems, session, args, quiet=quiet, **kwargs))
+        partial(run_detecting_problems, session, args, quiet=quiet, **kwargs),
+    )

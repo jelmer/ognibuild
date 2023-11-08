@@ -53,34 +53,42 @@ from .requirements import (
 from .resolver import UnsatisfiedRequirements
 
 
-def problem_to_upstream_requirement(
-        problem: Problem) -> Optional[Requirement]:  # noqa: C901
+def problem_to_upstream_requirement(problem: Problem) -> Optional[Requirement]:  # noqa: C901
     for entry in PROBLEM_CONVERTERS:
         kind, fn = entry[:2]
         if kind == problem.kind:
             return fn(problem)
     if isinstance(problem, MissingCMakeComponents):
-        if problem.name.lower() == 'boost':
+        if problem.name.lower() == "boost":
             return OneOfRequirement(
-                [BoostComponentRequirement(name)
-                 for name in problem.components])
-        elif problem.name.lower() == 'kf5':
+                [
+                    BoostComponentRequirement(name)
+                    for name in problem.components
+                ]
+            )
+        elif problem.name.lower() == "kf5":
             return OneOfRequirement(
-                [KF5ComponentRequirement(name) for name in problem.components])
+                [KF5ComponentRequirement(name) for name in problem.components]
+            )
         return None
     elif isinstance(problem, MissingLatexFile):
-        if problem.filename.endswith('.sty'):
+        if problem.filename.endswith(".sty"):
             return LatexPackageRequirement(problem.filename[:-4])
         return None
     elif isinstance(problem, MissingHaskellDependencies):
         return OneOfRequirement(
-            [HaskellPackageRequirement.from_string(dep)
-             for dep in problem.deps])
+            [
+                HaskellPackageRequirement.from_string(dep)
+                for dep in problem.deps
+            ]
+        )
     elif isinstance(problem, MissingMavenArtifacts):
-        return OneOfRequirement([
-            MavenArtifactRequirement.from_str(artifact)
-            for artifact in problem.artifacts
-        ])
+        return OneOfRequirement(
+            [
+                MavenArtifactRequirement.from_str(artifact)
+                for artifact in problem.artifacts
+            ]
+        )
     elif isinstance(problem, MissingPerlPredeclared):
         ret = PerlPreDeclaredRequirement(problem.name)
         try:
@@ -100,7 +108,7 @@ def problem_to_upstream_requirement(
         else:
             logging.warning(
                 "No known command for gnome-common dependency %s",
-                problem.package
+                problem.package,
             )
             return None
     elif isinstance(problem, MissingXfceDependency):
@@ -108,20 +116,21 @@ def problem_to_upstream_requirement(
             return BinaryRequirement("gtkdocize")
         else:
             logging.warning(
-                "No known command for xfce dependency %s", problem.package)
+                "No known command for xfce dependency %s", problem.package
+            )
             return None
     elif isinstance(problem, MissingPerlFile):
         return PerlFileRequirement(filename=problem.filename)
-    elif problem.kind == 'unsatisfied-apt-dependencies':
+    elif problem.kind == "unsatisfied-apt-dependencies":
         from buildlog_consultant.apt import UnsatisfiedAptDependencies
 
         from .resolver.apt import AptRequirement
+
         return AptRequirement(
-            cast(UnsatisfiedAptDependencies, problem).relations)
+            cast(UnsatisfiedAptDependencies, problem).relations
+        )
     else:
-        logging.warning(
-            'Unable to determine how to deal with %r',
-            problem)
+        logging.warning("Unable to determine how to deal with %r", problem)
         return None
 
 

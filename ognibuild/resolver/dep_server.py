@@ -32,19 +32,18 @@ from .apt import AptRequirement, AptResolver
 
 
 class DepServerError(Exception):
-
     def __init__(self, inner) -> None:
         self.inner = inner
 
 
 class RequirementFamilyUnknown(DepServerError):
-
     def __init__(self, family) -> None:
         self.family = family
 
 
 async def resolve_apt_requirement_dep_server(
-        url: str, req: Requirement) -> list[AptRequirement]:
+    url: str, req: Requirement
+) -> list[AptRequirement]:
     """Resolve a requirement to an APT requirement with a dep server.
 
     Args:
@@ -55,34 +54,37 @@ async def resolve_apt_requirement_dep_server(
     """
     async with ClientSession() as session:
         try:
-            async with session.post(URL(url) / "resolve-apt", headers={
-                    'User-Agent': USER_AGENT},
-                    json={'requirement': req.json()},
-                    raise_for_status=True) as resp:
+            async with session.post(
+                URL(url) / "resolve-apt",
+                headers={"User-Agent": USER_AGENT},
+                json={"requirement": req.json()},
+                raise_for_status=True,
+            ) as resp:
                 return [
-                    AptRequirement._from_json(e) for e in await resp.json()]
+                    AptRequirement._from_json(e) for e in await resp.json()
+                ]
         except ClientResponseError as e:
             if e.status == 404:  # noqa: SIM102
-                if e.headers.get('Reason') == 'family-unknown':  # type: ignore
+                if e.headers.get("Reason") == "family-unknown":  # type: ignore
                     raise RequirementFamilyUnknown(family=req.family) from e
             raise DepServerError(e) from e
-        except (ClientConnectorError,
-                ServerDisconnectedError) as e:
-            logging.warning('Unable to contact dep server: %r', e)
+        except (ClientConnectorError, ServerDisconnectedError) as e:
+            logging.warning("Unable to contact dep server: %r", e)
             raise DepServerError(e) from e
 
 
 class DepServerAptResolver(AptResolver):
     def __init__(self, apt, dep_server_url, tie_breakers=None) -> None:
-        super().__init__(
-            apt, tie_breakers=tie_breakers)
+        super().__init__(apt, tie_breakers=tie_breakers)
         self.dep_server_url = dep_server_url
 
     @classmethod
     def from_session(cls, session, dep_server_url, tie_breakers=None):
         return cls(
-            AptManager.from_session(session), dep_server_url,
-            tie_breakers=tie_breakers)
+            AptManager.from_session(session),
+            dep_server_url,
+            tie_breakers=tie_breakers,
+        )
 
     def resolve_all(self, req: Requirement):
         try:
@@ -91,7 +93,8 @@ class DepServerAptResolver(AptResolver):
             return super().resolve_all(req)
         try:
             return asyncio.run(
-                resolve_apt_requirement_dep_server(self.dep_server_url, req))
+                resolve_apt_requirement_dep_server(self.dep_server_url, req)
+            )
         except DepServerError:
-            logging.warning('Falling back to resolving error locally')
+            logging.warning("Falling back to resolving error locally")
             return super().resolve_all(req)
