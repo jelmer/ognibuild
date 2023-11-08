@@ -541,8 +541,7 @@ class RPackageRequirement(Requirement):
 
     def __str__(self) -> str:
         if self.minimum_version:
-            return "R package: {} (>= {})".format(
-                self.package, self.minimum_version)
+            return f"R package: {self.package} (>= {self.minimum_version})"
         else:
             return f"R package: {self.package}"
 

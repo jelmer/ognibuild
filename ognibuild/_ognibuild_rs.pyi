@@ -1,6 +1,7 @@
+from typing import Callable, TypeVar
+
 from breezy.tree import Tree
-from typing import TypeVar, Callable
-from buildlog_consultant import Problem
+
 from .fix_build import BuildFixer
 
 DEFAULT_LIMIT = 200

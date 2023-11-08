@@ -131,8 +131,7 @@ class TlmgrResolver(Resolver):
             return self.repository
 
     def __repr__(self) -> str:
-        return "{}({!r}, {!r})".format(
-            type(self).__name__, self.session, self.repository)
+        return f"{type(self).__name__}({self.session!r}, {self.repository!r})"
 
     def _cmd(self, reqs):
         ret = ["tlmgr", "--repository=%s" % self.repository, "install"]
@@ -200,16 +199,15 @@ class RResolver(Resolver):
         return self.name
 
     def __repr__(self) -> str:
-        return "{}({!r}, {!r})".format(
-            type(self).__name__, self.session, self.repos)
+        return f"{type(self).__name__}({self.session!r}, {self.repos!r})"
 
     def _cmd(self, req):
         # TODO(jelmer: Handle self.user_local
         return [
             "R",
             "-e",
-            "install.packages('{}', repos={!r})"
-            .format(req.package, self.repos),
+            f"install.packages('{req.package}', repos={self.repos!r})"
+            ,
         ]
 
     def explain(self, requirements):

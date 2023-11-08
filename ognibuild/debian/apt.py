@@ -19,7 +19,7 @@
 import logging
 import os
 from collections.abc import Iterable
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from buildlog_consultant.apt import (
     find_apt_get_failure,

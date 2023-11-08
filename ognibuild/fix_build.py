@@ -33,8 +33,8 @@ from buildlog_consultant.common import (
 )
 
 from . import DetailedFailure, UnidentifiedError
+from ._ognibuild_rs import iterate_with_build_fixers, resolve_error
 from .session import Session, run_with_tee
-from ._ognibuild_rs import resolve_error, iterate_with_build_fixers
 
 
 class FixerLimitReached(Exception):

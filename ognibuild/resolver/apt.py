@@ -124,8 +124,7 @@ class AptRequirement(Requirement):
         return "apt requirement: %s" % self.pkg_relation_str()
 
     def __repr__(self) -> str:
-        return "{}.from_str({!r})".format(
-            type(self).__name__, self.pkg_relation_str())
+        return f"{type(self).__name__}.from_str({self.pkg_relation_str()!r})"
 
     def package_names(self):
         for rel in self.relations:
@@ -980,8 +979,7 @@ class AptResolver(Resolver):
         return "apt"
 
     def __repr__(self) -> str:
-        return "{}({!r}, {!r})".format(
-            type(self).__name__, self.apt, self.tie_breakers)
+        return f"{type(self).__name__}({self.apt!r}, {self.tie_breakers!r})"
 
     @classmethod
     def from_session(cls, session, tie_breakers=None):

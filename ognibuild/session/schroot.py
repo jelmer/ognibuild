@@ -22,12 +22,11 @@ import subprocess
 import tempfile
 from typing import Optional
 
-from . import NoSessionOpen, Session, SessionAlreadyOpen, SessionSetupFailure
-
 from .._ognibuild_rs import (
-    sanitize_session_name,
     generate_session_id,
+    sanitize_session_name,
 )
+from . import NoSessionOpen, Session, SessionAlreadyOpen, SessionSetupFailure
 
 __all__ = [
     'sanitize_session_name',
