@@ -91,9 +91,7 @@ def find_changes_files(path: str, package: str, version: Version):
     if version.debian_version is not None:
         non_epoch_version += "-%s" % version.debian_version
     c = re.compile(
-        "{}_{}_(.*).changes".format(
-            re.escape(package), re.escape(non_epoch_version)
-        )
+        f"{re.escape(package)}_{re.escape(non_epoch_version)}_(.*).changes"
     )
     for entry in os.scandir(path):
         m = c.match(entry.name)
@@ -301,8 +299,8 @@ def build_once(
             if (
                 isinstance(sbuild_failure.error, DpkgSourceLocalChanges)
                 and getattr(sbuild_failure.error, "diff_file", None)
-                and os.path.exists(sbuild_failure.error.diff_file)
-            ):  # type: ignore
+                and os.path.exists(sbuild_failure.error.diff_file)  # type: ignore
+            ):
                 import shutil
 
                 diff_file: str = sbuild_failure.error.diff_file  # type: ignore
