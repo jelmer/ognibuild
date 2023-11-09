@@ -20,7 +20,7 @@ import os
 import stat
 
 __version__ = (0, 0, 19)
-version_string = '.'.join(map(str, __version__))
+version_string = ".".join(map(str, __version__))
 
 
 USER_AGENT = f"Ognibuild/{version_string}"
@@ -33,10 +33,12 @@ class DetailedFailure(Exception):
         self.error = error
 
     def __eq__(self, other):
-        return (isinstance(other, type(self)) and
-                self.retcode == other.retcode and
-                self.argv == other.argv and
-                self.error == other.error)
+        return (
+            isinstance(other, type(self))
+            and self.retcode == other.retcode
+            and self.argv == other.argv
+            and self.error == other.error
+        )
 
 
 class UnidentifiedError(Exception):
@@ -49,11 +51,13 @@ class UnidentifiedError(Exception):
         self.secondary = secondary
 
     def __eq__(self, other):
-        return (isinstance(other, type(self)) and
-                self.retcode == other.retcode and
-                self.argv == other.argv and
-                self.lines == other.lines and
-                self.secondary == other.secondary)
+        return (
+            isinstance(other, type(self))
+            and self.retcode == other.retcode
+            and self.argv == other.argv
+            and self.lines == other.lines
+            and self.secondary == other.secondary
+        )
 
     def __repr__(self) -> str:
         return "<{}({!r}, {!r}, ..., secondary={!r})>".format(
@@ -85,7 +89,6 @@ class UnknownRequirementFamily(Exception):
 
 
 class Requirement:
-
     # Name of the family of requirements - e.g. "python-package"
     family: str
 
@@ -118,10 +121,9 @@ class Requirement:
 
 
 class OneOfRequirement(Requirement):
-
     elements: list[Requirement]
 
-    family = 'or'
+    family = "or"
 
     def __init__(self, elements) -> None:
         self.elements = elements

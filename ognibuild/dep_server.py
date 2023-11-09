@@ -26,84 +26,95 @@ from . import Requirement, UnknownRequirementFamily
 from .debian.apt import AptManager
 from .resolver.apt import resolve_requirement_apt
 
-SUPPORTED_RELEASES = ['unstable', 'sid']
+SUPPORTED_RELEASES = ["unstable", "sid"]
 
 
 routes = web.RouteTableDef()
 
 
-@routes.get('/health', name='health')
+@routes.get("/health", name="health")
 async def handle_health(request):
-    return web.Response(text='ok')
+    return web.Response(text="ok")
 
 
-@routes.get('/ready', name='ready')
+@routes.get("/ready", name="ready")
 async def handle_ready(request):
-    return web.Response(text='ok')
+    return web.Response(text="ok")
 
 
-@routes.get('/families', name='families')
+@routes.get("/families", name="families")
 async def handle_families(request):
     return web.json_response(list(Requirement._JSON_DESERIALIZERS.keys()))
 
 
-@routes.post('/resolve-apt', name='resolve-apt')
+@routes.post("/resolve-apt", name="resolve-apt")
 async def handle_apt(request):
     js = await request.json()
     try:
-        req_js = js['requirement']
+        req_js = js["requirement"]
     except KeyError as e:
         raise web.HTTPBadRequest(text="json missing 'requirement' key") from e
-    release = js.get('release')
+    release = js.get("release")
     if release and release not in SUPPORTED_RELEASES:
         return web.json_response(
             {"reason": "unsupported-release", "release": release},
-            headers={'Reason': 'unsupported-release'},
-            status=404)
+            headers={"Reason": "unsupported-release"},
+            status=404,
+        )
     try:
         req = Requirement.from_json(req_js)
     except UnknownRequirementFamily as e:
         return web.json_response(
             {"reason": "family-unknown", "family": e.family},
-            headers={"Reason": 'unsupported-family'}, status=404)
-    apt_reqs = await resolve_requirement_apt(request.app['apt_mgr'], req)
+            headers={"Reason": "unsupported-family"},
+            status=404,
+        )
+    apt_reqs = await resolve_requirement_apt(request.app["apt_mgr"], req)
     return web.json_response([r.pkg_relation_str() for r in apt_reqs])
 
 
-@routes.post('/resolve-apt/{release}/{family}', name='resolve-apt-new')
+@routes.post("/resolve-apt/{release}/{family}", name="resolve-apt-new")
 async def handle_apt_new(request):
     js = await request.json()
-    js['family'] = request.match_info['family']
-    release = request.match_info['release']
+    js["family"] = request.match_info["family"]
+    release = request.match_info["release"]
     if release not in SUPPORTED_RELEASES:
         return web.json_response(
             {"reason": "unsupported-release", "release": release},
-            headers={'Reason': 'unsupported-release'},
-            status=404)
+            headers={"Reason": "unsupported-release"},
+            status=404,
+        )
     try:
         req = Requirement.from_json(js)
     except UnknownRequirementFamily as e:
         return web.json_response(
             {"reason": "family-unknown", "family": e.family},
-            headers={"Reason": 'unsupported-family'}, status=404)
-    apt_reqs = await resolve_requirement_apt(request.app['apt_mgr'], req)
+            headers={"Reason": "unsupported-family"},
+            status=404,
+        )
+    apt_reqs = await resolve_requirement_apt(request.app["apt_mgr"], req)
     return web.json_response([r.pkg_relation_str() for r in apt_reqs])
 
 
-@routes.get('/resolve-apt/{release}/{family}:{arg}', name='resolve-apt-simple')
+@routes.get("/resolve-apt/{release}/{family}:{arg}", name="resolve-apt-simple")
 async def handle_apt_simple(request):
-    if request.match_info['release'] not in SUPPORTED_RELEASES:
+    if request.match_info["release"] not in SUPPORTED_RELEASES:
         return web.json_response(
-            {"reason": "unsupported-release",
-             "release": request.match_info['release']},
-            status=404)
+            {
+                "reason": "unsupported-release",
+                "release": request.match_info["release"],
+            },
+            status=404,
+        )
     try:
         req = Requirement.from_json(
-            (request.match_info['family'], request.match_info['arg']))
+            (request.match_info["family"], request.match_info["arg"])
+        )
     except UnknownRequirementFamily as e:
         return web.json_response(
-            {"reason": "family-unknown", "family": e.family}, status=404)
-    apt_reqs = await resolve_requirement_apt(request.app['apt_mgr'], req)
+            {"reason": "family-unknown", "family": e.family}, status=404
+        )
+    apt_reqs = await resolve_requirement_apt(request.app["apt_mgr"], req)
     return web.json_response([r.pkg_relation_str() for r in apt_reqs])
 
 
@@ -111,17 +122,20 @@ def main():
     import argparse
 
     from .session import Session
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('--listen-address', type=str, help='Listen address')
-    parser.add_argument('--schroot', type=str, help='Schroot session to use')
-    parser.add_argument('--port', type=str, help='Listen port', default=9934)
-    parser.add_argument('--debug', action='store_true')
+    parser.add_argument("--listen-address", type=str, help="Listen address")
+    parser.add_argument("--schroot", type=str, help="Schroot session to use")
+    parser.add_argument("--port", type=str, help="Listen port", default=9934)
+    parser.add_argument("--debug", action="store_true")
     parser.add_argument(
-        "--gcp-logging", action='store_true', help='Use Google cloud logging.')
+        "--gcp-logging", action="store_true", help="Use Google cloud logging."
+    )
     args = parser.parse_args()
 
     if args.gcp_logging:
         import google.cloud.logging
+
         client = google.cloud.logging.Client()
         client.get_default_handler()
         client.setup_logging()
@@ -134,24 +148,28 @@ def main():
         logging.basicConfig(
             level=log_level,
             format="[%(asctime)s] %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S")
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
 
     session: Session
     if args.schroot:
         from .session.schroot import SchrootSession
+
         session = SchrootSession(
-            args.schroot, session_prefix="ognibuild-dep-server")
+            args.schroot, session_prefix="ognibuild-dep-server"
+        )
     else:
         from .session.plain import PlainSession
+
         session = PlainSession()
     with session:
         app = web.Application()
         app.router.add_routes(routes)
-        app['apt_mgr'] = AptManager.from_session(session)
+        app["apt_mgr"] = AptManager.from_session(session)
         setup_metrics(app)
 
         web.run_app(app, host=args.listen_address, port=args.port)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

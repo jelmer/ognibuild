@@ -161,40 +161,59 @@ class BuildArchitectureTests(TestCase):
 
 
 class VersionAddSuffixTests(TestCase):
-
     def test_native(self):
         self.assertEqual(
-            Version('1.0~jan+lint4'),
-            version_add_suffix(Version('1.0~jan+lint3'), '~jan+lint'))
+            Version("1.0~jan+lint4"),
+            version_add_suffix(Version("1.0~jan+lint3"), "~jan+lint"),
+        )
         self.assertEqual(
-            Version('1.0~jan+lint1'),
-            version_add_suffix(Version('1.0'), '~jan+lint'))
+            Version("1.0~jan+lint1"),
+            version_add_suffix(Version("1.0"), "~jan+lint"),
+        )
 
     def test_normal(self):
         self.assertEqual(
-            Version('1.0-1~jan+lint4'),
-            version_add_suffix(Version('1.0-1~jan+lint3'), '~jan+lint'))
+            Version("1.0-1~jan+lint4"),
+            version_add_suffix(Version("1.0-1~jan+lint3"), "~jan+lint"),
+        )
         self.assertEqual(
-            Version('1.0-1~jan+lint1'),
-            version_add_suffix(Version('1.0-1'), '~jan+lint'))
+            Version("1.0-1~jan+lint1"),
+            version_add_suffix(Version("1.0-1"), "~jan+lint"),
+        )
         self.assertEqual(
-            Version('0.0.12-1~jan+lint1'),
-            version_add_suffix(Version('0.0.12-1'), '~jan+lint'))
+            Version("0.0.12-1~jan+lint1"),
+            version_add_suffix(Version("0.0.12-1"), "~jan+lint"),
+        )
         self.assertEqual(
-            Version('0.0.12-1~jan+unchanged1~jan+lint1'),
+            Version("0.0.12-1~jan+unchanged1~jan+lint1"),
             version_add_suffix(
-                Version('0.0.12-1~jan+unchanged1'), '~jan+lint'))
+                Version("0.0.12-1~jan+unchanged1"), "~jan+lint"
+            ),
+        )
 
 
 class BuilddebCommandTests(TestCase):
-
     def test_simple(self):
         self.assertEqual(
-            [sys.executable, "-m", "breezy", "builddeb",
-                "--guess-upstream-branch-url", "--builder=" + DEFAULT_BUILDER],
-            _builddeb_command())
+            [
+                sys.executable,
+                "-m",
+                "breezy",
+                "builddeb",
+                "--guess-upstream-branch-url",
+                "--builder=" + DEFAULT_BUILDER,
+            ],
+            _builddeb_command(),
+        )
         self.assertEqual(
-            [sys.executable, "-m", "breezy", "builddeb",
-                "--guess-upstream-branch-url", "--builder=" + DEFAULT_BUILDER,
-                "--result-dir=/tmp/blah"],
-            _builddeb_command(result_dir="/tmp/blah"))
+            [
+                sys.executable,
+                "-m",
+                "breezy",
+                "builddeb",
+                "--guess-upstream-branch-url",
+                "--builder=" + DEFAULT_BUILDER,
+                "--result-dir=/tmp/blah",
+            ],
+            _builddeb_command(result_dir="/tmp/blah"),
+        )

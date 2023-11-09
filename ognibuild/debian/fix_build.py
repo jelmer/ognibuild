@@ -110,8 +110,8 @@ class DebianPackagingContext:
         return self.tree.abspath(os.path.join(self.subpath, *parts))
 
     def commit(
-            self, summary: str,
-            update_changelog: Optional[bool] = None) -> bool:
+        self, summary: str, update_changelog: Optional[bool] = None
+    ) -> bool:
         if update_changelog is None:
             update_changelog = self.update_changelog
         with self.tree.lock_write():
@@ -121,9 +121,11 @@ class DebianPackagingContext:
                     with ChangelogEditor(cl_path) as editor:
                         editor.add_entry([summary])
                     debcommit(
-                        self.tree, committer=self.committer,
+                        self.tree,
+                        committer=self.committer,
                         subpath=self.subpath,
-                        reporter=self.commit_reporter)
+                        reporter=self.commit_reporter,
+                    )
                 else:
                     self.tree.commit(
                         message=summary,
@@ -191,10 +193,12 @@ def add_build_dependency(context, requirement: AptRequirement):
     if not isinstance(requirement, AptRequirement):
         raise TypeError(requirement)
 
-    if os.path.exists(context.abspath('debian/debcargo.toml')):
+    if os.path.exists(context.abspath("debian/debcargo.toml")):
         from debmutate.debcargo import DebcargoControlShimEditor
+
         control = DebcargoControlShimEditor.from_debian_dir(
-            context.abspath('debian'))
+            context.abspath("debian")
+        )
     else:
         control_path = context.abspath("debian/control")
         control = ControlEditor(path=control_path)
@@ -207,18 +211,20 @@ def add_build_dependency(context, requirement: AptRequirement):
             for rel in requirement.relations:
                 updater.source["Build-Depends"] = ensure_relation(
                     updater.source.get("Build-Depends", ""),
-                    PkgRelation.str([rel])
+                    PkgRelation.str([rel]),
                 )
     except FormattingUnpreservable as e:
         logging.info(
-            "Unable to edit %s in a way that preserves formatting.", e.path)
+            "Unable to edit %s in a way that preserves formatting.", e.path
+        )
         return False
 
     desc = requirement.pkg_relation_str()
 
     if not updater.changed:
         logging.info(
-            "Giving up; build dependency %s was already present.", desc)
+            "Giving up; build dependency %s was already present.", desc
+        )
         return False
 
     logging.info("Adding build dependency: %s", desc)
@@ -251,7 +257,8 @@ def add_test_dependency(context, testname, requirement):
                     )
     except FormattingUnpreservable as e:
         logging.info(
-            "Unable to edit %s in a way that preserves formatting.", e.path)
+            "Unable to edit %s in a way that preserves formatting.", e.path
+        )
         return False
 
     desc = requirement.pkg_relation_str()
@@ -259,7 +266,9 @@ def add_test_dependency(context, testname, requirement):
     if not updater.changed:
         logging.info(
             "Giving up; dependency %s for test %s was already present.",
-            desc, testname)
+            desc,
+            testname,
+        )
         return False
 
     logging.info("Adding dependency to test %s: %s", testname, desc)
@@ -272,7 +281,8 @@ def targeted_python_versions(tree: Tree, subpath: str) -> list[str]:
     with tree.get_file(os.path.join(subpath, "debian/control")) as f:
         control = Deb822(f)
     build_depends = PkgRelation.parse_relations(
-        control.get("Build-Depends", ""))
+        control.get("Build-Depends", "")
+    )
     all_build_deps: set[str] = set()
     for or_deps in build_depends:
         all_build_deps.update(or_dep["name"] for or_dep in or_deps)
@@ -296,7 +306,7 @@ def python_tie_breaker(tree, subpath, reqs):
             return True
         if pkg.startswith("lib%s-" % python_version):
             return True
-        return pkg == r'lib%s-dev' % python_version
+        return pkg == r"lib%s-dev" % python_version
 
     for python_version in targeted:
         for req in reqs:
@@ -320,7 +330,8 @@ def enable_dh_autoreconf(context, phase):
     # Debhelper >= 10 depends on dh-autoreconf and enables autoreconf by
     # default.
     debhelper_compat_version = get_debhelper_compat_level(
-        context.tree.abspath("."))
+        context.tree.abspath(".")
+    )
     if debhelper_compat_version is not None and debhelper_compat_version < 10:
 
         def add_with_autoreconf(line, target):
@@ -339,8 +350,9 @@ def enable_dh_autoreconf(context, phase):
 
 
 def fix_missing_configure(error, phase, context):
-    if (not context.tree.has_filename("configure.ac")
-            and not context.tree.has_filename("configure.in")):
+    if not context.tree.has_filename(
+        "configure.ac"
+    ) and not context.tree.has_filename("configure.in"):
         return False
 
     return enable_dh_autoreconf(context, phase)
@@ -389,15 +401,17 @@ class PgBuildExtOutOfDateControlFixer(BuildFixer):
 
     def _fix(self, error, phase):
         logging.info("Running 'pg_buildext updatecontrol'")
-        self.apt.install(['postgresql-common'])
+        self.apt.install(["postgresql-common"])
         external_dir, internal_dir = self.session.setup_from_vcs(
-            self.context.tree, include_controldir=None,
-            subdir=self.context.subpath)
+            self.context.tree,
+            include_controldir=None,
+            subdir=self.context.subpath,
+        )
         self.session.chdir(internal_dir)
         self.session.check_call(["pg_buildext", "updatecontrol"])
         shutil.copy(
             os.path.join(external_dir, error.generated_path),
-            self.context.abspath(error.generated_path)
+            self.context.abspath(error.generated_path),
         )
         return self.context.commit(
             "Run 'pgbuildext updatecontrol'.", update_changelog=False
@@ -417,14 +431,16 @@ def fix_missing_makefile_pl(error, phase, context):
 
 def debcargo_coerce_unacceptable_prerelease(error, phase, context):
     from debmutate.debcargo import DebcargoEditor
-    with DebcargoEditor(context.abspath('debian/debcargo.toml')) as editor:
-        editor['allow_prerelease_deps'] = True
-    return context.commit('Enable allow_prerelease_deps.')
+
+    with DebcargoEditor(context.abspath("debian/debcargo.toml")) as editor:
+        editor["allow_prerelease_deps"] = True
+    return context.commit("Enable allow_prerelease_deps.")
 
 
 class SimpleBuildFixer(BuildFixer):
-    def __init__(self, packaging_context,
-                 problem_cls: type[Problem], fn) -> None:
+    def __init__(
+        self, packaging_context, problem_cls: type[Problem], fn
+    ) -> None:
         self.context = packaging_context
         self._problem_cls = problem_cls
         self._fn = fn
@@ -444,8 +460,9 @@ class SimpleBuildFixer(BuildFixer):
 
 
 class DependencyBuildFixer(BuildFixer):
-    def __init__(self, packaging_context, apt_resolver,
-                 problem_cls: type[Problem], fn) -> None:
+    def __init__(
+        self, packaging_context, apt_resolver, problem_cls: type[Problem], fn
+    ) -> None:
         self.context = packaging_context
         self.apt_resolver = apt_resolver
         self._problem_cls = problem_cls
@@ -469,40 +486,52 @@ def versioned_package_fixers(session, packaging_context, apt: AptManager):
     return [
         PgBuildExtOutOfDateControlFixer(packaging_context, session, apt),
         SimpleBuildFixer(
-            packaging_context, MissingConfigure, fix_missing_configure),
+            packaging_context, MissingConfigure, fix_missing_configure
+        ),
         SimpleBuildFixer(
             packaging_context, MissingAutomakeInput, fix_missing_automake_input
         ),
         SimpleBuildFixer(
-            packaging_context, MissingConfigStatusInput,
-            fix_missing_config_status_input
+            packaging_context,
+            MissingConfigStatusInput,
+            fix_missing_config_status_input,
         ),
         SimpleBuildFixer(
-            packaging_context, MissingPerlFile, fix_missing_makefile_pl),
+            packaging_context, MissingPerlFile, fix_missing_makefile_pl
+        ),
         SimpleBuildFixer(
-            packaging_context, DebcargoUnacceptablePredicate,
-            debcargo_coerce_unacceptable_prerelease),
+            packaging_context,
+            DebcargoUnacceptablePredicate,
+            debcargo_coerce_unacceptable_prerelease,
+        ),
         SimpleBuildFixer(
-            packaging_context, DebcargoUnacceptableComparator,
-            debcargo_coerce_unacceptable_prerelease),
+            packaging_context,
+            DebcargoUnacceptableComparator,
+            debcargo_coerce_unacceptable_prerelease,
+        ),
     ]
 
 
-def apt_fixers(apt: AptManager, packaging_context,
-               dep_server_url: Optional[str] = None) -> list[BuildFixer]:
+def apt_fixers(
+    apt: AptManager, packaging_context, dep_server_url: Optional[str] = None
+) -> list[BuildFixer]:
     from ..resolver.apt import AptResolver
     from .build_deps import BuildDependencyTieBreaker
     from .udd import popcon_tie_breaker
 
     apt_tie_breakers = [
-        partial(python_tie_breaker, packaging_context.tree,
-                packaging_context.subpath),
+        partial(
+            python_tie_breaker,
+            packaging_context.tree,
+            packaging_context.subpath,
+        ),
         BuildDependencyTieBreaker.from_session(apt.session),
         popcon_tie_breaker,
     ]
     resolver: AptResolver
     if dep_server_url:
         from ..resolver.dep_server import DepServerAptResolver
+
         resolver = DepServerAptResolver(apt, dep_server_url, apt_tie_breakers)
     else:
         resolver = AptResolver(apt, apt_tie_breakers)
@@ -515,17 +544,23 @@ def apt_fixers(apt: AptManager, packaging_context,
 
 
 def default_fixers(
-        local_tree: WorkingTree,
-        subpath: str, apt: AptManager,
-        committer: Optional[str] = None,
-        update_changelog: Optional[bool] = None,
-        dep_server_url: Optional[str] = None):
+    local_tree: WorkingTree,
+    subpath: str,
+    apt: AptManager,
+    committer: Optional[str] = None,
+    update_changelog: Optional[bool] = None,
+    dep_server_url: Optional[str] = None,
+):
     packaging_context = DebianPackagingContext(
-        local_tree, subpath, committer, update_changelog,
-        commit_reporter=NullCommitReporter()
+        local_tree,
+        subpath,
+        committer,
+        update_changelog,
+        commit_reporter=NullCommitReporter(),
     )
-    return (versioned_package_fixers(apt.session, packaging_context, apt)
-            + apt_fixers(apt, packaging_context, dep_server_url))
+    return versioned_package_fixers(
+        apt.session, packaging_context, apt
+    ) + apt_fixers(apt, packaging_context, dep_server_url)
 
 
 def build_incrementally(
@@ -542,7 +577,7 @@ def build_incrementally(
     apt_repository: Optional[str] = None,
     apt_repository_key: Optional[str] = None,
     extra_repositories: Optional[list[str]] = None,
-    run_gbp_dch: bool = False
+    run_gbp_dch: bool = False,
 ):
     fixed_errors: list[tuple[Problem, str]] = []
     logging.info("Using fixers: %r", fixers)
@@ -571,18 +606,23 @@ def build_incrementally(
                 raise
             if (e.error, e.phase) in fixed_errors:
                 logging.warning(
-                    "Error was still not fixed on second try. Giving up.")
+                    "Error was still not fixed on second try. Giving up."
+                )
                 raise
-            if (max_iterations is not None
-                    and len(fixed_errors) > max_iterations):
+            if (
+                max_iterations is not None
+                and len(fixed_errors) > max_iterations
+            ):
                 logging.warning(
-                    "Last fix did not address the issue. Giving up.")
+                    "Last fix did not address the issue. Giving up."
+                )
                 raise
             reset_tree(local_tree, subpath=subpath)
             try:
                 if not resolve_error(e.error, e.phase, fixers):
                     logging.warning(
-                        "Failed to resolve error %r. Giving up.", e.error)
+                        "Failed to resolve error %r. Giving up.", e.error
+                    )
                     raise
             except GeneratedFile:
                 logging.warning(
@@ -604,36 +644,40 @@ def build_incrementally(
 
 def rescue_build_log(output_directory, *, tree=None):
     xdg_cache_dir = os.environ.get(
-        'XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
-    buildlogs_dir = os.path.join(
-        xdg_cache_dir, 'ognibuild', 'buildlogs')
+        "XDG_CACHE_HOME", os.path.expanduser("~/.cache")
+    )
+    buildlogs_dir = os.path.join(xdg_cache_dir, "ognibuild", "buildlogs")
     os.makedirs(buildlogs_dir, exist_ok=True)
     target_log_file = os.path.join(
         buildlogs_dir,
-        '{}-{}.log'.format(
-            os.path.basename(getattr(tree, 'basedir', 'build')),
-            time.strftime('%Y-%m-%d_%H%M%s')))
-    shutil.copy(
-        os.path.join(output_directory, 'build.log'),
-        target_log_file)
-    logging.info('Build log available in %s', target_log_file)
+        "{}-{}.log".format(
+            os.path.basename(getattr(tree, "basedir", "build")),
+            time.strftime("%Y-%m-%d_%H%M%s"),
+        ),
+    )
+    shutil.copy(os.path.join(output_directory, "build.log"), target_log_file)
+    logging.info("Build log available in %s", target_log_file)
 
 
 def main(argv=None):
     import argparse
 
     parser = argparse.ArgumentParser("ognibuild.debian.fix_build")
-    modifications = parser.add_argument_group('Modifications')
+    modifications = parser.add_argument_group("Modifications")
     modifications.add_argument(
-        "--suffix", type=str, help="Suffix to use for test builds.",
-        default="fixbuild1"
+        "--suffix",
+        type=str,
+        help="Suffix to use for test builds.",
+        default="fixbuild1",
     )
     modifications.add_argument(
         "--suite", type=str, help="Suite to target.", default="unstable"
     )
     modifications.add_argument(
-        "--committer", type=str, help="Committer string (name and email)",
-        default=None
+        "--committer",
+        type=str,
+        help="Committer string (name and email)",
+        default=None,
     )
     modifications.add_argument(
         "--no-update-changelog",
@@ -649,7 +693,7 @@ def main(argv=None):
         help="force updating of the changelog",
         default=None,
     )
-    build_behaviour = parser.add_argument_group('Build Behaviour')
+    build_behaviour = parser.add_argument_group("Build Behaviour")
     build_behaviour.add_argument(
         "--output-directory", type=str, help="Output directory.", default=None
     )
@@ -661,15 +705,18 @@ def main(argv=None):
     )
 
     build_behaviour.add_argument(
-        '--max-iterations',
+        "--max-iterations",
         type=int,
         default=DEFAULT_MAX_ITERATIONS,
-        help='Maximum number of issues to attempt to fix before giving up.')
+        help="Maximum number of issues to attempt to fix before giving up.",
+    )
     build_behaviour.add_argument("--schroot", type=str, help="chroot to use.")
     parser.add_argument(
-        "--dep-server-url", type=str,
+        "--dep-server-url",
+        type=str,
         help="ognibuild dep server to use",
-        default=os.environ.get('OGNIBUILD_DEPS'))
+        default=os.environ.get("OGNIBUILD_DEPS"),
+    )
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
 
     args = parser.parse_args()
@@ -696,15 +743,16 @@ def main(argv=None):
             output_directory = args.output_directory
             if not os.path.isdir(output_directory):
                 parser.error(
-                    'output directory %s is not a directory'
-                    % output_directory)
+                    "output directory %s is not a directory" % output_directory
+                )
 
         tree, subpath = WorkingTree.open_containing(".")
         session: Session
         if args.schroot:
             # TODO(jelmer): pass in package name as part of session prefix
             session = SchrootSession(
-                args.schroot, session_prefix="deb-fix-build")
+                args.schroot, session_prefix="deb-fix-build"
+            )
         else:
             session = PlainSession()
 
@@ -713,9 +761,13 @@ def main(argv=None):
         apt = AptManager(session)
 
         fixers = default_fixers(
-            tree, subpath, apt, committer=args.committer,
+            tree,
+            subpath,
+            apt,
+            committer=args.committer,
             update_changelog=args.update_changelog,
-            dep_server_url=args.dep_server_url)
+            dep_server_url=args.dep_server_url,
+        )
 
         try:
             (changes_filenames, cl_entry) = build_incrementally(
@@ -752,8 +804,10 @@ def main(argv=None):
             return 1
 
         logging.info(
-            'Built %s - changes file at %r.',
-            cl_entry.version, changes_filenames)
+            "Built %s - changes file at %r.",
+            cl_entry.version,
+            changes_filenames,
+        )
 
 
 if __name__ == "__main__":

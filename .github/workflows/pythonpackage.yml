@@ -39,8 +39,8 @@ jobs:
       - name: Style checks
         if: always()
         run: |
-          pip install flake8
-          python -m flake8
+          pip install ruff
+          ruff check .
       - name: Typing checks (Linux)
         run: |
           pip install -U mypy types-toml

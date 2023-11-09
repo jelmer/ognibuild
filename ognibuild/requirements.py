@@ -25,14 +25,13 @@ from . import Requirement
 
 
 class PythonPackageRequirement(Requirement):
-
     family = "python-package"
 
     package: str
 
     def __init__(
-            self, package, python_version=None, specs=None,
-            minimum_version=None) -> None:
+        self, package, python_version=None, specs=None, minimum_version=None
+    ) -> None:
         self.package = package
         self.python_version = python_version
         if specs is None:
@@ -61,12 +60,14 @@ class PythonPackageRequirement(Requirement):
 
         req = RequirementEntry.parse(text)
         return cls(
-            package=req.name, specs=req.specs, python_version=python_version)
+            package=req.name, specs=req.specs, python_version=python_version
+        )
 
     def requirement_str(self):
         if self.specs:
-            return '{};{}'.format(
-                self.package, ','.join([''.join(s) for s in self.specs]))
+            return "{};{}".format(
+                self.package, ",".join(["".join(s) for s in self.specs])
+            )
         return self.package
 
     @classmethod
@@ -95,8 +96,11 @@ class PythonPackageRequirement(Requirement):
             raise NotImplementedError
         text = self.package + ",".join(["".join(spec) for spec in self.specs])
         p = session.Popen(
-            [cmd, "-c",
-             "import pkg_resources; pkg_resources.require(%r)" % text],
+            [
+                cmd,
+                "-c",
+                "import pkg_resources; pkg_resources.require(%r)" % text,
+            ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -108,7 +112,6 @@ Requirement.register_json(PythonPackageRequirement)
 
 
 class LatexPackageRequirement(Requirement):
-
     family = "latex-package"
 
     def __init__(self, package: str) -> None:
@@ -129,7 +132,6 @@ Requirement.register_json(LatexPackageRequirement)
 
 
 class PhpPackageRequirement(Requirement):
-
     family = "php-package"
 
     def __init__(
@@ -165,7 +167,6 @@ Requirement.register_json(PhpPackageRequirement)
 
 
 class BinaryRequirement(Requirement):
-
     family = "binary"
     binary_name: str
 
@@ -196,7 +197,6 @@ Requirement.register_json(BinaryRequirement)
 
 
 class PHPExtensionRequirement(Requirement):
-
     family = "php-extension"
     extension: str
 
@@ -208,7 +208,6 @@ class PHPExtensionRequirement(Requirement):
 
 
 class PytestPluginRequirement(Requirement):
-
     family = "pytest-plugin"
 
     plugin: str
@@ -221,7 +220,6 @@ class PytestPluginRequirement(Requirement):
 
 
 class VcsControlDirectoryAccessRequirement(Requirement):
-
     vcs: list[str]
     family = "vcs-access"
 
@@ -233,7 +231,6 @@ class VcsControlDirectoryAccessRequirement(Requirement):
 
 
 class PerlModuleRequirement(Requirement):
-
     module: str
     filename: Optional[str]
     inc: Optional[list[str]]
@@ -253,7 +250,6 @@ class PerlModuleRequirement(Requirement):
 
 
 class VagueDependencyRequirement(Requirement):
-
     name: str
     family = "vague"
     minimum_version: Optional[str] = None
@@ -267,25 +263,29 @@ class VagueDependencyRequirement(Requirement):
             yield BinaryRequirement(self.name)
             yield LibraryRequirement(self.name)
             yield PkgConfigRequirement(
-                self.name, minimum_version=self.minimum_version)
+                self.name, minimum_version=self.minimum_version
+            )
             if self.name.lower() != self.name:
                 yield BinaryRequirement(self.name.lower())
                 yield LibraryRequirement(self.name.lower())
                 yield PkgConfigRequirement(
-                    self.name.lower(), minimum_version=self.minimum_version)
+                    self.name.lower(), minimum_version=self.minimum_version
+                )
             try:
                 from .resolver.apt import AptRequirement
             except ModuleNotFoundError:
                 pass
             else:
                 yield AptRequirement.simple(
-                    self.name.lower(), minimum_version=self.minimum_version)
-                if self.name.lower().startswith('lib'):
-                    devname = '%s-dev' % self.name.lower()
+                    self.name.lower(), minimum_version=self.minimum_version
+                )
+                if self.name.lower().startswith("lib"):
+                    devname = "%s-dev" % self.name.lower()
                 else:
-                    devname = 'lib%s-dev' % self.name.lower()
+                    devname = "lib%s-dev" % self.name.lower()
                 yield AptRequirement.simple(
-                    devname, minimum_version=self.minimum_version)
+                    devname, minimum_version=self.minimum_version
+                )
 
     def met(self, session):
         return any(x.met(session) for x in self.expand())
@@ -300,7 +300,6 @@ class VagueDependencyRequirement(Requirement):
 
 
 class NodePackageRequirement(Requirement):
-
     package: str
     family = "npm-package"
 
@@ -312,7 +311,6 @@ class NodePackageRequirement(Requirement):
 
 
 class LuaModuleRequirement(Requirement):
-
     module: str
     family = "lua-module"
 
@@ -324,26 +322,25 @@ class LuaModuleRequirement(Requirement):
 
 
 class PerlPreDeclaredRequirement(Requirement):
-
     name: str
 
     # TODO(jelmer): Can we obtain this information elsewhere?
     KNOWN_MODULES = {
-        'auto_set_repository': 'Module::Install::Repository',
-        'author_tests': 'Module::Install::AuthorTests',
-        'recursive_author_tests': 'Module::Install::AuthorTests',
-        'author_requires': 'Module::Install::AuthorRequires',
-        'readme_from': 'Module::Install::ReadmeFromPod',
-        'catalyst': 'Module::Install::Catalyst',
-        'githubmeta': 'Module::Install::GithubMeta',
-        'use_ppport': 'Module::Install::XSUtil',
-        'pod_from': 'Module::Install::PodFromEuclid',
-        'write_doap_changes': 'Module::Install::DOAPChangeSets',
-        'use_test_base': 'Module::Install::TestBase',
-        'jsonmeta': 'Module::Install::JSONMETA',
-        'extra_tests': 'Module::Install::ExtraTests',
-        'auto_set_bugtracker': 'Module::Install::Bugtracker',
-        }
+        "auto_set_repository": "Module::Install::Repository",
+        "author_tests": "Module::Install::AuthorTests",
+        "recursive_author_tests": "Module::Install::AuthorTests",
+        "author_requires": "Module::Install::AuthorRequires",
+        "readme_from": "Module::Install::ReadmeFromPod",
+        "catalyst": "Module::Install::Catalyst",
+        "githubmeta": "Module::Install::GithubMeta",
+        "use_ppport": "Module::Install::XSUtil",
+        "pod_from": "Module::Install::PodFromEuclid",
+        "write_doap_changes": "Module::Install::DOAPChangeSets",
+        "use_test_base": "Module::Install::TestBase",
+        "jsonmeta": "Module::Install::JSONMETA",
+        "extra_tests": "Module::Install::ExtraTests",
+        "auto_set_bugtracker": "Module::Install::Bugtracker",
+    }
 
     family = "perl-predeclared"
 
@@ -359,7 +356,6 @@ class PerlPreDeclaredRequirement(Requirement):
 
 
 class NodeModuleRequirement(Requirement):
-
     module: str
     family = "npm-module"
 
@@ -371,15 +367,15 @@ class NodeModuleRequirement(Requirement):
 
 
 class CargoCrateRequirement(Requirement):
-
     crate: str
     features: set[str]
     api_version: Optional[str]
     minimum_version: Optional[str]
     family = "cargo-crate"
 
-    def __init__(self, crate, features=None, api_version=None,
-                 minimum_version=None) -> None:
+    def __init__(
+        self, crate, features=None, api_version=None, minimum_version=None
+    ) -> None:
         self.crate = crate
         if features is None:
             features = set()
@@ -388,20 +384,16 @@ class CargoCrateRequirement(Requirement):
         self.minimum_version = minimum_version
 
     def __repr__(self) -> str:
-        return (
-            "{}({!r}, features={!r}, api_version={!r}, minimum_version={!r})"
-            .format(
-                type(self).__name__,
-                self.crate,
-                self.features,
-                self.api_version,
-                self.minimum_version,
-            ))
+        return "{}({!r}, features={!r}, api_version={!r}, minimum_version={!r})".format(
+            type(self).__name__,
+            self.crate,
+            self.features,
+            self.api_version,
+            self.minimum_version,
+        )
 
     def __str__(self) -> str:
-        ret = "cargo crate: {} {}".format(
-            self.crate,
-            self.api_version or "")
+        ret = "cargo crate: {} {}".format(self.crate, self.api_version or "")
         if self.features:
             ret += " (%s)" % (", ".join(sorted(self.features)))
         if self.minimum_version:
@@ -410,7 +402,6 @@ class CargoCrateRequirement(Requirement):
 
 
 class PkgConfigRequirement(Requirement):
-
     module: str
     family = "pkg-config"
 
@@ -420,11 +411,11 @@ class PkgConfigRequirement(Requirement):
 
     def __repr__(self) -> str:
         return "{}({!r}, minimum_version={!r})".format(
-            type(self).__name__, self.module, self.minimum_version)
+            type(self).__name__, self.module, self.minimum_version
+        )
 
 
 class PathRequirement(Requirement):
-
     path: str
     family = "path"
 
@@ -436,7 +427,6 @@ class PathRequirement(Requirement):
 
 
 class CHeaderRequirement(Requirement):
-
     header: str
     family = "c-header"
 
@@ -452,7 +442,6 @@ class JavaScriptRuntimeRequirement(Requirement):
 
 
 class ValaPackageRequirement(Requirement):
-
     package: str
     family = "vala"
 
@@ -461,7 +450,6 @@ class ValaPackageRequirement(Requirement):
 
 
 class RubyGemRequirement(Requirement):
-
     gem: str
     minimum_version: Optional[str]
     family = "gem"
@@ -472,7 +460,6 @@ class RubyGemRequirement(Requirement):
 
 
 class GoPackageRequirement(Requirement):
-
     package: str
     version: Optional[str]
     family = "go-package"
@@ -483,7 +470,8 @@ class GoPackageRequirement(Requirement):
 
     def __repr__(self) -> str:
         return "{}({!r}, version={!r})".format(
-            type(self).__name__, self.package, self.version)
+            type(self).__name__, self.package, self.version
+        )
 
     def __str__(self) -> str:
         if self.version:
@@ -492,7 +480,6 @@ class GoPackageRequirement(Requirement):
 
 
 class GoRequirement(Requirement):
-
     version: Optional[str]
     family = "go"
 
@@ -504,7 +491,6 @@ class GoRequirement(Requirement):
 
 
 class DhAddonRequirement(Requirement):
-
     path: str
     family = "dh-addon"
 
@@ -513,7 +499,6 @@ class DhAddonRequirement(Requirement):
 
 
 class PhpClassRequirement(Requirement):
-
     php_class: str
     family = "php-class"
 
@@ -522,13 +507,13 @@ class PhpClassRequirement(Requirement):
 
 
 class RPackageRequirement(Requirement):
-
     package: str
     minimum_version: Optional[str]
     family = "r-package"
 
-    def __init__(self, package: str,
-                 minimum_version: Optional[str] = None) -> None:
+    def __init__(
+        self, package: str, minimum_version: Optional[str] = None
+    ) -> None:
         self.package = package
         self.minimum_version = minimum_version
 
@@ -541,8 +526,7 @@ class RPackageRequirement(Requirement):
 
     def __str__(self) -> str:
         if self.minimum_version:
-            return "R package: {} (>= {})".format(
-                self.package, self.minimum_version)
+            return f"R package: {self.package} (>= {self.minimum_version})"
         else:
             return f"R package: {self.package}"
 
@@ -559,13 +543,13 @@ class RPackageRequirement(Requirement):
 
 
 class OctavePackageRequirement(Requirement):
-
     package: str
     minimum_version: Optional[str]
     family = "octave-package"
 
-    def __init__(self, package: str,
-                 minimum_version: Optional[str] = None) -> None:
+    def __init__(
+        self, package: str, minimum_version: Optional[str] = None
+    ) -> None:
         self.package = package
         self.minimum_version = minimum_version
 
@@ -579,7 +563,8 @@ class OctavePackageRequirement(Requirement):
     def __str__(self) -> str:
         if self.minimum_version:
             return "Octave package: {} (>= {})".format(
-                self.package, self.minimum_version)
+                self.package, self.minimum_version
+            )
         else:
             return f"Octave package: {self.package}"
 
@@ -596,7 +581,6 @@ class OctavePackageRequirement(Requirement):
 
 
 class LibraryRequirement(Requirement):
-
     library: str
     family = "lib"
 
@@ -608,7 +592,6 @@ class LibraryRequirement(Requirement):
 
 
 class StaticLibraryRequirement(Requirement):
-
     library: str
     filename: str
     family = "static-lib"
@@ -622,7 +605,6 @@ class StaticLibraryRequirement(Requirement):
 
 
 class RubyFileRequirement(Requirement):
-
     filename: str
     family = "ruby-file"
 
@@ -631,7 +613,6 @@ class RubyFileRequirement(Requirement):
 
 
 class XmlEntityRequirement(Requirement):
-
     url: str
     family = "xml-entity"
 
@@ -640,7 +621,6 @@ class XmlEntityRequirement(Requirement):
 
 
 class SprocketsFileRequirement(Requirement):
-
     content_type: str
     name: str
     family = "sprockets-file"
@@ -651,7 +631,6 @@ class SprocketsFileRequirement(Requirement):
 
 
 class JavaClassRequirement(Requirement):
-
     classname: str
     family = "java-class"
 
@@ -660,7 +639,6 @@ class JavaClassRequirement(Requirement):
 
 
 class CMakefileRequirement(Requirement):
-
     filename: str
     version: Optional[str]
     family = "cmake-file"
@@ -671,7 +649,6 @@ class CMakefileRequirement(Requirement):
 
 
 class HaskellPackageRequirement(Requirement):
-
     package: str
     family = "haskell-package"
 
@@ -686,7 +663,6 @@ class HaskellPackageRequirement(Requirement):
 
 
 class MavenArtifactRequirement(Requirement):
-
     group_id: str
     artifact_id: str
     version: Optional[str]
@@ -707,11 +683,13 @@ class MavenArtifactRequirement(Requirement):
         )
 
     def __repr__(self) -> str:
-        return (
-            "{}(group_id={!r}, artifact_id={!r}, version={!r}, kind={!r})"
-            .format(
-                type(self).__name__, self.group_id, self.artifact_id,
-                self.version, self.kind))
+        return "{}(group_id={!r}, artifact_id={!r}, version={!r}, kind={!r})".format(
+            type(self).__name__,
+            self.group_id,
+            self.artifact_id,
+            self.version,
+            self.kind,
+        )
 
     @classmethod
     def from_str(cls, text):
@@ -738,7 +716,6 @@ class GnomeCommonRequirement(Requirement):
 
 
 class JDKFileRequirement(Requirement):
-
     jdk_path: str
     filename: str
     family = "jdk-file"
@@ -783,7 +760,6 @@ class CertificateAuthorityRequirement(Requirement):
 
 
 class PerlFileRequirement(Requirement):
-
     filename: str
     family = "perl-file"
 
@@ -792,7 +768,6 @@ class PerlFileRequirement(Requirement):
 
 
 class AutoconfMacroRequirement(Requirement):
-
     family = "autoconf-macro"
     macro: str
 
@@ -822,14 +797,14 @@ class IntrospectionTypelibRequirement(Requirement):
 
 
 class PythonModuleRequirement(Requirement):
-
     module: str
     python_version: Optional[str]
     minimum_version: Optional[str]
     family = "python-module"
 
-    def __init__(self, module, python_version=None,
-                 minimum_version=None) -> None:
+    def __init__(
+        self, module, python_version=None, minimum_version=None
+    ) -> None:
         self.module = module
         self.python_version = python_version
         self.minimum_version = minimum_version
@@ -857,12 +832,14 @@ class PythonModuleRequirement(Requirement):
 
     def __repr__(self) -> str:
         return "{}({!r}, python_version={!r}, minimum_version={!r})".format(
-            type(self).__name__, self.module, self.python_version,
-            self.minimum_version)
+            type(self).__name__,
+            self.module,
+            self.python_version,
+            self.minimum_version,
+        )
 
 
 class BoostComponentRequirement(Requirement):
-
     name: str
     family = "boost-component"
 
@@ -871,7 +848,6 @@ class BoostComponentRequirement(Requirement):
 
 
 class KF5ComponentRequirement(Requirement):
-
     name: str
     family = "kf5-component"
 
@@ -880,7 +856,6 @@ class KF5ComponentRequirement(Requirement):
 
 
 class GnulibDirectoryRequirement(Requirement):
-
     directory: str
     family = "gnulib"
 

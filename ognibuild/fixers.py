@@ -99,23 +99,25 @@ class MinimumAutoconfFixer(BuildFixer):
         return isinstance(problem, MinimumAutoconfTooOld)
 
     def _fix(self, error, phase):
-        for name in ['configure.ac', 'configure.in']:
+        for name in ["configure.ac", "configure.in"]:
             try:
-                with open(self.session.external_path(name), 'rb') as f:
+                with open(self.session.external_path(name), "rb") as f:
                     lines = list(f.readlines())
             except FileNotFoundError:
                 continue
-            pattern = re.compile(br'AC_PREREQ\((.*)\)')
+            pattern = re.compile(rb"AC_PREREQ\((.*)\)")
             for i, line in enumerate(lines):
                 m = pattern.fullmatch(line)
                 if not m:
                     continue
-                lines[i] = (
-                    f'AC_PREREQ([{error.minimum_version}])'.encode('ascii'))
+                lines[i] = f"AC_PREREQ([{error.minimum_version}])".encode(
+                    "ascii"
+                )
             else:
                 lines.insert(
-                    0, f'AC_PREREQ([{error.minimum_version}])'.encode('ascii'))
-            with open(self.session.external_path(name), 'wb') as f:
+                    0, f"AC_PREREQ([{error.minimum_version}])".encode("ascii")
+                )
+            with open(self.session.external_path(name), "wb") as f:
                 f.writelines(lines)
             return True
         return False
@@ -136,8 +138,10 @@ class MissingGoSumEntryFixer(BuildFixer):
 
     def _fix(self, error, phase):
         from .fix_build import run_detecting_problems
+
         run_detecting_problems(
-            self.session, ["go", "mod", "download", error.package])
+            self.session, ["go", "mod", "download", error.package]
+        )
         return True
 
 

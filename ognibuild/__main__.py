@@ -44,18 +44,19 @@ def display_explain_commands(commands):
         if isinstance(command, list):
             command = shlex.join(command)  # type: ignore
         logging.info(
-            "  %s (to install %s)", command, ", ".join(map(str, reqs)))
+            "  %s (to install %s)", command, ", ".join(map(str, reqs))
+        )
 
 
 def install_necessary_declared_requirements(
     session, resolver, fixers, buildsystems, stages, explain=False
 ):
-
     if explain:
         relevant = []
         for buildsystem in buildsystems:
             declared_reqs = buildsystem.get_declared_dependencies(
-                session, fixers)
+                session, fixers
+            )
             for stage, req in declared_reqs:
                 if stage in stages:
                     relevant.append(req)
@@ -64,11 +65,12 @@ def install_necessary_declared_requirements(
         for buildsystem in buildsystems:
             try:
                 buildsystem.install_declared_requirements(
-                    stages, session, resolver, fixers)
+                    stages, session, resolver, fixers
+                )
             except NotImplementedError:
                 logging.warning(
                     "Unable to determine declared dependencies from %r",
-                    buildsystem
+                    buildsystem,
                 )
 
 
@@ -101,13 +103,16 @@ def main():  # noqa: C901
 
     from .session import Session
 
-    parser = argparse.ArgumentParser(prog='ogni')
+    parser = argparse.ArgumentParser(prog="ogni")
     parser.add_argument(
         "--version", action="version", version="%(prog)s " + version_string
     )
     parser.add_argument(
-        "--directory", "-d", type=str, help="Directory for project.",
-        default="."
+        "--directory",
+        "-d",
+        type=str,
+        help="Directory for project.",
+        default=".",
     )
     parser.add_argument("--schroot", type=str, help="schroot to run in.")
     parser.add_argument(
@@ -117,11 +122,19 @@ def main():  # noqa: C901
         help="What to do about missing dependencies",
     )
     parser.add_argument(
-        '--apt', help=argparse.SUPPRESS,
-        dest='resolve', action='store_const', const='apt')
+        "--apt",
+        help=argparse.SUPPRESS,
+        dest="resolve",
+        action="store_const",
+        const="apt",
+    )
     parser.add_argument(
-        '--native', help=argparse.SUPPRESS,
-        dest='native', action='store_const', const='native')
+        "--native",
+        help=argparse.SUPPRESS,
+        dest="native",
+        action="store_const",
+        const="native",
+    )
     parser.add_argument(
         "--explain",
         action="store_true",
@@ -134,13 +147,16 @@ def main():  # noqa: C901
         help="Ignore declared dependencies, follow build errors only",
     )
     parser.add_argument(
-        "--user", action="store_true",
-        help="Install in local-user directories."
+        "--user",
+        action="store_true",
+        help="Install in local-user directories.",
     )
     parser.add_argument(
-        "--dep-server-url", type=str,
+        "--dep-server-url",
+        type=str,
         help="ognibuild dep server to use",
-        default=os.environ.get('OGNIBUILD_DEPS'))
+        default=os.environ.get("OGNIBUILD_DEPS"),
+    )
 
     parser.add_argument("--verbose", action="store_true", help="Be verbose")
     subparsers = parser.add_subparsers(dest="subcommand")
@@ -152,10 +168,12 @@ def main():  # noqa: C901
     subparsers.add_parser("verify")
     exec_parser = subparsers.add_parser("exec")
     exec_parser.add_argument(
-        'subargv', nargs=argparse.REMAINDER, help='Command to run.')
+        "subargv", nargs=argparse.REMAINDER, help="Command to run."
+    )
     install_parser = subparsers.add_parser("install")
     install_parser.add_argument(
-        "--prefix", type=str, help='Prefix to install in')
+        "--prefix", type=str, help="Prefix to install in"
+    )
 
     args = parser.parse_args()
     if not args.subcommand:
@@ -180,48 +198,54 @@ def main():  # noqa: C901
         try:
             es.enter_context(session)
         except SessionSetupFailure as e:
-            logging.debug('Error lines: %r', e.errlines)
-            logging.fatal('Failed to set up session: %s', e.reason)
+            logging.debug("Error lines: %r", e.errlines)
+            logging.fatal("Failed to set up session: %s", e.reason)
             return 1
 
         parsed_url = urlparse(args.directory)
         # TODO(jelmer): Get a list of supported schemes from breezy?
-        if parsed_url.scheme in ('git', 'http', 'https', 'ssh'):
+        if parsed_url.scheme in ("git", "http", "https", "ssh"):
             import breezy.bzr  # noqa: F401
             import breezy.git  # noqa: F401
             from breezy.branch import Branch
+
             b = Branch.open(args.directory)
             logging.info("Cloning %s", args.directory)
             td = es.enter_context(tempfile.TemporaryDirectory())
             to_dir = b.controldir.sprout(td, create_tree_if_local=True)
             external_dir, internal_dir = session.setup_from_vcs(
-                to_dir.open_workingtree())
+                to_dir.open_workingtree()
+            )
         else:
-            if parsed_url.scheme == 'file':
+            if parsed_url.scheme == "file":
                 directory = parsed_url.path
             else:
                 directory = args.directory
             logging.info("Preparing directory %s", directory)
             external_dir, internal_dir = session.setup_from_directory(
-                directory)
+                directory
+            )
         session.chdir(internal_dir)
         os.chdir(external_dir)
 
-        if not session.is_temporary and args.subcommand == 'info':
+        if not session.is_temporary and args.subcommand == "info":
             args.explain = True
 
         if args.resolve == "auto":
             resolver = auto_resolver(session, explain=args.explain)
         else:
             resolver = select_resolvers(
-                session, user_local=args.user,
-                resolvers=args.resolve.split(','),
-                dep_server_url=args.dep_server_url)
+                session,
+                user_local=args.user,
+                resolvers=args.resolve.split(","),
+                dep_server_url=args.dep_server_url,
+            )
         logging.info("Using requirement resolver: %s", resolver)
         fixers = determine_fixers(session, resolver, explain=args.explain)
         try:
             if args.subcommand == "exec":
                 from .fix_build import run_with_build_fixers
+
                 run_with_build_fixers(fixers, session, args.subargv)
                 return 0
             bss = list(detect_buildsystems(external_dir))
@@ -230,17 +254,23 @@ def main():  # noqa: C901
                 stages = STAGE_MAP[args.subcommand]
                 if stages:
                     logging.info(
-                        "Checking that declared requirements are present")
+                        "Checking that declared requirements are present"
+                    )
                     try:
                         install_necessary_declared_requirements(
-                            session, resolver, fixers, bss, stages,
-                            explain=args.explain
+                            session,
+                            resolver,
+                            fixers,
+                            bss,
+                            stages,
+                            explain=args.explain,
                         )
                     except UnsatisfiedRequirements as e:
                         logging.info(
-                            'Unable to install declared dependencies:')
+                            "Unable to install declared dependencies:"
+                        )
                         for req in e.requirements:
-                            logging.info(' * %s', req)
+                            logging.info(" * %s", req)
                         return 1
                     except ExplainInstall as e:
                         display_explain_commands(e.commands)
@@ -257,20 +287,20 @@ def main():  # noqa: C901
                         target_directory=".",
                     )
                 except DistNoTarball:
-                    logging.fatal('No tarball created.')
+                    logging.fatal("No tarball created.")
                     return 1
             if args.subcommand == "build":
                 from .build import run_build
 
                 run_build(
-                    session, buildsystems=bss, resolver=resolver,
-                    fixers=fixers)
+                    session, buildsystems=bss, resolver=resolver, fixers=fixers
+                )
             if args.subcommand == "clean":
                 from .clean import run_clean
 
                 run_clean(
-                    session, buildsystems=bss, resolver=resolver,
-                    fixers=fixers)
+                    session, buildsystems=bss, resolver=resolver, fixers=fixers
+                )
             if args.subcommand == "install":
                 from .install import run_install
 
@@ -286,8 +316,8 @@ def main():  # noqa: C901
                 from .test import run_test
 
                 run_test(
-                    session, buildsystems=bss, resolver=resolver,
-                    fixers=fixers)
+                    session, buildsystems=bss, resolver=resolver, fixers=fixers
+                )
             if args.subcommand == "info":
                 from .info import run_info
 
@@ -298,29 +328,32 @@ def main():  # noqa: C901
                 from .test import run_test
 
                 run_build(
-                    session, buildsystems=bss, resolver=resolver,
-                    fixers=fixers)
+                    session, buildsystems=bss, resolver=resolver, fixers=fixers
+                )
                 run_test(
-                    session, buildsystems=bss, resolver=resolver,
-                    fixers=fixers)
+                    session, buildsystems=bss, resolver=resolver, fixers=fixers
+                )
 
         except ExplainInstall as e:
             display_explain_commands(e.commands)
         except UnidentifiedError:
             logging.info(
-                'If there is a clear indication of a problem in the build '
-                'log, please consider filing a request to update the patterns '
-                'in buildlog-consultant at '
-                'https://github.com/jelmer/buildlog-consultant/issues/new')
+                "If there is a clear indication of a problem in the build "
+                "log, please consider filing a request to update the patterns "
+                "in buildlog-consultant at "
+                "https://github.com/jelmer/buildlog-consultant/issues/new"
+            )
             return 1
         except DetailedFailure:
             if not args.verbose:
                 logging.info(
-                    'Run with --verbose to get more information '
-                    'about steps taken to try to resolve error')
+                    "Run with --verbose to get more information "
+                    "about steps taken to try to resolve error"
+                )
             logging.info(
-                'Please consider filing a bug report at '
-                'https://github.com/jelmer/ognibuild/issues/new')
+                "Please consider filing a bug report at "
+                "https://github.com/jelmer/ognibuild/issues/new"
+            )
             return 1
         except NoBuildToolsFound:
             logging.info("No build tools found.")

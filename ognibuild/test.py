@@ -32,8 +32,9 @@ def run_test(session, buildsystems, resolver, fixers, log_manager=None):
 
     for buildsystem in buildsystems:
         iterate_with_build_fixers(
-            fixers, log_manager.wrap(
-                partial(buildsystem.test, session, resolver)))
+            fixers,
+            log_manager.wrap(partial(buildsystem.test, session, resolver)),
+        )
         return
 
     raise NoBuildToolsFound()

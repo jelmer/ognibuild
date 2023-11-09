@@ -22,30 +22,29 @@ import subprocess
 import tempfile
 from typing import Optional
 
+from .._ognibuild_rs import (
+    generate_session_id,
+    sanitize_session_name,
+)
 from . import NoSessionOpen, Session, SessionAlreadyOpen, SessionSetupFailure
 
-from .._ognibuild_rs import (
-    sanitize_session_name,
-    generate_session_id,
-)
-
 __all__ = [
-    'sanitize_session_name',
-    'generate_session_id',
-    'SchrootSession',
+    "sanitize_session_name",
+    "generate_session_id",
+    "SchrootSession",
 ]
 
 
 class SchrootSession(Session):
-
     _cwd: Optional[str]
     _location: Optional[str]
     chroot: str
     session_id: Optional[str]
     session_prefix: Optional[str]
 
-    def __init__(self, chroot: str, *,
-                 session_prefix: Optional[str] = None) -> None:
+    def __init__(
+        self, chroot: str, *, session_prefix: Optional[str] = None
+    ) -> None:
         if not isinstance(chroot, str):
             raise TypeError("not a valid chroot: %r" % chroot)
         self.chroot = chroot
@@ -79,7 +78,7 @@ class SchrootSession(Session):
                     logging.error("%s", line[3:].decode(errors="replace"))
             logging.warning(
                 "Failed to close schroot session %s, leaving stray.",
-                self.session_id
+                self.session_id,
             )
             self.session_id = None
             return False
@@ -99,7 +98,8 @@ class SchrootSession(Session):
             self.session_id = (
                 subprocess.check_output(
                     ["schroot", "-c", self.chroot, "-b"] + extra_args,
-                    stderr=stderr)
+                    stderr=stderr,
+                )
                 .strip()
                 .decode()
             )
@@ -108,13 +108,16 @@ class SchrootSession(Session):
             errlines = stderr.readlines()
             if len(errlines) == 1:
                 raise SessionSetupFailure(
-                    errlines[0].rstrip().decode(), errlines=errlines) from e
+                    errlines[0].rstrip().decode(), errlines=errlines
+                ) from e
             elif len(errlines) == 0:
                 raise SessionSetupFailure(
-                    "No output from schroot", errlines=errlines) from e
+                    "No output from schroot", errlines=errlines
+                ) from e
             else:
                 raise SessionSetupFailure(
-                    errlines[-1].decode(), errlines=errlines) from e
+                    errlines[-1].decode(), errlines=errlines
+                ) from e
         logging.info(
             "Opened schroot session %s (from %s)", self.session_id, self.chroot
         )
@@ -187,27 +190,34 @@ class SchrootSession(Session):
     ) -> bytes:
         try:
             return subprocess.check_output(
-                self._run_argv(argv, cwd, user, env=env))
+                self._run_argv(argv, cwd, user, env=env)
+            )
         except subprocess.CalledProcessError as e:
             raise subprocess.CalledProcessError(e.returncode, argv) from e
 
     def Popen(
-        self, argv, cwd: Optional[str] = None, user: Optional[str] = None,
-        **kwargs
+        self,
+        argv,
+        cwd: Optional[str] = None,
+        user: Optional[str] = None,
+        **kwargs,
     ):
         return subprocess.Popen(self._run_argv(argv, cwd, user), **kwargs)
 
     def call(
-        self, argv: list[str], cwd: Optional[str] = None,
-        user: Optional[str] = None
+        self,
+        argv: list[str],
+        cwd: Optional[str] = None,
+        user: Optional[str] = None,
     ):
         return subprocess.call(self._run_argv(argv, cwd, user))
 
     def create_home(self) -> None:
         """Create the user's home directory."""
         home = (
-            self.check_output(
-                ["sh", "-c", "echo $HOME"], cwd="/").decode().rstrip("\n")
+            self.check_output(["sh", "-c", "echo $HOME"], cwd="/")
+            .decode()
+            .rstrip("\n")
         )
         user = (
             self.check_output(["sh", "-c", "echo $LOGNAME"], cwd="/")
@@ -224,7 +234,8 @@ class SchrootSession(Session):
         if self._cwd is None:
             raise ValueError("no cwd set")
         return os.path.join(
-            self.location, os.path.join(self._cwd, path).lstrip("/"))
+            self.location, os.path.join(self._cwd, path).lstrip("/")
+        )
 
     def exists(self, path: str) -> bool:
         fullpath = self.external_path(path)
@@ -240,13 +251,16 @@ class SchrootSession(Session):
 
     def rmtree(self, path: str):
         import shutil
+
         fullpath = self.external_path(path)
         return shutil.rmtree(fullpath)
 
     def _build_tempdir(self, build_dir="/build") -> str:
-        return self.check_output(
-            ["mktemp", "-d", "-p", build_dir],
-            cwd="/").decode().rstrip("\n")
+        return (
+            self.check_output(["mktemp", "-d", "-p", build_dir], cwd="/")
+            .decode()
+            .rstrip("\n")
+        )
 
     def setup_from_vcs(
         self, tree, include_controldir: Optional[bool] = None, subdir="package"

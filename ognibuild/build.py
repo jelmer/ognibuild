@@ -21,7 +21,7 @@ from .buildsystem import NoBuildToolsFound
 from .fix_build import iterate_with_build_fixers
 from .logs import NoLogManager
 
-BUILD_LOG_FILENAME = 'build.log'
+BUILD_LOG_FILENAME = "build.log"
 
 
 def run_build(session, buildsystems, resolver, fixers, log_manager=None):
@@ -34,8 +34,9 @@ def run_build(session, buildsystems, resolver, fixers, log_manager=None):
 
     for buildsystem in buildsystems:
         iterate_with_build_fixers(
-            fixers, log_manager.wrap(
-                partial(buildsystem.build, session, resolver)))
+            fixers,
+            log_manager.wrap(partial(buildsystem.build, session, resolver)),
+        )
         return
 
     raise NoBuildToolsFound()

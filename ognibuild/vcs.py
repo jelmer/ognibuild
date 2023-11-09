@@ -31,7 +31,7 @@ from ._ognibuild_rs import (
 )
 
 __all__ = [
-    'export_vcs_tree',
+    "export_vcs_tree",
 ]
 
 
@@ -42,8 +42,9 @@ def dupe_vcs_tree(tree: Tree, directory: str) -> None:
     assert isinstance(tree, RevisionTree)
     try:
         result = tree._repository.controldir.sprout(
-            directory, create_tree_if_local=True,
-            revision_id=tree.get_revision_id()
+            directory,
+            create_tree_if_local=True,
+            revision_id=tree.get_revision_id(),
         )
     except OSError as e:
         if e.errno == errno.ENOSPC:

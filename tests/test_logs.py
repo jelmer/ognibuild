@@ -30,72 +30,69 @@ from ognibuild.logs import (
 
 
 class TestCopyOutput(TestCase):
-
     def test_no_tee(self):
         with tempfile.TemporaryDirectory() as td:
-            p = os.path.join(td, 'foo.log')
+            p = os.path.join(td, "foo.log")
             with copy_output(p, tee=False):
-                sys.stdout.write('lala\n')
+                sys.stdout.write("lala\n")
                 sys.stdout.flush()
             with open(p) as f:
-                self.assertEqual('lala\n', f.read())
+                self.assertEqual("lala\n", f.read())
 
     def test_tee(self):
         with tempfile.TemporaryDirectory() as td:
-            p = os.path.join(td, 'foo.log')
+            p = os.path.join(td, "foo.log")
             with copy_output(p, tee=True):
-                sys.stdout.write('lala\n')
+                sys.stdout.write("lala\n")
                 for i in range(10):
                     if os.path.exists(p):
                         break
                     time.sleep(1)
                 else:
-                    raise AssertionError(f'path {p} did not appear')
+                    raise AssertionError(f"path {p} did not appear")
                 sys.stdout.flush()
             with open(p) as f:
-                self.assertEqual('lala\n', f.read())
+                self.assertEqual("lala\n", f.read())
 
 
 class TestRedirectOutput(TestCase):
-
     def test_simple(self):
         with tempfile.TemporaryDirectory() as td:
-            p = os.path.join(td, 'foo.log')
-            with open(p, 'w') as f, redirect_output(f):
-                sys.stdout.write('lala\n')
+            p = os.path.join(td, "foo.log")
+            with open(p, "w") as f, redirect_output(f):
+                sys.stdout.write("lala\n")
                 sys.stdout.flush()
             with open(p) as f:
-                self.assertEqual('lala\n', f.read())
+                self.assertEqual("lala\n", f.read())
 
 
 class TestRotateLogfile(TestCase):
-
     def test_does_not_exist(self):
         with tempfile.TemporaryDirectory() as td:
-            p = os.path.join(td, 'foo.log')
+            p = os.path.join(td, "foo.log")
             rotate_logfile(p)
             self.assertEqual([], os.listdir(td))
 
     def test_simple(self):
         with tempfile.TemporaryDirectory() as td:
-            p = os.path.join(td, 'foo.log')
-            with open(p, 'w') as f:
-                f.write('contents\n')
+            p = os.path.join(td, "foo.log")
+            with open(p, "w") as f:
+                f.write("contents\n")
             rotate_logfile(p)
-            self.assertEqual(['foo.log.1'], os.listdir(td))
+            self.assertEqual(["foo.log.1"], os.listdir(td))
 
 
 class TestLogManager(TestCase):
-
     def test_simple(self):
         with tempfile.TemporaryDirectory() as td:
-            p = os.path.join(td, 'foo.log')
-            lm = DirectoryLogManager(p, mode='redirect')
+            p = os.path.join(td, "foo.log")
+            lm = DirectoryLogManager(p, mode="redirect")
 
             def writesomething():
-                sys.stdout.write('foo\n')
+                sys.stdout.write("foo\n")
                 sys.stdout.flush()
+
             fn = lm.wrap(writesomething)
             fn()
             with open(p) as f:
-                self.assertEqual('foo\n', f.read())
+                self.assertEqual("foo\n", f.read())
