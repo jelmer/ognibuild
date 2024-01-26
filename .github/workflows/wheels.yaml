@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
       - name: Install native dependencies (Ubuntu)
@@ -40,7 +40,7 @@ jobs:
         run: pip install -U gpg
         if: "matrix.os != 'windows-latest'"
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v3
         if: "matrix.os == 'ubuntu-latest'"
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
@@ -62,7 +62,7 @@ jobs:
             rustup target add all &&
             rustup show
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
 
@@ -77,10 +77,10 @@ jobs:
       name: pypi
       url: https://pypi.org/p/ognibuild
     steps:
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v5
 
       - name: Download wheels
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           path: dist
       - name: Publish package distributions to PyPI
