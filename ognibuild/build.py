@@ -35,6 +35,7 @@ def run_build(session, buildsystems, resolver, fixers, log_manager=None):
     for buildsystem in buildsystems:
         iterate_with_build_fixers(
             fixers,
+            ["build"],
             log_manager.wrap(partial(buildsystem.build, session, resolver)),
         )
         return

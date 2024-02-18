@@ -71,6 +71,7 @@ def run_dist(
     for buildsystem in buildsystems:
         return iterate_with_build_fixers(
             fixers,
+            ["dist"],
             log_manager.wrap(
                 partial(
                     buildsystem.dist,
@@ -142,6 +143,7 @@ def dist(
     for buildsystem in buildsystems:
         return iterate_with_build_fixers(
             fixers,
+            ["dist"],
             log_manager.wrap(
                 partial(
                     buildsystem.dist,
