@@ -24,6 +24,7 @@ import unittest
 def test_suite():
     names = [
         "buildlog",
+        "fix_build",
         "logs",
     ]
     if os.path.exists("/usr/bin/dpkg-architecture"):
