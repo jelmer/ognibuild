@@ -47,6 +47,7 @@ def run_install(
     for buildsystem in buildsystems:
         iterate_with_build_fixers(
             fixers,
+            ["install"],
             log_manager.wrap(
                 partial(buildsystem.install, session, resolver, install_target)
             ),

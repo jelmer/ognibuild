@@ -10,5 +10,4 @@ __pycache__
 *.swn
 .mypy_cache
 target
-Cargo.lock
 *.so

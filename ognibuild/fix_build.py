@@ -104,5 +104,6 @@ def run_with_build_fixers(
         fixers = []
     return iterate_with_build_fixers(
         fixers,
+        ["build"],
         partial(run_detecting_problems, session, args, quiet=quiet, **kwargs),
     )

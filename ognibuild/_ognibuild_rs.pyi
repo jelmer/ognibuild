@@ -16,5 +16,7 @@ def resolve_error(error, phase, fixers) -> bool: ...
 T = TypeVar("T")
 
 def iterate_with_build_fixers(
-    fixers: list[BuildFixer], cb: Callable[[], T], limit=DEFAULT_LIMIT
+    fixers: list[BuildFixer],
+    phase: list[str],
+    cb: Callable[[], T], limit=DEFAULT_LIMIT
 ) -> T: ...

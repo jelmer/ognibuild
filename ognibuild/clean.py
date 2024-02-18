@@ -33,6 +33,7 @@ def run_clean(session, buildsystems, resolver, fixers, log_manager=None):
     for buildsystem in buildsystems:
         iterate_with_build_fixers(
             fixers,
+            ["clean"],
             log_manager.wrap(partial(buildsystem.clean, session, resolver)),
         )
         return
