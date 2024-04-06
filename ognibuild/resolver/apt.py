@@ -942,9 +942,7 @@ async def resolve_kf5_component_req(apt_mgr, req):
     return await find_reqs_simple(
         apt_mgr,
         [
-            "/usr/lib/.*/cmake/KF5{}/KF5{}Config\\.cmake".format(
-                re.escape(req.name), re.escape(req.name)
-            )
+            f"/usr/lib/.*/cmake/KF5{re.escape(req.name)}/KF5{re.escape(req.name)}Config\\.cmake"
         ],
         regex=True,
     )

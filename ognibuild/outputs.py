@@ -41,11 +41,7 @@ class PythonPackageOutput(UpstreamOutput):
         return "python package: %s" % self.name
 
     def __repr__(self) -> str:
-        return "{}({!r}, python_version={!r})".format(
-            type(self).__name__,
-            self.name,
-            self.python_version,
-        )
+        return f"{type(self).__name__}({self.name!r}, python_version={self.python_version!r})"
 
 
 class RPackageOutput(UpstreamOutput):

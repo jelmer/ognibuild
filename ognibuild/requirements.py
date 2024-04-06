@@ -41,12 +41,7 @@ class PythonPackageRequirement(Requirement):
         self.specs = specs
 
     def __repr__(self) -> str:
-        return "{}({!r}, python_version={!r}, specs={!r})".format(
-            type(self).__name__,
-            self.package,
-            self.python_version,
-            self.specs,
-        )
+        return f"{type(self).__name__}({self.package!r}, python_version={self.python_version!r}, specs={self.specs!r})"
 
     def __str__(self) -> str:
         if self.specs:
@@ -154,13 +149,7 @@ class PhpPackageRequirement(Requirement):
         return cls(*js)
 
     def __repr__(self) -> str:
-        return "{}({!r}, {!r}, {!r}, {!r})".format(
-            type(self).__name__,
-            self.package,
-            self.channel,
-            self.min_version,
-            self.max_version,
-        )
+        return f"{type(self).__name__}({self.package!r}, {self.channel!r}, {self.min_version!r}, {self.max_version!r})"
 
 
 Requirement.register_json(PhpPackageRequirement)
@@ -384,13 +373,7 @@ class CargoCrateRequirement(Requirement):
         self.minimum_version = minimum_version
 
     def __repr__(self) -> str:
-        return "{}({!r}, features={!r}, api_version={!r}, minimum_version={!r})".format(
-            type(self).__name__,
-            self.crate,
-            self.features,
-            self.api_version,
-            self.minimum_version,
-        )
+        return f"{type(self).__name__}({self.crate!r}, features={self.features!r}, api_version={self.api_version!r}, minimum_version={self.minimum_version!r})"
 
     def __str__(self) -> str:
         ret = "cargo crate: {} {}".format(self.crate, self.api_version or "")
@@ -410,9 +393,7 @@ class PkgConfigRequirement(Requirement):
         self.minimum_version = minimum_version
 
     def __repr__(self) -> str:
-        return "{}({!r}, minimum_version={!r})".format(
-            type(self).__name__, self.module, self.minimum_version
-        )
+        return f"{type(self).__name__}({self.module!r}, minimum_version={self.minimum_version!r})"
 
 
 class PathRequirement(Requirement):
@@ -469,9 +450,7 @@ class GoPackageRequirement(Requirement):
         self.version = version
 
     def __repr__(self) -> str:
-        return "{}({!r}, version={!r})".format(
-            type(self).__name__, self.package, self.version
-        )
+        return f"{type(self).__name__}({self.package!r}, version={self.version!r})"
 
     def __str__(self) -> str:
         if self.version:
@@ -518,11 +497,7 @@ class RPackageRequirement(Requirement):
         self.minimum_version = minimum_version
 
     def __repr__(self) -> str:
-        return "{}({!r}, minimum_version={!r})".format(
-            type(self).__name__,
-            self.package,
-            self.minimum_version,
-        )
+        return f"{type(self).__name__}({self.package!r}, minimum_version={self.minimum_version!r})"
 
     def __str__(self) -> str:
         if self.minimum_version:
@@ -554,17 +529,11 @@ class OctavePackageRequirement(Requirement):
         self.minimum_version = minimum_version
 
     def __repr__(self) -> str:
-        return "{}({!r}, minimum_version={!r})".format(
-            type(self).__name__,
-            self.package,
-            self.minimum_version,
-        )
+        return f"{type(self).__name__}({self.package!r}, minimum_version={self.minimum_version!r})"
 
     def __str__(self) -> str:
         if self.minimum_version:
-            return "Octave package: {} (>= {})".format(
-                self.package, self.minimum_version
-            )
+            return f"Octave package: {self.package} (>= {self.minimum_version})"
         else:
             return f"Octave package: {self.package}"
 
@@ -676,20 +645,10 @@ class MavenArtifactRequirement(Requirement):
         self.kind = kind
 
     def __str__(self) -> str:
-        return "maven requirement: {}:{}:{}".format(
-            self.group_id,
-            self.artifact_id,
-            self.version,
-        )
+        return f"maven requirement: {self.group_id}:{self.artifact_id}:{self.version}"
 
     def __repr__(self) -> str:
-        return "{}(group_id={!r}, artifact_id={!r}, version={!r}, kind={!r})".format(
-            type(self).__name__,
-            self.group_id,
-            self.artifact_id,
-            self.version,
-            self.kind,
-        )
+        return f"{type(self).__name__}(group_id={self.group_id!r}, artifact_id={self.artifact_id!r}, version={self.version!r}, kind={self.kind!r})"
 
     @classmethod
     def from_str(cls, text):
@@ -831,12 +790,7 @@ class PythonModuleRequirement(Requirement):
         return p.returncode == 0
 
     def __repr__(self) -> str:
-        return "{}({!r}, python_version={!r}, minimum_version={!r})".format(
-            type(self).__name__,
-            self.module,
-            self.python_version,
-            self.minimum_version,
-        )
+        return f"{type(self).__name__}({self.module!r}, python_version={self.python_version!r}, minimum_version={self.minimum_version!r})"
 
 
 class BoostComponentRequirement(Requirement):

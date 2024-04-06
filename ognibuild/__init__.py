@@ -60,12 +60,7 @@ class UnidentifiedError(Exception):
         )
 
     def __repr__(self) -> str:
-        return "<{}({!r}, {!r}, ..., secondary={!r})>".format(
-            type(self).__name__,
-            self.retcode,
-            self.argv,
-            self.secondary,
-        )
+        return f"<{type(self).__name__}({self.retcode!r}, {self.argv!r}, ..., secondary={self.secondary!r})>"
 
 
 def shebang_binary(p):

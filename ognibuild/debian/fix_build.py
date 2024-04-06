@@ -446,11 +446,7 @@ class SimpleBuildFixer(BuildFixer):
         self._fn = fn
 
     def __repr__(self) -> str:
-        return "{}({}, {})".format(
-            type(self).__name__,
-            self._problem_cls.__name__,
-            self._fn.__name__,
-        )
+        return f"{type(self).__name__}({self._problem_cls.__name__}, {self._fn.__name__})"
 
     def can_fix(self, problem: Problem):
         return isinstance(problem, self._problem_cls)
@@ -469,11 +465,7 @@ class DependencyBuildFixer(BuildFixer):
         self._fn = fn
 
     def __repr__(self) -> str:
-        return "{}({}, {})".format(
-            type(self).__name__,
-            self._problem_cls.__name__,
-            self._fn.__name__,
-        )
+        return f"{type(self).__name__}({self._problem_cls.__name__}, {self._fn.__name__})"
 
     def can_fix(self, problem: Problem):
         return isinstance(problem, self._problem_cls)
