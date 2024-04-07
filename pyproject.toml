@@ -135,3 +135,11 @@ ignore = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.cibuildwheel]
+before-build = "pip install -U setuptools-rust && rustup default stable && rustup show"
+environment = {PATH="$HOME/.cargo/bin:$PATH"}
+skip = "*-win32 *musllinux*"
+
+[tool.cibuildwheel.linux]
+before-build = "pip install -U setuptools-rust && curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain=stable --profile=minimal -y && rustup show"
