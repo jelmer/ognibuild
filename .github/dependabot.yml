@@ -10,4 +10,8 @@ updates:
         patterns:
           - "*"  # Group all Actions updates into a single larger pull request
     schedule:
-      interval: weekly
+      interval: "weekly"
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
