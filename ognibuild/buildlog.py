@@ -142,7 +142,7 @@ class InstallFixer(BuildFixer):
         return f"{type(self).__name__}({self.resolver!r})"
 
     def __str__(self) -> str:
-        return "upstream requirement fixer(%s)" % self.resolver
+        return f"upstream requirement fixer({self.resolver})"
 
     def can_fix(self, error):
         req = problem_to_upstream_requirement(error)
@@ -179,7 +179,7 @@ class ExplainInstallFixer(BuildFixer):
         return f"{type(self).__name__}({self.resolver!r})"
 
     def __str__(self) -> str:
-        return "upstream requirement install explainer(%s)" % self.resolver
+        return f"upstream requirement install explainer({self.resolver})"
 
     def can_fix(self, error):
         req = problem_to_upstream_requirement(error)

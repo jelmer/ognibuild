@@ -73,7 +73,7 @@ def go_base_name(package):
 def load_crate_info(crate):
     import json
 
-    http_url = "https://crates.io/api/v1/crates/%s" % crate
+    http_url = f"https://crates.io/api/v1/crates/{crate}"
     headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
     try:
         resp = urlopen(Request(http_url, headers=headers))
@@ -92,7 +92,7 @@ def find_python_package_upstream(requirement):
 def pypi_upstream_info(project, version=None):
     import json
 
-    http_url = "https://pypi.org/pypi/%s/json" % project
+    http_url = f"https://pypi.org/pypi/{project}/json"
     headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
     try:
         http_contents = urlopen(Request(http_url, headers=headers)).read()
@@ -114,7 +114,7 @@ def pypi_upstream_info(project, version=None):
     return UpstreamInfo(
         branch_url=upstream_branch,
         branch_subpath="",
-        name="python-%s" % pypi_data["info"]["name"],
+        name="python-{}".format(pypi_data["info"]["name"]),
         tarball_url=tarball_url,
     )
 
@@ -125,10 +125,9 @@ def find_go_package_upstream(requirement):
             "Go-Import-Path": requirement.package,
         }
         return UpstreamInfo(
-            name="golang-%s" % go_base_name(requirement.package),
+            name=f"golang-{go_base_name(requirement.package)}",
             metadata=metadata,
-            branch_url="https://%s"
-            % "/".join(requirement.package.split("/")[:3]),
+            branch_url="https://{}".format("/".join(requirement.package.split("/")[:3])),
             branch_subpath="",
         )
 
@@ -334,7 +333,7 @@ def npm_upstream_info(package, version=None):
     return UpstreamInfo(
         branch_url=branch_url,
         branch_subpath="",
-        name="node-%s" % package,
+        name=f"node-{package}",
         tarball_url=version_data["dist"]["tarball"],
     )
 
@@ -368,7 +367,7 @@ def perl_upstream_info(module, version=None):
     metadata = {}
     metadata["Version"] = data["version"]
     return UpstreamInfo(
-        name="lib%s-perl" % (module.lower().replace("::", "-")),
+        name="lib{}-perl".format(module.lower().replace("::", "-")),
         metadata=metadata,
         branch_url=branch_url,
         branch_subpath="",

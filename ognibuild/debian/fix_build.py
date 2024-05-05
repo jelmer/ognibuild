@@ -148,7 +148,7 @@ class PackageDependencyFixer(BuildFixer):
         return f"{type(self).__name__}({self.apt_resolver!r})"
 
     def __str__(self) -> str:
-        return "upstream requirement fixer(%s)" % self.apt_resolver
+        return f"upstream requirement fixer({self.apt_resolver})"
 
     def can_fix(self, error):
         req = problem_to_upstream_requirement(error)
@@ -228,7 +228,7 @@ def add_build_dependency(context, requirement: AptRequirement):
         return False
 
     logging.info("Adding build dependency: %s", desc)
-    return context.commit("Add missing build dependency on %s." % desc)
+    return context.commit(f"Add missing build dependency on {desc}.")
 
 
 def add_test_dependency(context, testname, requirement):
@@ -304,9 +304,9 @@ def python_tie_breaker(tree, subpath, reqs):
     def same(pkg, python_version):
         if pkg.startswith(python_version + "-"):
             return True
-        if pkg.startswith("lib%s-" % python_version):
+        if pkg.startswith(f"lib{python_version}-"):
             return True
-        return pkg == r"lib%s-dev" % python_version
+        return pkg == rf"lib{python_version}-dev"
 
     for python_version in targeted:
         for req in reqs:
@@ -735,7 +735,7 @@ def main(argv=None):
             output_directory = args.output_directory
             if not os.path.isdir(output_directory):
                 parser.error(
-                    "output directory %s is not a directory" % output_directory
+                    f"output directory {output_directory} is not a directory"
                 )
 
         tree, subpath = WorkingTree.open_containing(".")

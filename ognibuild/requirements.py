@@ -94,7 +94,7 @@ class PythonPackageRequirement(Requirement):
             [
                 cmd,
                 "-c",
-                "import pkg_resources; pkg_resources.require(%r)" % text,
+                f"import pkg_resources; pkg_resources.require({text!r})",
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -269,9 +269,9 @@ class VagueDependencyRequirement(Requirement):
                     self.name.lower(), minimum_version=self.minimum_version
                 )
                 if self.name.lower().startswith("lib"):
-                    devname = "%s-dev" % self.name.lower()
+                    devname = f"{self.name.lower()}-dev"
                 else:
-                    devname = "lib%s-dev" % self.name.lower()
+                    devname = f"lib{self.name.lower()}-dev"
                 yield AptRequirement.simple(
                     devname, minimum_version=self.minimum_version
                 )
@@ -378,9 +378,9 @@ class CargoCrateRequirement(Requirement):
     def __str__(self) -> str:
         ret = "cargo crate: {} {}".format(self.crate, self.api_version or "")
         if self.features:
-            ret += " (%s)" % (", ".join(sorted(self.features)))
+            ret += " ({})".format(", ".join(sorted(self.features)))
         if self.minimum_version:
-            ret += " (>= %s)" % self.minimum_version
+            ret += f" (>= {self.minimum_version})"
         return ret
 
 
@@ -455,7 +455,7 @@ class GoPackageRequirement(Requirement):
     def __str__(self) -> str:
         if self.version:
             return f"go package: {self.package} (= {self.version})"
-        return "go package: %s" % self.package
+        return f"go package: {self.package}"
 
 
 class GoRequirement(Requirement):
@@ -466,7 +466,7 @@ class GoRequirement(Requirement):
         self.version = version
 
     def __str__(self) -> str:
-        return "go %s" % self.version
+        return f"go {self.version}"
 
 
 class DhAddonRequirement(Requirement):
@@ -557,7 +557,7 @@ class LibraryRequirement(Requirement):
         self.library = library
 
     def __str__(self) -> str:
-        return "Library: %s" % self.library
+        return f"Library: {self.library}"
 
 
 class StaticLibraryRequirement(Requirement):
@@ -570,7 +570,7 @@ class StaticLibraryRequirement(Requirement):
         self.filename = filename
 
     def __str__(self) -> str:
-        return "Static Library: %s" % self.library
+        return f"Static Library: {self.library}"
 
 
 class RubyFileRequirement(Requirement):
@@ -666,7 +666,7 @@ class MavenArtifactRequirement(Requirement):
             (group_id, artifact_id) = parts
             kind = "jar"
         else:
-            raise ValueError("invalid number of parts to artifact %r" % parts)
+            raise ValueError(f"invalid number of parts to artifact {parts!r}")
         return cls(group_id, artifact_id, version, kind)
 
 
@@ -782,7 +782,7 @@ class PythonModuleRequirement(Requirement):
         else:
             raise NotImplementedError
         p = session.Popen(
-            [cmd, "-c", "import %s" % self.module],
+            [cmd, "-c", f"import {self.module}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
