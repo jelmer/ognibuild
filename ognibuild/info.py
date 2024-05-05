@@ -34,9 +34,9 @@ def run_info(session, buildsystems, fixers=None):
         if deps:
             print("\tDeclared dependencies:")
             for kind in deps:
-                print("\t\t%s:" % kind)
+                print(f"\t\t{kind}:")
                 for dep in deps[kind]:
-                    print("\t\t\t%s" % dep)
+                    print(f"\t\t\t{dep}")
             print("")
         try:
             outputs = list(
@@ -51,4 +51,4 @@ def run_info(session, buildsystems, fixers=None):
         if outputs:
             print("\tDeclared outputs:")
             for output in outputs:
-                print("\t\t%s" % output)
+                print(f"\t\t{output}")

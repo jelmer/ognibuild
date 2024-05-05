@@ -126,7 +126,7 @@ class TlmgrResolver(Resolver):
         if self.repository.startswith("http://") or self.repository.startswith(
             "https://"
         ):
-            return "tlmgr(%r)" % self.repository
+            return f"tlmgr({self.repository!r})"
         else:
             return self.repository
 
@@ -134,7 +134,7 @@ class TlmgrResolver(Resolver):
         return f"{type(self).__name__}({self.session!r}, {self.repository!r})"
 
     def _cmd(self, reqs):
-        ret = ["tlmgr", "--repository=%s" % self.repository, "install"]
+        ret = ["tlmgr", f"--repository={self.repository}", "install"]
         if self.user_local:
             ret.append("--usermode")
         ret.extend([req.package for req in reqs])
@@ -255,7 +255,7 @@ class OctaveForgeResolver(Resolver):
 
     def _cmd(self, req):
         # TODO(jelmer: Handle self.user_local
-        return ["octave-cli", "--eval", "pkg install -forge %s" % req.package]
+        return ["octave-cli", "--eval", f"pkg install -forge {req.package}"]
 
     def explain(self, requirements):
         from ..requirements import OctavePackageRequirement

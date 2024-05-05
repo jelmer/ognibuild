@@ -126,7 +126,7 @@ class BuildSystem:
 def xmlparse_simplify_namespaces(path, namespaces):
     import xml.etree.ElementTree as ET
 
-    namespaces = ["{%s}" % ns for ns in namespaces]
+    namespaces = [f"{{{ns}}}" for ns in namespaces]
     tree = ET.iterparse(path)
     for _, el in tree:
         for namespace in namespaces:
@@ -188,7 +188,7 @@ class Pear(BuildSystem):
         except ET.ParseError as e:
             logging.warning("Unable to parse package.xml: %s", e)
             return
-        assert root.tag == "package", "root tag is %r" % root.tag
+        assert root.tag == "package", f"root tag is {root.tag!r}"
         dependencies_tag = root.find("dependencies")
         if dependencies_tag is not None:
             required_tag = root.find("dependencies")
@@ -229,7 +229,7 @@ class Pear(BuildSystem):
             return
 
         for ns in cls.PEAR_NAMESPACES:
-            if tree.root.tag == "{%s}package" % ns:  # type: ignore
+            if tree.root.tag == f"{{{ns}}}package":  # type: ignore
                 logging.debug(
                     "Found package.xml with namespace %s, "
                     "assuming pear package."
@@ -509,7 +509,7 @@ class SetupPy(BuildSystem):
             if install_target.user:
                 extra_args.append("--user")
             if install_target.prefix:
-                extra_args.append("--prefix=%s" % install_target.prefix)
+                extra_args.append(f"--prefix={install_target.prefix}")
             self._run_setup(session, resolver, ["install"] + extra_args)
         else:
             raise NotImplementedError
@@ -853,7 +853,7 @@ class R(BuildSystem):
     def install(self, session, resolver, install_target):
         extra_args = []
         if install_target.prefix:
-            extra_args.append("--prefix=%s" % install_target.prefix)
+            extra_args.append(f"--prefix={install_target.prefix}")
         r_path = guaranteed_which(session, resolver, "R")
         run_detecting_problems(
             session, [r_path, "CMD", "INSTALL", "."] + extra_args
@@ -1273,7 +1273,7 @@ def _declared_deps_from_meta_yml(f):
     try:
         data = ruamel.yaml.load(f, ruamel.yaml.SafeLoader)
     except ruamel.yaml.reader.ReaderError as e:
-        warnings.warn("Unable to parse META.yml: %s" % e)
+        warnings.warn(f"Unable to parse META.yml: {e}")
         return
     for require in data.get("requires", None) or []:
         yield "core", PerlModuleRequirement(require)
@@ -1299,7 +1299,7 @@ class CMake(BuildSystem):
             session.mkdir(self.builddir)
         try:
             run_detecting_problems(
-                session, ["cmake", ".", "-B%s" % self.builddir]
+                session, ["cmake", ".", f"-B{self.builddir}"]
             )
         except Exception:
             session.rmtree(self.builddir)
@@ -1323,7 +1323,7 @@ class CMake(BuildSystem):
         self.setup(session, resolver)
         run_detecting_problems(
             session,
-            ["cmake", "--build %s" % self.builddir, ".", "--target", "clean"],
+            ["cmake", f"--build {self.builddir}", ".", "--target", "clean"],
         )
 
     def test(self, session, resolver):
@@ -1404,7 +1404,7 @@ class Make(BuildSystem):
         if not makefile_exists() and session.exists("configure"):
             extra_args = []
             if prefix is not None:
-                extra_args.append("--prefix=%s" % prefix)
+                extra_args.append(f"--prefix={prefix}")
             run_detecting_problems(session, ["./configure"] + extra_args)
 
         if not makefile_exists() and any(
@@ -1452,7 +1452,7 @@ class Make(BuildSystem):
             ):
                 extra_args = []
                 if prefix is not None:
-                    extra_args.append("--prefix=%s" % prefix)
+                    extra_args.append(f"--prefix={prefix}")
                 run_detecting_problems(session, ["./configure"] + extra_args)
                 run_detecting_problems(session, ["make"] + args)
             elif (
@@ -1629,7 +1629,7 @@ class Cargo(BuildSystem):
     def install(self, session, resolver, install_target):
         args = []
         if install_target.prefix:
-            args.append("-root=%s" % install_target.prefix)
+            args.append(f"-root={install_target.prefix}")
         run_detecting_problems(
             session, ["cargo", "install", "--path=."] + args
         )
@@ -1660,7 +1660,7 @@ def _parse_go_mod(f):
                 yield [parts[0]] + list(line.strip().split(" "))
                 line = readline()
                 if not line:
-                    raise AssertionError("list of %s interrupted?" % parts[0])
+                    raise AssertionError(f"list of {parts[0]} interrupted?")
         else:
             yield parts
         line = readline()
@@ -1675,7 +1675,7 @@ class Golang(BuildSystem):
         self.path = path
 
     def __repr__(self) -> str:
-        return "%s()" % (type(self).__name__)
+        return f"{type(self).__name__}()"
 
     def test(self, session, resolver):
         run_detecting_problems(session, ["go", "test", "./..."])
@@ -1774,7 +1774,7 @@ class Maven(BuildSystem):
         except ET.ParseError as e:
             logging.warning("Unable to parse package.xml: %s", e)
             return
-        assert root.tag == "project", "root tag is %r" % root.tag
+        assert root.tag == "project", f"root tag is {root.tag!r}"
         deps_tag = root.find("dependencies")
         if deps_tag:
             for dep in deps_tag.findall("dependency"):

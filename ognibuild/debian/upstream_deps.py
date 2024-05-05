@@ -76,7 +76,7 @@ def get_project_wide_deps(
                 ):
                     test_deps.append(apt_dep)
                 else:
-                    raise ValueError("unknown dependency kind %s" % kind)
+                    raise ValueError(f"unknown dependency kind {kind}")
     return (build_deps, test_deps)
 
 
@@ -136,13 +136,11 @@ def main(argv=None):  # noqa: C901
         test_deps.extend(bs_test_deps)
     if build_deps:
         print(
-            "Build-Depends: %s"
-            % ", ".join([x.pkg_relation_str() for x in build_deps])
+            "Build-Depends: {}".format(", ".join([x.pkg_relation_str() for x in build_deps]))
         )
     if test_deps:
         print(
-            "Test-Depends: %s"
-            % ", ".join([x.pkg_relation_str() for x in test_deps])
+            "Test-Depends: {}".format(", ".join([x.pkg_relation_str() for x in test_deps]))
         )
     if args.update:
         with ControlEditor(

@@ -128,7 +128,7 @@ class MissingGoSumEntryFixer(BuildFixer):
         self.session = session
 
     def __repr__(self) -> str:
-        return "%s()" % (type(self).__name__)
+        return f"{type(self).__name__}()"
 
     def __str__(self) -> str:
         return "missing go.sum entry fixer"
@@ -154,7 +154,7 @@ class UnexpandedAutoconfMacroFixer(BuildFixer):
         return f"{type(self).__name__}({self.resolver!r})"
 
     def __str__(self) -> str:
-        return "unexpanded m4 macro fixer (%s)" % self.resolver
+        return f"unexpanded m4 macro fixer ({self.resolver})"
 
     def can_fix(self, error):
         return isinstance(error, MissingAutoconfMacro)

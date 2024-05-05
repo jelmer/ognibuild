@@ -89,7 +89,7 @@ class MissingChangesFile(Exception):
 def find_changes_files(path: str, package: str, version: Version):
     non_epoch_version = version.upstream_version or ""
     if version.debian_version is not None:
-        non_epoch_version += "-%s" % version.debian_version
+        non_epoch_version += f"-{version.debian_version}"
     c = re.compile(
         f"{re.escape(package)}_{re.escape(non_epoch_version)}_(.*).changes"
     )
@@ -107,7 +107,7 @@ def get_build_architecture():
             .decode()
         )
     except subprocess.CalledProcessError as e:
-        raise Exception("Could not find the build architecture: %s" % e) from e
+        raise Exception(f"Could not find the build architecture: {e}") from e
 
 
 def control_files_in_root(tree: Tree, subpath: str) -> bool:
@@ -212,14 +212,14 @@ def _builddeb_command(
         "breezy",
         "builddeb",
         "--guess-upstream-branch-url",
-        "--builder=%s" % build_command,
+        f"--builder={build_command}",
     ]
     if apt_repository:
-        args.append("--apt-repository=%s" % apt_repository)
+        args.append(f"--apt-repository={apt_repository}")
     if apt_repository_key:
-        args.append("--apt-repository-key=%s" % apt_repository_key)
+        args.append(f"--apt-repository-key={apt_repository_key}")
     if result_dir:
-        args.append("--result-dir=%s" % result_dir)
+        args.append(f"--result-dir={result_dir}")
     return args
 
 

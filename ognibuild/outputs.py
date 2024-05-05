@@ -28,7 +28,7 @@ class BinaryOutput(UpstreamOutput):
         return f"{type(self).__name__}({self.name!r})"
 
     def __str__(self) -> str:
-        return "binary: %s" % self.name
+        return f"binary: {self.name}"
 
 
 class PythonPackageOutput(UpstreamOutput):
@@ -38,7 +38,7 @@ class PythonPackageOutput(UpstreamOutput):
         self.python_version = python_version
 
     def __str__(self) -> str:
-        return "python package: %s" % self.name
+        return f"python package: {self.name}"
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.name!r}, python_version={self.python_version!r})"
@@ -50,7 +50,7 @@ class RPackageOutput(UpstreamOutput):
         self.name = name
 
     def __str__(self) -> str:
-        return "R package: %s" % self.name
+        return f"R package: {self.name}"
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.name!r})"

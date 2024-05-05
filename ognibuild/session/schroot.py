@@ -46,7 +46,7 @@ class SchrootSession(Session):
         self, chroot: str, *, session_prefix: Optional[str] = None
     ) -> None:
         if not isinstance(chroot, str):
-            raise TypeError("not a valid chroot: %r" % chroot)
+            raise TypeError(f"not a valid chroot: {chroot!r}")
         self.chroot = chroot
         self._location = None
         self._cwd = None
