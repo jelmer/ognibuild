@@ -39,7 +39,7 @@ jobs:
       - name: Style checks
         if: always()
         run: |
-          pip install ruff
+          python -m pip install -U ".[dev]"
           ruff check .
       - name: Typing checks (Linux)
         run: |
