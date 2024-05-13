@@ -53,7 +53,7 @@ dev = [
     "types-setuptools",
     "types-psycopg2",
     "google-cloud-logging",
-    "ruff==0.4.3",
+    "ruff==0.4.4",
 ]
 debian = [
     "debmutate",
