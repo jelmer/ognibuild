@@ -19,7 +19,7 @@
 import os
 import stat
 
-__version__ = (0, 0, 19)
+__version__ = (0, 0, 20)
 version_string = ".".join(map(str, __version__))
 
 
