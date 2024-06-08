@@ -40,16 +40,18 @@ jobs:
         if: always()
         run: |
           python -m pip install -U ".[dev]"
-          ruff check .
+          ruff check py/ognibuild tests
+        env:
+          PYTHONPATH: py
       - name: Typing checks (Linux)
         run: |
           pip install -U mypy types-toml
-          python -m mypy ognibuild
+          python -m mypy py tests
         if: "matrix.python-version != 'pypy3' && matrix.os == 'ubuntu-latest'"
       - name: Typing checks (Mac OS X)
         run: |
           pip install -U mypy types-toml
-          python -m mypy --ignore-missing-imports ognibuild
+          python -m mypy --ignore-missing-imports py tests
         if: "matrix.python-version != 'pypy3' && matrix.os == 'macos-latest'"
       - name: Test suite run
         if: always()

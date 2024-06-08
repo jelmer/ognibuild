@@ -20,6 +20,7 @@ import os
 import sys
 
 from breezy.tests import TestCase, TestCaseWithTransport
+from debian.changelog import Version
 from ognibuild.debian.build import (
     DEFAULT_BUILDER,
     _builddeb_command,
@@ -27,8 +28,6 @@ from ognibuild.debian.build import (
     get_build_architecture,
     version_add_suffix,
 )
-
-from debian.changelog import Version
 
 
 class AddDummyChangelogEntryTests(TestCaseWithTransport):

@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING, Optional
 from buildlog_consultant.apt import (
     find_apt_get_failure,
 )
-
 from debian.changelog import Version
 
 from .. import DetailedFailure, UnidentifiedError
