@@ -22,6 +22,7 @@ import logging
 from contextlib import suppress
 
 from breezy.plugins.debian.apt_repo import LocalApt, NoAptSources
+
 from debian.deb822 import PkgRelation
 
 

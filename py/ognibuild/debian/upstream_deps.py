@@ -20,9 +20,9 @@ import logging
 import os
 import sys
 
-from debian.deb822 import PkgRelation
 from debmutate.control import ControlEditor, ensure_relation
 
+from debian.deb822 import PkgRelation
 from ognibuild.buildlog import InstallFixer
 from ognibuild.resolver.apt import AptResolver
 

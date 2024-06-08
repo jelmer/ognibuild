@@ -47,10 +47,6 @@ from buildlog_consultant.sbuild import (
     DebcargoUnacceptableComparator,
     DebcargoUnacceptablePredicate,
 )
-from debian.deb822 import (
-    Deb822,
-    PkgRelation,
-)
 from debmutate._rules import (
     dh_invoke_add_with,
     update_rules,
@@ -69,6 +65,11 @@ from debmutate.debhelper import (
 from debmutate.reformatting import (
     FormattingUnpreservable,
     GeneratedFile,
+)
+
+from debian.deb822 import (
+    Deb822,
+    PkgRelation,
 )
 
 from ..buildlog import problem_to_upstream_requirement

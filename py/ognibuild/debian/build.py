@@ -41,9 +41,10 @@ from buildlog_consultant.sbuild import (
     DpkgSourceLocalChanges,
     worker_failure_from_sbuild_log,
 )
-from debian.changelog import ChangeBlock, Changelog, Version
 from debmutate.changelog import ChangelogEditor, get_maintainer
 from debmutate.reformatting import GeneratedFile
+
+from debian.changelog import ChangeBlock, Changelog, Version
 
 from .. import DetailedFailure, UnidentifiedError
 

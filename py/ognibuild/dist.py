@@ -36,6 +36,7 @@ from breezy.workingtree import WorkingTree
 from buildlog_consultant.common import (
     NoSpaceOnDevice,
 )
+
 from debian.deb822 import Deb822
 
 from . import DetailedFailure, UnidentifiedError

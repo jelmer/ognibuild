@@ -26,6 +26,7 @@ from contextlib import suppress
 from datetime import datetime
 
 import apt_pkg
+
 from debian.deb822 import Release
 
 from .. import USER_AGENT

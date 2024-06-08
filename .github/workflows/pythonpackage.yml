@@ -57,3 +57,4 @@ jobs:
           python -m unittest tests.test_suite
         env:
           PYTHONHASHSEED: random
+          PYTHONPATH: py

@@ -29,8 +29,6 @@ from buildlog_consultant.common import (
     MissingRubyGem,
     MissingValaPackage,
 )
-from debian.deb822 import Deb822
-
 from ognibuild.debian.apt import AptManager, FileSearcher
 from ognibuild.debian.fix_build import (
     DebianPackagingContext,
@@ -40,6 +38,8 @@ from ognibuild.debian.fix_build import (
     versioned_package_fixers,
 )
 from ognibuild.resolver.apt import AptRequirement
+
+from debian.deb822 import Deb822
 
 
 class DummyAptSearcher(FileSearcher):

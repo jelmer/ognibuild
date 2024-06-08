@@ -82,14 +82,12 @@ deb-fix-build = "ognibuild.debian.fix_build:main"
 deb-upstream-deps = "ognibuild.debian.upstream_deps:main"
 
 [tool.setuptools]
-packages = [
-    "ognibuild",
-    "ognibuild.debian",
-    "ognibuild.resolver",
-    "ognibuild.session",
-]
 script-files = ["scripts/report-apt-deps-status"]
 include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["py"]
+include = ["ognibuild"]
 
 [tool.setuptools.package-data]
 ognibuild = ["py.typed"]
