@@ -27,6 +27,7 @@ name = "ognibuild"
 description = "Detect and run any build system"
 maintainers = [{name = "Jelmer Vernooĳ", email = "jelmer@jelmer.uk"}]
 license = {text = "GNU GPLv2 or later"}
+readme = "README.md"
 classifiers = [
     "Development Status :: 4 - Beta",
     "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
