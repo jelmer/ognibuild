@@ -83,11 +83,10 @@ deb-upstream-deps = "ognibuild.debian.upstream_deps:main"
 
 [tool.setuptools]
 script-files = ["scripts/report-apt-deps-status"]
-include-package-data = false
 
 [tool.setuptools.packages.find]
 where = ["py"]
-include = ["ognibuild"]
+include = ["ognibuild*"]
 
 [tool.setuptools.package-data]
 ognibuild = ["py.typed"]
