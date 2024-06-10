@@ -83,14 +83,12 @@ deb-fix-build = "ognibuild.debian.fix_build:main"
 deb-upstream-deps = "ognibuild.debian.upstream_deps:main"
 
 [tool.setuptools]
-packages = [
-    "ognibuild",
-    "ognibuild.debian",
-    "ognibuild.resolver",
-    "ognibuild.session",
-]
 script-files = ["scripts/report-apt-deps-status"]
 include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["py"]
+include = ["ognibuild"]
 
 [tool.setuptools.package-data]
 ognibuild = ["py.typed"]
@@ -145,3 +143,6 @@ skip = "*-win32 *musllinux*"
 
 [tool.cibuildwheel.linux]
 before-build = "pip install -U setuptools-rust && curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain=stable --profile=minimal -y && rustup show"
+
+[tool.ruff.lint.isort]
+known-third-party = ["debian", "debmutate", "buildlog_consultant"]
