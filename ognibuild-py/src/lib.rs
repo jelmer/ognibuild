@@ -21,6 +21,18 @@ pub fn export_vcs_tree(
     ognibuild::vcs::export_vcs_tree(&tree, &directory, subpath.as_deref())
 }
 
+#[pyfunction]
+pub fn dupe_vcs_tree(py: Python, tree: PyObject, directory: std::path::PathBuf) -> PyResult<()> {
+    if tree.bind(py).hasattr("_repository")? {
+        let tree = breezyshim::tree::RevisionTree(tree);
+        ognibuild::vcs::dupe_vcs_tree(&tree, &directory)
+    } else {
+        let tree = breezyshim::tree::WorkingTree(tree);
+        ognibuild::vcs::dupe_vcs_tree(&tree, &directory)
+    }
+    .map_err(|e| e.into())
+}
+
 struct PyProblem(PyObject);
 
 impl PartialEq for PyProblem {
@@ -104,7 +116,7 @@ impl ognibuild::fix_build::BuildFixer<PyErr, PyProblem> for PyBuildFixer {
 #[pyfunction]
 fn iterate_with_build_fixers(
     fixers: Vec<PyObject>,
-    phase: Vec<&str>,
+    phase: Vec<String>,
     cb: PyObject,
     limit: Option<usize>,
 ) -> Result<PyObject, PyErr> {
@@ -121,7 +133,11 @@ fn iterate_with_build_fixers(
             .map(|p| p.as_ref() as &dyn ognibuild::fix_build::BuildFixer<PyErr, PyProblem>)
             .collect::<Vec<_>>()
             .as_slice(),
-        phase.as_slice(),
+        phase
+            .iter()
+            .map(|x| x.as_str())
+            .collect::<Vec<_>>()
+            .as_slice(),
         cb,
         limit,
     )
@@ -142,7 +158,7 @@ fn iterate_with_build_fixers(
 fn resolve_error(
     py: Python,
     problem: PyObject,
-    phase: Vec<&str>,
+    phase: Vec<String>,
     fixers: Vec<PyObject>,
 ) -> PyResult<bool> {
     let phase = phase.as_slice();
@@ -150,7 +166,11 @@ fn resolve_error(
     let fixers = fixers.into_iter().map(PyBuildFixer).collect::<Vec<_>>();
     let r = ognibuild::fix_build::resolve_error(
         &problem,
-        phase,
+        phase
+            .iter()
+            .map(|x| x.as_str())
+            .collect::<Vec<_>>()
+            .as_slice(),
         fixers
             .iter()
             .map(|p| p as &dyn ognibuild::fix_build::BuildFixer<PyErr, PyProblem>)
@@ -173,6 +193,7 @@ fn _ognibuild_rs(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(sanitize_session_name))?;
     m.add_wrapped(wrap_pyfunction!(generate_session_id))?;
     m.add_wrapped(wrap_pyfunction!(export_vcs_tree))?;
+    m.add_wrapped(wrap_pyfunction!(dupe_vcs_tree))?;
     m.add_wrapped(wrap_pyfunction!(iterate_with_build_fixers))?;
     m.add_wrapped(wrap_pyfunction!(resolve_error))?;
     Ok(())
