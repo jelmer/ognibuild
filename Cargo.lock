@@ -931,7 +931,7 @@ dependencies = [
 
 [[package]]
 name = "ognibuild"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "axum",
  "breezyshim",
@@ -950,7 +950,7 @@ dependencies = [
 
 [[package]]
 name = "ognibuild-py"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "breezyshim",
  "ognibuild",
