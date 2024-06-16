@@ -18,7 +18,7 @@ pub fn export_vcs_tree(
             Err(e) => {
                 if e.is_instance_of::<PyIOError>(py) {
                     let e: std::io::Error = e.into();
-                    let m = py.import("buildlog_consultant.common").unwrap();
+                    let m = py.import_bound("buildlog_consultant.common").unwrap();
                     let no_space_on_device_cls = m.getattr("NoSpaceOnDevice").unwrap();
                     let no_space_on_device = no_space_on_device_cls.call0().unwrap().to_object(py);
 
