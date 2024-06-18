@@ -188,6 +188,11 @@ fn resolve_error(
     }
 }
 
+#[pyfunction]
+fn shebang_binary(path: &str) -> PyResult<Option<String>> {
+    ognibuild::shebang_binary(std::path::Path::new(path)).map_err(|e| e.into())
+}
+
 #[pymodule]
 fn _ognibuild_rs(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(sanitize_session_name))?;
@@ -196,5 +201,6 @@ fn _ognibuild_rs(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(dupe_vcs_tree))?;
     m.add_wrapped(wrap_pyfunction!(iterate_with_build_fixers))?;
     m.add_wrapped(wrap_pyfunction!(resolve_error))?;
+    m.add_wrapped(wrap_pyfunction!(shebang_binary))?;
     Ok(())
 }

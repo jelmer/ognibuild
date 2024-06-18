@@ -23,6 +23,7 @@ from buildlog_consultant import (
 from buildlog_consultant import (
     problem_clses,
 )
+
 from ognibuild.buildlog import PROBLEM_CONVERTERS
 
 
