@@ -38,3 +38,15 @@ pub fn shebang_binary(path: &std::path::Path) -> std::io::Result<Option<String>>
             .to_string(),
     ))
 }
+
+pub trait Requirement {
+    fn family(&self) -> &'static str;
+
+    fn met(&self, session: &dyn crate::session::Session) -> bool;
+}
+
+pub trait UpstreamOutput {
+    fn family() -> &'static str;
+
+    fn get_declared_dependencies(&self) -> Vec<String>;
+}
