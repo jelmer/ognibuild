@@ -533,7 +533,9 @@ class OctavePackageRequirement(Requirement):
 
     def __str__(self) -> str:
         if self.minimum_version:
-            return f"Octave package: {self.package} (>= {self.minimum_version})"
+            return (
+                f"Octave package: {self.package} (>= {self.minimum_version})"
+            )
         else:
             return f"Octave package: {self.package}"
 

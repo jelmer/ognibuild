@@ -16,9 +16,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-__all__ = [
-    'shebang_binary'
-]
+__all__ = ["shebang_binary"]
 
 from ._ognibuild_rs import shebang_binary
 
@@ -26,7 +24,6 @@ __version__ = (0, 0, 23)
 version_string = ".".join(map(str, __version__))
 
 USER_AGENT = f"Ognibuild/{version_string}"
-
 
 
 class DetailedFailure(Exception):
