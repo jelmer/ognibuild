@@ -21,7 +21,6 @@ import sys
 
 from breezy.tests import TestCase, TestCaseWithTransport
 from debian.changelog import Version
-
 from ognibuild.debian.build import (
     DEFAULT_BUILDER,
     _builddeb_command,

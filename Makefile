@@ -1,7 +1,7 @@
 check:: style
 
 style:
-	ruff check .
+	ruff check py tests
 
 check:: testsuite
 

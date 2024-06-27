@@ -40,7 +40,7 @@ jobs:
         if: always()
         run: |
           python -m pip install -U ".[dev]"
-          ruff check py/ognibuild tests
+          ruff check py tests
         env:
           PYTHONPATH: py
       - name: Typing checks (Linux)

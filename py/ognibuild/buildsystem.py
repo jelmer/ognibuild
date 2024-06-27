@@ -253,7 +253,7 @@ def run_setup(script_name, script_args=None, stop_after="run"):
     try:
         from distutils import core  # type: ignore
     except ImportError:
-        from setuptools._distutils import core
+        from setuptools._distutils import core  # type: ignore
     core._setup_stop_after = stop_after  # type: ignore
 
     save_argv = sys.argv.copy()
