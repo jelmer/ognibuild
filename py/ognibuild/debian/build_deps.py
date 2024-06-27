@@ -17,7 +17,6 @@
 
 """Tie breaking by build deps."""
 
-
 import logging
 from contextlib import suppress
 

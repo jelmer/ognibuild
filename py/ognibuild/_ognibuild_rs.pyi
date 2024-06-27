@@ -18,7 +18,8 @@ T = TypeVar("T")
 def iterate_with_build_fixers(
     fixers: list[BuildFixer],
     phase: list[str],
-    cb: Callable[[], T], limit=DEFAULT_LIMIT
+    cb: Callable[[], T],
+    limit=DEFAULT_LIMIT,
 ) -> T: ...
-
 def dupe_vcs_tree(tree: Tree, directory: str): ...
+def shebang_binary(p) -> str: ...

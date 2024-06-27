@@ -271,13 +271,17 @@ async def get_package_for_python_package(
     apt_mgr, package, python_version: Optional[str], specs=None
 ):
     pypy_regex = (
-        "/usr/lib/pypy/dist\\-packages/{}-.*\\.(dist|egg)\\-info".format(re.escape(package.replace("-", "_")))
+        "/usr/lib/pypy/dist\\-packages/{}-.*\\.(dist|egg)\\-info".format(
+            re.escape(package.replace("-", "_"))
+        )
     )
-    cpython2_regex = (
-        "/usr/lib/python2\\.[0-9]/dist\\-packages/{}-.*\\.(dist|egg)\\-info".format(re.escape(package.replace("-", "_")))
+    cpython2_regex = "/usr/lib/python2\\.[0-9]/dist\\-packages/{}-.*\\.(dist|egg)\\-info".format(
+        re.escape(package.replace("-", "_"))
     )
     cpython3_regex = (
-        "/usr/lib/python3/dist\\-packages/{}-.*\\.(dist|egg)\\-info".format(re.escape(package.replace("-", "_")))
+        "/usr/lib/python3/dist\\-packages/{}-.*\\.(dist|egg)\\-info".format(
+            re.escape(package.replace("-", "_"))
+        )
     )
     if python_version == "pypy":
         paths = [pypy_regex]
@@ -593,9 +597,7 @@ async def resolve_go_package_req(apt_mgr, req):
 
 async def resolve_go_req(apt_mgr, req):
     return [
-        AptRequirement.simple(
-            "golang-go", minimum_version=f"2:{req.version}~"
-        )
+        AptRequirement.simple("golang-go", minimum_version=f"2:{req.version}~")
     ]
 
 
@@ -694,9 +696,7 @@ async def resolve_xml_entity_req(apt_mgr, req):
 
 async def resolve_sprockets_file_req(apt_mgr, req):
     if req.content_type == "application/javascript":
-        path = "/usr/share/.*/app/assets/javascripts/{}\\.js$".format(re.escape(
-            req.name
-        ))
+        path = f"/usr/share/.*/app/assets/javascripts/{re.escape(req.name)}\\.js$"
     else:
         logging.warning("unable to handle content type %s", req.content_type)
         return None
@@ -725,9 +725,7 @@ async def resolve_cmake_file_req(apt_mgr, req):
 
 
 async def resolve_haskell_package_req(apt_mgr, req):
-    path = "/var/lib/ghc/package\\.conf\\.d/{}\\-.*\\.conf".format(re.escape(
-        req.package
-    ))
+    path = f"/var/lib/ghc/package\\.conf\\.d/{re.escape(req.package)}\\-.*\\.conf"
     return await find_reqs_simple(apt_mgr, [path], regex=True)
 
 

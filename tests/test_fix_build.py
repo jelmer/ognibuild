@@ -21,7 +21,6 @@ from ognibuild.fix_build import BuildFixer, iterate_with_build_fixers
 
 
 class FixingBuildFixer(BuildFixer):
-
     def can_fix(self, p):
         return True
 
@@ -30,7 +29,6 @@ class FixingBuildFixer(BuildFixer):
 
 
 class IncompatibleBuildFixer(BuildFixer):
-
     def can_fix(self, p):
         return False
 
@@ -39,7 +37,6 @@ class IncompatibleBuildFixer(BuildFixer):
 
 
 class NotFixingBuildFixer(BuildFixer):
-
     def can_fix(self, p):
         return True
 
@@ -48,35 +45,40 @@ class NotFixingBuildFixer(BuildFixer):
 
 
 class TestIterateWithBuildFixers(TestCase):
-
     def test_no_problem(self):
         self.assertIs(
             iterate_with_build_fixers(
                 [FixingBuildFixer(), IncompatibleBuildFixer()],
                 ["a", "b"],
-                lambda: None),
-                None)
+                lambda: None,
+            ),
+            None,
+        )
 
     def test_fixable_problem(self):
         self.assertIs(
             iterate_with_build_fixers(
                 [FixingBuildFixer(), IncompatibleBuildFixer()],
                 ["a", "b"],
-                ["problem", None].pop),
-                None)
+                ["problem", None].pop,
+            ),
+            None,
+        )
 
     def test_not_fixable_problem(self):
         self.assertEqual(
             iterate_with_build_fixers(
                 [NotFixingBuildFixer(), IncompatibleBuildFixer()],
                 ["a", "b"],
-                ["problem", "problem"].pop),
-            "problem")
+                ["problem", "problem"].pop,
+            ),
+            "problem",
+        )
 
     def test_no_fixers(self):
         self.assertEqual(
             iterate_with_build_fixers(
-                [],
-                ["a", "b"],
-                ["problem", "problem"].pop),
-            "problem")
+                [], ["a", "b"], ["problem", "problem"].pop
+            ),
+            "problem",
+        )

@@ -182,19 +182,25 @@ fn resolve_error(
         Err(e) => Err(match e {
             ognibuild::fix_build::Error::Other(e) => e,
             ognibuild::fix_build::Error::BuildProblem(problem) => {
-                PyErr::from_value(problem.0.as_ref(py))
+                PyErr::from_value_bound(problem.0.into_bound(py))
             }
         }),
     }
 }
 
+#[pyfunction]
+fn shebang_binary(path: &str) -> PyResult<Option<String>> {
+    ognibuild::shebang_binary(std::path::Path::new(path)).map_err(|e| e.into())
+}
+
 #[pymodule]
-fn _ognibuild_rs(py: Python, m: &PyModule) -> PyResult<()> {
+fn _ognibuild_rs(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(sanitize_session_name))?;
     m.add_wrapped(wrap_pyfunction!(generate_session_id))?;
     m.add_wrapped(wrap_pyfunction!(export_vcs_tree))?;
     m.add_wrapped(wrap_pyfunction!(dupe_vcs_tree))?;
     m.add_wrapped(wrap_pyfunction!(iterate_with_build_fixers))?;
     m.add_wrapped(wrap_pyfunction!(resolve_error))?;
+    m.add_wrapped(wrap_pyfunction!(shebang_binary))?;
     Ok(())
 }

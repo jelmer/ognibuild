@@ -127,7 +127,9 @@ def find_go_package_upstream(requirement):
         return UpstreamInfo(
             name=f"golang-{go_base_name(requirement.package)}",
             metadata=metadata,
-            branch_url="https://{}".format("/".join(requirement.package.split("/")[:3])),
+            branch_url="https://{}".format(
+                "/".join(requirement.package.split("/")[:3])
+            ),
             branch_subpath="",
         )
 

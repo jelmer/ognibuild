@@ -16,12 +16,12 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-import os
-import stat
+__all__ = ["shebang_binary"]
+
+from ._ognibuild_rs import shebang_binary
 
 __version__ = (0, 0, 23)
 version_string = ".".join(map(str, __version__))
-
 
 USER_AGENT = f"Ognibuild/{version_string}"
 
@@ -61,19 +61,6 @@ class UnidentifiedError(Exception):
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__}({self.retcode!r}, {self.argv!r}, ..., secondary={self.secondary!r})>"
-
-
-def shebang_binary(p):
-    if not (os.stat(p).st_mode & stat.S_IEXEC):
-        return None
-    with open(p, "rb") as f:
-        firstline = f.readline()
-        if not firstline.startswith(b"#!"):
-            return None
-        args = firstline[2:].strip().split(b" ")
-        if args[0] in (b"/usr/bin/env", b"env"):
-            return os.path.basename(args[1].decode()).strip()
-        return os.path.basename(args[0].decode()).strip()
 
 
 class UnknownRequirementFamily(Exception):
