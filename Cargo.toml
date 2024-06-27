@@ -24,7 +24,7 @@ tokio = { version = "1", features = ["full"], optional = true }
 url = "2.5.1"
 
 [workspace.dependencies]
-pyo3 = "0.21"
+pyo3 = "0.22"
 breezyshim = "0.1"
 
 [workspace]

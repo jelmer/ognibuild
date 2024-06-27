@@ -246,11 +246,14 @@ def run_setup(script_name, script_args=None, stop_after="run"):
     with suppress(ImportError):
         import setuptools  # noqa: F401
     import sys
-    from distutils import core
 
     if stop_after not in ("init", "config", "commandline", "run"):
         raise ValueError(f"invalid value for 'stop_after': {stop_after!r}")
 
+    try:
+        from distutils import core  # type: ignore
+    except ImportError:
+        from setuptools._distutils import core
     core._setup_stop_after = stop_after  # type: ignore
 
     save_argv = sys.argv.copy()
