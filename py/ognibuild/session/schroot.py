@@ -200,9 +200,12 @@ class SchrootSession(Session):
         argv,
         cwd: Optional[str] = None,
         user: Optional[str] = None,
-        **kwargs,
+        stdout=None,
+        stderr=None,
+        stdin=None,
+        env=None,
     ):
-        return subprocess.Popen(self._run_argv(argv, cwd, user), **kwargs)
+        return subprocess.Popen(self._run_argv(argv, cwd, user), stdout=stdout, stderr=stderr, stdin=stdin, env=env)
 
     def call(
         self,
