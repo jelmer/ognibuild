@@ -91,11 +91,11 @@ class PlainSession(Session):
     def Popen(
         self,
         args,
+        cwd=None,
+        user=None,
         stdout=None,
         stderr=None,
         stdin=None,
-        user=None,
-        cwd=None,
         env=None,
     ):
         args = self._prepend_user(user, args)
@@ -139,7 +139,7 @@ class PlainSession(Session):
         else:
             return tree.base, tree.base
 
-    def setup_from_directory(self, path):
+    def setup_from_directory(self, path, subdir: str = "package"):
         return path, path
 
     is_temporary = False

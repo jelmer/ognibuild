@@ -73,7 +73,10 @@ class Session:
         argv,
         cwd: Optional[str] = None,
         user: Optional[str] = None,
-        **kwargs,
+        stdout=None,
+        stderr=None,
+        stdin=None,
+        env=None,
     ):
         raise NotImplementedError(self.Popen)
 
