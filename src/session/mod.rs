@@ -76,6 +76,8 @@ pub fn get_user(session: &impl Session) -> String {
         .trim().to_string()
 }
 
+
+
 #[cfg(test)]
 mod tests {
     #[test]

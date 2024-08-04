@@ -80,14 +80,6 @@ class Session:
     ):
         raise NotImplementedError(self.Popen)
 
-    def call(
-        self,
-        argv: list[str],
-        cwd: Optional[str] = None,
-        user: Optional[str] = None,
-    ):
-        raise NotImplementedError(self.call)
-
     def create_home(self) -> None:
         """Create the user's home directory."""
         raise NotImplementedError(self.create_home)

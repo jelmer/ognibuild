@@ -207,14 +207,6 @@ class SchrootSession(Session):
     ):
         return subprocess.Popen(self._run_argv(argv, cwd, user), stdout=stdout, stderr=stderr, stdin=stdin, env=env)
 
-    def call(
-        self,
-        argv: list[str],
-        cwd: Optional[str] = None,
-        user: Optional[str] = None,
-    ):
-        return subprocess.call(self._run_argv(argv, cwd, user))
-
     def create_home(self) -> None:
         """Create the user's home directory."""
         home = (
