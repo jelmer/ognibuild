@@ -12,13 +12,15 @@ fn generate_session_id(name: &str) -> String {
 }
 
 #[pyfunction]
+#[pyo3(signature = (tree, directory, subpath=None))]
 pub fn export_vcs_tree(
     tree: PyObject,
     directory: std::path::PathBuf,
     subpath: Option<std::path::PathBuf>,
 ) -> Result<(), PyErr> {
     let tree = breezyshim::tree::RevisionTree(tree);
-    ognibuild::vcs::export_vcs_tree(&tree, &directory, subpath.as_deref())
+    ognibuild::vcs::export_vcs_tree(&tree, &directory, subpath.as_deref())?;
+    Ok(())
 }
 
 #[pyfunction]
@@ -114,6 +116,7 @@ impl ognibuild::fix_build::BuildFixer<PyErr, PyProblem> for PyBuildFixer {
 }
 
 #[pyfunction]
+#[pyo3(signature = (fixers, phase, cb, limit=None))]
 fn iterate_with_build_fixers(
     fixers: Vec<PyObject>,
     phase: Vec<String>,
@@ -194,7 +197,7 @@ fn shebang_binary(path: &str) -> PyResult<Option<String>> {
 }
 
 #[pymodule]
-fn _ognibuild_rs(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
+fn _ognibuild_rs(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(sanitize_session_name))?;
     m.add_wrapped(wrap_pyfunction!(generate_session_id))?;
     m.add_wrapped(wrap_pyfunction!(export_vcs_tree))?;
