@@ -1,3 +1,5 @@
+use breezyshim::tree::WorkingTree;
+
 pub fn get_build_architecture() -> String {
     std::process::Command::new("dpkg-architecture")
         .arg("-qDEB_BUILD_ARCH")
@@ -59,6 +61,72 @@ pub fn builddeb_command(
     args
 }
 
+#[derive(Debug)]
+pub struct BuildFailedError;
+
+impl std::fmt::Display for BuildFailedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Build failed.")
+    }
+}
+
+impl std::error::Error for BuildFailedError {}
+
+pub fn build(
+    local_tree: &WorkingTree,
+    outf: std::fs::File,
+    build_command: Option<&str>,
+    result_dir: Option<&std::path::Path>,
+    distribution: Option<&str>,
+    subpath: Option<&std::path::Path>,
+    source_date_epoch: Option<chrono::DateTime<chrono::Utc>>,
+    apt_repository: Option<&str>,
+    apt_repository_key: Option<&str>,
+    extra_repositories: Option<Vec<&str>>
+) -> Result<(), BuildFailedError>{ 
+    let subpath = subpath.unwrap_or_else(|| std::path::Path::new(""));
+    let build_command = build_command.unwrap_or(DEFAULT_BUILDER);
+    let args = builddeb_command(
+        Some(build_command),
+        result_dir,
+        apt_repository,
+        apt_repository_key,
+        extra_repositories,
+    );
+
+    // Make a copy of the environment variables
+    let mut env = std::env::vars().collect::<std::collections::HashMap<_, _>>();
+
+    if let Some(distribution) = distribution {
+        env.insert("DISTRIBUTION".to_owned(), distribution.to_owned());
+    }
+    if let Some(source_date_epoch) = source_date_epoch {
+        env.insert("SOURCE_DATE_EPOCH".to_owned(), format!("{}", source_date_epoch.timestamp()));
+    }
+    log::info!("Building debian packages, running {}.", build_command);
+    match std::process::Command::new(&args[0])
+        .args(&args[1..])
+        .current_dir(local_tree.abspath(subpath).unwrap())
+        .stdout(outf.try_clone().unwrap())
+        .stderr(outf)
+        .envs(env)
+        .status() {
+        Ok(status) => {
+            if status.success() {
+                log::info!("Build succeeded.");
+                Ok(())
+            } else {
+                Err(BuildFailedError)
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to run build command: {}", e);
+            Err(BuildFailedError)
+        }
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,5 +157,10 @@ mod tests {
             "--apt-repository-key=my-ppa-key".to_string(),
             "--result-dir=/tmp".to_string(),
         ]);
+    }
+
+    #[test]
+    fn test_python_command() {
+        let _ = python_command();
     }
 }
