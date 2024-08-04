@@ -1,4 +1,5 @@
-use breezyshim::tree::WorkingTree;
+use breezyshim::tree::{Tree, MutableTree, WorkingTree};
+use debian_changelog::{Entry as ChangelogEntry, ChangeLog};
 
 pub fn get_build_architecture() -> String {
     std::process::Command::new("dpkg-architecture")
@@ -126,6 +127,64 @@ pub fn build(
     }
 }
 
+fn control_files_in_root(tree: &dyn Tree, subpath: &std::path::Path) -> bool {
+    let debian_path = subpath.join("debian");
+    if tree.has_filename(&debian_path) {
+        return false;
+    }
+    let control_path = debian_path.join("control");
+    if tree.has_filename(&control_path) {
+        return true;
+    }
+    tree.has_filename(std::path::Path::new(&format!("{}.in", control_path.to_string_lossy().to_string())))
+}
+
+/*
+fn get_last_changelog_entry(
+    local_tree: &WorkingTree, subpath: &std::path::Path
+) -> ChangelogEntry {
+    let path = if control_files_in_root(local_tree, subpath) {
+        subpath.join("changelog")
+    } else {
+        subpath.join("debian/changelog")
+    };
+
+    let f = local_tree.get_file(&path).unwrap();
+
+    let cl = ChangeLog::read_relaxed(f).unwrap();
+
+    cl.entries().next().unwrap()
+}
+*/
+
+pub fn gbp_dch(path: &std::path::Path) -> Result<(), std::io::Error> {
+    let cmd = std::process::Command::new("gbp-dch")
+        .arg("--ignore-branch")
+        .current_dir(path)
+        .output()?;
+    if !cmd.status.success() {
+        return Err(std::io::Error::new(std::io::ErrorKind::Other, "gbp-dch failed"));
+    }
+    Ok(())
+}
+
+pub fn find_changes_files(path: &std::path::Path, package: &str, version: &debversion::Version) -> impl Iterator<Item = (String, std::fs::DirEntry)> {
+    let mut non_epoch_version = version.upstream_version.to_string();
+    if let Some(debian_version) = version.debian_revision.as_ref() {
+        non_epoch_version.push_str(&format!("-{}", debian_version));
+    }
+    let regex = format!("{}_{}_(.*)", regex::escape(package), regex::escape(&non_epoch_version));
+    let c = regex::Regex::new(&regex).unwrap();
+
+    std::fs::read_dir(path).unwrap().filter_map(move |entry| {
+        let entry = entry.unwrap();
+        if let Some(m) = c.captures(entry.file_name().to_str().unwrap()) {
+            Some((m.get(1).unwrap().as_str().to_owned(), entry))
+        } else {
+            None
+        }
+    })
+}
 
 #[cfg(test)]
 mod tests {
@@ -163,4 +222,27 @@ mod tests {
     fn test_python_command() {
         let _ = python_command();
     }
+
+    #[test]
+    fn test_control_files_not_in_root() {
+        let td = tempfile::tempdir().unwrap();
+        let tree = breezyshim::controldir::create_standalone_workingtree(td.path(), &breezyshim::controldir::ControlDirFormat::default()).unwrap();
+        let subpath = std::path::Path::new("");
+
+        tree.put_file_bytes_non_atomic(&subpath.join("debian/control"), b"").unwrap();
+
+        assert!(!control_files_in_root(&tree, subpath));
+    }
+
+    #[test]
+    fn test_control_files_in_root() {
+        let td = tempfile::tempdir().unwrap();
+        let tree = breezyshim::controldir::create_standalone_workingtree(td.path(), &breezyshim::controldir::ControlDirFormat::default()).unwrap();
+        let subpath = std::path::Path::new("");
+
+        tree.put_file_bytes_non_atomic(&subpath.join("control"), b"").unwrap();
+
+        assert!(control_files_in_root(&tree, subpath));
+    }
+
 }
