@@ -1,4 +1,4 @@
-use crate::session::Error;
+use crate::session::{Session, Error};
 use std::io::{BufRead, Read};
 
 extern crate rand;
@@ -23,8 +23,9 @@ pub fn generate_session_id(prefix: &str) -> String {
 }
 
 pub struct SchrootSession {
-    cwd: Option<String>,
+    cwd: Option<std::path::PathBuf>,
     session_id: String,
+    location: std::path::PathBuf,
 }
 
 impl SchrootSession {
@@ -73,16 +74,25 @@ impl SchrootSession {
             "Opened schroot session {} (from {})", session_id, chroot
         );
 
+        let output = std::process::Command::new("schroot")
+            .arg("-c")
+            .arg(format!("session:{}", session_id))
+            .arg("--location")
+            .output()
+            .unwrap();
+        let location = std::path::PathBuf::from(String::from_utf8(output.stdout).unwrap().trim_end_matches('\n'));
+
         Ok(Self {
             cwd: None,
             session_id,
+            location,
         })
     }
 
     fn run_argv(
         &self,
         argv: Vec<&str>,
-        cwd: Option<&str>,
+        cwd: Option<&std::path::Path>,
         user: Option<&str>,
         env: Option<&std::collections::HashMap<String, String>>
     ) -> Vec<String> {
@@ -91,7 +101,7 @@ impl SchrootSession {
         let cwd = cwd.or(self.cwd.as_deref());
 
         if let Some(cwd) = cwd {
-            base_argv.extend(["-d".to_string(), cwd.to_string()]);
+            base_argv.extend(["-d".to_string(), cwd.to_path_buf().to_string_lossy().to_string()]);
         }
         if let Some(user) = user {
             base_argv.extend(["-u".to_string(), user.to_string()]);
@@ -104,6 +114,14 @@ impl SchrootSession {
             ];
         }
         [base_argv, vec!["--".to_string()], argv].concat()
+    }
+
+    fn build_tempdir(&self) -> std::path::PathBuf {
+        let build_dir = "/build";
+
+        String::from_utf8(
+            self.check_output(vec!["mktemp", "-d", "-p", build_dir], Some(std::path::Path::new("/")), None, None).unwrap()
+        ).unwrap().trim_end_matches('\n').to_string().into()
     }
 }
 
@@ -132,11 +150,47 @@ impl Drop for SchrootSession {
     }
 }
 
-impl crate::session::Session for SchrootSession {
+impl Session for SchrootSession {
+    fn rmtree(&self, path: &std::path::Path) -> Result<(), Error> {
+        let fullpath = self.external_path(path);
+        std::fs::remove_dir_all(&fullpath).map_err(|e| Error::IoError(e))
+    }
+
+    fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf {
+        let path = path.to_string_lossy();
+        if path.starts_with("/") {
+            return self.location().join(path.trim_end_matches('/'));
+        }
+        if let Some(cwd) = &self.cwd {
+            return self.location().join(cwd.to_string_lossy().to_string().trim_start_matches('/')).join(path.as_ref())
+        } else {
+            panic!("no cwd set");
+        }
+    }
+
+    fn location(&self) -> std::path::PathBuf {
+        self.location.clone()
+    }
+
+    fn exists(&self, path: &std::path::Path) -> bool {
+        let fullpath = self.external_path(path);
+        fullpath.exists()
+    }
+
+    fn chdir(&mut self, path: &std::path::Path) -> Result<(), Error> {
+        self.cwd = Some(path.to_path_buf());
+        Ok(())
+    }
+
+    fn mkdir(&self, path: &std::path::Path) -> Result<(), Error> {
+        let fullpath = self.external_path(path);
+        std::fs::create_dir_all(&fullpath).map_err(|e| Error::IoError(e))
+    }
+
     fn check_output(
         &self,
         argv: Vec<&str>,
-        cwd: Option<&str>,
+        cwd: Option<&std::path::Path>,
         user: Option<&str>,
         env: Option<std::collections::HashMap<String, String>>,
     ) -> Result<Vec<u8>, Error> {
@@ -151,19 +205,19 @@ impl crate::session::Session for SchrootSession {
                 if output.status.success() {
                     Ok(output.stdout)
                 } else {
-                    Err(crate::session::Error::CalledProcessError(
+                    Err(Error::CalledProcessError(
                         output.status.code().unwrap(),
                     ))
                 }
             }
-            Err(e) => Err(crate::session::Error::IoError(e)),
+            Err(e) => Err(Error::IoError(e)),
         }
     }
 
     fn check_call(
         &self,
         argv: Vec<&str>,
-        cwd: Option<&str>,
+        cwd: Option<&std::path::Path>,
         user: Option<&str>,
         env: Option<std::collections::HashMap<String, String>>,
     ) -> Result<(), Error> {
@@ -178,26 +232,48 @@ impl crate::session::Session for SchrootSession {
                 if status.success() {
                     Ok(())
                 } else {
-                    Err(crate::session::Error::CalledProcessError(
+                    Err(Error::CalledProcessError(
                         status.code().unwrap(),
                     ))
                 }
             }
-            Err(e) => Err(crate::session::Error::IoError(e)),
+            Err(e) => Err(Error::IoError(e)),
         }
     }
 
     fn create_home(&self) -> Result<(), Error> {
+        let cwd = std::path::Path::new("/");
         let home = String::from_utf8(
-            self.check_output(vec!["sh", "-c", "echo $HOME"], Some("/"), None, None)?
+            self.check_output(vec!["sh", "-c", "echo $HOME"], Some(cwd), None, None)?
         ).unwrap().trim_end_matches('\n').to_string();
         let user = String::from_utf8(
-            self.check_output(vec!["sh", "-c", "echo $LOGNAME"], Some("/"), None, None)?).unwrap().trim_end_matches('\n').to_string();
+            self.check_output(vec!["sh", "-c", "echo $LOGNAME"], Some(cwd), None, None)?).unwrap().trim_end_matches('\n').to_string();
         log::info!("Creating directory {} in schroot session.", home);
-        self.check_call(vec!["mkdir", "-p", &home], Some("/"), Some("root"), None)?;
-        self.check_call(vec!["chown", &user, &home], Some("/"), Some("root"), None)?;
+        self.check_call(vec!["mkdir", "-p", &home], Some(cwd), Some("root"), None)?;
+        self.check_call(vec!["chown", &user, &home], Some(cwd), Some("root"), None)?;
         Ok(())
     }
+
+    fn setup_from_directory(&self, path: &std::path::Path, subdir: Option<&str>) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
+        let subdir = subdir.unwrap_or("package");
+        let reldir = self.build_tempdir();
+        let export_directory = self.external_path(&reldir).join(subdir);
+        // Copy tree from path to export_directory
+
+        let mut options = fs_extra::dir::CopyOptions::new();
+        options.copy_inside = true; // Copy contents inside the source directory
+        options.content_only = false; // Copy the entire directory
+        options.skip_exist = false; // Skip if file already exists in the destination
+        options.overwrite = true; // Overwrite files if they already exist
+        options.buffer_size = 64000; // Buffer size in bytes
+        options.depth = 0; // Recursion depth (0 for unlimited depth)
+
+        // Perform the copy operation
+        fs_extra::dir::copy(path, &export_directory, &options).unwrap();
+
+        Ok((export_directory, reldir.join(subdir)))
+    }
+
 }
 
 #[cfg(test)]

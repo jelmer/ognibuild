@@ -23,10 +23,16 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {}
 
 pub trait Session {
+    fn chdir(&mut self, path: &std::path::Path) -> Result<(), crate::session::Error>;
+
+    fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf;
+
+    fn location(&self) -> std::path::PathBuf;
+
     fn check_output(
         &self,
         argv: Vec<&str>,
-        cwd: Option<&str>,
+        cwd: Option<&std::path::Path>,
         user: Option<&str>,
         env: Option<HashMap<String, String>>,
     ) -> Result<Vec<u8>, Error>;
@@ -36,14 +42,22 @@ pub trait Session {
     fn check_call(
         &self,
         argv: Vec<&str>,
-        cwd: Option<&str>,
+        cwd: Option<&std::path::Path>,
         user: Option<&str>,
         env: Option<std::collections::HashMap<String, String>>,
     ) -> Result<(), crate::session::Error>;
+
+    fn exists(&self, path: &std::path::Path) -> bool;
+
+    fn mkdir(&self, path: &std::path::Path) -> Result<(), crate::session::Error>;
+
+    fn rmtree(&self, path: &std::path::Path) -> Result<(), crate::session::Error>;
+
+    fn setup_from_directory(&self, path: &std::path::Path, subdir: Option<&str>) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
 }
 
 pub fn which(session: &impl Session, name: &str) -> Option<String> {
-    let ret = match session.check_output(vec!["which", name], Some("/"), None, None) {
+    let ret = match session.check_output(vec!["which", name], Some(std::path::Path::new("/")), None, None) {
         Ok(ret) => ret,
         Err(Error::CalledProcessError(1)) => return None,
         Err(e) => panic!("Unexpected error: {:?}", e),
@@ -57,7 +71,7 @@ pub fn which(session: &impl Session, name: &str) -> Option<String> {
 
 pub fn get_user(session: &impl Session) -> String {
     String::from_utf8(
-    session.check_output(vec!["sh", "-c", "echo $USER"], Some("/"), None, None).unwrap()).unwrap()
+    session.check_output(vec!["sh", "-c", "echo $USER"], Some(std::path::Path::new("/")), None, None).unwrap()).unwrap()
         .trim().to_string()
 }
 
