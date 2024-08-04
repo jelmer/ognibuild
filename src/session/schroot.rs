@@ -159,6 +159,45 @@ impl crate::session::Session for SchrootSession {
             Err(e) => Err(crate::session::Error::IoError(e)),
         }
     }
+
+    fn check_call(
+        &self,
+        argv: Vec<&str>,
+        cwd: Option<&str>,
+        user: Option<&str>,
+        env: Option<std::collections::HashMap<String, String>>,
+    ) -> Result<(), Error> {
+        let argv = self.run_argv(argv, cwd, user, env.as_ref());
+
+        let status = std::process::Command::new(&argv[0])
+            .args(&argv[1..])
+            .status();
+
+        match status {
+            Ok(status) => {
+                if status.success() {
+                    Ok(())
+                } else {
+                    Err(crate::session::Error::CalledProcessError(
+                        status.code().unwrap(),
+                    ))
+                }
+            }
+            Err(e) => Err(crate::session::Error::IoError(e)),
+        }
+    }
+
+    fn create_home(&self) -> Result<(), Error> {
+        let home = String::from_utf8(
+            self.check_output(vec!["sh", "-c", "echo $HOME"], Some("/"), None, None)?
+        ).unwrap().trim_end_matches('\n').to_string();
+        let user = String::from_utf8(
+            self.check_output(vec!["sh", "-c", "echo $LOGNAME"], Some("/"), None, None)?).unwrap().trim_end_matches('\n').to_string();
+        log::info!("Creating directory {} in schroot session.", home);
+        self.check_call(vec!["mkdir", "-p", &home], Some("/"), Some("root"), None)?;
+        self.check_call(vec!["chown", &user, &home], Some("/"), Some("root"), None)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

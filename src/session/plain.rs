@@ -51,4 +51,42 @@ impl crate::session::Session for PlainSession {
             Err(e) => Err(crate::session::Error::IoError(e)),
         }
     }
+
+    fn check_call(
+        &self,
+        argv: Vec<&str>,
+        cwd: Option<&str>,
+        user: Option<&str>,
+        env: Option<std::collections::HashMap<String, String>>,
+    ) -> Result<(), crate::session::Error> {
+        let argv = self.prepend_user(user, argv);
+        let mut binding = std::process::Command::new(argv[0]);
+        let mut cmd = binding
+            .args(&argv[1..]);
+
+        if let Some(cwd) = cwd {
+            cmd = cmd.current_dir(cwd);
+        }
+
+        if let Some(env) = env {
+            cmd = cmd.envs(env);
+        }
+
+        let status = cmd.status();
+
+        match status {
+            Ok(status) => {
+                if status.success() {
+                    Ok(())
+                } else {
+                    Err(crate::session::Error::CalledProcessError(status.code().unwrap()))
+                }
+            }
+            Err(e) => Err(crate::session::Error::IoError(e)),
+        }
+    }
+
+    fn create_home(&self) -> Result<(), crate::session::Error> {
+        Ok(())
+    }
 }

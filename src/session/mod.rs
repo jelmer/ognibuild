@@ -31,6 +31,15 @@ pub trait Session {
         env: Option<HashMap<String, String>>,
     ) -> Result<Vec<u8>, Error>;
 
+    fn create_home(&self) -> Result<(), Error>;
+
+    fn check_call(
+        &self,
+        argv: Vec<&str>,
+        cwd: Option<&str>,
+        user: Option<&str>,
+        env: Option<std::collections::HashMap<String, String>>,
+    ) -> Result<(), crate::session::Error>;
 }
 
 pub fn which(session: &impl Session, name: &str) -> Option<String> {
