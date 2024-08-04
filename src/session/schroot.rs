@@ -55,7 +55,7 @@ impl SchrootSession {
                         errlines.lines().next().unwrap().to_string(),
                         errlines,
                     ));
-                } else if errlines.len() == 0 {
+                } else if errlines.is_empty() {
                     return Err(Error::SetupFailure(
                         "No output from schroot".to_string(),
                         errlines,
@@ -110,7 +110,7 @@ impl SchrootSession {
             argv = vec![
                 "sh".to_string(),
                 "-c".to_string(),
-                env.iter().map(|(key, value)| format!("{}={} ", key, shlex::try_quote(value).unwrap().to_string())).chain(argv.iter().map(|x| shlex::try_quote(x).unwrap().to_string())).collect::<Vec<String>>().join(" ")
+                env.iter().map(|(key, value)| format!("{}={} ", key, shlex::try_quote(value).unwrap())).chain(argv.iter().map(|x| shlex::try_quote(x).unwrap().to_string())).collect::<Vec<String>>().join(" ")
             ];
         }
         [base_argv, vec!["--".to_string()], argv].concat()
@@ -137,7 +137,7 @@ impl Drop for SchrootSession {
             Err(_) => {
                 for line in std::io::BufReader::new(&stderr).lines() {
                     let line = line.unwrap();
-                    if line.starts_with(&"E: ") {
+                    if line.starts_with("E: ") {
                         log::error!("{}", &line[3..]);
                     }
                 }
@@ -153,12 +153,12 @@ impl Drop for SchrootSession {
 impl Session for SchrootSession {
     fn rmtree(&self, path: &std::path::Path) -> Result<(), Error> {
         let fullpath = self.external_path(path);
-        std::fs::remove_dir_all(&fullpath).map_err(|e| Error::IoError(e))
+        std::fs::remove_dir_all(fullpath).map_err(Error::IoError)
     }
 
     fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf {
         let path = path.to_string_lossy();
-        if path.starts_with("/") {
+        if path.starts_with('/') {
             return self.location().join(path.trim_end_matches('/'));
         }
         if let Some(cwd) = &self.cwd {
@@ -184,7 +184,7 @@ impl Session for SchrootSession {
 
     fn mkdir(&self, path: &std::path::Path) -> Result<(), Error> {
         let fullpath = self.external_path(path);
-        std::fs::create_dir_all(&fullpath).map_err(|e| Error::IoError(e))
+        std::fs::create_dir_all(fullpath).map_err(Error::IoError)
     }
 
     fn check_output(

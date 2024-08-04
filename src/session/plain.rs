@@ -1,6 +1,12 @@
 pub struct PlainSession;
 use crate::session::{Error, Session};
 
+impl Default for PlainSession {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PlainSession {
     pub fn new() -> Self {
         PlainSession
@@ -26,11 +32,11 @@ impl Session for PlainSession {
     }
 
     fn mkdir(&self, path: &std::path::Path) -> Result<(), Error> {
-        std::fs::create_dir_all(path).map_err(|e| Error::IoError(e))
+        std::fs::create_dir_all(path).map_err(Error::IoError)
     }
 
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), Error> {
-        std::env::set_current_dir(path).map_err(|e| Error::IoError(e))
+        std::env::set_current_dir(path).map_err(Error::IoError)
     }
 
     fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf {
@@ -74,7 +80,7 @@ impl Session for PlainSession {
     }
 
     fn rmtree(&self, path: &std::path::Path) -> Result<(), Error> {
-        std::fs::remove_dir_all(path).map_err(|e| Error::IoError(e))
+        std::fs::remove_dir_all(path).map_err(Error::IoError)
     }
 
     fn check_call(

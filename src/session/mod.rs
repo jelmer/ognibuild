@@ -54,6 +54,7 @@ pub trait Session {
     fn rmtree(&self, path: &std::path::Path) -> Result<(), crate::session::Error>;
 
     fn setup_from_directory(&self, path: &std::path::Path, subdir: Option<&str>) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
+
 }
 
 pub fn which(session: &impl Session, name: &str) -> Option<String> {
@@ -81,13 +82,13 @@ mod tests {
     fn test_get_user() {
         let session = super::plain::PlainSession::new();
         let user = super::get_user(&session);
-        assert!(user.len() > 0);
+        assert!(!user.is_empty());
     }
 
     #[test]
     fn test_which() {
         let session = super::plain::PlainSession::new();
         let which = super::which(&session, "ls");
-        assert_eq!(which.unwrap().ends_with("/ls"), true);
+        assert!(which.unwrap().ends_with("/ls"));
     }
 }
