@@ -1,6 +1,7 @@
 use std::io::BufRead;
 use std::os::unix::fs::PermissionsExt;
 
+pub mod debian;
 pub mod fix_build;
 pub mod session;
 pub mod vcs;
