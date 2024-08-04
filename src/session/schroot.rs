@@ -274,6 +274,26 @@ impl Session for SchrootSession {
         Ok((export_directory, reldir.join(subdir)))
     }
 
+    fn Popen(
+        &self,
+        argv: Vec<&str>,
+        cwd: Option<&std::path::Path>,
+        user: Option<&str>,
+        stdout: Option<std::process::Stdio>,
+        stderr: Option<std::process::Stdio>,
+        stdin: Option<std::process::Stdio>,
+        env: Option<std::collections::HashMap<String, String>>,
+    ) -> std::process::Child {
+        let argv = self.run_argv(argv, cwd, user, env.as_ref());
+
+        std::process::Command::new(&argv[0])
+            .args(&argv[1..])
+            .stdin(stdin.unwrap_or(std::process::Stdio::inherit()))
+            .stdout(stdout.unwrap_or(std::process::Stdio::inherit()))
+            .stderr(stderr.unwrap_or(std::process::Stdio::inherit()))
+            .spawn()
+            .unwrap()
+    }
 }
 
 #[cfg(test)]
