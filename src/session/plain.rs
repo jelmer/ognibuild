@@ -124,4 +124,37 @@ impl Session for PlainSession {
     fn setup_from_directory(&self, path: &std::path::Path, _subdir: Option<&str>) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
         Ok((path.into(), path.into()))
     }
+
+    fn Popen(
+        &self,
+        argv: Vec<&str>,
+        cwd: Option<&std::path::Path>,
+        user: Option<&str>,
+        stdout: Option<std::process::Stdio>,
+        stderr: Option<std::process::Stdio>,
+        stdin: Option<std::process::Stdio>,
+        env: Option<std::collections::HashMap<String, String>>,
+    ) -> std::process::Child {
+        let argv = self.prepend_user(user, argv);
+
+        let mut binding = std::process::Command::new(argv[0]);
+
+        let mut cmd = binding
+            .args(&argv[1..])
+            .stdin(stdin.unwrap_or(std::process::Stdio::inherit()))
+            .stdout(stdout.unwrap_or(std::process::Stdio::inherit()))
+            .stderr(stderr.unwrap_or(std::process::Stdio::inherit()));
+
+        if let Some(cwd) = cwd {
+            cmd = cmd.current_dir(cwd);
+        }
+
+        if let Some(env) = env {
+            cmd = cmd.envs(env);
+        }
+
+        cmd
+            .spawn()
+            .unwrap()
+    }
 }

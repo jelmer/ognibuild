@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::{BufRead, Write};
 
 pub mod schroot;
 pub mod plain;
@@ -55,6 +56,16 @@ pub trait Session {
 
     fn setup_from_directory(&self, path: &std::path::Path, subdir: Option<&str>) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
 
+    fn Popen(
+        &self,
+        argv: Vec<&str>,
+        cwd: Option<&std::path::Path>,
+        user: Option<&str>,
+        stdout: Option<std::process::Stdio>,
+        stderr: Option<std::process::Stdio>,
+        stdin: Option<std::process::Stdio>,
+        env: Option<std::collections::HashMap<String, String>>,
+    ) -> std::process::Child;
 }
 
 pub fn which(session: &impl Session, name: &str) -> Option<String> {
@@ -74,6 +85,47 @@ pub fn get_user(session: &impl Session) -> String {
     String::from_utf8(
     session.check_output(vec!["sh", "-c", "echo $USER"], Some(std::path::Path::new("/")), None, None).unwrap()).unwrap()
         .trim().to_string()
+}
+
+pub fn run_with_tee(
+    session: &impl Session,
+    args: Vec<&str>,
+    cwd: Option<&std::path::Path>,
+    user: Option<&str>,
+    env: Option<std::collections::HashMap<String, String>>,
+    stdin: Option<std::process::Stdio>,
+    stdout: Option<std::process::Stdio>,
+    stderr: Option<std::process::Stdio>,
+) -> Result<(i32, Vec<String>), Error> {
+    let mut p = session.Popen(
+        args,
+        cwd,
+        user,
+        stdout,
+        stderr,
+        Some(stdin.unwrap_or(std::process::Stdio::null())),
+        env,
+    );
+    // While the process is running, read its output and write it to stdout
+    // *and* to the contents variable.
+    let mut contents = Vec::new();
+    let stdout = p.stdout.as_mut().unwrap();
+    let mut stdout_reader = std::io::BufReader::new(stdout);
+    loop {
+        let mut line = String::new();
+        match stdout_reader.read_line(&mut line) {
+            Ok(0) => break,
+            Ok(_) => {
+                std::io::stdout().write_all(line.as_bytes()).unwrap();
+                contents.push(line);
+            }
+            Err(e) => {
+                return Err(Error::IoError(e));
+            }
+        }
+    }
+    let status = p.wait().unwrap();
+    Ok((status.code().unwrap(), contents))
 }
 
 #[cfg(test)]

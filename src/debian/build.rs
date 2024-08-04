@@ -132,11 +132,11 @@ fn control_files_in_root(tree: &dyn Tree, subpath: &std::path::Path) -> bool {
     if tree.has_filename(&debian_path) {
         return false;
     }
-    let control_path = debian_path.join("control");
+    let control_path = subpath.join("control");
     if tree.has_filename(&control_path) {
         return true;
     }
-    tree.has_filename(std::path::Path::new(&format!("{}.in", control_path.to_string_lossy().to_string())))
+    tree.has_filename(std::path::Path::new(&format!("{}.in", control_path.to_string_lossy())))
 }
 
 /*
@@ -228,6 +228,8 @@ mod tests {
         let td = tempfile::tempdir().unwrap();
         let tree = breezyshim::controldir::create_standalone_workingtree(td.path(), &breezyshim::controldir::ControlDirFormat::default()).unwrap();
         let subpath = std::path::Path::new("");
+
+        tree.mkdir(&subpath.join("debian")).unwrap();
 
         tree.put_file_bytes_non_atomic(&subpath.join("debian/control"), b"").unwrap();
 
