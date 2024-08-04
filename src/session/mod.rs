@@ -7,6 +7,7 @@ pub mod plain;
 pub enum Error {
     CalledProcessError(i32),
     IoError(std::io::Error),
+    SetupFailure(String, String),
 }
 
 impl std::fmt::Display for Error {
@@ -14,6 +15,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::CalledProcessError(code) => write!(f, "CalledProcessError({})", code),
             Error::IoError(e) => write!(f, "IoError({})", e),
+            Error::SetupFailure(msg, _long_description) => write!(f, "SetupFailure({})", msg),
         }
     }
 }
