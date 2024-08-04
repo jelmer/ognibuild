@@ -1,43 +1,14 @@
 use breezyshim::tree::Tree;
-use pyo3::exceptions::PyIOError;
-use pyo3::import_exception;
-use pyo3::prelude::*;
+use breezyshim::error::Error as BrzError;
 use std::path::Path;
 use url::Url;
-
-import_exception!(ognibuild, DetailedFailure);
 
 pub fn export_vcs_tree(
     tree: &dyn Tree,
     directory: &Path,
     subpath: Option<&Path>,
-) -> Result<(), PyErr> {
-    Python::with_gil(|py| {
-        match breezyshim::export::export(tree, directory, subpath) {
-            Ok(_) => {}
-            Err(e) => {
-                if e.is_instance_of::<PyIOError>(py) {
-                    let e: std::io::Error = e.into();
-                    let m = py.import_bound("buildlog_consultant.common").unwrap();
-                    let no_space_on_device_cls = m.getattr("NoSpaceOnDevice").unwrap();
-                    let no_space_on_device = no_space_on_device_cls.call0().unwrap().to_object(py);
-
-                    if e.raw_os_error() == Some(libc::ENOSPC) {
-                        return Err(DetailedFailure::new_err((
-                            1,
-                            vec!["export"],
-                            no_space_on_device,
-                        )));
-                    } else {
-                        panic!("Unexpected error: {:?}", e);
-                    }
-                } else {
-                    panic!("Unexpected error: {:?}", e);
-                }
-            }
-        }
-        Ok(())
-    })
+) -> Result<(), BrzError> {
+    breezyshim::export::export(tree, directory, subpath)
 }
 
 pub trait DupableTree {
@@ -48,7 +19,7 @@ pub trait DupableTree {
 
 impl DupableTree for &breezyshim::tree::WorkingTree {
     fn tree(&self) -> breezyshim::tree::RevisionTree {
-        self.basis_tree()
+        self.basis_tree().unwrap()
     }
 
     fn get_parent(&self) -> Option<String> {
@@ -73,7 +44,7 @@ impl DupableTree for &breezyshim::tree::RevisionTree {
 pub fn dupe_vcs_tree(
     orig_tree: impl DupableTree,
     directory: &Path,
-) -> Result<(), breezyshim::controldir::OpenError> {
+) -> Result<(), BrzError> {
     let tree = orig_tree.tree();
     let result = tree.repository().controldir().sprout(
         Url::from_directory_path(directory).unwrap(),
@@ -81,13 +52,13 @@ pub fn dupe_vcs_tree(
         Some(true),
         None,
         Some(&tree.get_revision_id()),
-    );
+    )?;
 
     assert!(result.has_workingtree());
 
     // Copy parent location - some scripts need this
     if let Some(parent) = orig_tree.get_parent() {
-        let mut branch = result.open_branch(None).unwrap();
+        let mut branch = result.open_branch(None)?;
         branch.set_parent(&parent);
     }
 
