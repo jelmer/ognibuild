@@ -2,7 +2,9 @@ use std::collections::HashMap;
 use std::io::{BufRead, Write};
 
 pub mod plain;
+#[cfg(target_os = "linux")]
 pub mod schroot;
+#[cfg(target_os = "linux")]
 pub mod unshare;
 
 #[derive(Debug)]
