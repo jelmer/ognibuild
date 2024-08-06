@@ -52,8 +52,7 @@ impl Session for PlainSession {
     ) -> Result<Vec<u8>, Error> {
         let argv = self.prepend_user(user, argv);
         let mut binding = std::process::Command::new(argv[0]);
-        let mut cmd = binding
-            .args(&argv[1..]);
+        let mut cmd = binding.args(&argv[1..]);
 
         if let Some(cwd) = cwd {
             cmd = cmd.current_dir(cwd);
@@ -70,9 +69,7 @@ impl Session for PlainSession {
                 if output.status.success() {
                     Ok(output.stdout)
                 } else {
-                    Err(Error::CalledProcessError(
-                        output.status.code().unwrap(),
-                    ))
+                    Err(Error::CalledProcessError(output.status.code().unwrap()))
                 }
             }
             Err(e) => Err(Error::IoError(e)),
@@ -92,8 +89,7 @@ impl Session for PlainSession {
     ) -> Result<(), Error> {
         let argv = self.prepend_user(user, argv);
         let mut binding = std::process::Command::new(argv[0]);
-        let mut cmd = binding
-            .args(&argv[1..]);
+        let mut cmd = binding.args(&argv[1..]);
 
         if let Some(cwd) = cwd {
             cmd = cmd.current_dir(cwd);
@@ -121,7 +117,11 @@ impl Session for PlainSession {
         Ok(())
     }
 
-    fn setup_from_directory(&self, path: &std::path::Path, _subdir: Option<&str>) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
+    fn setup_from_directory(
+        &self,
+        path: &std::path::Path,
+        _subdir: Option<&str>,
+    ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
         Ok((path.into(), path.into()))
     }
 
@@ -153,8 +153,140 @@ impl Session for PlainSession {
             cmd = cmd.envs(env);
         }
 
-        cmd
-            .spawn()
-            .unwrap()
+        cmd.spawn().unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_prepend_user() {
+        let session = PlainSession::new();
+        let args = vec!["ls"];
+        let args = session.prepend_user(Some("root"), args);
+        assert_eq!(args, vec!["sudo", "-u", "root", "ls"]);
+    }
+
+    #[test]
+    fn test_prepend_user_no_user() {
+        let session = PlainSession::new();
+        let args = vec!["ls"];
+        let args = session.prepend_user(None, args);
+        assert_eq!(args, vec!["ls"]);
+    }
+
+    #[test]
+    fn test_prepend_user_current_user() {
+        let session = PlainSession::new();
+        let args = vec!["ls"];
+        let username = whoami::username();
+        let args = session.prepend_user(Some(username.as_str()), args);
+        assert_eq!(args, vec!["ls"]);
+    }
+
+    #[test]
+    fn test_location() {
+        let session = PlainSession::new();
+        assert_eq!(session.location(), std::path::PathBuf::from("/"));
+    }
+
+    #[test]
+    fn test_exists() {
+        let session = PlainSession::new();
+        assert!(session.exists(std::path::Path::new("/")));
+
+        let td = tempfile::tempdir().unwrap();
+        assert!(session.exists(td.path()));
+
+        let path = td.path().join("test");
+        assert!(!session.exists(&path));
+    }
+
+    #[test]
+    fn test_mkdir() {
+        let session = PlainSession::new();
+        let td = tempfile::tempdir().unwrap();
+        let path = td.path().join("test");
+        session.mkdir(&path).unwrap();
+        assert!(session.exists(&path));
+        session.rmtree(&path).unwrap();
+        assert!(!session.exists(&path));
+    }
+
+    #[test]
+    fn test_chdir() {
+        let mut session = PlainSession::new();
+        let td = tempfile::tempdir().unwrap();
+        let path = td.path().join("test");
+        session.mkdir(&path).unwrap();
+        session.chdir(&path).unwrap();
+        assert_eq!(
+            session
+                .check_output(vec!["pwd"], None, None, None)
+                .unwrap()
+                .as_slice()
+                .strip_suffix(b"\n")
+                .unwrap(),
+            path.canonicalize().unwrap().to_str().unwrap().as_bytes()
+        );
+    }
+
+    #[test]
+    fn test_external_path() {
+        let session = PlainSession::new();
+        let td = tempfile::tempdir().unwrap();
+        let path = td.path().join("test");
+        session.mkdir(&path).unwrap();
+        assert_eq!(session.external_path(&path), path.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_check_output() {
+        let session = PlainSession::new();
+        let output = session
+            .check_output(vec!["echo", "hello"], None, None, None)
+            .unwrap();
+        assert_eq!(output, b"hello\n");
+    }
+
+    #[test]
+    fn test_check_call() {
+        let session = PlainSession::new();
+        session.check_call(vec!["true"], None, None, None).unwrap();
+    }
+
+    #[test]
+    fn test_create_home() {
+        let session = PlainSession::new();
+        session.create_home().unwrap();
+    }
+
+    #[test]
+    fn test_setup_from_directory() {
+        let session = PlainSession::new();
+        let td = tempfile::tempdir().unwrap();
+        let path = td.path().join("test");
+        session.mkdir(&path).unwrap();
+        let (src, dest) = session.setup_from_directory(&path, None).unwrap();
+        assert_eq!(src, path);
+        assert_eq!(dest, path);
+    }
+
+    #[test]
+    fn test_Popen() {
+        let session = PlainSession::new();
+        let mut child = session.Popen(
+            vec!["echo", "hello"],
+            None,
+            None,
+            Some(std::process::Stdio::piped()),
+            Some(std::process::Stdio::piped()),
+            Some(std::process::Stdio::piped()),
+            None,
+        );
+        let output = child.wait_with_output().unwrap();
+        assert_eq!(output.stdout, b"hello\n");
     }
 }
