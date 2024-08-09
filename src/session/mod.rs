@@ -75,7 +75,7 @@ pub trait Session {
     ) -> std::process::Child;
 }
 
-pub fn which(session: &impl Session, name: &str) -> Option<String> {
+pub fn which(session: &dyn Session, name: &str) -> Option<String> {
     let ret = match session.check_output(
         vec!["which", name],
         Some(std::path::Path::new("/")),
@@ -93,7 +93,7 @@ pub fn which(session: &impl Session, name: &str) -> Option<String> {
     }
 }
 
-pub fn get_user(session: &impl Session) -> String {
+pub fn get_user(session: &dyn Session) -> String {
     String::from_utf8(
         session
             .check_output(
@@ -110,7 +110,7 @@ pub fn get_user(session: &impl Session) -> String {
 }
 
 pub fn run_with_tee(
-    session: &impl Session,
+    session: &dyn Session,
     args: Vec<&str>,
     cwd: Option<&std::path::Path>,
     user: Option<&str>,
