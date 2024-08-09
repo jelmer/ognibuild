@@ -1,11 +1,13 @@
 use pyo3::import_exception;
 use pyo3::prelude::*;
 
+#[cfg(target_os = "linux")]
 #[pyfunction]
 fn sanitize_session_name(name: &str) -> String {
     ognibuild::session::schroot::sanitize_session_name(name)
 }
 
+#[cfg(target_os = "linux")]
 #[pyfunction]
 fn generate_session_id(name: &str) -> String {
     ognibuild::session::schroot::generate_session_id(name)
@@ -198,7 +200,9 @@ fn shebang_binary(path: &str) -> PyResult<Option<String>> {
 
 #[pymodule]
 fn _ognibuild_rs(m: &Bound<PyModule>) -> PyResult<()> {
+    #[cfg(target_os = "linux")]
     m.add_wrapped(wrap_pyfunction!(sanitize_session_name))?;
+    #[cfg(target_os = "linux")]
     m.add_wrapped(wrap_pyfunction!(generate_session_id))?;
     m.add_wrapped(wrap_pyfunction!(export_vcs_tree))?;
     m.add_wrapped(wrap_pyfunction!(dupe_vcs_tree))?;

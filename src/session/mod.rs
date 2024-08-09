@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
 
-pub mod schroot;
 pub mod plain;
+#[cfg(target_os = "linux")]
+pub mod schroot;
+#[cfg(target_os = "linux")]
+pub mod unshare;
 
 #[derive(Debug)]
 pub enum Error {
@@ -54,9 +57,13 @@ pub trait Session {
 
     fn rmtree(&self, path: &std::path::Path) -> Result<(), crate::session::Error>;
 
-    fn setup_from_directory(&self, path: &std::path::Path, subdir: Option<&str>) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
+    fn setup_from_directory(
+        &self,
+        path: &std::path::Path,
+        subdir: Option<&str>,
+    ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
 
-    fn Popen(
+    fn popen(
         &self,
         argv: Vec<&str>,
         cwd: Option<&std::path::Path>,
@@ -68,8 +75,13 @@ pub trait Session {
     ) -> std::process::Child;
 }
 
-pub fn which(session: &impl Session, name: &str) -> Option<String> {
-    let ret = match session.check_output(vec!["which", name], Some(std::path::Path::new("/")), None, None) {
+pub fn which(session: &dyn Session, name: &str) -> Option<String> {
+    let ret = match session.check_output(
+        vec!["which", name],
+        Some(std::path::Path::new("/")),
+        None,
+        None,
+    ) {
         Ok(ret) => ret,
         Err(Error::CalledProcessError(1)) => return None,
         Err(e) => panic!("Unexpected error: {:?}", e),
@@ -81,14 +93,24 @@ pub fn which(session: &impl Session, name: &str) -> Option<String> {
     }
 }
 
-pub fn get_user(session: &impl Session) -> String {
+pub fn get_user(session: &dyn Session) -> String {
     String::from_utf8(
-    session.check_output(vec!["sh", "-c", "echo $USER"], Some(std::path::Path::new("/")), None, None).unwrap()).unwrap()
-        .trim().to_string()
+        session
+            .check_output(
+                vec!["sh", "-c", "echo $USER"],
+                Some(std::path::Path::new("/")),
+                None,
+                None,
+            )
+            .unwrap(),
+    )
+    .unwrap()
+    .trim()
+    .to_string()
 }
 
 pub fn run_with_tee(
-    session: &impl Session,
+    session: &dyn Session,
     args: Vec<&str>,
     cwd: Option<&std::path::Path>,
     user: Option<&str>,
@@ -97,7 +119,7 @@ pub fn run_with_tee(
     stdout: Option<std::process::Stdio>,
     stderr: Option<std::process::Stdio>,
 ) -> Result<(i32, Vec<String>), Error> {
-    let mut p = session.Popen(
+    let mut p = session.popen(
         args,
         cwd,
         user,
@@ -126,6 +148,32 @@ pub fn run_with_tee(
     }
     let status = p.wait().unwrap();
     Ok((status.code().unwrap(), contents))
+}
+
+pub fn create_home(session: &impl Session) -> Result<(), Error> {
+    let cwd = std::path::Path::new("/");
+    let home = String::from_utf8(session.check_output(
+        vec!["sh", "-c", "echo $HOME"],
+        Some(cwd),
+        None,
+        None,
+    )?)
+    .unwrap()
+    .trim_end_matches('\n')
+    .to_string();
+    let user = String::from_utf8(session.check_output(
+        vec!["sh", "-c", "echo $LOGNAME"],
+        Some(cwd),
+        None,
+        None,
+    )?)
+    .unwrap()
+    .trim_end_matches('\n')
+    .to_string();
+    log::info!("Creating directory {} in schroot session.", home);
+    session.check_call(vec!["mkdir", "-p", &home], Some(cwd), Some("root"), None)?;
+    session.check_call(vec!["chown", &user, &home], Some(cwd), Some("root"), None)?;
+    Ok(())
 }
 
 #[cfg(test)]

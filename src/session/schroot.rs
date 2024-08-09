@@ -165,8 +165,8 @@ impl Drop for SchrootSession {
             Err(_) => {
                 for line in std::io::BufReader::new(&stderr).lines() {
                     let line = line.unwrap();
-                    if line.starts_with("E: ") {
-                        log::error!("{}", &line[3..]);
+                    if let Some(rest) = line.strip_prefix("E: ") {
+                        log::error!("{}", rest);
                     }
                 }
                 log::error!(
@@ -189,13 +189,13 @@ impl Session for SchrootSession {
 
     fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf {
         let path = path.to_string_lossy();
-        if path.starts_with('/') {
-            return self.location().join(path.trim_end_matches('/'));
+        if let Some(rest) = path.strip_prefix('/') {
+            return self.location().join(rest);
         }
         if let Some(cwd) = &self.cwd {
             return self
                 .location()
-                .join(cwd.to_string_lossy().to_string().trim_start_matches('/'))
+                .join(cwd.to_string_lossy().to_string().trim_end_matches('/'))
                 .join(path.as_ref());
         } else {
             panic!("no cwd set");
@@ -232,6 +232,7 @@ impl Session for SchrootSession {
 
         let output = std::process::Command::new(&argv[0])
             .args(&argv[1..])
+            .stderr(std::process::Stdio::inherit())
             .output();
 
         match output {
@@ -272,29 +273,7 @@ impl Session for SchrootSession {
     }
 
     fn create_home(&self) -> Result<(), Error> {
-        let cwd = std::path::Path::new("/");
-        let home = String::from_utf8(self.check_output(
-            vec!["sh", "-c", "echo $HOME"],
-            Some(cwd),
-            None,
-            None,
-        )?)
-        .unwrap()
-        .trim_end_matches('\n')
-        .to_string();
-        let user = String::from_utf8(self.check_output(
-            vec!["sh", "-c", "echo $LOGNAME"],
-            Some(cwd),
-            None,
-            None,
-        )?)
-        .unwrap()
-        .trim_end_matches('\n')
-        .to_string();
-        log::info!("Creating directory {} in schroot session.", home);
-        self.check_call(vec!["mkdir", "-p", &home], Some(cwd), Some("root"), None)?;
-        self.check_call(vec!["chown", &user, &home], Some(cwd), Some("root"), None)?;
-        Ok(())
+        crate::session::create_home(self)
     }
 
     fn setup_from_directory(
@@ -321,7 +300,7 @@ impl Session for SchrootSession {
         Ok((export_directory, reldir.join(subdir)))
     }
 
-    fn Popen(
+    fn popen(
         &self,
         argv: Vec<&str>,
         cwd: Option<&std::path::Path>,
@@ -345,7 +324,7 @@ impl Session for SchrootSession {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
     #[test]
     fn test_sanitize_session_name() {
         assert_eq!(super::sanitize_session_name("foo"), "foo");
