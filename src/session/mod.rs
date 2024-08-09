@@ -63,7 +63,7 @@ pub trait Session {
         subdir: Option<&str>,
     ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
 
-    fn Popen(
+    fn popen(
         &self,
         argv: Vec<&str>,
         cwd: Option<&std::path::Path>,
@@ -119,7 +119,7 @@ pub fn run_with_tee(
     stdout: Option<std::process::Stdio>,
     stderr: Option<std::process::Stdio>,
 ) -> Result<(i32, Vec<String>), Error> {
-    let mut p = session.Popen(
+    let mut p = session.popen(
         args,
         cwd,
         user,

@@ -125,7 +125,7 @@ impl Session for PlainSession {
         Ok((path.into(), path.into()))
     }
 
-    fn Popen(
+    fn popen(
         &self,
         argv: Vec<&str>,
         cwd: Option<&std::path::Path>,
@@ -275,9 +275,9 @@ mod tests {
     }
 
     #[test]
-    fn test_Popen() {
+    fn test_popen() {
         let session = PlainSession::new();
-        let mut child = session.Popen(
+        let child = session.popen(
             vec!["echo", "hello"],
             None,
             None,

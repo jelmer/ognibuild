@@ -2,7 +2,7 @@ use crate::session::{Error, Session};
 
 pub struct UnshareSession {
     root: std::path::PathBuf,
-    tempdir: Option<tempfile::TempDir>,
+    _tempdir: Option<tempfile::TempDir>,
     cwd: Option<std::path::PathBuf>,
 }
 
@@ -27,7 +27,7 @@ impl UnshareSession {
 
         let s = Self {
             root: root.to_path_buf(),
-            tempdir: Some(td),
+            _tempdir: Some(td),
             cwd: None,
         };
 
@@ -260,7 +260,7 @@ impl Session for UnshareSession {
         Ok((export_directory, reldir.join(subdir)))
     }
 
-    fn Popen(
+    fn popen(
         &self,
         argv: Vec<&str>,
         cwd: Option<&std::path::Path>,
@@ -400,7 +400,7 @@ mod tests {
     #[test]
     fn test_popen() {
         let session = test_session();
-        let child = session.Popen(
+        let child = session.popen(
             vec!["ls"],
             Some(std::path::Path::new("/")),
             None,

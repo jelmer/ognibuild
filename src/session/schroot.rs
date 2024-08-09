@@ -300,7 +300,7 @@ impl Session for SchrootSession {
         Ok((export_directory, reldir.join(subdir)))
     }
 
-    fn Popen(
+    fn popen(
         &self,
         argv: Vec<&str>,
         cwd: Option<&std::path::Path>,
@@ -324,7 +324,7 @@ impl Session for SchrootSession {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
     #[test]
     fn test_sanitize_session_name() {
         assert_eq!(super::sanitize_session_name("foo"), "foo");
