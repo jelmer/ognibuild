@@ -1,7 +1,7 @@
 use crate::debian::apt::AptManager;
 use crate::debian::context::{DebianPackagingContext, Error};
+use crate::debian::fix_build::DebianBuildFixer;
 use crate::dependencies::debian::{DebianDependency, TieBreaker};
-use crate::fix_build::BuildFixer;
 use crate::session::Session;
 use breezyshim::tree::Tree;
 use buildlog_consultant::problems::common::NeedPgBuildExtUpdateControl;
@@ -9,17 +9,6 @@ use buildlog_consultant::sbuild::Phase;
 use buildlog_consultant::Problem;
 use debian_analyzer::editor::Editor;
 use std::path::Path;
-
-fn convert_phase(phase: &[&str]) -> Phase {
-    match phase[0] {
-        "buildenv" => Phase::BuildEnv,
-        "autopkgtest" => Phase::AutoPkgTest(phase[1].to_string()),
-        "build" => Phase::Build,
-        o => {
-            panic!("unknown phase: {}", o);
-        }
-    }
-}
 
 fn targeted_python_versions(tree: &dyn Tree, subpath: &Path) -> Vec<String> {
     let f = tree.get_file(&subpath.join("debian/control")).unwrap();
@@ -100,13 +89,13 @@ impl TieBreaker for PythonTieBreaker {
 
 fn retry_apt_failure(
     _error: &dyn Problem,
-    _phase: &[&str],
+    _phase: &Phase,
     _context: &DebianPackagingContext,
 ) -> Result<bool, Error> {
     Ok(true)
 }
 
-fn enable_dh_autoreconf(context: &DebianPackagingContext, phase: &[&str]) -> Result<bool, Error> {
+fn enable_dh_autoreconf(context: &DebianPackagingContext, phase: &Phase) -> Result<bool, Error> {
     // Debhelper >= 10 depends on dh-autoreconf and enables autoreconf by default.
     let debhelper_compat_version =
         debian_analyzer::debhelper::get_debhelper_compat_level(&context.abspath(Path::new(".")))
@@ -136,10 +125,7 @@ fn enable_dh_autoreconf(context: &DebianPackagingContext, phase: &[&str]) -> Res
     }
 
     if modified {
-        context.add_dependency(
-            &convert_phase(phase),
-            &DebianDependency::simple("dh-autoreconf"),
-        )
+        context.add_dependency(phase, &DebianDependency::simple("dh-autoreconf"))
     } else {
         Ok(false)
     }
@@ -147,7 +133,7 @@ fn enable_dh_autoreconf(context: &DebianPackagingContext, phase: &[&str]) -> Res
 
 fn fix_missing_configure(
     _error: &dyn Problem,
-    phase: &[&str],
+    phase: &Phase,
     context: &DebianPackagingContext,
 ) -> Result<bool, Error> {
     if !context.has_filename(Path::new("configure.ac"))
@@ -161,7 +147,7 @@ fn fix_missing_configure(
 
 fn fix_missing_automake_input(
     _error: &dyn Problem,
-    phase: &[&str],
+    phase: &Phase,
     context: &DebianPackagingContext,
 ) -> Result<bool, Error> {
     // TODO(jelmer): If it's ./NEWS, ./AUTHORS or ./README that's missing, then
@@ -172,7 +158,7 @@ fn fix_missing_automake_input(
 
 fn fix_missing_config_status_input(
     _error: &dyn Problem,
-    _phase: &[&str],
+    _phase: &Phase,
     context: &DebianPackagingContext,
 ) -> Result<bool, Error> {
     let autogen_path = "autogen.sh";
@@ -198,25 +184,25 @@ fn fix_missing_config_status_input(
     context.commit("Run autogen.sh during build.", None)
 }
 
-pub struct PackageDependencyFixer<'a> {
-    apt: &'a AptManager<'a>,
-    context: &'a DebianPackagingContext,
+pub struct PackageDependencyFixer<'a, 'b, 'c> where 'c: 'a {
+    apt: &'a AptManager<'c>,
+    context: &'b DebianPackagingContext,
     tie_breakers: Vec<Box<dyn TieBreaker>>,
 }
 
-impl<'a> std::fmt::Display for PackageDependencyFixer<'a> {
+impl<'a, 'b, 'c> std::fmt::Display for PackageDependencyFixer<'a, 'b, 'c> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PackageDependencyFixer")
     }
 }
 
-impl<'a> std::fmt::Debug for PackageDependencyFixer<'a> {
+impl<'a, 'b, 'c> std::fmt::Debug for PackageDependencyFixer<'a, 'b, 'c> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PackageDependencyFixer")
     }
 }
 
-impl<'a> BuildFixer<Error> for PackageDependencyFixer<'a> {
+impl<'a, 'b, 'c> DebianBuildFixer for PackageDependencyFixer<'a, 'b, 'c> {
     fn can_fix(&self, problem: &dyn Problem) -> bool {
         crate::buildlog::problem_to_dependency(problem).is_some()
     }
@@ -224,7 +210,7 @@ impl<'a> BuildFixer<Error> for PackageDependencyFixer<'a> {
     fn fix(
         &self,
         problem: &dyn Problem,
-        phase: &[&str],
+        phase: &Phase,
     ) -> Result<bool, crate::fix_build::InterimError<Error>> {
         let dep = crate::buildlog::problem_to_dependency(problem).unwrap();
 
@@ -241,33 +227,31 @@ impl<'a> BuildFixer<Error> for PackageDependencyFixer<'a> {
             return Ok(false);
         };
 
-        self.context
-            .add_dependency(&convert_phase(phase), &deb_dep)
-            .unwrap();
+        self.context.add_dependency(phase, &deb_dep).unwrap();
 
         Ok(true)
     }
 }
 
-pub struct PgBuildExtOutOfDateControlFixer<'a> {
+pub struct PgBuildExtOutOfDateControlFixer<'a, 'b, 'c, 'd> where 'a: 'c {
     session: &'a dyn Session,
-    context: &'a DebianPackagingContext,
-    apt: &'a AptManager<'a>,
+    context: &'b DebianPackagingContext,
+    apt: &'c AptManager<'d>,
 }
 
-impl<'a> std::fmt::Debug for PgBuildExtOutOfDateControlFixer<'a> {
+impl<'a, 'b, 'c, 'd> std::fmt::Debug for PgBuildExtOutOfDateControlFixer<'a, 'b, 'c, 'd> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PgBuildExtOutOfDateControlFixer")
     }
 }
 
-impl<'a> std::fmt::Display for PgBuildExtOutOfDateControlFixer<'a> {
+impl<'a, 'b, 'c, 'd> std::fmt::Display for PgBuildExtOutOfDateControlFixer<'a, 'b, 'c, 'd> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PgBuildExtOutOfDateControlFixer")
     }
 }
 
-impl<'a> BuildFixer<Error> for PgBuildExtOutOfDateControlFixer<'a> {
+impl<'a, 'b, 'c, 'd> DebianBuildFixer for PgBuildExtOutOfDateControlFixer<'a, 'b, 'c, 'd> {
     fn can_fix(&self, problem: &dyn Problem) -> bool {
         problem
             .as_any()
@@ -278,7 +262,7 @@ impl<'a> BuildFixer<Error> for PgBuildExtOutOfDateControlFixer<'a> {
     fn fix(
         &self,
         error: &dyn Problem,
-        _phase: &[&str],
+        _phase: &Phase,
     ) -> std::result::Result<bool, crate::fix_build::InterimError<crate::debian::context::Error>>
     {
         let error = error
@@ -313,7 +297,7 @@ impl<'a> BuildFixer<Error> for PgBuildExtOutOfDateControlFixer<'a> {
 
 fn fix_missing_makefile_pl(
     error: &buildlog_consultant::problems::common::MissingPerlFile,
-    _phase: &[&str],
+    _phase: &Phase,
     context: &DebianPackagingContext,
 ) -> Result<bool, Error> {
     if error.filename == "Makefile.PL"
@@ -328,7 +312,7 @@ fn fix_missing_makefile_pl(
 
 fn debcargo_coerce_unacceptable_prerelease(
     _error: &dyn Problem,
-    _phase: &[&str],
+    _phase: &Phase,
     context: &DebianPackagingContext,
 ) -> Result<bool, Error> {
     let path = context.abspath(Path::new("debian/debcargo.toml"));
@@ -356,7 +340,7 @@ macro_rules! simple_build_fixer {
             }
         }
 
-        impl<'a> BuildFixer<Error> for $name<'a> {
+        impl<'a> DebianBuildFixer for $name<'a> {
             fn can_fix(&self, problem: &dyn Problem) -> bool {
                 problem.as_any().downcast_ref::<$problem_cls>().is_some()
             }
@@ -364,7 +348,7 @@ macro_rules! simple_build_fixer {
             fn fix(
                 &self,
                 error: &dyn Problem,
-                phase: &[&str],
+                phase: &Phase,
             ) -> std::result::Result<
                 bool,
                 crate::fix_build::InterimError<crate::debian::context::Error>,
@@ -412,11 +396,11 @@ simple_build_fixer!(
     retry_apt_failure
 );
 
-pub fn versioned_package_fixers<'a>(
-    session: &'a dyn Session,
-    packaging_context: &'a DebianPackagingContext,
-    apt: &'a AptManager<'a>,
-) -> Vec<Box<dyn BuildFixer<Error> + 'a>> {
+pub fn versioned_package_fixers<'a, 'b, 'c, 'd, 'e>(
+    session: &'c dyn Session,
+    packaging_context: &'b DebianPackagingContext,
+    apt: &'a AptManager<'e>,
+) -> Vec<Box<dyn DebianBuildFixer + 'd>> where 'a: 'd, 'b: 'd, 'c: 'd, 'c: 'a {
     vec![
         Box::new(PgBuildExtOutOfDateControlFixer {
             context: packaging_context,
@@ -432,35 +416,35 @@ pub fn versioned_package_fixers<'a>(
     ]
 }
 
-pub fn apt_fixers<'a>(
-    apt: &'a AptManager<'a>,
-    packaging_context: &'a DebianPackagingContext,
-) -> Vec<Box<dyn BuildFixer<Error> + 'a>> {
+pub fn apt_fixers<'a, 'b, 'c, 'd>(
+    apt: &'a AptManager<'d>,
+    packaging_context: &'b DebianPackagingContext,
+) -> Vec<Box<dyn DebianBuildFixer + 'c>> where 'a: 'c, 'b: 'c {
     let apt_tie_breakers: Vec<Box<dyn TieBreaker>> = vec![
         Box::new(PythonTieBreaker::from_tree(
             &packaging_context.tree,
             &packaging_context.subpath,
         )),
-        Box::new(crate::debian::build_deps::BuildDependencyTieBreaker::from_session(apt.session)),
+        Box::new(crate::debian::build_deps::BuildDependencyTieBreaker::from_session(apt.session())),
         Box::new(crate::debian::udd::PopconTieBreaker),
     ];
     vec![
-        Box::new(RetryAptFetchFailure(packaging_context)) as Box<dyn BuildFixer<Error>>,
+        Box::new(RetryAptFetchFailure(packaging_context)) as Box<dyn DebianBuildFixer>,
         Box::new(PackageDependencyFixer {
             context: packaging_context,
             apt,
             tie_breakers: apt_tie_breakers,
-        }) as Box<dyn BuildFixer<Error> + 'a>,
+        }) as Box<dyn DebianBuildFixer + 'c>,
     ]
 }
 
-pub fn default_fixers<'a>(
+pub fn default_fixers<'a, 'b, 'c, 'd>(
     packaging_context: &'a DebianPackagingContext,
-    apt: &'a AptManager<'a>,
-) -> Vec<Box<dyn BuildFixer<Error> + 'a>> {
+    apt: &'b AptManager<'d>,
+) -> Vec<Box<dyn DebianBuildFixer + 'c>> where 'a: 'c, 'b: 'c {
     let mut ret = Vec::new();
     ret.extend(versioned_package_fixers(
-        apt.session,
+        apt.session(),
         &packaging_context,
         apt,
     ));
