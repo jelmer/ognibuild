@@ -4,6 +4,7 @@ use std::os::unix::fs::PermissionsExt;
 #[cfg(feature = "debian")]
 pub mod debian;
 pub mod fix_build;
+pub mod logs;
 pub mod session;
 pub mod vcs;
 
