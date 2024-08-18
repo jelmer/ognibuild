@@ -1,33 +1,46 @@
 use crate::session::{run_with_tee, Error as SessionError, Session};
+use buildlog_consultant::problems::common::MissingCommand;
+use buildlog_consultant::Problem;
 use log::{info, warn};
 use std::fmt::{Debug, Display};
-use buildlog_consultant::problems::common::MissingCommand;
 
-pub trait BuildFixer<O, P>: std::fmt::Debug + std::fmt::Display {
-    fn can_fix(&self, problem: &P) -> bool;
+pub trait BuildFixer: std::fmt::Debug + std::fmt::Display {
+    fn can_fix(&self, problem: &dyn Problem) -> bool;
 
-    fn fix(&self, problem: &P, phase: &[&str]) -> Result<bool, Error<O, P>>;
+    fn fix(&self, problem: &dyn Problem, phase: &[&str]) -> Result<bool, Error>;
 }
 
 #[derive(Debug)]
-pub enum Error<O, P> {
-    BuildProblem(P),
-    Other(O),
+pub enum Error {
+    BuildProblem(Box<dyn buildlog_consultant::Problem>),
+    Other(Box<dyn std::error::Error>),
 }
 
 #[derive(Debug)]
-pub enum IterateBuildError<O, P> {
+pub enum IterateBuildError {
     FixerLimitReached(usize),
-    PersistentBuildProblem(P),
-    Other(O),
+    PersistentBuildProblem(Box<dyn Problem>),
+    Other(Box<dyn std::error::Error>),
 }
 
-impl<O, P> From<Error<O, P>> for IterateBuildError<O, P> {
-    fn from(e: Error<O, P>) -> Self {
+impl From<Error> for IterateBuildError {
+    fn from(e: Error) -> Self {
         match e {
             Error::BuildProblem(_) => unreachable!(),
             Error::Other(e) => IterateBuildError::Other(e),
         }
+    }
+}
+
+impl From<Box<dyn Problem>> for Error {
+    fn from(e: Box<dyn Problem>) -> Self {
+        Error::BuildProblem(e)
+    }
+}
+
+impl From<Box<dyn std::error::Error>> for Error {
+    fn from(e: Box<dyn std::error::Error>) -> Self {
+        Error::Other(e)
     }
 }
 
@@ -37,16 +50,17 @@ impl<O, P> From<Error<O, P>> for IterateBuildError<O, P> {
 /// * `fixers`: List of fixers to use to resolve issues
 /// * `cb`: Callable to run the build
 /// * `limit: Maximum number of fixing attempts before giving up
-pub fn iterate_with_build_fixers<T, O, P: Debug + Display + std::hash::Hash + PartialEq + Eq>(
-    fixers: &[&dyn BuildFixer<O, P>],
+pub fn iterate_with_build_fixers<T>(
+    fixers: &[&dyn BuildFixer],
     phase: &[&str],
-    mut cb: impl FnMut() -> Result<T, Error<O, P>>,
+    mut cb: impl FnMut() -> Result<T, Error>,
     limit: Option<usize>,
-) -> Result<T, IterateBuildError<O, P>> {
+) -> Result<T, IterateBuildError> {
     let mut attempts = 0;
-    let mut fixed_errors: std::collections::HashSet<P> = std::collections::HashSet::new();
+    let mut fixed_errors: std::collections::HashSet<Box<dyn Problem>> =
+        std::collections::HashSet::new();
     loop {
-        let mut to_resolve: Vec<P> = vec![];
+        let mut to_resolve: Vec<Box<dyn Problem>> = vec![];
 
         match cb() {
             Ok(v) => return Ok(v),
@@ -56,7 +70,7 @@ pub fn iterate_with_build_fixers<T, O, P: Debug + Display + std::hash::Hash + Pa
 
         while let Some(f) = to_resolve.pop() {
             info!("Identified error: {:?}", f);
-            if fixed_errors.contains(&f) {
+            if fixed_errors.contains(f.as_ref()) {
                 warn!("Failed to resolve error {:?}, it persisted. Giving up.", f);
                 return Err(IterateBuildError::PersistentBuildProblem(f));
             }
@@ -66,7 +80,7 @@ pub fn iterate_with_build_fixers<T, O, P: Debug + Display + std::hash::Hash + Pa
                     return Err(IterateBuildError::FixerLimitReached(limit));
                 }
             }
-            match resolve_error(&f, phase, fixers) {
+            match resolve_error(f.as_ref(), phase, fixers) {
                 Err(Error::BuildProblem(n)) => {
                     info!("New error {:?} while resolving {:?}", &n, &f);
                     if to_resolve.contains(&n) {
@@ -88,11 +102,11 @@ pub fn iterate_with_build_fixers<T, O, P: Debug + Display + std::hash::Hash + Pa
     }
 }
 
-pub fn resolve_error<O, P: Debug>(
-    problem: &P,
+pub fn resolve_error(
+    problem: &dyn Problem,
     phase: &[&str],
-    fixers: &[&dyn BuildFixer<O, P>],
-) -> Result<bool, Error<O, P>> {
+    fixers: &[&dyn BuildFixer],
+) -> Result<bool, Error> {
     let relevant_fixers = fixers
         .iter()
         .filter(|fixer| fixer.can_fix(problem))
@@ -165,7 +179,9 @@ pub fn run_detecting_problems(
                 return Err(AnalyzedError::Detailed {
                     retcode: 127,
                     args: args.into_iter().map(|s| s.to_string()).collect(),
-                    error: Some(Box::new(MissingCommand(command)) as Box<dyn buildlog_consultant::Problem>),
+                    error: Some(
+                        Box::new(MissingCommand(command)) as Box<dyn buildlog_consultant::Problem>
+                    ),
                 });
             }
             Err(SessionError::IoError(e)) => {
@@ -178,7 +194,8 @@ pub fn run_detecting_problems(
     }
     let body = contents.join("");
     let lines = body.split('\n').collect::<Vec<_>>();
-    let (r#match, error) = buildlog_consultant::common::find_build_failure_description(lines.clone());
+    let (r#match, error) =
+        buildlog_consultant::common::find_build_failure_description(lines.clone());
     if let Some(error) = error {
         Err(AnalyzedError::Detailed {
             retcode,
