@@ -1,10 +1,13 @@
 use std::io::BufRead;
 use std::os::unix::fs::PermissionsExt;
 
+pub mod buildlog;
+pub mod buildsystem;
 #[cfg(feature = "debian")]
 pub mod debian;
 pub mod fix_build;
 pub mod logs;
+pub mod requirements;
 pub mod resolver;
 pub mod session;
 pub mod vcs;
