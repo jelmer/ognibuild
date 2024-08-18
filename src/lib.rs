@@ -5,6 +5,7 @@ use std::os::unix::fs::PermissionsExt;
 pub mod debian;
 pub mod fix_build;
 pub mod logs;
+pub mod resolver;
 pub mod session;
 pub mod vcs;
 
