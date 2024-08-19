@@ -3,6 +3,7 @@ use buildlog_consultant::problems::common::MissingCommand;
 use buildlog_consultant::Problem;
 use log::{info, warn};
 use std::fmt::{Debug, Display};
+use std::process::Stdio;
 
 pub trait BuildFixer: std::fmt::Debug + std::fmt::Display {
     fn can_fix(&self, problem: &dyn Problem) -> bool;
@@ -14,6 +15,28 @@ pub trait BuildFixer: std::fmt::Debug + std::fmt::Display {
 pub enum Error {
     BuildProblem(Box<dyn buildlog_consultant::Problem>),
     Other(Box<dyn std::error::Error>),
+}
+
+impl From<AnalyzedError> for Error {
+    fn from(e: AnalyzedError) -> Self {
+        match e {
+            AnalyzedError::MissingCommandError { command } => {
+                Error::BuildProblem(Box::new(MissingCommand(command)))
+            }
+            AnalyzedError::IoError(e) => Error::Other(Box::new(e)),
+            AnalyzedError::Detailed {
+                retcode: _,
+                args: _,
+                error,
+            } => Error::BuildProblem(error.unwrap()),
+            AnalyzedError::Unidentified {
+                retcode: _,
+                args: _,
+                lines: _,
+                secondary: _,
+            } => Error::Other(Box::new(e)),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -129,6 +152,8 @@ fn default_check_success(retcode: i32, _lines: Vec<&str>) -> bool {
     retcode == 0
 }
 
+/// Errors that can occur while analyzing a build.
+#[derive(Debug)]
 pub enum AnalyzedError {
     MissingCommandError {
         command: String,
@@ -147,12 +172,72 @@ pub enum AnalyzedError {
     },
 }
 
+impl std::fmt::Display for AnalyzedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            AnalyzedError::MissingCommandError { command } => {
+                write!(f, "Command not found: {}", command)
+            }
+            AnalyzedError::IoError(e) => write!(f, "IO error: {}", e),
+            AnalyzedError::Detailed {
+                retcode,
+                args,
+                error,
+            } => {
+                write!(f, "Detailed error: retcode: {}, args: {:?}", retcode, args)?;
+                if let Some(error) = error {
+                    write!(f, ", error: {}", error)?;
+                }
+                Ok(())
+            }
+            AnalyzedError::Unidentified {
+                retcode,
+                args,
+                lines,
+                secondary,
+            } => {
+                write!(
+                    f,
+                    "Unidentified error: retcode: {}, args: {:?}, lines: {:?}",
+                    retcode, args, lines
+                )?;
+                if let Some(secondary) = secondary {
+                    write!(f, ", secondary: {:?}", secondary)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl std::error::Error for AnalyzedError {}
+
 impl From<std::io::Error> for AnalyzedError {
     fn from(e: std::io::Error) -> Self {
         AnalyzedError::IoError(e)
     }
 }
 
+/// Run a command and analyze the output for common build problems.
+///
+/// # Arguments
+/// * `session`: Session to run the command in
+/// * `args`: Arguments to the command
+/// * `check_success`: Function to determine if the command was successful
+/// * `quiet`: Whether to log the command being run
+/// * `cwd`: Current working directory for the command
+/// * `user`: User to run the command as
+/// * `env`: Environment variables to set for the command
+/// * `stdin`: Stdin for the command
+/// * `stdout`: Stdout for the command
+/// * `stderr`: Stderr for the command
+/// # Returns
+/// * `Ok`: The output of the command
+/// * `Err`: An error occurred while running the command
+///    * `AnalyzedError::MissingCommandError`: The command was not found
+///    * `AnalyzedError::IoError`: An IO error occurred
+///    * `AnalyzedError::Detailed`: A detailed error occurred
+///    * `AnalyzedError::Unidentified`: An unidentified error occurred
 pub fn run_detecting_problems(
     session: &dyn Session,
     args: Vec<&str>,
@@ -216,4 +301,38 @@ pub fn run_detecting_problems(
             secondary: r#match,
         })
     }
+}
+
+pub fn run_with_build_fixers(
+    fixers: &[&dyn BuildFixer],
+    session: &dyn Session,
+    args: Vec<&str>,
+    quiet: bool,
+    cwd: Option<&std::path::Path>,
+    user: Option<&str>,
+    env: Option<std::collections::HashMap<String, String>>,
+    stdin: Option<impl Into<Stdio> + Clone>,
+    stdout: Option<impl Into<Stdio> + Clone>,
+    stderr: Option<impl Into<Stdio> + Clone>,
+) -> Result<Vec<String>, IterateBuildError> {
+    iterate_with_build_fixers(
+        fixers,
+        &["build"],
+        move || {
+            run_detecting_problems(
+                session,
+                args.clone(),
+                None,
+                quiet,
+                cwd,
+                user,
+                env.clone(),
+                stdin.clone().map(|s| s.into()),
+                stdout.clone().map(|s| s.into()),
+                stderr.clone().map(|s| s.into()),
+            )
+            .map_err(|e| e.into())
+        },
+        None,
+    )
 }

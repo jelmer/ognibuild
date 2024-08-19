@@ -1,10 +1,10 @@
-use std::fs;
-use std::path::{Path, PathBuf};
 use log::debug;
+use std::fs;
 use std::fs::File;
 use std::io::{self, Write};
-use std::process::{Command};
 use std::os::unix::io::{AsRawFd, RawFd};
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 struct RedirectOutput {
     old_stdout: RawFd,
@@ -107,7 +107,6 @@ impl Drop for CopyOutput {
     }
 }
 
-
 pub fn rotate_logfile(source_path: &std::path::Path) -> std::io::Result<()> {
     if source_path.exists() {
         let directory_path = source_path.parent().unwrap_or_else(|| Path::new(""));
@@ -144,7 +143,12 @@ pub struct DirectoryLogManager {
 
 impl DirectoryLogManager {
     pub fn new(path: PathBuf, mode: LogMode) -> Self {
-        Self { path, mode, copy_output: None, redirect_output: None }
+        Self {
+            path,
+            mode,
+            copy_output: None,
+            redirect_output: None,
+        }
     }
 }
 
@@ -159,6 +163,26 @@ impl LogManager for DirectoryLogManager {
                 self.redirect_output = Some(RedirectOutput::new(&File::create(&self.path)?)?);
             }
         }
+        Ok(())
+    }
+}
+
+pub struct NoLogManager;
+
+impl NoLogManager {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Default for NoLogManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LogManager for NoLogManager {
+    fn start(&mut self) -> std::io::Result<()> {
         Ok(())
     }
 }

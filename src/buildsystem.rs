@@ -6,6 +6,18 @@ use crate::session::{which, Session};
 use crate::Requirement;
 use std::path::{Path, PathBuf};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stage {
+    // Build: necessary to build the package
+    Build,
+    // core: necessary to do anything with the package
+    Core,
+    // test: necessary to run the tests
+    Test,
+    // dev: necessary for development (e.g. linters, yacc)
+    Dev,
+}
+
 pub fn guaranteed_which(session: &dyn Session, resolver: &dyn Resolver, name: &str) -> PathBuf {
     match which(session, name) {
         Some(path) => PathBuf::from(path),
@@ -18,8 +30,8 @@ pub fn guaranteed_which(session: &dyn Session, resolver: &dyn Resolver, name: &s
 
 fn get_necessary_declared_requirements<'a>(
     resolver: &'_ dyn Resolver,
-    requirements: &'_ [(&'_ str, &'a dyn Requirement)],
-    stages: &'_ [&'_ str],
+    requirements: &'_ [(Stage, &'a dyn Requirement)],
+    stages: &'_ [Stage],
 ) -> Vec<&'a dyn Requirement> {
     let mut missing = vec![];
     for (stage, req) in requirements {
@@ -45,7 +57,7 @@ pub trait BuildSystem {
 
     fn install_declared_requirements(
         &self,
-        stages: &[&str],
+        stages: &[Stage],
         session: &dyn Session,
         resolver: &dyn Resolver,
         fixers: Option<&[&dyn BuildFixer]>,
@@ -73,7 +85,7 @@ pub trait BuildSystem {
         &self,
         session: &dyn Session,
         fixers: Option<&[&dyn BuildFixer]>,
-    ) -> Vec<(&str, &dyn Requirement)>;
+    ) -> Vec<(Stage, &dyn Requirement)>;
 
     fn get_declared_outputs(
         &self,

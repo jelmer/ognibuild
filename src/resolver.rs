@@ -1,6 +1,6 @@
 use crate::Requirement;
 
-pub trait Resolver {
+pub trait Resolver: std::fmt::Debug {
     fn name(&self) -> &str;
 
     fn install(&self, requirements: &[&dyn Requirement]);
