@@ -132,6 +132,18 @@ pub enum LogMode {
 
 pub trait LogManager {
     fn start(&mut self) -> std::io::Result<()>;
+
+    fn stop(&mut self) {}
+}
+
+/// Run a function capturing its output to a log file.
+pub fn wrap<R>(logs: &mut dyn LogManager, f: impl FnOnce() -> R) -> R {
+    logs.start().unwrap();
+    let result = f();
+    std::io::stdout().flush().unwrap();
+    std::io::stderr().flush().unwrap();
+    logs.stop();
+    result
 }
 
 pub struct DirectoryLogManager {
@@ -164,6 +176,11 @@ impl LogManager for DirectoryLogManager {
             }
         }
         Ok(())
+    }
+
+    fn stop(&mut self) {
+        self.copy_output = None;
+        self.redirect_output = None;
     }
 }
 

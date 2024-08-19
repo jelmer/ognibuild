@@ -7,6 +7,7 @@ pub mod buildsystem;
 pub mod debian;
 pub mod fix_build;
 pub mod logs;
+pub mod output;
 pub mod requirements;
 pub mod resolver;
 pub mod session;
@@ -46,7 +47,7 @@ pub fn shebang_binary(path: &std::path::Path) -> std::io::Result<Option<String>>
     ))
 }
 
-pub trait Requirement {
+pub trait Requirement: std::fmt::Debug {
     fn family(&self) -> &'static str;
 
     fn met(&self, session: &dyn crate::session::Session) -> bool;
@@ -54,6 +55,4 @@ pub trait Requirement {
 
 pub trait UpstreamOutput {
     fn family() -> &'static str;
-
-    fn get_declared_dependencies(&self) -> Vec<String>;
 }

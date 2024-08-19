@@ -1,6 +1,7 @@
 use crate::Requirement;
 use std::path::Path;
 
+#[derive(Debug)]
 pub struct BinaryRequirement {
     binary_name: String,
 }
