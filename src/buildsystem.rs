@@ -1,5 +1,5 @@
 use crate::buildlog::install_missing_reqs;
-use crate::fix_build::BuildFixer;
+use crate::fix_build::{BuildFixer, Error};
 use crate::requirements::BinaryRequirement;
 use crate::resolver::Resolver;
 use crate::session::{which, Session};
@@ -16,6 +16,23 @@ pub enum Stage {
     Test,
     // dev: necessary for development (e.g. linters, yacc)
     Dev,
+}
+
+impl Stage {
+    pub fn all() -> &'static [Stage] {
+        &[Stage::Build, Stage::Core, Stage::Test, Stage::Dev]
+    }
+}
+
+impl std::fmt::Display for Stage {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Stage::Build => write!(f, "build"),
+            Stage::Core => write!(f, "core"),
+            Stage::Test => write!(f, "test"),
+            Stage::Dev => write!(f, "dev"),
+        }
+    }
 }
 
 pub fn guaranteed_which(session: &dyn Session, resolver: &dyn Resolver, name: &str) -> PathBuf {
@@ -42,6 +59,11 @@ fn get_necessary_declared_requirements<'a>(
     missing
 }
 
+pub struct InstallTarget {
+    pub user: bool,
+    pub prefix: Option<PathBuf>,
+}
+
 /// A particular buildsystem.
 pub trait BuildSystem {
     /// The name of the buildsystem.
@@ -53,7 +75,7 @@ pub trait BuildSystem {
         resolver: &dyn Resolver,
         target_directory: &Path,
         quiet: bool,
-    ) -> Result<(), String>;
+    ) -> Result<(), Error>;
 
     fn install_declared_requirements(
         &self,
@@ -68,18 +90,18 @@ pub trait BuildSystem {
         install_missing_reqs(session, resolver, &relevant);
     }
 
-    fn test(&self, session: &dyn Session, resolver: &dyn Resolver) -> Result<(), String>;
+    fn test(&self, session: &dyn Session, resolver: &dyn Resolver) -> Result<(), Error>;
 
-    fn build(&self, session: &dyn Session, resolver: &dyn Resolver) -> Result<(), String>;
+    fn build(&self, session: &dyn Session, resolver: &dyn Resolver) -> Result<(), Error>;
 
-    fn clean(&self, session: &dyn Session, resolver: &dyn Resolver) -> Result<(), String>;
+    fn clean(&self, session: &dyn Session, resolver: &dyn Resolver) -> Result<(), Error>;
 
     fn install(
         &self,
         session: &dyn Session,
         resolver: &dyn Resolver,
-        install_target: &Path,
-    ) -> Result<(), String>;
+        install_target: &InstallTarget,
+    ) -> Result<(), Error>;
 
     fn get_declared_dependencies(
         &self,
@@ -99,4 +121,8 @@ pub trait BuildSystem {
     {
         None
     }
+}
+
+pub fn detect_buildsystems(path: &Path) -> Vec<Box<dyn BuildSystem>> {
+    vec![]
 }
