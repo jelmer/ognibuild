@@ -203,3 +203,23 @@ impl LogManager for NoLogManager {
         Ok(())
     }
 }
+
+pub struct NoLogManager;
+
+impl NoLogManager {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Default for NoLogManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LogManager for NoLogManager {
+    fn start(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
