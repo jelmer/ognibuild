@@ -21,7 +21,7 @@ impl Requirement for BinaryRequirement {
 
     fn met(&self, session: &dyn crate::session::Session) -> bool {
         let mut p = session.popen(
-            (&["which", &self.binary_name]).to_vec(),
+            ["which", &self.binary_name].to_vec(),
             Some(Path::new("/")),
             None,
             Some(std::process::Stdio::null()),

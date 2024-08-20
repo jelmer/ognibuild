@@ -1,7 +1,7 @@
 use crate::buildlog::install_missing_reqs;
 use crate::fix_build::{BuildFixer, Error};
 use crate::requirements::BinaryRequirement;
-use crate::resolver::Resolver;
+use crate::resolver::{Error as ResolverError, Resolver};
 use crate::session::{which, Session};
 use crate::Requirement;
 use std::path::{Path, PathBuf};
@@ -39,7 +39,7 @@ pub fn guaranteed_which(session: &dyn Session, resolver: &dyn Resolver, name: &s
     match which(session, name) {
         Some(path) => PathBuf::from(path),
         None => {
-            resolver.install(&[&BinaryRequirement::new(name)]);
+            resolver.install(&[&BinaryRequirement::new(name)]).unwrap();
             PathBuf::from(which(session, name).unwrap())
         }
     }
@@ -83,11 +83,12 @@ pub trait BuildSystem {
         session: &dyn Session,
         resolver: &dyn Resolver,
         fixers: Option<&[&dyn BuildFixer]>,
-    ) {
+    ) -> Result<(), ResolverError> {
         let declared_reqs = self.get_declared_dependencies(session, fixers);
         let relevant =
             get_necessary_declared_requirements(resolver, declared_reqs.as_slice(), stages);
-        install_missing_reqs(session, resolver, &relevant);
+        install_missing_reqs(session, resolver, &relevant)?;
+        Ok(())
     }
 
     fn test(&self, session: &dyn Session, resolver: &dyn Resolver) -> Result<(), Error>;

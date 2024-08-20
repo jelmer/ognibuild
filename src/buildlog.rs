@@ -1,14 +1,21 @@
-use crate::resolver::Resolver;
+use crate::fix_build::{BuildFixer, Error};
+use crate::resolver::{Error as ResolverError, Resolver};
 use crate::session::Session;
 use crate::Requirement;
+use buildlog_consultant::Problem;
+
+pub fn problem_to_upstream_requirement(problem: &dyn Problem) -> Option<Box<dyn Requirement>> {
+    // TODO
+    None
+}
 
 pub fn install_missing_reqs(
     session: &dyn Session,
     resolver: &dyn Resolver,
     reqs: &[&dyn Requirement],
-) {
+) -> Result<(), ResolverError> {
     if reqs.is_empty() {
-        return;
+        return Ok(());
     }
     let mut missing = vec![];
     for req in reqs {
@@ -17,8 +24,10 @@ pub fn install_missing_reqs(
         }
     }
     if !missing.is_empty() {
-        resolver.install(missing.as_slice());
+        resolver.install(missing.as_slice())?;
     }
+
+    Ok(())
 }
 
 pub enum Explanation<'a> {
@@ -30,24 +39,61 @@ pub fn explain_missing_reqs<'a>(
     session: &dyn Session,
     resolver: &dyn Resolver,
     reqs: &[&'a dyn Requirement],
-) -> Explanation<'a> {
+) -> Result<Explanation<'a>, ResolverError> {
     if reqs.is_empty() {
-        return Explanation::Install(vec![]);
+        return Ok(Explanation::Install(vec![]));
     }
     let mut missing = vec![];
-    for req in reqs.into_iter() {
+    for req in reqs.iter() {
         if !req.met(session) {
             missing.push(*req)
         }
     }
     if !missing.is_empty() {
-        let commands = resolver.explain(missing.as_slice());
+        let commands = resolver.explain(missing.as_slice())?;
         if commands.is_empty() {
-            Explanation::Uninstallable(missing)
+            Ok(Explanation::Uninstallable(missing))
         } else {
-            Explanation::Install(commands)
+            Ok(Explanation::Install(commands))
         }
     } else {
-        Explanation::Install(vec![])
+        Ok(Explanation::Install(vec![]))
+    }
+}
+
+#[derive(Debug)]
+pub struct InstallFixer {
+    resolver: Box<dyn Resolver>,
+}
+
+impl std::fmt::Display for InstallFixer {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "InstallFixer for {:?}", self.resolver)
+    }
+}
+
+impl BuildFixer for InstallFixer {
+    fn can_fix(&self, problem: &dyn Problem) -> bool {
+        let req = problem_to_upstream_requirement(problem);
+        req.is_some()
+    }
+
+    fn fix(&self, problem: &dyn Problem, _phase: &[&str]) -> Result<bool, Error> {
+        let req = problem_to_upstream_requirement(problem);
+        if req.is_none() {
+            return Ok(false);
+        }
+
+        let reqs = [req.unwrap()];
+
+        match self.resolver.install(
+            reqs.iter()
+                .map(|x| x.as_ref())
+                .collect::<Vec<&dyn Requirement>>()
+                .as_slice(),
+        ) {
+            Ok(_) => Ok(true),
+            Err(ResolverError::UnsatisfiedRequirements(_)) => Ok(false),
+        }
     }
 }

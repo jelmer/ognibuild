@@ -34,8 +34,9 @@ url = "2.5.1"
 whoami = { version = "1.5.1", default-features = false }
 
 [features]
-default = ["debian"]
+default = ["debian", "cli"]
 debian = ["dep:debian-changelog", "dep:debversion"]
+cli = ["dep:clap", "dep:env_logger"]
 
 [workspace.dependencies]
 pyo3 = "0.22"
@@ -49,3 +50,8 @@ version = "0.0.24"
 
 [dev-dependencies]
 lazy_static = "1.5.0"
+
+#[[bin]]
+#name = "ognibuild"
+#path = "src/main.rs"
+#required-features = ["cli"]

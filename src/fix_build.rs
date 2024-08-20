@@ -2,7 +2,7 @@ use crate::session::{run_with_tee, Error as SessionError, Session};
 use buildlog_consultant::problems::common::MissingCommand;
 use buildlog_consultant::Problem;
 use log::{info, warn};
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::process::Stdio;
 
 pub trait BuildFixer: std::fmt::Debug + std::fmt::Display {
