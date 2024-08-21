@@ -320,6 +320,10 @@ impl Session for SchrootSession {
             .spawn()
             .unwrap()
     }
+
+    fn is_temporary(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]
