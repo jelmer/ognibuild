@@ -281,6 +281,10 @@ impl Session for UnshareSession {
             .spawn()
             .unwrap()
     }
+
+    fn is_temporary(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]
@@ -293,6 +297,12 @@ mod tests {
 
     fn test_session() -> std::sync::MutexGuard<'static, UnshareSession> {
         TEST_SESSION.lock().unwrap()
+    }
+
+    #[test]
+    fn test_is_temporary() {
+        let session = test_session();
+        assert!(session.is_temporary());
     }
 
     #[test]

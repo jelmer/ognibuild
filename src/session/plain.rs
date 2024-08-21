@@ -155,6 +155,10 @@ impl Session for PlainSession {
 
         cmd.spawn().unwrap()
     }
+
+    fn is_temporary(&self) -> bool {
+        false
+    }
 }
 
 #[cfg(test)]
@@ -190,6 +194,12 @@ mod tests {
     fn test_location() {
         let session = PlainSession::new();
         assert_eq!(session.location(), std::path::PathBuf::from("/"));
+    }
+
+    #[test]
+    fn test_is_temporary() {
+        let session = PlainSession::new();
+        assert!(!session.is_temporary());
     }
 
     #[test]
