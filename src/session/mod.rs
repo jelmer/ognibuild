@@ -73,6 +73,8 @@ pub trait Session {
         stdin: Option<std::process::Stdio>,
         env: Option<std::collections::HashMap<String, String>>,
     ) -> std::process::Child;
+
+    fn is_temporary(&self) -> bool;
 }
 
 pub fn which(session: &dyn Session, name: &str) -> Option<String> {
