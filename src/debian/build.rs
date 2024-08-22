@@ -1,6 +1,6 @@
-use breezyshim::tree::{Tree, WorkingTree};
+use breezyshim::tree::{MutableTree, Tree, WorkingTree};
 use buildlog_consultant::Problem;
-use debian_changelog::ChangeLog;
+use debian_changelog::{ChangeLog, Urgency};
 use debversion::Version;
 use std::io::Seek;
 use std::path::{Path, PathBuf};
@@ -166,7 +166,7 @@ pub fn build_once(
     build_suite: Option<&str>,
     output_directory: &Path,
     build_command: &str,
-    subpath: Option<&Path>,
+    subpath: &Path,
     source_date_epoch: Option<chrono::DateTime<chrono::Utc>>,
     apt_repository: Option<&str>,
     apt_repository_key: Option<&str>,
@@ -177,7 +177,6 @@ pub fn build_once(
     let build_log_path = output_directory.join(BUILD_LOG_FILENAME);
     log::debug!("Writing build log to {}", build_log_path.display());
     let mut logf = std::fs::File::create(&build_log_path).unwrap();
-    let subpath = subpath.unwrap_or_else(|| std::path::Path::new(""));
     match build(
         local_tree,
         logf.try_clone().unwrap(),
@@ -248,7 +247,7 @@ pub fn build_once(
     })
 }
 
-fn control_files_in_root(tree: &dyn Tree, subpath: &std::path::Path) -> bool {
+fn control_files_in_root(tree: &dyn MutableTree, subpath: &std::path::Path) -> bool {
     let debian_path = subpath.join("debian");
     if tree.has_filename(&debian_path) {
         return false;
@@ -317,6 +316,164 @@ pub fn find_changes_files(
         c.captures(entry.file_name().to_str().unwrap())
             .map(|m| (m.get(1).unwrap().as_str().to_owned(), entry))
     })
+}
+
+/// Attempt a build, with a custom distribution set.
+///
+/// # Arguments
+/// * `local_tree` - The tree to build in.
+/// * `suffix` - Suffix to add to version string.
+/// * `build_suite` - Name of suite (i.e. distribution) to build for.
+/// * `output_directory` - Directory to write output to.
+/// * `build_command` - Build command to build package.
+/// * `build_changelog_entry` - Changelog entry to use.
+/// * `subpath` - Sub path in tree where package lives.
+/// * `source_date_epoch` - Source date epoch to set.
+/// * `run_gbp_dch` - Whether to run gbp-dch.
+/// * `apt_repository` - APT repository to use.
+/// * `apt_repository_key` - APT repository key to use.
+/// * `extra_repositories` - Extra repositories to use.
+pub fn attempt_build(
+    local_tree: &WorkingTree,
+    suffix: Option<&str>,
+    build_suite: Option<&str>,
+    output_directory: &std::path::Path,
+    build_command: &str,
+    build_changelog_entry: Option<&str>,
+    subpath: &std::path::Path,
+    source_date_epoch: Option<chrono::DateTime<chrono::Utc>>,
+    run_gbp_dch: bool,
+    apt_repository: Option<&str>,
+    apt_repository_key: Option<&str>,
+    extra_repositories: Option<Vec<&str>>,
+) -> Result<BuildOnceResult, BuildOnceError> {
+    if run_gbp_dch
+        && subpath == std::path::Path::new("")
+        && pyo3::Python::with_gil(|py| {
+            use pyo3::ToPyObject;
+            local_tree
+                .controldir()
+                .to_object(py)
+                .getattr(py, "_git")
+                .is_ok()
+        })
+    {
+        gbp_dch(&local_tree.abspath(subpath).unwrap()).unwrap();
+    }
+    if let Some(build_changelog_entry) = build_changelog_entry {
+        assert!(
+            suffix.is_some(),
+            "build_changelog_entry specified, but suffix is None"
+        );
+        assert!(
+            build_suite.is_some(),
+            "build_changelog_entry specified, but build_suite is None"
+        );
+        add_dummy_changelog_entry(
+            local_tree,
+            subpath,
+            suffix.unwrap(),
+            build_suite.unwrap(),
+            build_changelog_entry,
+            None,
+            None,
+        );
+    }
+    build_once(
+        local_tree,
+        build_suite,
+        output_directory,
+        build_command,
+        subpath,
+        source_date_epoch,
+        apt_repository,
+        apt_repository_key,
+        extra_repositories,
+    )
+}
+
+pub fn version_add_suffix(version: &Version, suffix: &str) -> Version {
+    fn add_suffix(v: &str, suffix: &str) -> String {
+        if let Some(m) = regex::Regex::new(&format!("(.*)({})([0-9]+)", regex::escape(suffix)))
+            .unwrap()
+            .captures(v)
+        {
+            let main = m.get(1).unwrap().as_str();
+            let suffix = m.get(2).unwrap().as_str();
+            let revision = m.get(3).unwrap().as_str();
+            format!("{}{}{}", main, suffix, revision.parse::<u64>().unwrap() + 1)
+        } else {
+            format!("{}{}1", v, suffix)
+        }
+    }
+
+    let mut version = version.clone();
+    if let Some(r) = version.debian_revision {
+        version.debian_revision = Some(add_suffix(&r, suffix));
+    } else {
+        version.upstream_version = add_suffix(&version.upstream_version, suffix);
+    }
+    version
+}
+
+/// Add a dummy changelog entry to a package.
+///
+/// # Arguments
+/// * `tree` - The tree to add the entry to.
+/// * `subpath` - Sub path in tree where package lives.
+/// * `suffix` - Suffix to add to version string.
+/// * `suite` - Name of suite (i.e. distribution) to build for.
+/// * `message` - Changelog message to use.
+/// * `timestamp` - Timestamp to use.
+/// * `maintainer` - Maintainer to use.
+/// * `allow_reformatting` - Whether to allow reformatting.
+///
+/// # Returns
+/// The version of the newly added entry.
+pub fn add_dummy_changelog_entry(
+    tree: &dyn MutableTree,
+    subpath: &Path,
+    suffix: &str,
+    suite: &str,
+    message: &str,
+    timestamp: Option<chrono::DateTime<chrono::Utc>>,
+    maintainer: Option<(String, String)>,
+) -> Version {
+    let path = if control_files_in_root(tree, subpath) {
+        subpath.join("changelog")
+    } else {
+        subpath.join("debian/changelog")
+    };
+    let mut cl = ChangeLog::read_relaxed(tree.get_file(&path).unwrap()).unwrap();
+
+    let prev_entry = cl.entries().next().unwrap();
+    let prev_package = prev_entry.package().unwrap();
+    let prev_version = prev_entry.version().unwrap();
+
+    let version = version_add_suffix(&prev_version, suffix);
+    log::debug!("Adding dummy changelog entry {} for build", &version);
+    let mut builder = cl
+        .new_entry()
+        .package(prev_package)
+        .version(version)
+        .change_line(message.to_owned())
+        .urgency(Urgency::Low)
+        .distribution(suite.to_owned());
+
+    if let Some(maintainer) = maintainer {
+        builder = builder.maintainer(maintainer);
+    }
+
+    if let Some(timestamp) = timestamp {
+        builder = builder.datetime(timestamp.into());
+    }
+
+    let entry = builder.finish();
+
+    tree.put_file_bytes_non_atomic(&path, cl.to_string().as_bytes())
+        .unwrap();
+
+    entry.version().unwrap()
 }
 
 #[cfg(test)]
