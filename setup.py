@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 from setuptools import setup
-from setuptools_rust import Binding, RustExtension
+from setuptools_rust import Binding, RustExtension, RustBin
 
 setup(
     rust_extensions=[
@@ -8,6 +8,11 @@ setup(
             "ognibuild._ognibuild_rs",
             "ognibuild-py/Cargo.toml",
             binding=Binding.PyO3,
+        ),
+        RustBin(
+            "ognibuild-deb",
+            "Cargo.toml",
+            features = ["cli", "debian"]
         )
     ],
 )
