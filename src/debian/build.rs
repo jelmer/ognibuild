@@ -1,4 +1,9 @@
 use breezyshim::tree::{Tree, WorkingTree};
+use buildlog_consultant::Problem;
+use debian_changelog::ChangeLog;
+use debversion::Version;
+use std::io::Seek;
+use std::path::{Path, PathBuf};
 
 pub fn get_build_architecture() -> String {
     std::process::Command::new("dpkg-architecture")
@@ -63,11 +68,11 @@ pub fn builddeb_command(
 }
 
 #[derive(Debug)]
-pub struct BuildFailedError;
+pub struct BuildFailedError(pub i32);
 
 impl std::fmt::Display for BuildFailedError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Build failed.")
+        write!(f, "Build failed: {}", self.0)
     }
 }
 
@@ -76,17 +81,15 @@ impl std::error::Error for BuildFailedError {}
 pub fn build(
     local_tree: &WorkingTree,
     outf: std::fs::File,
-    build_command: Option<&str>,
+    build_command: &str,
     result_dir: Option<&std::path::Path>,
     distribution: Option<&str>,
-    subpath: Option<&std::path::Path>,
+    subpath: &std::path::Path,
     source_date_epoch: Option<chrono::DateTime<chrono::Utc>>,
     apt_repository: Option<&str>,
     apt_repository_key: Option<&str>,
     extra_repositories: Option<Vec<&str>>,
 ) -> Result<(), BuildFailedError> {
-    let subpath = subpath.unwrap_or_else(|| std::path::Path::new(""));
-    let build_command = build_command.unwrap_or(DEFAULT_BUILDER);
     let args = builddeb_command(
         Some(build_command),
         result_dir,
@@ -121,14 +124,128 @@ pub fn build(
                 log::info!("Build succeeded.");
                 Ok(())
             } else {
-                Err(BuildFailedError)
+                Err(BuildFailedError(status.code().unwrap_or(1)))
             }
         }
         Err(e) => {
             log::error!("Failed to run build command: {}", e);
-            Err(BuildFailedError)
+            Err(BuildFailedError(1))
         }
     }
+}
+
+pub const BUILD_LOG_FILENAME: &str = "build.log";
+
+#[derive(Debug)]
+pub enum BuildOnceError {
+    Detailed {
+        stage: Option<String>,
+        phase: Option<buildlog_consultant::sbuild::Phase>,
+        retcode: i32,
+        command: Vec<String>,
+        error: Box<dyn Problem>,
+        description: String,
+    },
+    Unidentified {
+        stage: Option<String>,
+        phase: Option<buildlog_consultant::sbuild::Phase>,
+        retcode: i32,
+        command: Vec<String>,
+        description: String,
+    },
+}
+
+pub struct BuildOnceResult {
+    pub source_package: String,
+    pub version: debversion::Version,
+    pub changes_names: Vec<PathBuf>,
+}
+
+pub fn build_once(
+    local_tree: &WorkingTree,
+    build_suite: Option<&str>,
+    output_directory: &Path,
+    build_command: &str,
+    subpath: Option<&Path>,
+    source_date_epoch: Option<chrono::DateTime<chrono::Utc>>,
+    apt_repository: Option<&str>,
+    apt_repository_key: Option<&str>,
+    extra_repositories: Option<Vec<&str>>,
+) -> Result<BuildOnceResult, BuildOnceError> {
+    use buildlog_consultant::problems::debian::DpkgSourceLocalChanges;
+    use buildlog_consultant::sbuild::{worker_failure_from_sbuild_log, SbuildLog};
+    let build_log_path = output_directory.join(BUILD_LOG_FILENAME);
+    log::debug!("Writing build log to {}", build_log_path.display());
+    let mut logf = std::fs::File::create(&build_log_path).unwrap();
+    let subpath = subpath.unwrap_or_else(|| std::path::Path::new(""));
+    match build(
+        local_tree,
+        logf.try_clone().unwrap(),
+        build_command,
+        Some(output_directory),
+        build_suite,
+        subpath,
+        source_date_epoch,
+        apt_repository,
+        apt_repository_key,
+        extra_repositories,
+    ) {
+        Ok(()) => (),
+        Err(e) => {
+            logf.sync_all().unwrap();
+            logf.seek(std::io::SeekFrom::Start(0)).unwrap();
+
+            let sbuildlog =
+                SbuildLog::try_from(std::fs::File::open(&build_log_path).unwrap()).unwrap();
+            let sbuild_failure = worker_failure_from_sbuild_log(&sbuildlog);
+
+            // Preserve the diff for later inspection
+            if let Some(error) = sbuild_failure
+                .error
+                .as_ref()
+                .and_then(|e| e.as_any().downcast_ref::<DpkgSourceLocalChanges>())
+            {
+                if let Some(diff_file) = error.diff_file.as_ref() {
+                    let diff_file_name =
+                        output_directory.join(Path::new(&diff_file).file_name().unwrap());
+                    std::fs::copy(diff_file, &diff_file_name).unwrap();
+                }
+            }
+
+            let retcode = e.0;
+            if let Some(error) = sbuild_failure.error {
+                return Err(BuildOnceError::Detailed {
+                    stage: sbuild_failure.stage,
+                    phase: sbuild_failure.phase,
+                    retcode,
+                    command: shlex::split(build_command).unwrap(),
+                    error,
+                    description: sbuild_failure.description.unwrap_or_default(),
+                });
+            } else {
+                return Err(BuildOnceError::Unidentified {
+                    stage: sbuild_failure.stage,
+                    phase: sbuild_failure.phase,
+                    retcode,
+                    command: shlex::split(build_command).unwrap(),
+                    description: sbuild_failure
+                        .description
+                        .unwrap_or_else(|| format!("Build failed with exit code {}", retcode)),
+                });
+            }
+        }
+    }
+
+    let (package, version) = get_last_changelog_entry(local_tree, subpath);
+    let mut changes_names = vec![];
+    for (_kind, entry) in find_changes_files(output_directory, &package, &version) {
+        changes_names.push(entry.path());
+    }
+    Ok(BuildOnceResult {
+        source_package: package,
+        version,
+        changes_names,
+    })
 }
 
 fn control_files_in_root(tree: &dyn Tree, subpath: &std::path::Path) -> bool {
@@ -146,10 +263,10 @@ fn control_files_in_root(tree: &dyn Tree, subpath: &std::path::Path) -> bool {
     )))
 }
 
-/*
 fn get_last_changelog_entry(
-    local_tree: &WorkingTree, subpath: &std::path::Path
-) -> ChangelogEntry {
+    local_tree: &WorkingTree,
+    subpath: &std::path::Path,
+) -> (String, debversion::Version) {
     let path = if control_files_in_root(local_tree, subpath) {
         subpath.join("changelog")
     } else {
@@ -160,9 +277,10 @@ fn get_last_changelog_entry(
 
     let cl = ChangeLog::read_relaxed(f).unwrap();
 
-    cl.entries().next().unwrap()
+    let e = cl.entries().next().unwrap();
+
+    (e.package().unwrap(), e.version().unwrap())
 }
-*/
 
 pub fn gbp_dch(path: &std::path::Path) -> Result<(), std::io::Error> {
     let cmd = std::process::Command::new("gbp-dch")
