@@ -211,9 +211,9 @@ checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 
 [[package]]
 name = "breezyshim"
-version = "0.1.174"
+version = "0.1.176"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51dc76136916f092fc9889250f141cd6f99fcaf4953a5385002037b512189254"
+checksum = "8b305ea4987af0fb1add06b1001907e4925b95d9abf7d7f2b4abf39241aa3464"
 dependencies = [
  "chrono",
  "ctor",
@@ -231,17 +231,19 @@ dependencies = [
 [[package]]
 name = "buildlog-consultant"
 version = "0.0.39"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa364806c0c11e092060e829c4d5844db2a3c79edd4f96d7a18547e4cc1147aa"
+source = "git+https://github.com/jelmer/buildlog-consultant#2a1f072e6c8221a07fedcdf156d5f0c69e341046"
 dependencies = [
  "chrono",
+ "clap",
  "debian-control",
  "debversion",
+ "env_logger 0.11.5",
  "fancy-regex",
  "inventory",
  "lazy-regex",
  "lazy_static",
  "log",
+ "maplit",
  "pyo3",
  "regex",
  "serde",
@@ -401,9 +403,9 @@ dependencies = [
 
 [[package]]
 name = "debian-control"
-version = "0.1.24"
+version = "0.1.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdefd28dd8634f61fd45702506e4b25f8191fd9825e4104c38916a691a632f39"
+checksum = "69baa2965850b069e029aba7c420bc7c2b2c632cf87aae1e6427ca9247e714ec"
 dependencies = [
  "deb822-lossless",
  "debversion",
@@ -419,6 +421,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b6c96844ac16a110ee3ea355b7e511ffe0221242caebb2cc5e1bbfd285744cf"
 dependencies = [
  "lazy-regex",
+ "serde",
+]
+
+[[package]]
+name = "env_filter"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f2c92ceda6ceec50f43169f9ee8424fe2db276791afde7b2cd8bc084cb376ab"
+dependencies = [
+ "log",
+ "regex",
 ]
 
 [[package]]
@@ -458,6 +471,19 @@ dependencies = [
  "log",
  "regex",
  "termcolor",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.11.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e13fa619b91fb2381732789fc5de83b45675e882f66623b7d8cb4f643017018d"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "env_filter",
+ "humantime 2.1.0",
+ "log",
 ]
 
 [[package]]
@@ -838,6 +864,12 @@ name = "log"
 version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
+
+[[package]]
+name = "maplit"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
 name = "matchit"
