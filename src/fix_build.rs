@@ -139,6 +139,19 @@ impl From<std::io::Error> for AnalyzedError {
     }
 }
 
+/// Run a command and analyze the output for common build errors.
+///
+/// # Arguments
+/// * `session`: Session to run the command in
+/// * `args`: Arguments to the command
+/// * `check_success`: Function to determine if the command was successful
+/// * `quiet`: Whether to log the command being run
+/// * `cwd`: Current working directory for the command
+/// * `user`: User to run the command as
+/// * `env`: Environment variables to set for the command
+/// * `stdin`: Stdin for the command
+/// * `stdout`: Stdout for the command
+/// * `stderr`: Stderr for the command
 pub fn run_detecting_problems(
     session: &dyn Session,
     args: Vec<&str>,
