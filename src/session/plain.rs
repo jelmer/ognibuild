@@ -160,9 +160,16 @@ impl Session for PlainSession {
         false
     }
 
-    fn setup_from_vcs(&self, tree: &dyn crate::vcs::DupableTree, include_controldir: Option<bool>, subdir: Option<&std::path::Path>) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
+    fn setup_from_vcs(
+        &self,
+        tree: &dyn crate::vcs::DupableTree,
+        include_controldir: Option<bool>,
+        subdir: Option<&std::path::Path>,
+    ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
         use crate::vcs::{dupe_vcs_tree, export_vcs_tree};
-        if include_controldir == Some(false) || (tree.basedir().is_some() && include_controldir.is_none()) {
+        if include_controldir == Some(false)
+            || (tree.basedir().is_some() && include_controldir.is_none())
+        {
             let td = tempfile::tempdir().unwrap();
             export_vcs_tree(tree.as_tree(), td.path(), subdir).unwrap();
             Ok((td.path().to_path_buf(), td.path().to_path_buf()))

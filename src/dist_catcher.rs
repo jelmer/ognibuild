@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
-use std::ffi::OsString;
 use std::collections::HashMap;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 
 pub const SUPPORTED_DIST_EXTENSIONS: &[&str] = &[
     ".tar.gz",
@@ -14,7 +14,9 @@ pub const SUPPORTED_DIST_EXTENSIONS: &[&str] = &[
 ];
 
 pub fn supported_dist_file(file: &Path) -> bool {
-    SUPPORTED_DIST_EXTENSIONS.iter().any(|&ext| file.ends_with(ext))
+    SUPPORTED_DIST_EXTENSIONS
+        .iter()
+        .any(|&ext| file.ends_with(ext))
 }
 
 pub struct DistCatcher {
@@ -27,7 +29,10 @@ pub struct DistCatcher {
 impl DistCatcher {
     pub fn new(directories: Vec<PathBuf>) -> Self {
         Self {
-            directories: directories.iter().map(|d| d.canonicalize().unwrap()).collect(),
+            directories: directories
+                .iter()
+                .map(|d| d.canonicalize().unwrap())
+                .collect(),
             files: Vec::new(),
             start_time: std::time::SystemTime::now(),
             existing_files: None,
@@ -43,18 +48,19 @@ impl DistCatcher {
     }
 
     pub fn start(&mut self) {
-        self.existing_files = Some(self
-            .directories
-            .iter()
-            .map(|d| {
-                let mut map = HashMap::new();
-                for entry in d.read_dir().unwrap() {
-                    let entry = entry.unwrap();
-                    map.insert(entry.path(), entry);
-                }
-                (d.clone(), map)
-            })
-            .collect());
+        self.existing_files = Some(
+            self.directories
+                .iter()
+                .map(|d| {
+                    let mut map = HashMap::new();
+                    for entry in d.read_dir().unwrap() {
+                        let entry = entry.unwrap();
+                        map.insert(entry.path(), entry);
+                    }
+                    (d.clone(), map)
+                })
+                .collect(),
+        );
     }
 
     pub fn find_files(&mut self) -> Option<PathBuf> {

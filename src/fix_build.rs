@@ -1,7 +1,7 @@
 use crate::session::{run_with_tee, Error as SessionError, Session};
+use buildlog_consultant::problems::common::MissingCommand;
 use log::{info, warn};
 use std::fmt::{Debug, Display};
-use buildlog_consultant::problems::common::MissingCommand;
 
 pub trait BuildFixer<O, P>: std::fmt::Debug + std::fmt::Display {
     fn can_fix(&self, problem: &P) -> bool;
@@ -165,7 +165,9 @@ pub fn run_detecting_problems(
                 return Err(AnalyzedError::Detailed {
                     retcode: 127,
                     args: args.into_iter().map(|s| s.to_string()).collect(),
-                    error: Some(Box::new(MissingCommand(command)) as Box<dyn buildlog_consultant::Problem>),
+                    error: Some(
+                        Box::new(MissingCommand(command)) as Box<dyn buildlog_consultant::Problem>
+                    ),
                 });
             }
             Err(SessionError::IoError(e)) => {
@@ -178,7 +180,8 @@ pub fn run_detecting_problems(
     }
     let body = contents.join("");
     let lines = body.split('\n').collect::<Vec<_>>();
-    let (r#match, error) = buildlog_consultant::common::find_build_failure_description(lines.clone());
+    let (r#match, error) =
+        buildlog_consultant::common::find_build_failure_description(lines.clone());
     if let Some(error) = error {
         Err(AnalyzedError::Detailed {
             retcode,

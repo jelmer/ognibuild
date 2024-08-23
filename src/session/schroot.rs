@@ -325,7 +325,12 @@ impl Session for SchrootSession {
         true
     }
 
-    fn setup_from_vcs(&self, tree: &dyn crate::vcs::DupableTree, include_controldir: Option<bool>, subdir: Option<&std::path::Path>) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
+    fn setup_from_vcs(
+        &self,
+        tree: &dyn crate::vcs::DupableTree,
+        include_controldir: Option<bool>,
+        subdir: Option<&std::path::Path>,
+    ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
         let reldir = self.build_tempdir();
 
         let subdir = subdir.unwrap_or_else(|| std::path::Path::new("package"));
@@ -339,7 +344,6 @@ impl Session for SchrootSession {
 
         Ok((export_directory, reldir.join(subdir)))
     }
-
 }
 
 #[cfg(test)]

@@ -76,7 +76,12 @@ pub trait Session {
 
     fn is_temporary(&self) -> bool;
 
-    fn setup_from_vcs(&self, tree: &dyn crate::vcs::DupableTree, include_controldir: Option<bool>, subdir: Option<&std::path::Path>) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
+    fn setup_from_vcs(
+        &self,
+        tree: &dyn crate::vcs::DupableTree,
+        include_controldir: Option<bool>,
+        subdir: Option<&std::path::Path>,
+    ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
 }
 
 pub fn which(session: &dyn Session, name: &str) -> Option<String> {

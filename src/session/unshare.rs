@@ -286,7 +286,12 @@ impl Session for UnshareSession {
         true
     }
 
-    fn setup_from_vcs(&self, tree: &dyn crate::vcs::DupableTree, include_controldir: Option<bool>, subdir: Option<&std::path::Path>) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
+    fn setup_from_vcs(
+        &self,
+        tree: &dyn crate::vcs::DupableTree,
+        include_controldir: Option<bool>,
+        subdir: Option<&std::path::Path>,
+    ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
         let reldir = self.build_tempdir(None);
 
         let subdir = subdir.unwrap_or_else(|| std::path::Path::new("package"));
