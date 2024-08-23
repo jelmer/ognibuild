@@ -1,6 +1,6 @@
 use breezyshim::tree::Tree;
 use breezyshim::error::Error as BrzError;
-use std::path::Path;
+use std::path::{PathBuf, Path};
 use url::Url;
 
 /// Export a VCS tree to a new location.
@@ -21,6 +21,10 @@ pub trait DupableTree {
     fn basis_tree(&self) -> breezyshim::tree::RevisionTree;
 
     fn get_parent(&self) -> Option<String>;
+
+    fn basedir(&self) -> Option<PathBuf>;
+
+    fn as_tree(&self) -> &dyn Tree;
 }
 
 impl DupableTree for breezyshim::workingtree::WorkingTree {
@@ -30,6 +34,14 @@ impl DupableTree for breezyshim::workingtree::WorkingTree {
 
     fn get_parent(&self) -> Option<String> {
         self.branch().get_parent()
+    }
+
+    fn basedir(&self) -> Option<PathBuf> {
+        Some(self.basedir())
+    }
+
+    fn as_tree(&self) -> &dyn Tree {
+        self
     }
 }
 
@@ -45,6 +57,14 @@ impl DupableTree for breezyshim::tree::RevisionTree {
 
         branch.get_parent()
     }
+
+    fn basedir(&self) -> Option<PathBuf> {
+        None
+    }
+
+    fn as_tree(&self) -> &dyn Tree {
+        self
+    }
 }
 
 /// Duplicate a VCS tree to a new location, including all history.
@@ -56,7 +76,7 @@ impl DupableTree for breezyshim::tree::RevisionTree {
 /// * `orig_tree` - The tree to duplicate
 /// * `directory` - The directory to duplicate the tree to
 pub fn dupe_vcs_tree(
-    orig_tree: impl DupableTree,
+    orig_tree: &dyn DupableTree,
     directory: &Path,
 ) -> Result<(), BrzError> {
     let tree = orig_tree.basis_tree();

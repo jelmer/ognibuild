@@ -285,6 +285,21 @@ impl Session for UnshareSession {
     fn is_temporary(&self) -> bool {
         true
     }
+
+    fn setup_from_vcs(&self, tree: &dyn crate::vcs::DupableTree, include_controldir: Option<bool>, subdir: Option<&std::path::Path>) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
+        let reldir = self.build_tempdir(None);
+
+        let subdir = subdir.unwrap_or_else(|| std::path::Path::new("package"));
+
+        let export_directory = self.external_path(&reldir).join(subdir);
+        if !include_controldir.unwrap_or(false) {
+            crate::vcs::export_vcs_tree(tree.as_tree(), &export_directory, Some(subdir)).unwrap();
+        } else {
+            crate::vcs::dupe_vcs_tree(tree, &export_directory).unwrap();
+        }
+
+        Ok((export_directory, reldir.join(subdir)))
+    }
 }
 
 #[cfg(test)]

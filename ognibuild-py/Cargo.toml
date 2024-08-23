@@ -11,6 +11,7 @@ publish = false
 breezyshim = { workspace = true }
 ognibuild = { path = ".." }
 pyo3 = { workspace = true, features=["extension-module"]}
+pyo3-filelike = "0.3.0"
 
 [lib]
 crate-type = ["cdylib"]

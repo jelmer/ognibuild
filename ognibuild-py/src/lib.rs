@@ -1,5 +1,37 @@
 use pyo3::import_exception;
+use std::collections::HashMap;
 use pyo3::prelude::*;
+use std::io::{Write, Read};
+use pyo3::exceptions::PyException;
+
+pyo3::create_exception!(ognibuild.session, NoSessionOpen, pyo3::exceptions::PyException);
+pyo3::create_exception!(ognibuild.session, SessionAlreadyOpen, pyo3::exceptions::PyException);
+
+#[pyclass(extends=PyException)]
+struct SessionSetupFailure {
+    #[pyo3(get)]
+    errlines: Vec<String>,
+    #[pyo3(get)]
+    reason: String,
+}
+
+#[pymethods]
+impl SessionSetupFailure {
+    #[new]
+    fn new(errlines: Vec<String>, reason: String) -> Self {
+        SessionSetupFailure {
+            errlines,
+            reason,
+        }
+    }
+}
+
+impl From<SessionSetupFailure> for PyErr {
+    fn from(e: SessionSetupFailure) -> PyErr {
+        Self::new::<SessionSetupFailure, _>((e.errlines, e.reason))
+    }
+}
+
 
 #[cfg(target_os = "linux")]
 #[pyfunction]
@@ -198,8 +230,311 @@ fn shebang_binary(path: &str) -> PyResult<Option<String>> {
     ognibuild::shebang_binary(std::path::Path::new(path)).map_err(|e| e.into())
 }
 
+pyo3::import_exception!(subprocess, CalledProcessError);
+
+#[pyclass(subclass)]
+struct Session(Option<std::sync::Mutex<Box<dyn ognibuild::session::Session + Send>>>);
+
+fn map_session_error(e: ognibuild::session::Error) -> PyErr {
+    match e {
+        ognibuild::session::Error::CalledProcessError(e) => {
+            CalledProcessError::new_err(e)
+        }
+        ognibuild::session::Error::SetupFailure(n, e) => {
+            SessionSetupFailure::new(vec![n], e).into()
+        }
+        ognibuild::session::Error::IoError(e) => e.into(),
+    }
+}
+
+impl Session {
+    fn get_session(&self) -> PyResult<std::sync::MutexGuard<Box<dyn ognibuild::session::Session + Send>>> {
+        if let Some(ref s) = self.0 {
+            Ok(s.lock().unwrap())
+        } else {
+            Err(NoSessionOpen::new_err(()))
+        }
+    }
+}
+
+#[pymethods]
+impl Session {
+    fn create_home(&self) -> PyResult<()> {
+        self.get_session()?.create_home().map_err(map_session_error)
+    }
+
+    #[pyo3(signature = (path))]
+    fn chdir(&self, path: std::path::PathBuf) -> PyResult<()> {
+        self.get_session()?.chdir(path.as_path()).map_err(map_session_error)
+    }
+
+    #[getter]
+    fn location(&self) -> PyResult<std::path::PathBuf> {
+        Ok(self.get_session()?.location())
+    }
+
+    #[pyo3(signature = (path))]
+    fn external_path(&self, path: std::path::PathBuf) -> PyResult<std::path::PathBuf> {
+        Ok(self.get_session()?.external_path(path.as_path()))
+    }
+
+    #[pyo3(signature = (argv, cwd=None, user=None, env=None))]
+    fn check_call(&self, argv: Vec<String>, cwd: Option<std::path::PathBuf>, user: Option<&str>, env: Option<HashMap<String, String>>, ) -> PyResult<()> {
+        let argv = argv.iter().map(|x| x.as_str()).collect::<Vec<_>>();
+        self.get_session()?.check_call(argv, cwd.as_deref(), user, env).map_err(map_session_error)
+    }
+
+    #[pyo3(signature = (argv, cwd=None, user=None, env=None))]
+    fn check_output(&self, py: Python, argv: Vec<String>, cwd: Option<std::path::PathBuf>, user: Option<&str>, env: Option<HashMap<String, String>>) -> PyResult<PyObject> {
+        let argv = argv.iter().map(|x| x.as_str()).collect::<Vec<_>>();
+        self.get_session()?.check_output(argv, cwd.as_deref(), user, env).map_err(map_session_error)
+            .map(|x| pyo3::types::PyBytes::new_bound(py, &x).into())
+    }
+
+    #[pyo3(signature = (path))]
+    fn exists(&self, path: std::path::PathBuf) -> PyResult<bool> {
+        Ok(self.get_session()?.exists(path.as_path()))
+    }
+
+    #[pyo3(signature = (path))]
+    fn mkdir(&self, path: std::path::PathBuf) -> PyResult<()> {
+        self.get_session()?.mkdir(path.as_path()).map_err(map_session_error)
+    }
+
+    #[pyo3(signature = (path))]
+    fn rmtree(&self, path: std::path::PathBuf) -> PyResult<()> {
+        self.get_session()?.rmtree(path.as_path()).map_err(map_session_error)
+    }
+
+    #[pyo3(signature = (path, subdir=None))]
+    fn setup_from_directory(
+        &self,
+        path: std::path::PathBuf,
+        subdir: Option<&str>,
+    ) -> PyResult<(std::path::PathBuf, std::path::PathBuf)> {
+        self.get_session()?.setup_from_directory(path.as_path(), subdir).map_err(map_session_error)
+    }
+
+    #[pyo3(signature = (tree, include_controldir=None, subdir=None))]
+    fn setup_from_vcs(&self, py: Python, tree: PyObject, include_controldir: Option<bool>, subdir: Option<std::path::PathBuf>) -> Result<(std::path::PathBuf, std::path::PathBuf), PyErr> {
+        let tree: Box<dyn ognibuild::vcs::DupableTree> = if tree.bind(py).hasattr("_repository")? {
+            Box::new(breezyshim::tree::RevisionTree(tree)) as _
+        } else {
+            Box::new(breezyshim::tree::WorkingTree::from(tree)) as _
+        };
+        self.get_session()?.setup_from_vcs(tree.as_ref(), include_controldir, subdir.as_deref()).map_err(map_session_error)
+    }
+
+    #[getter]
+    fn is_temporary(&self) -> PyResult<bool> {
+        Ok(self.get_session()?.is_temporary())
+    }
+
+    #[allow(non_snake_case)]
+    #[pyo3(signature = (argv, cwd=None, user=None, stdout=None, stderr=None, stdin=None, env=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn Popen(&self, argv: Vec<String>, cwd: Option<std::path::PathBuf>, user: Option<&str>, stdout: Option<PyObject>, stderr: Option<PyObject>, stdin: Option<PyObject>, env: Option<HashMap<String, String>>) -> PyResult<Child> {
+        let argv = argv.iter().map(|x| x.as_str()).collect::<Vec<_>>();
+        let stdout = extract_stdio(stdout)?;
+        let stderr = extract_stdio(stderr)?;
+        let stdin = extract_stdio(stdin)?;
+        let child = self.get_session()?.popen(argv, cwd.as_deref(), user, stdout, stderr, stdin, env);
+        Ok(Child::from(child))
+    }
+}
+
+fn extract_stdio(o: Option<PyObject>) -> PyResult<Option<std::process::Stdio>> {
+    fn py_eq(a: &Bound<PyAny>, b: &Bound<PyAny>) -> PyResult<bool> {
+        a.call_method1("__eq__", (b,))?.extract()
+    }
+    if o.is_none() {
+        return Ok(None);
+    }
+    let o = o.unwrap();
+    let p = Python::with_gil(|py| -> PyResult<_> {
+        let m = py.import_bound("subprocess")?;
+        let pipe = m.getattr("PIPE")?;
+        let devnull = m.getattr("DEVNULL")?;
+        let stdout = m.getattr("STDOUT")?;
+        if py_eq(o.bind(py), &pipe)? {
+            Ok(std::process::Stdio::piped())
+        } else if py_eq(o.bind(py), &devnull)? {
+            Ok(std::process::Stdio::null())
+        } else if py_eq(o.bind(py), &stdout)? {
+            Ok(std::process::Stdio::inherit())
+        } else {
+            let fd = o.call_method0(py, "fileno")?.extract::<i32>(py)?;
+            use std::os::unix::io::FromRawFd;
+            let f = unsafe { std::fs::File::from_raw_fd(fd) };
+            Ok(std::process::Stdio::from(f))
+        }
+    })?;
+    Ok(Some(p))
+}
+
+#[pyclass]
+struct ChildStdin(std::process::ChildStdin);
+
+#[pymethods]
+impl ChildStdin {
+    fn write(&mut self, data: &[u8]) -> PyResult<()> {
+        Ok(self.0.write_all(data)?)
+    }
+
+    fn flush(&mut self) -> PyResult<()> {
+        self.0.flush()?;
+        Ok(())
+    }
+}
+
+#[pyclass]
+struct ChildStdout(std::process::ChildStdout);
+
+#[pymethods]
+impl ChildStdout {
+    fn read(&mut self, size: usize) -> PyResult<Vec<u8>> {
+        let mut buf = vec![0; size];
+        let n = self.0.read(&mut buf)?;
+        buf.truncate(n);
+        Ok(buf)
+    }
+}
+
+#[pyclass]
+struct ChildStderr(std::process::ChildStderr);
+
+#[pymethods]
+impl ChildStderr {
+    fn read(&mut self, size: usize) -> PyResult<Vec<u8>> {
+        let mut buf = vec![0; size];
+        let n = self.0.read(&mut buf)?;
+        buf.truncate(n);
+        Ok(buf)
+    }
+}
+
+#[pyclass]
+struct Child{
+    child: std::process::Child,
+}
+
+impl From<std::process::Child> for Child {
+    fn from(child: std::process::Child) -> Self {
+        Child {
+            child,
+        }
+    }
+}
+
+#[pymethods]
+impl Child {
+    #[getter]
+    fn returncode(&mut self) -> PyResult<Option<i32>> {
+        Ok(self.child.try_wait()?.and_then(|x| x.code()))
+    }
+
+    fn poll(&mut self) -> PyResult<Option<i32>> {
+        Ok(self.child.try_wait()?.and_then(|x| x.code()))
+    }
+
+    fn terminate(&mut self) -> PyResult<()> {
+        self.child.kill().map_err(|e| e.into())
+    }
+
+    fn wait(&mut self) -> PyResult<i32> {
+        self.child.wait().map(|x| x.code().unwrap_or(0)).map_err(|e| e.into())
+    }
+
+    // TODO: Add support for stdin, stdout, stderr
+}
+
+#[pyclass(extends=Session)]
+struct PlainSession;
+
+#[pymethods]
+impl PlainSession {
+    #[new]
+    fn new() -> (Self, Session) {
+        (PlainSession, Session(None))
+    }
+
+    fn __enter__<'p>(mut slf: PyRefMut<'p, Self>, _py: Python<'p>) -> PyResult<PyRefMut<'p, Self>> {
+        if slf.as_super().0.is_some() {
+            return Err(SessionAlreadyOpen::new_err(()));
+        }
+        let session = std::sync::Mutex::new(Box::new(ognibuild::session::plain::PlainSession::new()) as _);
+        let sup = slf.as_super();
+        sup.0 = Some(session);
+        Ok(slf)
+    }
+
+    #[pyo3(signature = (exc_type, exc_value, traceback))]
+    #[allow(unused_variables)]
+    fn __exit__<'p>(mut slf: PyRefMut<'p, Self>, _py: Python<'p>, exc_type: Option<PyObject>, exc_value: Option<PyObject>, traceback: Option<PyObject>) -> PyResult<bool> {
+        slf.as_super().0 = None;
+        Ok(false)
+    }
+}
+
+#[pyclass(extends=Session)]
+struct SchrootSession {
+    chroot: String,
+    session_prefix: Option<String>,
+}
+
+#[pymethods]
+impl SchrootSession {
+    #[new]
+    #[pyo3(signature = (chroot, session_prefix = None))]
+    fn new(chroot: &str, session_prefix: Option<&str>) -> PyResult<(Self, Session)> {
+        Ok((SchrootSession {
+            chroot: chroot.to_string(),
+            session_prefix: session_prefix.map(|x| x.to_string()),
+        }, Session(None)))
+    }
+
+    #[pyo3(signature = ())]
+    fn __enter__<'p>(mut slf: PyRefMut<'p, Self>, _py: Python<'p>) -> PyResult<PyRefMut<'p, Self>> {
+        let session = std::sync::Mutex::new(Box::new(ognibuild::session::schroot::SchrootSession::new(&slf.chroot, slf.session_prefix.as_deref()).map_err(map_session_error)?) as _);
+        let sup = slf.as_super();
+        sup.0 = Some(session);
+        Ok(slf)
+    }
+
+    #[pyo3(signature = (exc_type, exc_value, traceback))]
+    #[allow(unused_variables)]
+    fn __exit__<'p>(mut slf: PyRefMut<'p, Self>, _py: Python<'p>, exc_type: Option<PyObject>, exc_value: Option<PyObject>, traceback: Option<PyObject>) -> PyResult<bool> {
+        slf.as_super().0 = None;
+        Ok(false)
+    }
+}
+
+#[pyfunction]
+fn which(session: &Session, program: &str) -> PyResult<Option<std::path::PathBuf>> {
+    Ok(ognibuild::session::which(session.get_session()?.as_ref(),program).map(|x| x.into()))
+}
+
+#[pyfunction]
+fn get_user(session: &Session) -> PyResult<String> {
+    Ok(ognibuild::session::get_user(session.get_session()?.as_ref()).to_string())
+}
+
+#[pyclass(extends=Session)]
+struct UnshareSession;
+
+#[pyfunction]
+#[pyo3(signature = (session, args, cwd=None, user=None, env=None, stdin=None, stdout=None, stderr=None))]
+fn run_with_tee(session: &Session, args: Vec<String>, cwd: Option<std::path::PathBuf>, user: Option<&str>, env: Option<HashMap<String, String>>, stdin: Option<PyObject>, stdout: Option<PyObject>, stderr: Option<PyObject>) -> PyResult<(i32, Vec<String>)> {
+    let args = args.iter().map(|x| x.as_str()).collect::<Vec<_>>();
+    let stdin = extract_stdio(stdin)?;
+    let stdout = extract_stdio(stdout)?;
+    let stderr = extract_stdio(stderr)?;
+    let (ret, output) = ognibuild::session::run_with_tee(session.get_session()?.as_ref(), args, cwd.as_deref(), user, env, stdin, stdout, stderr).map_err(map_session_error)?;
+    Ok((ret, output))
+}
+
 #[pymodule]
-fn _ognibuild_rs(m: &Bound<PyModule>) -> PyResult<()> {
+fn _ognibuild_rs(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     #[cfg(target_os = "linux")]
     m.add_wrapped(wrap_pyfunction!(sanitize_session_name))?;
     #[cfg(target_os = "linux")]
@@ -209,5 +544,15 @@ fn _ognibuild_rs(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(iterate_with_build_fixers))?;
     m.add_wrapped(wrap_pyfunction!(resolve_error))?;
     m.add_wrapped(wrap_pyfunction!(shebang_binary))?;
+    m.add_class::<Session>()?;
+    m.add_class::<PlainSession>()?;
+    m.add_class::<SchrootSession>()?;
+    m.add_class::<UnshareSession>()?;
+    m.add_wrapped(wrap_pyfunction!(which))?;
+    m.add_wrapped(wrap_pyfunction!(get_user))?;
+    m.add("NoSessionOpen", py.get_type_bound::<NoSessionOpen>())?;
+    m.add("SessionAlreadyOpen", py.get_type_bound::<SessionAlreadyOpen>())?;
+    m.add("SessionSetupFailure", py.get_type_bound::<SessionSetupFailure>())?;
+    m.add_wrapped(wrap_pyfunction!(run_with_tee))?;
     Ok(())
 }
