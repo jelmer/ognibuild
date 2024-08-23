@@ -32,43 +32,6 @@ impl From<SessionSetupFailure> for PyErr {
     }
 }
 
-
-#[cfg(target_os = "linux")]
-#[pyfunction]
-fn sanitize_session_name(name: &str) -> String {
-    ognibuild::session::schroot::sanitize_session_name(name)
-}
-
-#[cfg(target_os = "linux")]
-#[pyfunction]
-fn generate_session_id(name: &str) -> String {
-    ognibuild::session::schroot::generate_session_id(name)
-}
-
-#[pyfunction]
-#[pyo3(signature = (tree, directory, subpath=None))]
-pub fn export_vcs_tree(
-    tree: PyObject,
-    directory: std::path::PathBuf,
-    subpath: Option<std::path::PathBuf>,
-) -> Result<(), PyErr> {
-    let tree = breezyshim::tree::RevisionTree(tree);
-    ognibuild::vcs::export_vcs_tree(&tree, &directory, subpath.as_deref())?;
-    Ok(())
-}
-
-#[pyfunction]
-pub fn dupe_vcs_tree(py: Python, tree: PyObject, directory: std::path::PathBuf) -> PyResult<()> {
-    if tree.bind(py).hasattr("_repository")? {
-        let tree = breezyshim::tree::RevisionTree(tree);
-        ognibuild::vcs::dupe_vcs_tree(&tree, &directory)
-    } else {
-        let tree = breezyshim::tree::WorkingTree(tree);
-        ognibuild::vcs::dupe_vcs_tree(&tree, &directory)
-    }
-    .map_err(|e| e.into())
-}
-
 struct PyProblem(PyObject);
 
 impl PartialEq for PyProblem {
@@ -538,12 +501,6 @@ fn run_with_tee(session: &Session, args: Vec<String>, cwd: Option<std::path::Pat
 
 #[pymodule]
 fn _ognibuild_rs(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
-    #[cfg(target_os = "linux")]
-    m.add_wrapped(wrap_pyfunction!(sanitize_session_name))?;
-    #[cfg(target_os = "linux")]
-    m.add_wrapped(wrap_pyfunction!(generate_session_id))?;
-    m.add_wrapped(wrap_pyfunction!(export_vcs_tree))?;
-    m.add_wrapped(wrap_pyfunction!(dupe_vcs_tree))?;
     m.add_wrapped(wrap_pyfunction!(iterate_with_build_fixers))?;
     m.add_wrapped(wrap_pyfunction!(resolve_error))?;
     m.add_wrapped(wrap_pyfunction!(shebang_binary))?;
