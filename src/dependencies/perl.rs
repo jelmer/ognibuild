@@ -55,6 +55,9 @@ impl Dependency for PerlModuleDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +110,9 @@ impl Dependency for PerlPreDeclaredDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,5 +145,8 @@ impl Dependency for PerlFileDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         false
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

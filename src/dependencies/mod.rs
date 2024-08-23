@@ -41,6 +41,10 @@ impl Dependency for BinaryDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,6 +71,10 @@ impl Dependency for LatexPackageDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -124,6 +132,10 @@ impl Dependency for PytestPlugin {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,6 +171,10 @@ impl Dependency for VcsControlDirectoryAccessDependency {
 
     fn present(&self, _session: &dyn Session) -> bool {
         false
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -235,6 +251,10 @@ impl Dependency for VagueDependency {
     fn project_present(&self, session: &dyn Session) -> bool {
         self.expand().iter().any(|d| d.project_present(session))
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -276,6 +296,10 @@ impl Dependency for LuaModuleDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -300,6 +324,10 @@ impl CargoCrateDependency {
             features: None,
             api_version: None,
         }
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -335,6 +363,10 @@ impl Dependency for CargoCrateDependency {
                             .contains(&f.as_str().unwrap().to_string())
                     }))
         })
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -386,6 +418,10 @@ impl Dependency for PkgConfigDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         false
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -416,6 +452,10 @@ impl Dependency for PathDependency {
         } else {
             self.path.exists()
         }
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -454,6 +494,10 @@ impl Dependency for CHeaderDependency {
     fn project_present(&self, session: &dyn Session) -> bool {
         todo!()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 pub struct JavaScriptRuntimeDependency;
@@ -475,6 +519,10 @@ impl Dependency for JavaScriptRuntimeDependency {
             .run()
             .unwrap()
             .success()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -508,6 +556,10 @@ impl Dependency for ValaPackageDependency {
             .run()
             .unwrap()
             .success()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -566,6 +618,10 @@ impl Dependency for RubyGemDependency {
             .unwrap()
             .success()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -593,6 +649,10 @@ impl Dependency for DhAddonDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -615,6 +675,10 @@ impl RPackageDependency {
             minimum_version: None,
         }
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl Dependency for RPackageDependency {
@@ -628,6 +692,10 @@ impl Dependency for RPackageDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -675,6 +743,10 @@ impl Dependency for OctavePackageDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -708,6 +780,10 @@ impl Dependency for LibraryDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -736,6 +812,10 @@ impl Dependency for StaticLibraryDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -770,6 +850,9 @@ impl Dependency for RubyFileDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -803,6 +886,9 @@ impl Dependency for XmlEntityDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -839,6 +925,9 @@ impl Dependency for SprocketsFile {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -874,6 +963,9 @@ impl Dependency for CMakefileDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -935,6 +1027,9 @@ impl Dependency for HaskellPackageDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -1016,6 +1111,9 @@ impl Dependency for MavenArtifactDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1038,6 +1136,9 @@ impl Dependency for GnomeCommonDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         false
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -1066,6 +1167,9 @@ impl Dependency for QtModuleDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         false
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1082,6 +1186,9 @@ impl Dependency for QTDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         false
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -1100,6 +1207,9 @@ impl Dependency for X11Dependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         false
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -1128,6 +1238,9 @@ impl Dependency for CertificateAuthorityDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         false
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1155,6 +1268,9 @@ impl Dependency for AutoconfMacroDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1177,6 +1293,9 @@ impl Dependency for LibtoolDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         false
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -1205,6 +1324,9 @@ impl Dependency for BoostComponentDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         false
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1232,6 +1354,9 @@ impl Dependency for KF5ComponentDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1258,5 +1383,8 @@ impl Dependency for GnulibDirectoryDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

@@ -8,4 +8,6 @@ pub trait Dependency {
 
     /// Check whether the dependency is present in the project.
     fn project_present(&self, session: &dyn Session) -> bool;
+
+    fn as_any(&self) -> &dyn std::any::Any;
 }

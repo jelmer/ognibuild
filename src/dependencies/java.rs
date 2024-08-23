@@ -27,6 +27,9 @@ impl Dependency for JavaClassDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,6 +53,9 @@ impl Dependency for JDKDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         false
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,5 +78,8 @@ impl Dependency for JREDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         false
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

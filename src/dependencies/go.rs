@@ -49,6 +49,9 @@ impl Dependency for GoPackageDependency {
             .unwrap()
             .success()
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,5 +88,8 @@ impl Dependency for GoDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         unimplemented!()
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

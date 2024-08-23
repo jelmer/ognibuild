@@ -33,6 +33,9 @@ impl Dependency for PhpClassDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -116,6 +119,9 @@ impl Dependency for PhpPackageDependency {
                             .unwrap())
         })
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -153,5 +159,8 @@ impl Dependency for PhpExtensionDependency {
             .unwrap()
             .lines()
             .any(|line| line == self.extension)
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

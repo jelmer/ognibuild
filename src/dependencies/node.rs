@@ -34,6 +34,9 @@ impl Dependency for NodePackageDependency {
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,5 +77,8 @@ impl Dependency for NodeModuleDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
