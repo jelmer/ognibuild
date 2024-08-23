@@ -1,3 +1,4 @@
+pub mod buildsystem;
 #[cfg(feature = "debian")]
 pub mod debian;
 pub mod dist_catcher;
