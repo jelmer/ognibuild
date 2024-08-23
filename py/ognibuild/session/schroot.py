@@ -18,12 +18,8 @@
 
 from .._ognibuild_rs import (
     SchrootSession,
-    generate_session_id,
-    sanitize_session_name,
 )
 
 __all__ = [
-    "sanitize_session_name",
-    "generate_session_id",
     "SchrootSession",
 ]

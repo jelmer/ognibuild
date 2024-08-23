@@ -3,6 +3,7 @@ use std::os::unix::fs::PermissionsExt;
 
 #[cfg(feature = "debian")]
 pub mod debian;
+pub mod dist_catcher;
 pub mod fix_build;
 pub mod logs;
 pub mod session;

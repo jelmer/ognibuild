@@ -6,6 +6,7 @@ use pyo3::exceptions::PyException;
 
 pyo3::create_exception!(ognibuild.session, NoSessionOpen, pyo3::exceptions::PyException);
 pyo3::create_exception!(ognibuild.session, SessionAlreadyOpen, pyo3::exceptions::PyException);
+pyo3::create_exception!(ognibuild.dist_catcher, DistNoTarball, pyo3::exceptions::PyException);
 
 #[pyclass(extends=PyException)]
 struct SessionSetupFailure {
@@ -30,43 +31,6 @@ impl From<SessionSetupFailure> for PyErr {
     fn from(e: SessionSetupFailure) -> PyErr {
         Self::new::<SessionSetupFailure, _>((e.errlines, e.reason))
     }
-}
-
-
-#[cfg(target_os = "linux")]
-#[pyfunction]
-fn sanitize_session_name(name: &str) -> String {
-    ognibuild::session::schroot::sanitize_session_name(name)
-}
-
-#[cfg(target_os = "linux")]
-#[pyfunction]
-fn generate_session_id(name: &str) -> String {
-    ognibuild::session::schroot::generate_session_id(name)
-}
-
-#[pyfunction]
-#[pyo3(signature = (tree, directory, subpath=None))]
-pub fn export_vcs_tree(
-    tree: PyObject,
-    directory: std::path::PathBuf,
-    subpath: Option<std::path::PathBuf>,
-) -> Result<(), PyErr> {
-    let tree = breezyshim::tree::RevisionTree(tree);
-    ognibuild::vcs::export_vcs_tree(&tree, &directory, subpath.as_deref())?;
-    Ok(())
-}
-
-#[pyfunction]
-pub fn dupe_vcs_tree(py: Python, tree: PyObject, directory: std::path::PathBuf) -> PyResult<()> {
-    if tree.bind(py).hasattr("_repository")? {
-        let tree = breezyshim::tree::RevisionTree(tree);
-        ognibuild::vcs::dupe_vcs_tree(&tree, &directory)
-    } else {
-        let tree = breezyshim::tree::WorkingTree(tree);
-        ognibuild::vcs::dupe_vcs_tree(&tree, &directory)
-    }
-    .map_err(|e| e.into())
 }
 
 struct PyProblem(PyObject);
@@ -536,14 +500,53 @@ fn run_with_tee(session: &Session, args: Vec<String>, cwd: Option<std::path::Pat
     Ok((ret, output))
 }
 
+#[pyclass]
+struct DistCatcher(ognibuild::dist_catcher::DistCatcher);
+
+#[pymethods]
+impl DistCatcher {
+    #[new]
+    #[pyo3(signature = (directories))]
+    fn new(directories: Vec<String>) -> Self {
+        DistCatcher(ognibuild::dist_catcher::DistCatcher::new(directories.into_iter().map(std::path::PathBuf::from).collect()))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (directory))]
+    fn default(directory: &str) -> Self {
+        DistCatcher(ognibuild::dist_catcher::DistCatcher::default(std::path::Path::new(directory)))
+    }
+
+    #[pyo3(signature = ())]
+    fn __enter__<'a>(mut slf: PyRefMut<'a, Self>) -> PyResult<PyRefMut<'a, Self>> {
+        slf.0.start();
+        Ok(slf)
+    }
+
+    #[pyo3(signature = (exc_type, exc_value, traceback))]
+    #[allow(unused_variables)]
+    fn __exit__(mut slf: PyRefMut<Self>, exc_type: Option<PyObject>, exc_value: Option<PyObject>, traceback: Option<PyObject>) -> PyResult<bool> {
+        slf.0.find_files();
+        Ok(false)
+    }
+
+    fn find_files(&mut self) -> Option<std::path::PathBuf> {
+        self.0.find_files()
+    }
+
+    #[pyo3(signature = (path))]
+    fn copy_single(&self, path: &str) -> PyResult<String> {
+        if let Some(n) = self.0.copy_single(std::path::Path::new(path))? {
+            Ok(n.to_string_lossy().to_string())
+        } else {
+            Err(DistNoTarball::new_err(()))
+        }
+    }
+}
+
+
 #[pymodule]
 fn _ognibuild_rs(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
-    #[cfg(target_os = "linux")]
-    m.add_wrapped(wrap_pyfunction!(sanitize_session_name))?;
-    #[cfg(target_os = "linux")]
-    m.add_wrapped(wrap_pyfunction!(generate_session_id))?;
-    m.add_wrapped(wrap_pyfunction!(export_vcs_tree))?;
-    m.add_wrapped(wrap_pyfunction!(dupe_vcs_tree))?;
     m.add_wrapped(wrap_pyfunction!(iterate_with_build_fixers))?;
     m.add_wrapped(wrap_pyfunction!(resolve_error))?;
     m.add_wrapped(wrap_pyfunction!(shebang_binary))?;
@@ -559,5 +562,6 @@ fn _ognibuild_rs(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add("SessionAlreadyOpen", py.get_type_bound::<SessionAlreadyOpen>())?;
     m.add("SessionSetupFailure", py.get_type_bound::<SessionSetupFailure>())?;
     m.add_wrapped(wrap_pyfunction!(run_with_tee))?;
+    m.add("DistNoTarball", py.get_type_bound::<DistNoTarball>())?;
     Ok(())
 }
