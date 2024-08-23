@@ -998,7 +998,6 @@ dependencies = [
  "breezyshim",
  "ognibuild",
  "pyo3",
- "pyo3-filelike",
 ]
 
 [[package]]

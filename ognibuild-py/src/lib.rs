@@ -476,12 +476,14 @@ impl PlainSession {
     }
 }
 
+#[cfg(target_os = "linux")]
 #[pyclass(extends=Session)]
 struct SchrootSession {
     chroot: String,
     session_prefix: Option<String>,
 }
 
+#[cfg(target_os = "linux")]
 #[pymethods]
 impl SchrootSession {
     #[new]
@@ -519,6 +521,7 @@ fn get_user(session: &Session) -> PyResult<String> {
     Ok(ognibuild::session::get_user(session.get_session()?.as_ref()).to_string())
 }
 
+#[cfg(target_os = "linux")]
 #[pyclass(extends=Session)]
 struct UnshareSession;
 
@@ -546,7 +549,9 @@ fn _ognibuild_rs(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(shebang_binary))?;
     m.add_class::<Session>()?;
     m.add_class::<PlainSession>()?;
+#[cfg(target_os = "linux")]
     m.add_class::<SchrootSession>()?;
+#[cfg(target_os = "linux")]
     m.add_class::<UnshareSession>()?;
     m.add_wrapped(wrap_pyfunction!(which))?;
     m.add_wrapped(wrap_pyfunction!(get_user))?;
