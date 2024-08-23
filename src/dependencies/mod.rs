@@ -325,10 +325,6 @@ impl CargoCrateDependency {
             api_version: None,
         }
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }
 
 impl Dependency for CargoCrateDependency {
@@ -674,10 +670,6 @@ impl RPackageDependency {
             package: package.to_string(),
             minimum_version: None,
         }
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
     }
 }
 
