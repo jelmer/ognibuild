@@ -63,6 +63,13 @@ pub trait Session {
         subdir: Option<&str>,
     ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
 
+    fn command<'a>(&'a self, argv: Vec<&'a str>) -> CommandBuilder<'a>
+    where
+        Self: Sized,
+    {
+        CommandBuilder::new(self, argv)
+    }
+
     fn popen(
         &self,
         argv: Vec<&str>,
@@ -82,6 +89,99 @@ pub trait Session {
         include_controldir: Option<bool>,
         subdir: Option<&std::path::Path>,
     ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
+}
+
+pub struct CommandBuilder<'a> {
+    session: &'a dyn Session,
+    argv: Vec<&'a str>,
+    cwd: Option<&'a std::path::Path>,
+    user: Option<&'a str>,
+    env: Option<std::collections::HashMap<String, String>>,
+    stdin: Option<std::process::Stdio>,
+    stdout: Option<std::process::Stdio>,
+    stderr: Option<std::process::Stdio>,
+}
+
+impl<'a> CommandBuilder<'a> {
+    pub fn new(session: &'a dyn Session, argv: Vec<&'a str>) -> Self {
+        CommandBuilder {
+            session,
+            argv,
+            cwd: None,
+            user: None,
+            env: None,
+            stdin: None,
+            stdout: None,
+            stderr: None,
+        }
+    }
+
+    pub fn cwd(mut self, cwd: &'a std::path::Path) -> Self {
+        self.cwd = Some(cwd);
+        self
+    }
+
+    pub fn user(mut self, user: &'a str) -> Self {
+        self.user = Some(user);
+        self
+    }
+
+    pub fn env(mut self, env: std::collections::HashMap<String, String>) -> Self {
+        assert!(self.env.is_none());
+        self.env = Some(env);
+        self
+    }
+
+    pub fn setenv(mut self, key: String, value: String) -> Self {
+        self.env = match self.env {
+            Some(mut env) => {
+                env.insert(key, value);
+                Some(env)
+            }
+            None => Some(std::collections::HashMap::from([(key, value)])),
+        };
+        self
+    }
+
+    pub fn stdin(mut self, stdin: std::process::Stdio) -> Self {
+        self.stdin = Some(stdin);
+        self
+    }
+
+    pub fn stdout(mut self, stdout: std::process::Stdio) -> Self {
+        self.stdout = Some(stdout);
+        self
+    }
+
+    pub fn stderr(mut self, stderr: std::process::Stdio) -> Self {
+        self.stderr = Some(stderr);
+        self
+    }
+
+    pub fn run_with_tee(self) -> Result<(i32, Vec<String>), Error> {
+        run_with_tee(
+            self.session,
+            self.argv,
+            self.cwd,
+            self.user,
+            self.env,
+            self.stdin,
+            self.stdout,
+            self.stderr,
+        )
+    }
+
+    pub fn child(self) -> std::process::Child {
+        self.session.popen(
+            self.argv,
+            self.cwd,
+            self.user,
+            self.stdout,
+            self.stderr,
+            self.stdin,
+            self.env,
+        )
+    }
 }
 
 pub fn which(session: &dyn Session, name: &str) -> Option<String> {

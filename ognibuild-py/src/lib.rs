@@ -200,7 +200,7 @@ fn resolve_error(
 
 #[pyfunction]
 fn shebang_binary(path: &str) -> PyResult<Option<String>> {
-    ognibuild::shebang_binary(std::path::Path::new(path)).map_err(|e| e.into())
+    ognibuild::shebang::shebang_binary(std::path::Path::new(path)).map_err(|e| e.into())
 }
 
 pyo3::import_exception!(subprocess, CalledProcessError);
