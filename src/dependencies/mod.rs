@@ -3,6 +3,13 @@ use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+pub mod go;
+pub mod java;
+pub mod node;
+pub mod perl;
+pub mod php;
+pub mod python;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BinaryDependency {
     binary_name: String,
@@ -36,69 +43,6 @@ impl Dependency for BinaryDependency {
     }
 }
 
-// TODO: use pep508_rs
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PythonPackageDependency {
-    package: String,
-    python_version: Option<String>,
-    specs: Vec<(String, String)>,
-}
-
-impl PythonPackageDependency {
-    pub fn new(package: &str, python_version: Option<&str>, specs: Vec<(String, String)>) -> Self {
-        Self {
-            package: package.to_string(),
-            python_version: python_version.map(|s| s.to_string()),
-            specs,
-        }
-    }
-}
-
-impl Dependency for PythonPackageDependency {
-    fn family(&self) -> &'static str {
-        "python-package"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        let cmd = match self.python_version.as_deref() {
-            Some("cpython3") => "python3",
-            Some("cpython2") => "python2",
-            Some("pypy") => "pypy",
-            Some("pypy3") => "pypy3",
-            None => "python3",
-            _ => unimplemented!(),
-        };
-        let text = format!(
-            "{}{}",
-            self.package,
-            self.specs
-                .iter()
-                .map(|(op, version)| format!("{}{}", op, version))
-                .collect::<Vec<String>>()
-                .join(",")
-        );
-        session
-            .command(vec![
-                cmd,
-                "-c",
-                &format!(
-                    r#"import pkg_resources; pkg_resources.require("""{}""")"#,
-                    text
-                ),
-            ])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        // TODO: check in the virtualenv, if any
-        todo!()
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LatexPackageDependency {
     pub package: String,
@@ -123,127 +67,6 @@ impl Dependency for LatexPackageDependency {
 
     fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PhpPackageDependency {
-    pub package: String,
-    pub channel: Option<String>,
-    pub min_version: Option<String>,
-    pub max_version: Option<String>,
-}
-
-impl PhpPackageDependency {
-    pub fn new(
-        package: &str,
-        channel: Option<&str>,
-        min_version: Option<&str>,
-        max_version: Option<&str>,
-    ) -> Self {
-        Self {
-            package: package.to_string(),
-            channel: channel.map(|s| s.to_string()),
-            min_version: min_version.map(|s| s.to_string()),
-            max_version: max_version.map(|s| s.to_string()),
-        }
-    }
-
-    pub fn simple(package: &str) -> Self {
-        Self {
-            package: package.to_string(),
-            channel: None,
-            min_version: None,
-            max_version: None,
-        }
-    }
-}
-
-impl Dependency for PhpPackageDependency {
-    fn family(&self) -> &'static str {
-        "php-package"
-    }
-
-    fn present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-
-    fn project_present(&self, session: &dyn Session) -> bool {
-        // Run `composer show` and check the output
-        let output = session
-            .command(vec!["composer", "show", "--format=json"])
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .output()
-            .unwrap();
-
-        let packages: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-        let packages = packages["installed"].as_array().unwrap();
-        packages.iter().any(|package| {
-            package["name"] == self.package
-                && (self.min_version.is_none()
-                    || package["version"]
-                        .as_str()
-                        .unwrap()
-                        .parse::<semver::Version>()
-                        .unwrap()
-                        >= self
-                            .min_version
-                            .as_ref()
-                            .unwrap()
-                            .parse::<semver::Version>()
-                            .unwrap())
-                && (self.max_version.is_none()
-                    || package["version"]
-                        .as_str()
-                        .unwrap()
-                        .parse::<semver::Version>()
-                        .unwrap()
-                        <= self
-                            .max_version
-                            .as_ref()
-                            .unwrap()
-                            .parse::<semver::Version>()
-                            .unwrap())
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PhpExtensionDependency {
-    pub extension: String,
-}
-
-impl PhpExtensionDependency {
-    pub fn new(extension: &str) -> Self {
-        Self {
-            extension: extension.to_string(),
-        }
-    }
-}
-
-impl Dependency for PhpExtensionDependency {
-    fn family(&self) -> &'static str {
-        "php-extension"
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        // Grep the output of php -m
-        let output = session
-            .command(vec!["php", "-m"])
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .output()
-            .unwrap()
-            .stdout;
-        String::from_utf8(output)
-            .unwrap()
-            .lines()
-            .any(|line| line == self.extension)
     }
 }
 
@@ -340,61 +163,6 @@ impl Dependency for VcsControlDirectoryAccessDependency {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PerlModuleDependency {
-    pub module: String,
-    pub filename: Option<String>,
-    pub inc: Option<Vec<String>>,
-}
-
-impl PerlModuleDependency {
-    pub fn new(module: &str, filename: Option<&str>, inc: Option<Vec<&str>>) -> Self {
-        Self {
-            module: module.to_string(),
-            filename: filename.map(|s| s.to_string()),
-            inc: inc.map(|v| v.iter().map(|s| s.to_string()).collect()),
-        }
-    }
-
-    pub fn simple(module: &str) -> Self {
-        Self {
-            module: module.to_string(),
-            filename: None,
-            inc: None,
-        }
-    }
-}
-
-impl Dependency for PerlModuleDependency {
-    fn family(&self) -> &'static str {
-        "perl-module"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        let mut cmd = vec!["perl".to_string(), "-M".to_string(), self.module.clone()];
-        if let Some(filename) = &self.filename {
-            cmd.push(filename.to_string());
-        }
-        if let Some(inc) = &self.inc {
-            cmd.push("-I".to_string());
-            cmd.push(inc.join(":"));
-        }
-        cmd.push("-e".to_string());
-        cmd.push("1".to_string());
-        session
-            .command(cmd.iter().map(|s| s.as_str()).collect())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VagueDependency {
     pub name: String,
     pub minimum_version: Option<String>,
@@ -469,39 +237,6 @@ impl Dependency for VagueDependency {
     }
 }
 
-pub struct NodePackageDependency {
-    package: String,
-}
-
-impl NodePackageDependency {
-    pub fn new(package: &str) -> Self {
-        Self {
-            package: package.to_string(),
-        }
-    }
-}
-
-impl Dependency for NodePackageDependency {
-    fn family(&self) -> &'static str {
-        "npm-package"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        // npm list -g package-name --depth=0 >/dev/null 2>&1
-        session
-            .command(vec!["npm", "list", "-g", &self.package, "--depth=0"])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LuaModuleDependency {
     module: String,
@@ -528,99 +263,6 @@ impl Dependency for LuaModuleDependency {
                 "-e",
                 &format!(
                     r#"package_name = "{}"; status, _ = pcall(require, package_name); if status then os.exit(0) else os.exit(1) end"#,
-                    self.module
-                ),
-            ])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PerlPreDeclaredDependency {
-    name: String,
-}
-
-impl PerlPreDeclaredDependency {
-    pub fn new(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-        }
-    }
-
-    fn known_module(&self, name: &str) -> Option<&str> {
-        // TODO(jelmer): Can we obtain this information elsewhere?
-        match name {
-            "auto_set_repository" => Some("Module::Install::Repository"),
-            "author_tests" => Some("Module::Install::AuthorTests"),
-            "recursive_author_tests" => Some("Module::Install::AuthorTests"),
-            "author_requires" => Some("Module::Install::AuthorRequires"),
-            "readme_from" => Some("Module::Install::ReadmeFromPod"),
-            "catalyst" => Some("Module::Install::Catalyst"),
-            "githubmeta" => Some("Module::Install::GithubMeta"),
-            "use_ppport" => Some("Module::Install::XSUtil"),
-            "pod_from" => Some("Module::Install::PodFromEuclid"),
-            "write_doap_changes" => Some("Module::Install::DOAPChangeSets"),
-            "use_test_base" => Some("Module::Install::TestBase"),
-            "jsonmeta" => Some("Module::Install::JSONMETA"),
-            "extra_tests" => Some("Module::Install::ExtraTests"),
-            "auto_set_bugtracker" => Some("Module::Install::Bugtracker"),
-            _ => None,
-        }
-    }
-}
-
-impl Dependency for PerlPreDeclaredDependency {
-    fn family(&self) -> &'static str {
-        "perl-predeclared"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        if let Some(module) = self.known_module(&self.name) {
-            PerlModuleDependency::simple(module).present(session)
-        } else {
-            todo!()
-        }
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NodeModuleDependency {
-    module: String,
-}
-
-impl NodeModuleDependency {
-    pub fn new(module: &str) -> Self {
-        Self {
-            module: module.to_string(),
-        }
-    }
-}
-
-impl Dependency for NodeModuleDependency {
-    fn family(&self) -> &'static str {
-        "node-module"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        // node -e 'try { require.resolve("express"); process.exit(0); } catch(e) { process.exit(1); }'
-        session
-            .command(vec![
-                "node",
-                "-e",
-                &format!(
-                    r#"try {{ require.resolve("{}"); process.exit(0); }} catch(e) {{ process.exit(1); }}"#,
                     self.module
                 ),
             ])
@@ -927,92 +569,6 @@ impl Dependency for RubyGemDependency {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GoPackageDependency {
-    package: String,
-    version: Option<String>,
-}
-
-impl GoPackageDependency {
-    pub fn new(package: &str, version: Option<&str>) -> Self {
-        Self {
-            package: package.to_string(),
-            version: version.map(|s| s.to_string()),
-        }
-    }
-
-    pub fn simple(package: &str) -> Self {
-        Self {
-            package: package.to_string(),
-            version: None,
-        }
-    }
-}
-
-impl Dependency for GoPackageDependency {
-    fn family(&self) -> &'static str {
-        "go-package"
-    }
-
-    fn present(&self, _session: &dyn Session) -> bool {
-        unimplemented!()
-    }
-
-    fn project_present(&self, session: &dyn Session) -> bool {
-        let mut cmd = vec!["go".to_string(), "list".to_string(), "-f".to_string()];
-        if let Some(version) = &self.version {
-            cmd.push(format!("{{.Version}} == {}", version));
-        } else {
-            cmd.push("{{.Version}}".to_string());
-        }
-        cmd.push(self.package.clone());
-        session
-            .command(cmd.iter().map(|s| s.as_str()).collect())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GoDependency {
-    version: Option<String>,
-}
-
-impl GoDependency {
-    pub fn new(version: Option<&str>) -> Self {
-        Self {
-            version: version.map(|s| s.to_string()),
-        }
-    }
-}
-
-impl Dependency for GoDependency {
-    fn family(&self) -> &'static str {
-        "go"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        let mut cmd = vec!["go".to_string(), "version".to_string()];
-        if let Some(version) = &self.version {
-            cmd.push(format!(">={}", version));
-        }
-        session
-            .command(cmd.iter().map(|s| s.as_str()).collect())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        unimplemented!()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DhAddonDependency {
     addon: String,
 }
@@ -1032,39 +588,6 @@ impl Dependency for DhAddonDependency {
 
     fn present(&self, session: &dyn Session) -> bool {
         todo!()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PhpClassDependency {
-    php_class: String,
-}
-
-impl PhpClassDependency {
-    pub fn new(php_class: &str) -> Self {
-        Self {
-            php_class: php_class.to_string(),
-        }
-    }
-}
-
-impl Dependency for PhpClassDependency {
-    fn family(&self) -> &'static str {
-        "php-class"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        session
-            .command(vec!["php", "-r", &format!("new {}", self.php_class)])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
     }
 
     fn project_present(&self, _session: &dyn Session) -> bool {
@@ -1319,33 +842,6 @@ impl Dependency for SprocketsFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JavaClassDependency {
-    classname: String,
-}
-
-impl JavaClassDependency {
-    pub fn new(classname: &str) -> Self {
-        Self {
-            classname: classname.to_string(),
-        }
-    }
-}
-
-impl Dependency for JavaClassDependency {
-    fn family(&self) -> &'static str {
-        "java-class"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        todo!()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CMakefileDependency {
     filename: String,
     version: Option<String>,
@@ -1546,52 +1042,6 @@ impl Dependency for GnomeCommonDependency {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JDKDependency;
-
-impl Dependency for JDKDependency {
-    fn family(&self) -> &'static str {
-        "jdk"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        session
-            .command(vec!["javac", "-version"])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JREDependency;
-
-impl Dependency for JREDependency {
-    fn family(&self) -> &'static str {
-        "jre"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        session
-            .command(vec!["java", "-version"])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QtModuleDependency {
     module: String,
 }
@@ -1681,39 +1131,6 @@ impl Dependency for CertificateAuthorityDependency {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PerlFileDependency {
-    filename: String,
-}
-
-impl PerlFileDependency {
-    pub fn new(filename: &str) -> Self {
-        Self {
-            filename: filename.to_string(),
-        }
-    }
-}
-
-impl Dependency for PerlFileDependency {
-    fn family(&self) -> &'static str {
-        "perl-file"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        session
-            .command(vec!["perl", "-e", &format!("require '{}'", self.filename)])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoconfMacroDependency {
     macro_name: String,
 }
@@ -1751,70 +1168,6 @@ impl Dependency for LibtoolDependency {
     fn present(&self, session: &dyn Session) -> bool {
         session
             .command(vec!["libtoolize", "--version"])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PythonModuleDependency {
-    module: String,
-    minimum_version: Option<String>,
-    python_version: Option<String>,
-}
-
-impl PythonModuleDependency {
-    pub fn new(module: &str, minimum_version: Option<&str>, python_version: Option<&str>) -> Self {
-        Self {
-            module: module.to_string(),
-            minimum_version: minimum_version.map(|s| s.to_string()),
-            python_version: python_version.map(|s| s.to_string()),
-        }
-    }
-
-    pub fn simple(module: &str) -> Self {
-        Self {
-            module: module.to_string(),
-            minimum_version: None,
-            python_version: None,
-        }
-    }
-
-    fn python_executable(&self) -> &str {
-        match self.python_version.as_deref() {
-            Some("cpython3") => "python3",
-            Some("cpython2") => "python2",
-            Some("pypy") => "pypy",
-            Some("pypy3") => "pypy3",
-            None => "python3",
-            _ => unimplemented!(),
-        }
-    }
-}
-
-impl Dependency for PythonModuleDependency {
-    fn family(&self) -> &'static str {
-        "python-module"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        let cmd = [
-            self.python_executable().to_string(),
-            "-c".to_string(),
-            format!(
-                r#"import pkgutil; exit(0 if pkgutil.find_loader("{}") else 1)"#,
-                self.module
-            ),
-        ];
-        session
-            .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .run()
