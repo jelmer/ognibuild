@@ -1,5 +1,5 @@
 pub struct PlainSession;
-use crate::session::{Error, Session};
+use crate::session::{CommandBuilder, Error, Session};
 
 impl Default for PlainSession {
     fn default() -> Self {
@@ -180,6 +180,10 @@ impl Session for PlainSession {
         } else {
             Ok((tree.basedir().unwrap(), tree.basedir().unwrap()))
         }
+    }
+
+    fn command<'a>(&'a self, argv: Vec<&'a str>) -> CommandBuilder<'a> {
+        CommandBuilder::new(self, argv)
     }
 }
 

@@ -14,6 +14,12 @@ pub enum Error {
     SetupFailure(String, String),
 }
 
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Error::IoError(e)
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -63,12 +69,7 @@ pub trait Session {
         subdir: Option<&str>,
     ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
 
-    fn command<'a>(&'a self, argv: Vec<&'a str>) -> CommandBuilder<'a>
-    where
-        Self: Sized,
-    {
-        CommandBuilder::new(self, argv)
-    }
+    fn command<'a>(&'a self, argv: Vec<&'a str>) -> CommandBuilder<'a>;
 
     fn popen(
         &self,
@@ -181,6 +182,18 @@ impl<'a> CommandBuilder<'a> {
             self.stdin,
             self.env,
         )
+    }
+
+    pub fn run(self) -> Result<std::process::ExitStatus, Error> {
+        let mut p = self.child();
+        let status = p.wait()?;
+        Ok(status)
+    }
+
+    pub fn output(self) -> Result<std::process::Output, Error> {
+        let p = self.child();
+        let output = p.wait_with_output()?;
+        Ok(output)
     }
 }
 

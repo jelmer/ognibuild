@@ -1,4 +1,4 @@
-use crate::session::{Error, Session};
+use crate::session::{CommandBuilder, Error, Session};
 use std::io::{BufRead, Read};
 
 extern crate rand;
@@ -343,6 +343,10 @@ impl Session for SchrootSession {
         }
 
         Ok((export_directory, reldir.join(subdir)))
+    }
+
+    fn command<'a>(&'a self, argv: Vec<&'a str>) -> CommandBuilder<'a> {
+        CommandBuilder::new(self, argv)
     }
 }
 
