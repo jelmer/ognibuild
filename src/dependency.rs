@@ -4,6 +4,7 @@ use crate::session::Session;
 pub enum Error {
     UnknownDependencyFamily,
     AnalyzedError(crate::analyze::AnalyzedError),
+    SessionError(crate::session::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -11,6 +12,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::UnknownDependencyFamily => write!(f, "Unknown dependency family"),
             Error::AnalyzedError(e) => write!(f, "{}", e),
+            Error::SessionError(e) => write!(f, "{}", e),
         }
     }
 }
@@ -20,6 +22,12 @@ impl std::error::Error for Error {}
 impl From<crate::analyze::AnalyzedError> for Error {
     fn from(e: crate::analyze::AnalyzedError) -> Self {
         Error::AnalyzedError(e)
+    }
+}
+
+impl From<crate::session::Error> for Error {
+    fn from(e: crate::session::Error) -> Self {
+        Error::SessionError(e)
     }
 }
 

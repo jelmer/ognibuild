@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 pub mod go;
 pub mod java;
+pub mod latex;
 pub mod node;
 pub mod perl;
 pub mod php;
@@ -36,37 +37,6 @@ impl Dependency for BinaryDependency {
             .run()
             .unwrap()
             .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LatexPackageDependency {
-    pub package: String,
-}
-
-impl LatexPackageDependency {
-    pub fn new(package: &str) -> Self {
-        Self {
-            package: package.to_string(),
-        }
-    }
-}
-
-impl Dependency for LatexPackageDependency {
-    fn family(&self) -> &'static str {
-        "latex-package"
-    }
-
-    fn present(&self, _session: &dyn Session) -> bool {
-        todo!()
     }
 
     fn project_present(&self, _session: &dyn Session) -> bool {
