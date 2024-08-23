@@ -73,6 +73,22 @@ class SchrootSession(Session):
     def __init__(self, chroot, session_prefix: str | None = None) -> None: ...
 
 
+class DistCatcher:
+
+    def __init__(self, directories: list[str]) -> None: ...
+
+    def __enter__(self) -> DistCatcher: ...
+
+    def __exit__(self, exc_type, exc_value, traceback) -> bool | None: ...
+
+    def find_files(self) -> str | None: ...
+
+    def copy_single(self, path: str) -> None: ...
+
+    @staticmethod
+    def default(directory: str) -> DistCatcher: ...
+
+
 class NoSessionOpen(Exception):
     pass
 
@@ -84,4 +100,8 @@ class SessionSetupFailure(Exception):
 
 
 class SessionAlreadyOpen(Exception):
+    pass
+
+
+class DistNoTarball(Exception):
     pass
