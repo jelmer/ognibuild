@@ -102,19 +102,20 @@ blah (0.1) UNRELEASED; urgency=medium
         from ognibuild.session.plain import PlainSession
 
         session = PlainSession()
-        apt = AptManager(session)
-        apt._searchers = [DummyAptSearcher(self._apt_files)]
-        context = DebianPackagingContext(
-            self.tree,
-            subpath="",
-            committer="ognibuild <ognibuild@jelmer.uk>",
-            update_changelog=True,
-            commit_reporter=NullCommitReporter(),
-        )
-        fixers = versioned_package_fixers(session, context, apt) + apt_fixers(
-            apt, context
-        )
-        return resolve_error(error, ("build",), fixers)
+        with session:
+            apt = AptManager(session)
+            apt._searchers = [DummyAptSearcher(self._apt_files)]
+            context = DebianPackagingContext(
+                self.tree,
+                subpath="",
+                committer="ognibuild <ognibuild@jelmer.uk>",
+                update_changelog=True,
+                commit_reporter=NullCommitReporter(),
+            )
+            fixers = versioned_package_fixers(session, context, apt) + apt_fixers(
+                apt, context
+            )
+            return resolve_error(error, ("build",), fixers)
 
     def get_build_deps(self):
         with open(self.tree.abspath("debian/control")) as f:

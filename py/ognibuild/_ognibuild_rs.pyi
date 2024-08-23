@@ -23,3 +23,69 @@ def iterate_with_build_fixers(
 ) -> T: ...
 def dupe_vcs_tree(tree: Tree, directory: str): ...
 def shebang_binary(p) -> str: ...
+def get_user(session: Session) -> str: ...
+def which(session: Session, name: str) -> str: ...
+
+class Session:
+    def __enter__(self) -> Session: ...
+    def __exit__(self, exc_type, exc_value, traceback) -> bool | None: ...
+
+    def create_home(self) -> None: ...
+
+    def chdir(self, path: str) -> None: ...
+
+    location: str
+
+    def external_path(self, path: str) -> str: ...
+
+    def check_call(self, args: list[str], cwd: str | None = None, user: str | None = None, env: dict[str, str] | None = None) -> None: ...
+
+    def setup_from_directory(self, path: str, subdir: str | None = None) -> tuple[str, str]: ...
+
+    def setup_from_vcs(self, tree: Tree, include_controldir: bool | None = None, subdir: str | None = None) -> tuple[str, str]: ...
+
+    def Popen(self, args: list[str], cwd: str | None = None, user: str | None = None, stdout = None, stderr = None, stdin = None, env: dict[str, str] | None = None) -> ChildProcess: ...
+
+    is_temporary: bool
+
+
+def run_with_tee(
+    session: Session,
+    args: list[str],
+    cwd: str | None = None,
+    user: str | None = None,
+    env: dict[str, str] | None = None,
+    stdin = None,
+    stdout = None,
+    stderr = None,
+) -> tuple[int, list[str]]: ...
+
+
+class ChildProcess:
+    ...
+
+    returncode: int | None
+
+    def poll(self) -> int | None: ...
+
+
+class PlainSession(Session):
+    def __init__(self) -> None: ...
+
+
+class SchrootSession(Session):
+    def __init__(self, chroot, session_prefix: str | None = None) -> None: ...
+
+
+class NoSessionOpen(Exception):
+    pass
+
+
+class SessionSetupFailure(Exception):
+
+    errlines: list[str]
+    reason: str
+
+
+class SessionAlreadyOpen(Exception):
+    pass
