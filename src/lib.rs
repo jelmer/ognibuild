@@ -1,3 +1,4 @@
+pub mod analyze;
 pub mod buildsystem;
 #[cfg(feature = "debian")]
 pub mod debian;

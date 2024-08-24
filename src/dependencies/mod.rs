@@ -5,10 +5,13 @@ use std::path::PathBuf;
 
 pub mod go;
 pub mod java;
+pub mod latex;
 pub mod node;
+pub mod octave;
 pub mod perl;
 pub mod php;
 pub mod python;
+pub mod r;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BinaryDependency {
@@ -36,37 +39,6 @@ impl Dependency for BinaryDependency {
             .run()
             .unwrap()
             .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LatexPackageDependency {
-    pub package: String,
-}
-
-impl LatexPackageDependency {
-    pub fn new(package: &str) -> Self {
-        Self {
-            package: package.to_string(),
-        }
-    }
-}
-
-impl Dependency for LatexPackageDependency {
-    fn family(&self) -> &'static str {
-        "latex-package"
-    }
-
-    fn present(&self, _session: &dyn Session) -> bool {
-        todo!()
     }
 
     fn project_present(&self, _session: &dyn Session) -> bool {
@@ -324,10 +296,6 @@ impl CargoCrateDependency {
             features: None,
             api_version: None,
         }
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
     }
 }
 
@@ -640,50 +608,6 @@ impl DhAddonDependency {
 impl Dependency for DhAddonDependency {
     fn family(&self) -> &'static str {
         "dh-addon"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        todo!()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RPackageDependency {
-    package: String,
-    minimum_version: Option<String>,
-}
-
-impl RPackageDependency {
-    pub fn new(package: &str, minimum_version: Option<&str>) -> Self {
-        Self {
-            package: package.to_string(),
-            minimum_version: minimum_version.map(|s| s.to_string()),
-        }
-    }
-
-    pub fn simple(package: &str) -> Self {
-        Self {
-            package: package.to_string(),
-            minimum_version: None,
-        }
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
-impl Dependency for RPackageDependency {
-    fn family(&self) -> &'static str {
-        "r-package"
     }
 
     fn present(&self, session: &dyn Session) -> bool {
