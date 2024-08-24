@@ -45,7 +45,7 @@ whoami = { version = "1.5.1", default-features = false }
 
 [features]
 default = ["debian", "cli"]
-debian = ["dep:debian-changelog", "dep:debversion", "dep:debian-control", "dep:flate2", "dep:lzma-rs", "dep:lz4_flex", "dep:reqwest" ]
+debian = ["dep:debian-changelog", "dep:debversion", "dep:debian-control", "dep:flate2", "dep:lzma-rs", "dep:lz4_flex", "dep:reqwest", "breezyshim/debian"]
 cli = ["dep:clap", "dep:env_logger"]
 
 [workspace.dependencies]
