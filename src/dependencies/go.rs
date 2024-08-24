@@ -1,4 +1,4 @@
-use crate::dependency::Dependency;
+use crate::dependency::{Installer, Explanation, Error, Dependency};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -91,5 +91,64 @@ impl Dependency for GoDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+pub struct GoResolver {
+    session: Box<dyn Session>,
+    user_local: bool,
+}
+
+impl GoResolver {
+    pub fn new(session: Box<dyn Session>, user_local: bool) -> Self {
+        Self { session, user_local }
+    }
+
+    fn cmd(&self, reqs: &[&GoPackageDependency]) -> Vec<String> {
+        let mut cmd = vec!["go".to_string(), "get".to_string()];
+        for req in reqs {
+            cmd.push(req.package.clone());
+        }
+        cmd
+    }
+}
+
+impl Installer for GoResolver {
+    fn explain(&self, requirement: &dyn Dependency) -> Result<Explanation, Error> {
+        let req = requirement
+            .as_any()
+            .downcast_ref::<GoPackageDependency>()
+            .ok_or(Error::UnknownDependencyFamily)?;
+        Ok(Explanation {
+            message: format!("Install go package {}", req.package),
+            command: Some(self.cmd(&[&req])),
+        })
+    }
+
+    fn install(&self, requirement: &dyn Dependency) -> Result<(), Error> {
+        let req = requirement
+            .as_any()
+            .downcast_ref::<GoPackageDependency>()
+            .ok_or(Error::UnknownDependencyFamily)?;
+        let cmd = self.cmd(&[&req]);
+        let env = if self.user_local {
+            std::collections::HashMap::new()
+        } else {
+            // TODO(jelmer): Isn't this Debian-specific?
+            std::collections::HashMap::from([("GOPATH".to_string(), "/usr/share/gocode".to_string())])
+        };
+        crate::analyze::run_detecting_problems(
+            self.session.as_ref(),
+            cmd.iter().map(|s| s.as_str()).collect(),
+            None,
+            false,
+            None,
+            None,
+            Some(env),
+            None,
+            None,
+            None
+        )?;
+        Ok(())
     }
 }
