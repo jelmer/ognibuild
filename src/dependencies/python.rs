@@ -1,4 +1,4 @@
-use crate::dependency::Dependency;
+use crate::dependency::{Dependency, Installer, Error, Explanation};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -132,5 +132,50 @@ impl Dependency for PythonModuleDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+
+pub struct PypiResolver {
+    session: Box<dyn Session>,
+    user_local: bool,
+}
+
+impl PypiResolver {
+    pub fn new(session: Box<dyn Session>, user_local: bool) -> Self {
+        Self { session, user_local }
+    }
+
+    pub fn cmd(&self, reqs: Vec<&PythonPackageDependency>) -> Vec<String> {
+        let mut cmd = vec!["pip".to_string(), "install".to_string()];
+        if !self.user_local {
+            cmd.push("--user".to_string());
+        }
+        cmd.extend(reqs.iter().map(|req| req.package.clone()));
+        cmd
+    }
+}
+
+impl Installer for PypiResolver {
+    fn install(&self, requirement: &dyn Dependency) -> Result<(), Error> {
+        let req = requirement
+            .as_any()
+            .downcast_ref::<PythonPackageDependency>()
+            .ok_or_else(|| Error::UnknownDependencyFamily)?;
+        let cmd = self.cmd(vec![req]);
+        crate::analyze::run_detecting_problems(self.session.as_ref(), cmd.iter().map(|x| x.as_str()).collect(), None, false, None,  if !self.user_local { Some("root") } else { None }, None, None, None, None)?;
+        Ok(())
+    }
+
+    fn explain(&self, requirement: &dyn Dependency) -> Result<Explanation, Error> {
+        let req = requirement
+            .as_any()
+            .downcast_ref::<PythonPackageDependency>()
+            .ok_or_else(|| Error::UnknownDependencyFamily)?;
+        let cmd = self.cmd(vec![req]);
+        Ok(Explanation {
+            message: format!("Install pip {}", req.package),
+            command: Some(cmd),
+        })
     }
 }
