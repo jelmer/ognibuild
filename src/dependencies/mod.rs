@@ -1,4 +1,4 @@
-use crate::dependency::Dependency;
+use crate::dependency::{Error, Dependency, Installer, Explanation};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -1247,5 +1247,39 @@ impl Dependency for GnulibDirectoryDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+pub struct StackedInstaller(pub Vec<Box<dyn Installer>>);
+
+impl StackedInstaller {
+    pub fn new(resolvers: Vec<Box<dyn Installer>>) -> Self {
+        Self(resolvers)
+    }
+}
+
+impl Installer for StackedInstaller {
+    fn install(&self, requirement: &dyn Dependency) -> Result<(), Error> {
+        for sub in &self.0 {
+            match sub.install(requirement) {
+                Ok(()) => { return Ok(()); },
+                Err(Error::UnknownDependencyFamily) => {}
+                Err(e) => { return Err(e); }
+            }
+        }
+
+        Err(Error::UnknownDependencyFamily)
+    }
+
+    fn explain(&self, requirements: &dyn Dependency) -> Result<Explanation, Error> {
+        for sub in &self.0 {
+            match sub.explain(requirements) {
+                Ok(e) => { return Ok(e); },
+                Err(Error::UnknownDependencyFamily) => {}
+                Err(e) => { return Err(e); }
+            }
+        }
+
+        Err(Error::UnknownDependencyFamily)
     }
 }
