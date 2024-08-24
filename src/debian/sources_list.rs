@@ -34,6 +34,10 @@ impl SourcesList {
         SourcesList { list: vec![] }
     }
 
+    pub fn iter(&self) -> std::slice::Iter<SourcesEntry> {
+        self.list.iter()
+    }
+
     pub fn load(&mut self, path: &Path) {
         let f = File::open(path).unwrap();
         for line in BufReader::new(f).lines() {
@@ -43,25 +47,24 @@ impl SourcesList {
             }
         }
     }
+
+    pub fn from_apt_dir(apt_dir: &Path) -> SourcesList {
+        let mut sl = SourcesList::empty();
+        sl.load(&apt_dir.join("sources.list"));
+        for entry in apt_dir.read_dir().unwrap() {
+            let entry = entry.unwrap();
+            if entry.file_type().unwrap().is_file() {
+                let path = entry.path();
+                sl.load(&path);
+            }
+        }
+        sl
+    }
 }
 
 impl Default for SourcesList {
     fn default() -> Self {
-        let mut sl = SourcesList::empty();
-        sl.load(Path::new("/etc/apt/sources.list"));
-        for path in &["/etc/apt/sources.list.d"] {
-            let dir = Path::new(path);
-            if dir.exists() && dir.is_dir() {
-                for entry in dir.read_dir().unwrap() {
-                    let entry = entry.unwrap();
-                    if entry.file_type().unwrap().is_file() {
-                        let path = entry.path();
-                        sl.load(&path);
-                    }
-                }
-            }
-        }
-        sl
+        Self::from_apt_dir(Path::new("/etc/apt"))
     }
 }
 
