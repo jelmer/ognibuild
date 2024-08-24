@@ -1,9 +1,10 @@
-use crate::dependency::Dependency;
+use crate::dependency::{Error, Dependency, Installer, Explanation};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub mod go;
+pub mod haskell;
 pub mod java;
 pub mod latex;
 pub mod node;
@@ -894,70 +895,6 @@ impl Dependency for CMakefileDependency {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HaskellPackageDependency {
-    package: String,
-    specs: Option<Vec<String>>,
-}
-
-impl HaskellPackageDependency {
-    pub fn new(package: &str, specs: Option<Vec<&str>>) -> Self {
-        Self {
-            package: package.to_string(),
-            specs: specs.map(|v| v.iter().map(|s| s.to_string()).collect()),
-        }
-    }
-
-    pub fn simple(package: &str) -> Self {
-        Self {
-            package: package.to_string(),
-            specs: None,
-        }
-    }
-}
-
-fn ghc_pkg_list(session: &dyn Session) -> Vec<(String, String)> {
-    let output = session
-        .command(vec!["ghc-pkg", "list"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .output()
-        .unwrap();
-    let output = String::from_utf8(output.stdout).unwrap();
-    output
-        .lines()
-        .filter_map(|line| {
-            if let Some((name, version)) =
-                line.strip_prefix("    ").and_then(|s| s.rsplit_once('-'))
-            {
-                Some((name.to_string(), version.to_string()))
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-impl Dependency for HaskellPackageDependency {
-    fn family(&self) -> &'static str {
-        "haskell-package"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        // TODO: Check version
-        ghc_pkg_list(session)
-            .iter()
-            .any(|(name, _version)| name == &self.package)
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MavenArtifactDependency {
     group_id: String,
     artifact_id: String,
@@ -1310,5 +1247,39 @@ impl Dependency for GnulibDirectoryDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+pub struct StackedInstaller(pub Vec<Box<dyn Installer>>);
+
+impl StackedInstaller {
+    pub fn new(resolvers: Vec<Box<dyn Installer>>) -> Self {
+        Self(resolvers)
+    }
+}
+
+impl Installer for StackedInstaller {
+    fn install(&self, requirement: &dyn Dependency) -> Result<(), Error> {
+        for sub in &self.0 {
+            match sub.install(requirement) {
+                Ok(()) => { return Ok(()); },
+                Err(Error::UnknownDependencyFamily) => {}
+                Err(e) => { return Err(e); }
+            }
+        }
+
+        Err(Error::UnknownDependencyFamily)
+    }
+
+    fn explain(&self, requirements: &dyn Dependency) -> Result<Explanation, Error> {
+        for sub in &self.0 {
+            match sub.explain(requirements) {
+                Ok(e) => { return Ok(e); },
+                Err(Error::UnknownDependencyFamily) => {}
+                Err(e) => { return Err(e); }
+            }
+        }
+
+        Err(Error::UnknownDependencyFamily)
     }
 }
