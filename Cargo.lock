@@ -971,6 +971,7 @@ dependencies = [
  "chrono",
  "clap",
  "debian-changelog",
+ "debian-control",
  "debversion",
  "env_logger 0.10.2",
  "fs_extra",

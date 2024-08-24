@@ -3,6 +3,8 @@ use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[cfg(feature = "debian")]
+pub mod debian;
 pub mod go;
 pub mod haskell;
 pub mod java;
