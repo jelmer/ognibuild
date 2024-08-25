@@ -104,3 +104,7 @@ impl Installer for TlmgrResolver {
         }
     }
 }
+
+pub fn ctan(session: &dyn Session, local_user: bool) -> Box<dyn Installer> {
+    Box::new(TlmgrResolver::new(session, local_user, "ctan"))
+}
