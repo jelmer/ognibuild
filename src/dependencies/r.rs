@@ -93,3 +93,11 @@ impl Installer for RResolver {
         }
     }
 }
+
+pub fn bioconductor(session: Box<dyn Session>, user_local: bool) -> Box<dyn Installer> {
+    Box::new(RResolver::new(session, "https://hedgehog.fhcrc.org/bioconductor", user_local))
+}
+
+pub fn cran(session: Box<dyn Session>, user_local: bool) -> Box<dyn Installer> {
+    Box::new(RResolver::new(session, "https://cran.r-project.org", user_local))
+}
