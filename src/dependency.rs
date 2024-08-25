@@ -5,6 +5,7 @@ pub enum Error {
     UnknownDependencyFamily,
     AnalyzedError(crate::analyze::AnalyzedError),
     SessionError(crate::session::Error),
+    Other(String),
 }
 
 impl std::fmt::Display for Error {
@@ -13,6 +14,7 @@ impl std::fmt::Display for Error {
             Error::UnknownDependencyFamily => write!(f, "Unknown dependency family"),
             Error::AnalyzedError(e) => write!(f, "{}", e),
             Error::SessionError(e) => write!(f, "{}", e),
+            Error::Other(s) => write!(f, "{}", s),
         }
     }
 }

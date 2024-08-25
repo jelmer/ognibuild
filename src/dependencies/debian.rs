@@ -1,11 +1,32 @@
-use debian_control::relations::Relations;
+use debian_control::relations::{Relation, Entry, Relations, VersionConstraint};
 use crate::session::Session;
 use std::collections::HashSet;
 use std::str::FromStr;
 use std::hash::{Hash, Hasher};
+use crate::dependency::Dependency;
+use serde::{Serialize, Serializer, Deserialize, Deserializer};
 
 #[derive(Debug)]
 pub struct DebianDependency(Relations);
+
+impl Serialize for DebianDependency {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.to_string().serialize(serializer)
+    }
+}
+
+impl<'a> Deserialize<'a> for DebianDependency {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(DebianDependency(s.parse().unwrap()))
+    }
+}
 
 impl PartialEq for DebianDependency {
     fn eq(&self, other: &Self) -> bool {
@@ -60,6 +81,46 @@ impl DebianDependency {
             }
         }
         names
+    }
+}
+
+impl Dependency for DebianDependency {
+    fn family(&self) -> &'static str {
+        "debian"
+    }
+
+    fn present(&self, session: &dyn Session) -> bool {
+        use std::collections::HashMap;
+        let mut versions = HashMap::new();
+        for name in self.package_names() {
+            let argv = vec!["dpkg-query", "-W", "-f='${Version}\n'", &name];
+            let output = String::from_utf8(session.check_output(argv, None, None, None).unwrap()).unwrap();
+            let version: debversion::Version = output.trim().parse().unwrap();
+            versions.insert(name, version);
+        }
+
+        let relation_satisfied = |relation: Relation| -> bool {
+            let name = relation.name();
+            let version = versions.get(&name).unwrap();
+            match relation.version() {
+                Some((VersionConstraint::Equal, v)) => version.cmp(&v) == std::cmp::Ordering::Equal,
+                Some((VersionConstraint::GreaterThanEqual, v)) => version >= &v,
+                Some((VersionConstraint::GreaterThan, v)) => version > &v,
+                Some((VersionConstraint::LessThanEqual, v)) => version <= &v,
+                Some((VersionConstraint::LessThan, v)) => version < &v,
+                None => true,
+            }
+        };
+
+        self.0.entries().all(|entry| entry.relations().any(relation_satisfied))
+    }
+
+    fn project_present(&self, session: &dyn Session) -> bool {
+        false
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
