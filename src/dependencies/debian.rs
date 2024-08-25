@@ -74,6 +74,10 @@ impl From<Relations> for DebianDependency {
     }
 }
 
+pub trait TieBreaker {
+    fn break_tie<'a>(&mut self, reqs: Vec<&'a DebianDependency>) -> Option<&'a DebianDependency>;
+}
+
 #[cfg(test)]
 mod tests {
     use maplit::hashset;

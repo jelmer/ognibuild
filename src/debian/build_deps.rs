@@ -2,10 +2,7 @@ use std::collections::HashMap;
 use breezyshim::debian::apt::{Apt,LocalApt};
 use crate::session::Session;
 use crate::dependencies::debian::DebianDependency;
-
-pub trait TieBreaker {
-    fn break_tie<'a>(&mut self, reqs: Vec<&'a DebianDependency>) -> Option<&'a DebianDependency>;
-}
+use crate::dependencies::debian::TieBreaker;
 
 pub struct BuildDependencyTieBreaker {
     apt: LocalApt,
