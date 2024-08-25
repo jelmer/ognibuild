@@ -96,6 +96,7 @@ impl std::error::Error for Error {}
 pub struct AptManager<'a> {
     session: &'a dyn Session,
     prefix: Vec<String>,
+    searchers: Option<Vec<Box<dyn crate::debian::file_search::FileSearcher<'a> + 'a>>>,
 }
 
 impl<'a> AptManager<'a> {
@@ -103,7 +104,18 @@ impl<'a> AptManager<'a> {
         Self {
             session,
             prefix: prefix.unwrap_or_default(),
+            searchers: None,
         }
+    }
+
+    pub fn searchers(&'a mut self) -> &Vec<Box<dyn crate::debian::file_search::FileSearcher<'a> + 'a>> {
+        if self.searchers.is_none() {
+            self.searchers = Some(vec![
+                crate::debian::file_search::get_apt_contents_file_searcher(self.session).unwrap(),
+                Box::new(crate::debian::file_search::GENERATED_FILE_SEARCHER.clone()),
+            ]);
+        }
+        self.searchers.as_ref().unwrap()
     }
 
     pub fn from_session(session: &'a dyn Session) -> Self {
