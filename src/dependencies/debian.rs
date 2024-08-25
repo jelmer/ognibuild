@@ -1,4 +1,5 @@
 use debian_control::relations::Relations;
+use crate::session::Session;
 use std::collections::HashSet;
 use std::str::FromStr;
 use std::hash::{Hash, Hasher};
@@ -76,6 +77,20 @@ impl From<Relations> for DebianDependency {
 
 pub trait TieBreaker {
     fn break_tie<'a>(&mut self, reqs: Vec<&'a DebianDependency>) -> Option<&'a DebianDependency>;
+}
+
+pub fn default_tie_breakers(session: &dyn Session) -> Vec<Box<dyn TieBreaker>> {
+    let mut tie_breakers: Vec<Box<dyn TieBreaker>> = Vec::new();
+    use crate::debian::build_deps::BuildDependencyTieBreaker;
+    tie_breakers.push(Box::new(BuildDependencyTieBreaker::from_session(session)));
+
+    #[cfg(feature = "udd")]
+    {
+        use crate::debian::udd::PopconTieBreaker;
+        tie_breakers.push(Box::new(PopconTieBreaker));
+    }
+
+    tie_breakers
 }
 
 #[cfg(test)]
