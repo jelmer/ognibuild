@@ -6,6 +6,7 @@ pub enum Error {
     UnsupportedScope(InstallationScope),
     AnalyzedError(crate::analyze::AnalyzedError),
     SessionError(crate::session::Error),
+    Other(String),
 }
 
 impl std::fmt::Display for Error {
@@ -15,6 +16,7 @@ impl std::fmt::Display for Error {
             Error::UnsupportedScope(scope) => write!(f, "Unsupported scope: {:?}", scope),
             Error::AnalyzedError(e) => write!(f, "{}", e),
             Error::SessionError(e) => write!(f, "{}", e),
+            Error::Other(s) => write!(f, "{}", s),
         }
     }
 }
