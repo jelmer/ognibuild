@@ -235,6 +235,8 @@ checksum = "8b305ea4987af0fb1add06b1001907e4925b95d9abf7d7f2b4abf39241aa3464"
 dependencies = [
  "chrono",
  "ctor",
+ "debian-control",
+ "debversion",
  "lazy-regex",
  "lazy_static",
  "log",
@@ -434,6 +436,7 @@ version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "286f48b96d8b0b1430db71c92b8a641f5edf0d926d44f51bf2159aabcf526a2a"
 dependencies = [
+ "pyo3",
  "regex",
  "rowan",
  "serde",
@@ -463,6 +466,7 @@ dependencies = [
  "chrono",
  "deb822-lossless",
  "debversion",
+ "pyo3",
  "regex",
  "rowan",
  "url",
@@ -475,6 +479,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b6c96844ac16a110ee3ea355b7e511ffe0221242caebb2cc5e1bbfd285744cf"
 dependencies = [
  "lazy-regex",
+ "pyo3",
  "serde",
 ]
 

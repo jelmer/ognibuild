@@ -1,20 +1,40 @@
 use debian_control::relations::Relations;
 use std::collections::HashSet;
 use std::str::FromStr;
+use std::hash::{Hash, Hasher};
 
-pub struct AptDependency(Relations);
+#[derive(Debug)]
+pub struct DebianDependency(Relations);
 
-impl AptDependency {
+impl PartialEq for DebianDependency {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.to_string() == other.0.to_string()
+    }
+}
+
+impl Eq for DebianDependency {}
+
+impl Hash for DebianDependency {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.to_string().hash(state);
+    }
+}
+
+impl DebianDependency {
     /// Create a new dependency from a package name.
-    pub fn new(name: &str) -> AptDependency {
-        AptDependency(
+    pub fn new(name: &str) -> DebianDependency {
+        DebianDependency(
             name.parse()
                 .unwrap_or_else(|_| panic!("Failed to parse dependency: {}", name)),
         )
     }
 
-    pub fn new_with_min_version(name: &str, min_version: &str) -> AptDependency {
-        AptDependency(
+    pub fn relation_string(&self) -> String {
+        self.0.to_string()
+    }
+
+    pub fn new_with_min_version(name: &str, min_version: &str) -> DebianDependency {
+        DebianDependency(
             format!("{} (>= {})", name, min_version).parse().unwrap_or_else(|_| panic!("Failed to parse dependency: {} (>= {})",
                 name, min_version)),
         )
@@ -42,15 +62,15 @@ impl AptDependency {
     }
 }
 
-impl From<AptDependency> for Relations {
-    fn from(dep: AptDependency) -> Self {
+impl From<DebianDependency> for Relations {
+    fn from(dep: DebianDependency) -> Self {
         dep.0
     }
 }
 
-impl From<Relations> for AptDependency {
+impl From<Relations> for DebianDependency {
     fn from(rel: Relations) -> Self {
-        AptDependency(rel)
+        DebianDependency(rel)
     }
 }
 
@@ -61,26 +81,26 @@ mod tests {
 
     #[test]
     fn test_touches_package() {
-        let dep = AptDependency::new("libssl-dev");
+        let dep = DebianDependency::new("libssl-dev");
         assert!(dep.touches_package("libssl-dev"));
         assert!(!dep.touches_package("libssl1.1"));
     }
 
     #[test]
     fn test_package_names() {
-        let dep = AptDependency::new("libssl-dev");
+        let dep = DebianDependency::new("libssl-dev");
         assert_eq!(dep.package_names(), hashset!{"libssl-dev".to_string()});
     }
 
     #[test]
     fn test_package_names_multiple() {
-        let dep = AptDependency::new("libssl-dev, libssl1.1");
+        let dep = DebianDependency::new("libssl-dev, libssl1.1");
         assert_eq!(dep.package_names(), hashset!{"libssl-dev".to_string(), "libssl1.1".to_string()});
     }
 
     #[test]
     fn test_package_names_multiple_with_version() {
-        let dep = AptDependency::new("libssl-dev (>= 1.1), libssl1.1 (>= 1.1)");
+        let dep = DebianDependency::new("libssl-dev (>= 1.1), libssl1.1 (>= 1.1)");
         assert_eq!(dep.package_names(), hashset!{"libssl-dev".to_string(), "libssl1.1".to_string()});
     }
 }
