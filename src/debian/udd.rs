@@ -27,11 +27,11 @@ async fn get_most_popular(reqs: &[&DebianDependency]) -> Result<Option<String>, 
 pub struct PopconTieBreaker;
 
 impl TieBreaker for PopconTieBreaker {
-    fn break_tie<'a>(&mut self, reqs: Vec<&'a DebianDependency>) -> Option<&'a DebianDependency> {
+    fn break_tie<'a>(&self, reqs: &[&'a DebianDependency]) -> Option<&'a DebianDependency> {
         // TODO(jelmer): Pick package based on what appears most commonly in
         // build-depends{-indep,-arch}
         let rt = Runtime::new().unwrap();
-        let package = rt.block_on(get_most_popular(reqs.as_slice())).unwrap();
+        let package = rt.block_on(get_most_popular(reqs)).unwrap();
         if package.is_none() {
             log::info!("No relevant popcon information found, not ranking by popcon");
             return None;
@@ -45,6 +45,6 @@ impl TieBreaker for PopconTieBreaker {
             log::info!("No relevant popcon information found, not ranking by popcon");
         }
 
-        winner
+        winner.copied()
     }
 }

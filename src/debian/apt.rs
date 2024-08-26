@@ -1,4 +1,6 @@
 use crate::session::{get_user, Session};
+use crate::dependency::{Installer, Error as DependencyError, Explanation};
+use crate::dependencies::debian::{DebianDependency, TieBreaker, default_tie_breakers};
 
 pub enum Error {
     Unidentified {
@@ -108,6 +110,7 @@ impl<'a> AptManager<'a> {
         }
     }
 
+    /// Get the list of file searchers
     pub fn searchers(&'a mut self) -> &Vec<Box<dyn crate::debian::file_search::FileSearcher<'a> + 'a>> {
         if self.searchers.is_none() {
             self.searchers = Some(vec![
@@ -188,4 +191,119 @@ pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Res
         lines,
         secondary: r#match,
     });
+}
+
+fn pick_best_deb_dependency(mut dependencies: Vec<DebianDependency>, tie_breakers: &[Box<dyn TieBreaker>]) -> Option<DebianDependency> {
+    if dependencies.is_empty() {
+        return None;
+    }
+
+    if dependencies.len() == 1 {
+        return Some(dependencies.remove(0));
+    }
+
+    log::warn!("Multiple candidates for dependency {:?}", dependencies);
+
+    for tie_breaker in tie_breakers {
+        let winner = tie_breaker.break_tie(dependencies.iter().collect::<Vec<_>>().as_slice());
+        if let Some(winner) = winner {
+            return Some(winner.clone());
+        }
+    }
+
+    log::info!("No tie breaker could determine a winner for dependency {:?}", dependencies);
+    Some(dependencies.remove(0))
+}
+
+pub fn dependency_to_deb_dependency(dep: &dyn crate::dependency::Dependency, tie_breakers: &[Box<dyn TieBreaker>]) -> Result<Option<DebianDependency>, crate::dependency::Error> {
+
+    let mut candidates = vec![]; // TODO
+
+    Ok(pick_best_deb_dependency(candidates, tie_breakers))
+}
+
+struct AptInstaller<'a> {
+    apt: AptManager<'a>,
+    tie_breakers: Vec<Box<dyn TieBreaker>>,
+}
+
+impl<'a> AptInstaller<'a> {
+    pub fn new(apt: AptManager<'a>) -> Self {
+        let tie_breakers = default_tie_breakers(apt.session);
+        Self { apt, tie_breakers }
+    }
+
+    pub fn new_with_tie_breakers(apt: AptManager<'a>, tie_breakers: Vec<Box<dyn TieBreaker>>) -> Self {
+        Self { apt, tie_breakers }
+    }
+
+    /// Create a new AptInstaller from a session
+    pub fn from_session(session: &'a dyn Session) -> Self {
+        Self::new(AptManager::from_session(session))
+    }
+}
+
+
+impl<'a> Installer for AptInstaller<'a> {
+    fn install(&self, dep: &dyn crate::dependency::Dependency, scope: crate::dependency::InstallationScope) -> Result<(), crate::dependency::Error> {
+        if dep.present(self.apt.session) {
+            return Ok(());
+        }
+
+        let apt_deb = if let Some(apt_deb) = dependency_to_deb_dependency(dep, &mut self.tie_breakers.as_slice())? {
+            apt_deb
+        } else {
+            return Err(crate::dependency::Error::UnknownDependencyFamily);
+        };
+
+        match self.apt.satisfy(vec![apt_deb.relation_string().as_str()]) {
+            Ok(_) => {},
+            Err(e) => { return Err(crate::dependency::Error::Other(e.to_string())); }
+        }
+        Ok(())
+    }
+
+    fn explain(&self, dep: &dyn crate::dependency::Dependency, _scope: crate::dependency::InstallationScope) -> Result<crate::dependency::Explanation, crate::dependency::Error> {
+        let apt_deb = if let Some(apt_deb) = dependency_to_deb_dependency(dep, &mut self.tie_breakers.as_slice())? {
+            apt_deb
+        } else {
+            return Err(crate::dependency::Error::UnknownDependencyFamily);
+        };
+
+        let apt_deb_str = apt_deb.relation_string();
+        let cmd = self.apt.satisfy_command(vec![apt_deb_str.as_str()]);
+        Ok(Explanation {
+            message: format!("Install {}", apt_deb.package_names().iter().map(|x| x.as_str()).collect::<Vec<_>>().join(", ")),
+            command: Some(cmd.iter().map(|s| s.to_string()).collect()),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pick_best_deb_dependency() {
+        struct DummyTieBreaker;
+        impl crate::dependencies::debian::TieBreaker for DummyTieBreaker {
+            fn break_tie<'a>(&self, reqs: &[&'a DebianDependency]) -> Option<&'a DebianDependency> {
+                reqs.iter().next().cloned()
+            }
+        }
+
+        let mut tie_breakers = vec![Box::new(DummyTieBreaker) as Box<dyn TieBreaker>];
+
+        let dep1 = DebianDependency::new("libssl-dev");
+        let dep2 = DebianDependency::new("libssl1.1-dev");
+
+        // Single dependency
+        assert_eq!(pick_best_deb_dependency(vec![dep1.clone()], tie_breakers.as_mut_slice()), Some(dep1.clone()));
+
+        // No dependencies
+        assert_eq!(pick_best_deb_dependency(vec![], tie_breakers.as_mut_slice()), None);
+
+        // Multiple dependencies
+        assert_eq!(pick_best_deb_dependency(vec![dep1.clone(), dep2.clone()], tie_breakers.as_mut_slice()), Some(dep1.clone()));
+    }
 }

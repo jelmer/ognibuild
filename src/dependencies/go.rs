@@ -1,5 +1,6 @@
 use crate::dependency::{Installer, Explanation, Error, Dependency, InstallationScope};
 use crate::session::Session;
+use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,7 +114,7 @@ impl GoResolver {
 }
 
 impl Installer for GoResolver {
-    fn explain(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
+    fn explain(&self, requirement: &dyn Dependency, _scope: InstallationScope) -> Result<Explanation, Error> {
         let req = requirement
             .as_any()
             .downcast_ref::<GoPackageDependency>()
@@ -147,13 +148,22 @@ impl Installer for GoResolver {
             cmd.iter().map(|s| s.as_str()).collect(),
             None,
             false,
-            None,
-            None,
+            None, user,
             Some(env),
             None,
             None,
             None
         )?;
         Ok(())
+    }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for GoDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        if let Some(version) = &self.version {
+            Some(vec![crate::dependencies::debian::DebianDependency::new_with_min_version("golang-go", &version.parse().unwrap())])
+        } else {
+            Some(vec![crate::dependencies::debian::DebianDependency::new("golang-go")])
+        }
     }
 }

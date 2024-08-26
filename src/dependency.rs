@@ -36,7 +36,7 @@ impl From<crate::session::Error> for Error {
 }
 
 /// A dependency is a component that is required by a project to build or run.
-pub trait Dependency {
+pub trait Dependency: std::fmt::Debug {
     fn family(&self) -> &'static str;
 
     /// Check whether the dependency is present in the session.

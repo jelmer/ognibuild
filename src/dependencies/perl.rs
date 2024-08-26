@@ -164,7 +164,7 @@ impl CPAN {
         }
     }
 
-    fn cmd(&self, reqs: &[&PerlModuleDependency], scope: InstallationScope) -> Result<Vec<String>, Error> {
+    fn cmd(&self, reqs: &[&PerlModuleDependency], _scope: InstallationScope) -> Result<Vec<String>, Error> {
         let mut ret = vec!["cpan".to_string(), "-i".to_string()];
         if self.skip_tests {
             ret.push("-T".to_string());

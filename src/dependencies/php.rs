@@ -164,3 +164,9 @@ impl Dependency for PhpExtensionDependency {
         self
     }
 }
+
+impl crate::dependencies::debian::IntoDebianDependency for PhpExtensionDependency {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        Some(vec![crate::dependencies::debian::DebianDependency::new(&format!("php-{}", &self.extension))])
+    }
+}

@@ -1,12 +1,20 @@
 use debian_control::relations::{Relation, Relations, VersionConstraint};
+use debversion::Version;
 use crate::session::Session;
 use std::collections::HashSet;
-use std::hash::{Hash};
+use std::hash::Hash;
 use crate::dependency::Dependency;
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
 
 #[derive(Debug)]
 pub struct DebianDependency(Relations);
+
+impl Clone for DebianDependency {
+    fn clone(&self) -> Self {
+        let rels = self.0.to_string().parse().unwrap();
+        DebianDependency(rels)
+    }
+}
 
 impl Serialize for DebianDependency {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -54,7 +62,7 @@ impl DebianDependency {
         self.0.to_string()
     }
 
-    pub fn new_with_min_version(name: &str, min_version: &str) -> DebianDependency {
+    pub fn new_with_min_version(name: &str, min_version: &Version) -> DebianDependency {
         DebianDependency(
             format!("{} (>= {})", name, min_version).parse().unwrap_or_else(|_| panic!("Failed to parse dependency: {} (>= {})",
                 name, min_version)),
@@ -81,26 +89,15 @@ impl DebianDependency {
         }
         names
     }
-}
 
-impl Dependency for DebianDependency {
-    fn family(&self) -> &'static str {
-        "debian"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        use std::collections::HashMap;
-        let mut versions = HashMap::new();
-        for name in self.package_names() {
-            let argv = vec!["dpkg-query", "-W", "-f='${Version}\n'", &name];
-            let output = String::from_utf8(session.check_output(argv, None, None, None).unwrap()).unwrap();
-            let version: debversion::Version = output.trim().parse().unwrap();
-            versions.insert(name, version);
-        }
-
+    pub fn satisfied_by(&self, versions: &std::collections::HashMap<String, debversion::Version>) -> bool {
         let relation_satisfied = |relation: Relation| -> bool {
             let name = relation.name();
-            let version = versions.get(&name).unwrap();
+            let version = if let Some(version) = versions.get(&name) {
+                version
+            } else {
+                return false;
+            };
             match relation.version() {
                 Some((VersionConstraint::Equal, v)) => version.cmp(&v) == std::cmp::Ordering::Equal,
                 Some((VersionConstraint::GreaterThanEqual, v)) => version >= &v,
@@ -113,8 +110,43 @@ impl Dependency for DebianDependency {
 
         self.0.entries().all(|entry| entry.relations().any(relation_satisfied))
     }
+}
 
-    fn project_present(&self, session: &dyn Session) -> bool {
+/// Get the version of a package installed on the system.
+///
+/// Returns `None` if the package is not installed.
+fn get_package_version(session: &dyn Session, package: &str) -> Option<debversion::Version> {
+    let argv = vec!["dpkg-query", "-W", "-f='${Version}\n'", package];
+    let output = String::from_utf8(session.check_output(argv, None, None, None).unwrap()).unwrap();
+
+    if output.trim().is_empty() {
+        None
+    } else {
+        Some(output.trim().parse().unwrap())
+    }
+}
+
+impl Dependency for DebianDependency {
+    fn family(&self) -> &'static str {
+        "debian"
+    }
+
+    fn present(&self, session: &dyn Session) -> bool {
+        use std::collections::HashMap;
+        let mut versions = HashMap::new();
+        for name in self.package_names() {
+            if let Some(version) = get_package_version(session, &name) {
+                versions.insert(name, version);
+            } else {
+                // Package not found
+                return false;
+            }
+        }
+
+        self.satisfied_by(&versions)
+    }
+
+    fn project_present(&self, _session: &dyn Session) -> bool {
         false
     }
 
@@ -136,7 +168,7 @@ impl From<Relations> for DebianDependency {
 }
 
 pub trait TieBreaker {
-    fn break_tie<'a>(&mut self, reqs: Vec<&'a DebianDependency>) -> Option<&'a DebianDependency>;
+    fn break_tie<'a>(&self, reqs: &[&'a DebianDependency]) -> Option<&'a DebianDependency>;
 }
 
 pub fn default_tie_breakers(session: &dyn Session) -> Vec<Box<dyn TieBreaker>> {
@@ -151,6 +183,16 @@ pub fn default_tie_breakers(session: &dyn Session) -> Vec<Box<dyn TieBreaker>> {
     }
 
     tie_breakers
+}
+
+pub trait IntoDebianDependency: Dependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> Option<Vec<DebianDependency>>;
+}
+
+impl IntoDebianDependency for DebianDependency {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> Option<Vec<DebianDependency>> {
+        Some(vec![self.clone()])
+    }
 }
 
 #[cfg(test)]
@@ -181,5 +223,31 @@ mod tests {
     fn test_package_names_multiple_with_version() {
         let dep = DebianDependency::new("libssl-dev (>= 1.1), libssl1.1 (>= 1.1)");
         assert_eq!(dep.package_names(), hashset!{"libssl-dev".to_string(), "libssl1.1".to_string()});
+    }
+
+    #[test]
+    fn test_satisfied_by() {
+        let dep = DebianDependency::new("libssl-dev (>= 1.1), libssl1.1 (>= 1.1)");
+        let mut versions = std::collections::HashMap::new();
+        versions.insert("libssl-dev".to_string(), "1.2".parse().unwrap());
+        versions.insert("libssl1.1".to_string(), "1.2".parse().unwrap());
+        assert!(dep.satisfied_by(&versions));
+    }
+
+    #[test]
+    fn test_satisfied_by_missing_package() {
+        let dep = DebianDependency::new("libssl-dev (>= 1.1), libssl1.1 (>= 1.1)");
+        let mut versions = std::collections::HashMap::new();
+        versions.insert("libssl-dev".to_string(), "1.2".parse().unwrap());
+        assert!(!dep.satisfied_by(&versions));
+    }
+
+    #[test]
+    fn test_satisfied_by_missing_version() {
+        let dep = DebianDependency::new("libssl-dev (>= 1.1), libssl1.1 (>= 1.1)");
+        let mut versions = std::collections::HashMap::new();
+        versions.insert("libssl-dev".to_string(), "1.2".parse().unwrap());
+        versions.insert("libssl1.1".to_string(), "1.0".parse().unwrap());
+        assert!(!dep.satisfied_by(&versions));
     }
 }
