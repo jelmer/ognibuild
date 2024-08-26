@@ -1,8 +1,7 @@
-use debian_control::relations::{Relation, Entry, Relations, VersionConstraint};
+use debian_control::relations::{Relation, Relations, VersionConstraint};
 use crate::session::Session;
 use std::collections::HashSet;
-use std::str::FromStr;
-use std::hash::{Hash, Hasher};
+use std::hash::{Hash};
 use crate::dependency::Dependency;
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
 
