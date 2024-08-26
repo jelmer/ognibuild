@@ -1,5 +1,5 @@
 use crate::analyze::{AnalyzedError, run_detecting_problems};
-use crate::dependency::{Error, Dependency, Explanation, Installer};
+use crate::dependency::{Error, Dependency, Explanation, Installer, InstallationScope};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -36,53 +36,57 @@ impl Dependency for LatexPackageDependency {
 
 pub struct TlmgrResolver {
     session: Box<dyn Session>,
-    user_local: bool,
     repository: String,
 }
 
 impl TlmgrResolver {
-    pub fn new(session: Box<dyn Session>, user_local: bool, repository: &str) -> Self {
+    pub fn new(session: Box<dyn Session>, repository: &str) -> Self {
         Self {
             session,
-            user_local,
             repository: repository.to_string(),
         }
     }
 
-    fn cmd(&self, reqs: &[&LatexPackageDependency]) -> Vec<String> {
+    fn cmd(&self, reqs: &[&LatexPackageDependency], scope: InstallationScope) -> Result<Vec<String>, Error> {
         let mut ret = vec![
             "tlmgr".to_string(),
             format!("--repository={}", self.repository),
             "install".to_string(),
         ];
-        if self.user_local {
-            ret.push("--usermode".to_string());
+        match scope {
+            InstallationScope::User => {
+                ret.push("--usermode".to_string());
+            }
+            InstallationScope::Global => {},
+            InstallationScope::Vendor => {
+                return Err(Error::UnsupportedScope(scope));
+            }
         }
         ret.extend(reqs.iter().map(|req| req.package.clone()));
-        ret
+        Ok(ret)
     }
 }
 
 impl Installer for TlmgrResolver {
 
-    fn explain(&self, dep: &dyn Dependency) -> Result<Explanation, Error> {
+    fn explain(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
         let dep = dep
             .as_any()
             .downcast_ref::<LatexPackageDependency>()
             .ok_or(Error::UnknownDependencyFamily)?;
-        let cmd = self.cmd(&[dep]);
+        let cmd = self.cmd(&[dep], scope)?;
         Ok(Explanation {
             message: format!("Install the LaTeX package {}", dep.package),
             command: Some(cmd),
         })
     }
 
-    fn install(&self, dep: &dyn Dependency) -> Result<(), Error> {
+    fn install(&self, dep: &dyn Dependency, scope :InstallationScope) -> Result<(), Error> {
         let dep = dep
             .as_any()
             .downcast_ref::<LatexPackageDependency>()
             .ok_or(Error::UnknownDependencyFamily)?;
-        let cmd = self.cmd(&[dep]);
+        let cmd = self.cmd(&[dep], scope)?;
         log::info!("tlmgr: running {:?}", cmd);
 
         match run_detecting_problems(

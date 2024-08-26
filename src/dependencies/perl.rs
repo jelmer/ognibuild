@@ -1,4 +1,4 @@
-use crate::dependency::{Dependency, Explanation, Error};
+use crate::dependency::{Dependency, Explanation, Error, InstallationScope};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -153,34 +153,32 @@ impl Dependency for PerlFileDependency {
 
 pub struct CPAN {
     session: Box<dyn Session>,
-    user_local: bool,
     skip_tests: bool,
 }
 
 impl CPAN {
-    fn new(session: Box<dyn Session>, user_local: bool, skip_tests: bool) -> Self {
+    fn new(session: Box<dyn Session>, skip_tests: bool) -> Self {
         Self {
             session,
-            user_local,
             skip_tests,
         }
     }
 
-    fn cmd(&self, reqs: &[&PerlModuleDependency]) -> Vec<String> {
+    fn cmd(&self, reqs: &[&PerlModuleDependency], scope: InstallationScope) -> Result<Vec<String>, Error> {
         let mut ret = vec!["cpan".to_string(), "-i".to_string()];
         if self.skip_tests {
             ret.push("-T".to_string());
         }
         ret.extend(reqs.iter().map(|req| req.module.clone()));
-        ret
+        Ok(ret)
     }
 }
 
 impl crate::dependency::Installer for CPAN {
 
-    fn explain(&self, dep: &dyn Dependency) -> Result<Explanation, Error> {
+    fn explain(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
         if let Some(dep) = dep.as_any().downcast_ref::<PerlModuleDependency>() {
-            let cmd = self.cmd(&[&dep]);
+            let cmd = self.cmd(&[&dep], scope)?;
             let explanation = Explanation {
                 message: "Install the following Perl modules".to_string(),
                 command: Some(cmd),
@@ -191,17 +189,23 @@ impl crate::dependency::Installer for CPAN {
         }
     }
 
-    fn install(&self, dep: &dyn Dependency) -> Result<(), Error> {
+    fn install(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
         let env = maplit::hashmap! {
             "PERL_MM_USE_DEFAULT".to_string() => "1".to_string(),
             "PERL_MM_OPT".to_string() => "".to_string(),
             "PERL_MB_OPT".to_string() => "".to_string(),
         };
 
-        let user = if !self.user_local { Some("root") } else { None };
+        let user = match scope {
+            InstallationScope::User => None,
+            InstallationScope::Global => Some("root"),
+            InstallationScope::Vendor => {
+                return Err(Error::UnsupportedScope(scope));
+            }
+        };
 
         if let Some(dep) = dep.as_any().downcast_ref::<PerlModuleDependency>() {
-            let cmd = self.cmd(&[dep]);
+            let cmd = self.cmd(&[dep], scope)?;
             log::info!("CPAN: running {:?}", cmd);
 
             crate::analyze::run_detecting_problems(

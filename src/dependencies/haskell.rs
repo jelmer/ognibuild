@@ -1,4 +1,4 @@
-use crate::dependency::{Dependency, Error, Explanation, Installer};
+use crate::dependency::{Dependency, Error, Explanation, Installer, InstallationScope};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -68,30 +68,35 @@ impl Dependency for HaskellPackageDependency {
 
 pub struct HackageResolver {
     session: Box<dyn Session>,
-    user_local: bool,
 }
 
 impl HackageResolver {
-    pub fn new(session: Box<dyn Session>, user_local: bool) -> Self {
-        Self { session, user_local }
+    pub fn new(session: Box<dyn Session>) -> Self {
+        Self { session }
     }
 
-    fn cmd(&self, reqs: &[&HaskellPackageDependency]) -> Vec<String> {
+    fn cmd(&self, reqs: &[&HaskellPackageDependency], scope: InstallationScope) -> Result<Vec<String>, Error> {
         let mut cmd = vec!["cabal".to_string(), "install".to_string()];
 
-        if self.user_local {
-            cmd.push("--user".to_string());
+        match scope {
+            InstallationScope::User => {
+                cmd.push("--user".to_string());
+            }
+            InstallationScope::Global => {},
+            InstallationScope::Vendor => {
+                return Err(Error::UnsupportedScope(scope));
+            }
         }
         cmd.extend(reqs.iter().map(|req| req.package.clone()));
-        cmd
+        Ok(cmd)
     }
 }
 
 impl Installer for HackageResolver {
-    fn install(&self, requirement: &dyn Dependency) -> Result<(), Error> {
-        let user = if self.user_local { None } else { Some("root") };
+    fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
+        let user = if scope != InstallationScope::Global { None } else { Some("root") };
         if let Some(requirement) = requirement.as_any().downcast_ref::<HaskellPackageDependency>() {
-            let cmd = self.cmd(&[requirement]);
+            let cmd = self.cmd(&[requirement], scope)?;
             log::info!("Hackage: running {:?}", cmd);
             crate::analyze::run_detecting_problems(self.session.as_ref(), cmd.iter().map(|x| x.as_str()).collect() , None, false, None, user, None, None, None, None)?;
             Ok(())
@@ -100,9 +105,9 @@ impl Installer for HackageResolver {
         }
     }
 
-    fn explain(&self, requirement: &dyn Dependency) -> Result<Explanation, Error> {
+    fn explain(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
         if let Some(requirement) = requirement.as_any().downcast_ref::<HaskellPackageDependency>() {
-            let cmd = self.cmd(&[requirement]);
+            let cmd = self.cmd(&[requirement], scope)?;
             Ok(Explanation {
                 message: format!("Install Haskell package {}", requirement.package),
                 command: Some(cmd),

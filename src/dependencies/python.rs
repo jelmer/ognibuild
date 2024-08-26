@@ -1,4 +1,4 @@
-use crate::dependency::{Dependency, Installer, Error, Explanation};
+use crate::dependency::{Dependency, Installer, Error, Explanation, InstallationScope};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -138,41 +138,45 @@ impl Dependency for PythonModuleDependency {
 
 pub struct PypiResolver {
     session: Box<dyn Session>,
-    user_local: bool,
 }
 
 impl PypiResolver {
-    pub fn new(session: Box<dyn Session>, user_local: bool) -> Self {
-        Self { session, user_local }
+    pub fn new(session: Box<dyn Session>) -> Self {
+        Self { session }
     }
 
-    pub fn cmd(&self, reqs: Vec<&PythonPackageDependency>) -> Vec<String> {
+    pub fn cmd(&self, reqs: Vec<&PythonPackageDependency>, scope: InstallationScope) -> Result<Vec<String>, Error> {
         let mut cmd = vec!["pip".to_string(), "install".to_string()];
-        if !self.user_local {
-            cmd.push("--user".to_string());
+        match scope {
+            InstallationScope::User => cmd.push("--user".to_string()),
+            InstallationScope::Global => {},
+            InstallationScope::Vendor => {
+                return Err(Error::UnsupportedScope(scope));
+            }
         }
         cmd.extend(reqs.iter().map(|req| req.package.clone()));
-        cmd
+        Ok(cmd)
     }
 }
 
 impl Installer for PypiResolver {
-    fn install(&self, requirement: &dyn Dependency) -> Result<(), Error> {
+    fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
         let req = requirement
             .as_any()
             .downcast_ref::<PythonPackageDependency>()
             .ok_or_else(|| Error::UnknownDependencyFamily)?;
-        let cmd = self.cmd(vec![req]);
-        crate::analyze::run_detecting_problems(self.session.as_ref(), cmd.iter().map(|x| x.as_str()).collect(), None, false, None,  if !self.user_local { Some("root") } else { None }, None, None, None, None)?;
+        let cmd = self.cmd(vec![req], scope)?;
+        crate::analyze::run_detecting_problems(self.session.as_ref(), cmd.iter().map(|x| x.as_str()).collect(), None, false, None,  match scope {
+            InstallationScope::Global => Some("root"), InstallationScope::User => None, InstallationScope::Vendor => { return Err(Error::UnsupportedScope(scope)); }}, None, None, None, None)?;
         Ok(())
     }
 
-    fn explain(&self, requirement: &dyn Dependency) -> Result<Explanation, Error> {
+    fn explain(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
         let req = requirement
             .as_any()
             .downcast_ref::<PythonPackageDependency>()
             .ok_or_else(|| Error::UnknownDependencyFamily)?;
-        let cmd = self.cmd(vec![req]);
+        let cmd = self.cmd(vec![req], scope)?;
         Ok(Explanation {
             message: format!("Install pip {}", req.package),
             command: Some(cmd),

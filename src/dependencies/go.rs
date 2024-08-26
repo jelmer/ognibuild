@@ -1,4 +1,4 @@
-use crate::dependency::{Installer, Explanation, Error, Dependency};
+use crate::dependency::{Installer, Explanation, Error, Dependency, InstallationScope};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -96,12 +96,11 @@ impl Dependency for GoDependency {
 
 pub struct GoResolver {
     session: Box<dyn Session>,
-    user_local: bool,
 }
 
 impl GoResolver {
-    pub fn new(session: Box<dyn Session>, user_local: bool) -> Self {
-        Self { session, user_local }
+    pub fn new(session: Box<dyn Session>) -> Self {
+        Self { session }
     }
 
     fn cmd(&self, reqs: &[&GoPackageDependency]) -> Vec<String> {
@@ -114,7 +113,7 @@ impl GoResolver {
 }
 
 impl Installer for GoResolver {
-    fn explain(&self, requirement: &dyn Dependency) -> Result<Explanation, Error> {
+    fn explain(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
         let req = requirement
             .as_any()
             .downcast_ref::<GoPackageDependency>()
@@ -125,17 +124,23 @@ impl Installer for GoResolver {
         })
     }
 
-    fn install(&self, requirement: &dyn Dependency) -> Result<(), Error> {
+    fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
         let req = requirement
             .as_any()
             .downcast_ref::<GoPackageDependency>()
             .ok_or(Error::UnknownDependencyFamily)?;
         let cmd = self.cmd(&[&req]);
-        let env = if self.user_local {
-            std::collections::HashMap::new()
-        } else {
-            // TODO(jelmer): Isn't this Debian-specific?
-            std::collections::HashMap::from([("GOPATH".to_string(), "/usr/share/gocode".to_string())])
+        let (env, user) = match scope {
+            InstallationScope::User=> {
+                (std::collections::HashMap::new(), None)
+            }
+            InstallationScope::Global => {
+                // TODO(jelmer): Isn't this Debian-specific?
+                (std::collections::HashMap::from([("GOPATH".to_string(), "/usr/share/gocode".to_string())]), Some("root"))
+            }
+            InstallationScope::Vendor => {
+                return Err(Error::UnsupportedScope(scope));
+            }
         };
         crate::analyze::run_detecting_problems(
             self.session.as_ref(),
