@@ -20,7 +20,7 @@ impl Dependency for JavaClassDependency {
         "java-class"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -58,6 +58,12 @@ impl Dependency for JDKDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for JDKDependency {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        Some(vec![crate::dependencies::debian::DebianDependency::new("default-jdk")])
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JREDependency;
 
@@ -81,5 +87,11 @@ impl Dependency for JREDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for JREDependency {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        Some(vec![crate::dependencies::debian::DebianDependency::new("default-jre")])
     }
 }

@@ -98,3 +98,12 @@ impl Installer for OctaveForgeResolver {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for OctavePackageDependency {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        if let Some(minimum_version) = &self.minimum_version {
+            Some(vec![crate::dependencies::debian::DebianDependency::new_with_min_version(&format!("octave-{}", &self.package), &minimum_version.parse().unwrap())])
+        } else {
+            Some(vec![crate::dependencies::debian::DebianDependency::new(&format!("octave-{}", &self.package))])
+        }
+    }
+}

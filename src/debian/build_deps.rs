@@ -3,17 +3,18 @@ use breezyshim::debian::apt::{Apt,LocalApt};
 use crate::session::Session;
 use crate::dependencies::debian::DebianDependency;
 use crate::dependencies::debian::TieBreaker;
+use std::cell::RefCell;
 
 pub struct BuildDependencyTieBreaker {
     apt: LocalApt,
-    counts: Option<HashMap<String, i32>>,
+    counts: RefCell<Option<HashMap<String, i32>>>,
 }
 
 impl BuildDependencyTieBreaker {
     pub fn from_session(session: &dyn Session) -> Self {
         Self {
             apt: LocalApt::new(Some(&session.location())).unwrap(),
-            counts: None,
+            counts: RefCell::new(None),
         }
     }
 
@@ -34,13 +35,18 @@ impl BuildDependencyTieBreaker {
 }
 
 impl TieBreaker for BuildDependencyTieBreaker {
-    fn break_tie<'a>(&mut self, reqs: Vec<&'a DebianDependency>) -> Option<&'a DebianDependency>{
-        let counts = self.count();
-        self.counts = Some(counts);
+    fn break_tie<'a>(&self, reqs: &[&'a DebianDependency]) -> Option<&'a DebianDependency>{
+        if self.counts.borrow().is_none() {
+            let counts = self.count();
+            self.counts.replace(Some(counts));
+        }
+
+        let c = self.counts.borrow();
+        let count = c.clone().unwrap();
         let mut by_count = HashMap::new();
-        for req in &reqs {
+        for req in reqs {
             let name = req.package_names().into_iter().next().unwrap();
-            by_count.insert(req, self.counts.as_ref().unwrap()[&name]);
+            by_count.insert(req, count[&name]);
         }
         if by_count.is_empty() {
             return None;

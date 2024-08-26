@@ -30,7 +30,7 @@ impl Dependency for RPackageDependency {
         "r-package"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -86,7 +86,7 @@ impl Installer for RResolver {
     }
 
     /// Explain how to install the dependency.
-    fn explain(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
+    fn explain(&self, dep: &dyn Dependency, _scope: InstallationScope) -> Result<Explanation, Error> {
         if let Some(req) = dep.as_any().downcast_ref::<RPackageDependency>() {
             Ok(Explanation {
                 message: format!("Install R package {}", req.package),

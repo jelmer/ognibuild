@@ -462,7 +462,7 @@ impl Dependency for CHeaderDependency {
             .success()
     }
 
-    fn project_present(&self, session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -471,6 +471,7 @@ impl Dependency for CHeaderDependency {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct JavaScriptRuntimeDependency;
 
 impl Dependency for JavaScriptRuntimeDependency {
@@ -478,7 +479,7 @@ impl Dependency for JavaScriptRuntimeDependency {
         "javascript-runtime"
     }
 
-    fn project_present(&self, session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -613,7 +614,7 @@ impl Dependency for DhAddonDependency {
         "dh-addon"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -884,7 +885,7 @@ impl Dependency for CMakefileDependency {
         "cmakefile"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -967,7 +968,7 @@ impl Dependency for MavenArtifactDependency {
         "maven-artifact"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -1005,6 +1006,12 @@ impl Dependency for GnomeCommonDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for GnomeCommonDependency {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        Some(vec![crate::dependencies::debian::DebianDependency::new("gnome-common")])
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QtModuleDependency {
     module: String,
@@ -1023,7 +1030,7 @@ impl Dependency for QtModuleDependency {
         "qt-module"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -1076,6 +1083,12 @@ impl Dependency for X11Dependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for X11Dependency {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        Some(vec![crate::dependencies::debian::DebianDependency::new("libx11-dev")])
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CertificateAuthorityDependency {
     url: String,
@@ -1094,7 +1107,7 @@ impl Dependency for CertificateAuthorityDependency {
         "certificate-authority"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -1124,7 +1137,7 @@ impl Dependency for AutoconfMacroDependency {
         "autoconf-macro"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -1162,6 +1175,12 @@ impl Dependency for LibtoolDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for LibtoolDependency {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        Some(vec![crate::dependencies::debian::DebianDependency::new("libtool")])
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BoostComponentDependency {
     name: String,
@@ -1180,7 +1199,7 @@ impl Dependency for BoostComponentDependency {
         "boost-component"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -1210,7 +1229,7 @@ impl Dependency for KF5ComponentDependency {
         "kf5-component"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -1240,7 +1259,7 @@ impl Dependency for GnulibDirectoryDependency {
         "gnulib-directory"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 

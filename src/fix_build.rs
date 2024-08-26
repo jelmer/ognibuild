@@ -1,4 +1,3 @@
-use crate::session::{run_with_tee, Error as SessionError, Session};
 use log::{info, warn};
 use std::fmt::{Debug, Display};
 

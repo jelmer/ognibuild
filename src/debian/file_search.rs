@@ -67,7 +67,7 @@ pub fn contents_urls_from_sources_entry<'a>(entry: &'a SourcesEntry, arches: Vec
             let inrelease_url: Url = dists_url.join(&format!("{}/InRelease", name)).unwrap();
             let mut response = match load_url(&inrelease_url) {
                 Ok(response) => response,
-                Err(e) => {
+                Err(_) => {
                     let release_url = dists_url.join(&format!("{}/Release", name)).unwrap();
                     match load_url(&release_url) {
                         Ok(response) => response,
@@ -529,5 +529,23 @@ mod tests {
     #[test]
     fn test_uri_to_filename() {
         assert_eq!(uri_to_filename(&"http://example.com/foo/bar".parse().unwrap()), "example.com_foo_bar");
+    }
+
+    #[test]
+    fn test_generated_file_searchers() {
+        let searchers = &GENERATED_FILE_SEARCHER;
+        assert_eq!(searchers.search_files(Path::new("/etc/locale.gen"), false).collect::<Vec<String>>(), vec!["locales"]);
+        assert_eq!(searchers.search_files(Path::new("/etc/LOCALE.GEN"), true).collect::<Vec<String>>(), vec!["locales"]);
+        assert_eq!(searchers.search_files(Path::new("/usr/bin/rst2html"), false).collect::<Vec<String>>(), vec!["python3-docutils"]);
+    }
+
+    #[test]
+    fn test_unwrap() {
+        let data = b"hello world";
+        let f = std::io::Cursor::new(data);
+        let f = unwrap(f, "");
+        let mut buf = Vec::new();
+        f.take(5).read_to_end(&mut buf).unwrap();
+        assert_eq!(buf, b"hello");
     }
 }
