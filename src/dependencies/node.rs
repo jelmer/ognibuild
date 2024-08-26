@@ -1,5 +1,5 @@
 use crate::dependencies::BinaryDependency;
-use crate::dependency::{Installer, Error, Explanation, Dependency};
+use crate::dependency::{Installer, Error, Explanation, Dependency, InstallationScope};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -102,21 +102,24 @@ impl Dependency for NodeModuleDependency {
 
 pub struct NpmResolver {
     session: Box<dyn Session>,
-    user_local: bool,
 }
 
 impl NpmResolver {
-    pub fn new(session: Box<dyn Session>, user_local: bool) -> Self {
-        Self { session, user_local }
+    pub fn new(session: Box<dyn Session>) -> Self {
+        Self { session }
     }
 
-    fn cmd(&self, reqs: &[&NodePackageDependency]) -> Vec<String> {
+    fn cmd(&self, reqs: &[&NodePackageDependency], scope: InstallationScope) -> Result<Vec<String>, Error> {
         let mut cmd = vec!["npm".to_string(), "install".to_string()];
-        if !self.user_local {
-            cmd.push("-g".to_string());
+        match scope {
+            InstallationScope::Global => cmd.push("-g".to_string()),
+            InstallationScope::User => {},
+            InstallationScope::Vendor => {
+                return Err(Error::UnsupportedScope(scope));
+            }
         }
         cmd.extend(reqs.iter().map(|req| req.package.clone()));
-        cmd
+        Ok(cmd)
     }
 
 }
@@ -148,30 +151,34 @@ fn to_node_package_req(requirement: &dyn Dependency) -> Option<NodePackageDepend
 }
 
 impl Installer for NpmResolver {
-    fn explain(&self, requirement: &dyn Dependency) -> Result<Explanation, Error> {
+    fn explain(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
         let requirement = requirement.as_any()
             .downcast_ref::<NodePackageDependency>()
             .ok_or(Error::UnknownDependencyFamily)?;
 
         Ok(Explanation {
             message: format!("install node package {}", requirement.package),
-            command: Some(self.cmd(&[requirement])),
+            command: Some(self.cmd(&[requirement], scope)?),
         })
     }
 
-    fn install(&self, requirement: &dyn Dependency) -> Result<(), Error> {
+    fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
         let requirement = requirement.as_any()
             .downcast_ref::<NodePackageDependency>()
             .ok_or(Error::UnknownDependencyFamily)?;
 
-        let cmd = &self.cmd(&[requirement]);
+        let cmd = &self.cmd(&[requirement], scope)?;
         crate::analyze::run_detecting_problems(
             self.session.as_ref(),
             cmd.iter().map(|s| s.as_str()).collect(),
             None,
             false,
             None,
-            if self.user_local { None } else { Some("root") },
+            match scope {
+                InstallationScope::Global => Some("root"),
+                InstallationScope::User => None,
+                InstallationScope::Vendor => None,
+            },
             None,
             None,
             None,

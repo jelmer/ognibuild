@@ -1,5 +1,5 @@
 use crate::session::Session;
-use crate::dependency::{Dependency, Installer, Explanation, Error};
+use crate::dependency::{Dependency, Installer, Explanation, Error, InstallationScope};
 use crate::analyze::{run_detecting_problems, AnalyzedError};
 use serde::{Serialize, Deserialize};
 
@@ -46,20 +46,20 @@ impl Dependency for RPackageDependency {
 pub struct RResolver {
     session: Box<dyn Session>,
     repos: String,
-    user_local: bool,
 }
 
 impl RResolver {
-    pub fn new(session: Box<dyn Session>, repos: &str, user_local: bool) -> Self {
+    pub fn new(session: Box<dyn Session>, repos: &str) -> Self {
         Self {
             session,
             repos: repos.to_string(),
-            user_local,
         }
     }
 
     fn cmd(&self, req: &RPackageDependency) -> Vec<String> {
-        // TODO(jelmer: Handle self.user_local
+        // R will install into the first directory in .libPaths() that is writeable.
+        // TODO: explicitly set the library path to either the user's home directory or a system
+        // directory.
         vec![
             "R".to_string(),
             "-e".to_string(),
@@ -70,19 +70,23 @@ impl RResolver {
 
 impl Installer for RResolver {
     /// Install the dependency into the session.
-    fn install(&self, dep: &dyn Dependency) -> Result<(), Error> {
-        if let Some(req) = dep.as_any().downcast_ref::<RPackageDependency>() {
-            let cmd = self.cmd(req);
-            log::info!("RResolver({:?}): running {:?}", self.repos, cmd);
-            run_detecting_problems(self.session.as_ref(), cmd.iter().map(|x| x.as_str()).collect() , None, false, None, if self.user_local { None } else { Some("root") }, None, None, None, None)?;
-            Ok(())
-        } else {
-            Err(Error::UnknownDependencyFamily)
-        }
+    fn install(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
+        let req = dep.as_any().downcast_ref::<RPackageDependency>().ok_or(Error::UnknownDependencyFamily)?;
+        let cmd = self.cmd(req);
+        let user = match scope {
+            InstallationScope::User => None,
+            InstallationScope::Global => Some("root"),
+            InstallationScope::Vendor => {
+                return Err(Error::UnsupportedScope(scope));
+            }
+        };
+        log::info!("RResolver({:?}): running {:?}", self.repos, cmd);
+        run_detecting_problems(self.session.as_ref(), cmd.iter().map(|x| x.as_str()).collect() , None, false, None, user, None, None, None, None)?;
+        Ok(())
     }
 
     /// Explain how to install the dependency.
-    fn explain(&self, dep: &dyn Dependency) -> Result<Explanation, Error> {
+    fn explain(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
         if let Some(req) = dep.as_any().downcast_ref::<RPackageDependency>() {
             Ok(Explanation {
                 message: format!("Install R package {}", req.package),

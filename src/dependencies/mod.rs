@@ -1,4 +1,4 @@
-use crate::dependency::{Error, Dependency, Installer, Explanation};
+use crate::dependency::{Error, Dependency, Installer, Explanation, InstallationScope};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -1261,9 +1261,9 @@ impl StackedInstaller {
 }
 
 impl Installer for StackedInstaller {
-    fn install(&self, requirement: &dyn Dependency) -> Result<(), Error> {
+    fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
         for sub in &self.0 {
-            match sub.install(requirement) {
+            match sub.install(requirement, scope) {
                 Ok(()) => { return Ok(()); },
                 Err(Error::UnknownDependencyFamily) => {}
                 Err(e) => { return Err(e); }
@@ -1273,9 +1273,9 @@ impl Installer for StackedInstaller {
         Err(Error::UnknownDependencyFamily)
     }
 
-    fn explain(&self, requirements: &dyn Dependency) -> Result<Explanation, Error> {
+    fn explain(&self, requirements: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
         for sub in &self.0 {
-            match sub.explain(requirements) {
+            match sub.explain(requirements, scope) {
                 Ok(e) => { return Ok(e); },
                 Err(Error::UnknownDependencyFamily) => {}
                 Err(e) => { return Err(e); }
