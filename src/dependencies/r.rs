@@ -1,6 +1,6 @@
 use crate::session::Session;
 use crate::dependency::{Dependency, Installer, Explanation, Error, InstallationScope};
-use crate::analyze::{run_detecting_problems, AnalyzedError};
+use crate::analyze::{run_detecting_problems};
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,4 +96,12 @@ impl Installer for RResolver {
             Err(Error::UnknownDependencyFamily)
         }
     }
+}
+
+pub fn bioconductor(session: Box<dyn Session>) -> Box<dyn Installer> {
+    Box::new(RResolver::new(session, "https://hedgehog.fhcrc.org/bioconductor"))
+}
+
+pub fn cran(session: Box<dyn Session>) -> Box<dyn Installer> {
+    Box::new(RResolver::new(session, "https://cran.r-project.org"))
 }

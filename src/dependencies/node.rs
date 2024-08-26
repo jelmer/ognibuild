@@ -152,22 +152,20 @@ fn to_node_package_req(requirement: &dyn Dependency) -> Option<NodePackageDepend
 
 impl Installer for NpmResolver {
     fn explain(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
-        let requirement = requirement.as_any()
-            .downcast_ref::<NodePackageDependency>()
+        let requirement = to_node_package_req(requirement)
             .ok_or(Error::UnknownDependencyFamily)?;
 
         Ok(Explanation {
             message: format!("install node package {}", requirement.package),
-            command: Some(self.cmd(&[requirement], scope)?),
+            command: Some(self.cmd(&[&requirement], scope)?),
         })
     }
 
     fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
-        let requirement = requirement.as_any()
-            .downcast_ref::<NodePackageDependency>()
+        let requirement = to_node_package_req(requirement)
             .ok_or(Error::UnknownDependencyFamily)?;
 
-        let cmd = &self.cmd(&[requirement], scope)?;
+        let cmd = &self.cmd(&[&requirement], scope)?;
         crate::analyze::run_detecting_problems(
             self.session.as_ref(),
             cmd.iter().map(|s| s.as_str()).collect(),
