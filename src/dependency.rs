@@ -92,12 +92,13 @@ pub trait Installer {
     fn install(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<(), Error>;
 
     /// Explain how to install the dependency.
-    fn explain(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error>;
+    fn explain(&self, dep: &dyn Dependency, scope: InstallationScope)
+        -> Result<Explanation, Error>;
 
     fn explain_some(
         &self,
         deps: Vec<Box<dyn Dependency>>,
-        scope: InstallationScope
+        scope: InstallationScope,
     ) -> Result<(Vec<Explanation>, Vec<Box<dyn Dependency>>), Error> {
         let mut explanations = Vec::new();
         let mut failed = Vec::new();
@@ -116,7 +117,7 @@ pub trait Installer {
     fn install_some(
         &self,
         deps: Vec<Box<dyn Dependency>>,
-        scope: InstallationScope
+        scope: InstallationScope,
     ) -> Result<(Vec<Box<dyn Dependency>>, Vec<Box<dyn Dependency>>), Error> {
         let mut installed = Vec::new();
         let mut failed = Vec::new();
@@ -131,5 +132,34 @@ pub trait Installer {
             }
         }
         Ok((installed, failed))
+    }
+}
+
+/// A null installer does nothing.
+pub struct NullInstaller;
+
+impl NullInstaller {
+    pub fn new() -> Self {
+        NullInstaller
+    }
+}
+
+impl Default for NullInstaller {
+    fn default() -> Self {
+        NullInstaller::new()
+    }
+}
+
+impl Installer for NullInstaller {
+    fn install(&self, _dep: &dyn Dependency, _scope: InstallationScope) -> Result<(), Error> {
+        Err(Error::UnknownDependencyFamily)
+    }
+
+    fn explain(
+        &self,
+        _dep: &dyn Dependency,
+        _scope: InstallationScope,
+    ) -> Result<Explanation, Error> {
+        Err(Error::UnknownDependencyFamily)
     }
 }

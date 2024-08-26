@@ -33,10 +33,13 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {}
 
 pub trait Session {
+    /// Change the current working directory in the session.
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), crate::session::Error>;
 
+    /// Return the external path for a path inside the session.
     fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf;
 
+    /// Return the location of the session.
     fn location(&self) -> std::path::PathBuf;
 
     fn check_output(
@@ -47,6 +50,7 @@ pub trait Session {
         env: Option<HashMap<String, String>>,
     ) -> Result<Vec<u8>, Error>;
 
+    /// Ensure that the current users' home directory exists.
     fn create_home(&self) -> Result<(), Error>;
 
     fn check_call(
@@ -57,12 +61,20 @@ pub trait Session {
         env: Option<std::collections::HashMap<String, String>>,
     ) -> Result<(), crate::session::Error>;
 
+    /// Check if a file or directory exists.
     fn exists(&self, path: &std::path::Path) -> bool;
 
+    /// Create a directory.
     fn mkdir(&self, path: &std::path::Path) -> Result<(), crate::session::Error>;
 
+    /// Recursively remove a directory.
     fn rmtree(&self, path: &std::path::Path) -> Result<(), crate::session::Error>;
 
+    /// Setup a session from an existing directory.
+    ///
+    /// # Arguments
+    /// * `path` - The path to the directory to setup the session from.
+    /// * `subdir` - The subdirectory to use as the session root.
     fn setup_from_directory(
         &self,
         path: &std::path::Path,
@@ -82,6 +94,7 @@ pub trait Session {
         env: Option<std::collections::HashMap<String, String>>,
     ) -> std::process::Child;
 
+    /// Check if the session is temporary.
     fn is_temporary(&self) -> bool;
 
     fn setup_from_vcs(
@@ -117,22 +130,26 @@ impl<'a> CommandBuilder<'a> {
         }
     }
 
+    /// Set the current working directory for the command.
     pub fn cwd(mut self, cwd: &'a std::path::Path) -> Self {
         self.cwd = Some(cwd);
         self
     }
 
+    /// Set the user to run the command as.
     pub fn user(mut self, user: &'a str) -> Self {
         self.user = Some(user);
         self
     }
 
+    /// Set the environment for the command.
     pub fn env(mut self, env: std::collections::HashMap<String, String>) -> Self {
         assert!(self.env.is_none());
         self.env = Some(env);
         self
     }
 
+    /// Add an environment variable to the command.
     pub fn setenv(mut self, key: String, value: String) -> Self {
         self.env = match self.env {
             Some(mut env) => {
@@ -312,5 +329,11 @@ mod tests {
         let session = super::plain::PlainSession::new();
         let which = super::which(&session, "ls");
         assert!(which.unwrap().ends_with("/ls"));
+    }
+
+    #[test]
+    fn test_create_home() {
+        let session = super::plain::PlainSession::new();
+        super::create_home(&session).unwrap();
     }
 }
