@@ -105,3 +105,6 @@ class SessionAlreadyOpen(Exception):
 
 class DistNoTarball(Exception):
     pass
+
+
+def rescue_build_log(output_directory: str, tree=None) -> None: ...

@@ -651,6 +651,14 @@ impl DistCatcher {
     }
 }
 
+#[pyfunction]
+#[pyo3(signature = (output_directory, tree=None))]
+fn rescue_build_log(output_directory: std::path::PathBuf, tree: Option<PyObject>) -> PyResult<()> {
+    let tree = tree.map(breezyshim::tree::WorkingTree::from);
+    ognibuild::debian::fix_build::rescue_build_log(&output_directory, tree.as_ref())
+        .map_err(|e| e.into())
+}
+
 #[pymodule]
 fn _ognibuild_rs(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(iterate_with_build_fixers))?;
@@ -675,5 +683,6 @@ fn _ognibuild_rs(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     )?;
     m.add_wrapped(wrap_pyfunction!(run_with_tee))?;
     m.add("DistNoTarball", py.get_type_bound::<DistNoTarball>())?;
+    m.add_wrapped(wrap_pyfunction!(rescue_build_log))?;
     Ok(())
 }

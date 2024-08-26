@@ -23,7 +23,6 @@ import logging
 import os
 import shutil
 import sys
-import time
 from functools import partial
 from typing import Optional
 
@@ -71,6 +70,7 @@ from debmutate.reformatting import (
     GeneratedFile,
 )
 
+from .. import _ognibuild_rs
 from ..buildlog import problem_to_upstream_requirement
 from ..fix_build import BuildFixer, resolve_error
 from ..logs import rotate_logfile
@@ -634,21 +634,7 @@ def build_incrementally(
             rotate_logfile(os.path.join(output_directory, BUILD_LOG_FILENAME))
 
 
-def rescue_build_log(output_directory, *, tree=None):
-    xdg_cache_dir = os.environ.get(
-        "XDG_CACHE_HOME", os.path.expanduser("~/.cache")
-    )
-    buildlogs_dir = os.path.join(xdg_cache_dir, "ognibuild", "buildlogs")
-    os.makedirs(buildlogs_dir, exist_ok=True)
-    target_log_file = os.path.join(
-        buildlogs_dir,
-        "{}-{}.log".format(
-            os.path.basename(getattr(tree, "basedir", "build")),
-            time.strftime("%Y-%m-%d_%H%M%s"),
-        ),
-    )
-    shutil.copy(os.path.join(output_directory, "build.log"), target_log_file)
-    logging.info("Build log available in %s", target_log_file)
+rescue_build_log = _ognibuild_rs.rescue_build_log
 
 
 def main(argv=None):
