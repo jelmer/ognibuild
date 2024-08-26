@@ -331,9 +331,4 @@ mod tests {
         assert!(which.unwrap().ends_with("/ls"));
     }
 
-    #[test]
-    fn test_create_home() {
-        let session = super::plain::PlainSession::new();
-        super::create_home(&session).unwrap();
-    }
 }

@@ -1,6 +1,10 @@
 use crate::dependency::{Dependency, Installer, Error, Explanation, InstallationScope};
+use debian_control::relations::{Relation, VersionConstraint, Relations};
+use crate::debian::apt::AptManager;
+use crate::dependencies::debian::DebianDependency;
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 
 // TODO: use pep508_rs
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,6 +20,22 @@ impl PythonPackageDependency {
             package: package.to_string(),
             python_version: python_version.map(|s| s.to_string()),
             specs,
+        }
+    }
+
+    pub fn new_with_min_version(package: &str, min_version: &str) -> Self {
+        Self {
+            package: package.to_string(),
+            python_version: None,
+            specs: vec![(">=".to_string(), min_version.to_string())],
+        }
+    }
+
+    pub fn simple(package: &str) -> Self {
+        Self {
+            package: package.to_string(),
+            python_version: None,
+            specs: vec![],
         }
     }
 }
@@ -181,5 +201,226 @@ impl Installer for PypiResolver {
             message: format!("Install pip {}", req.package),
             command: Some(cmd),
         })
+    }
+}
+
+pub fn python_spec_to_apt_rels(pkg_name: &str, specs: Option<&[(String, String)]>) -> Relations {
+    // TODO(jelmer): Dealing with epoch, etc?
+    if specs.is_none() {
+        return pkg_name.parse().unwrap();
+    }
+
+    let mut rels: Vec<Relation> = vec![];
+    for (o, v) in specs.unwrap() {
+        match o.as_str() {
+            "~=" => {
+                // PEP 440: For a given release identifier V.N , the compatible
+                // release clause is approximately equivalent to the pair of
+                // comparison clauses: >= V.N, == V.*
+                let mut parts = v.split('.').map(|s| s.to_string()).collect::<Vec<String>>();
+                parts.pop();
+                let last: isize = parts.pop().unwrap().parse().unwrap();
+                parts.push((last + 1).to_string());
+                let next_maj_deb_version: debversion::Version = parts.join(".").parse().unwrap();
+                let deb_version: debversion::Version = v.parse().unwrap();
+                rels.push(Relation::new(pkg_name, Some((VersionConstraint::GreaterThanEqual, deb_version))));
+                rels.push(
+                    Relation::new(pkg_name, Some((VersionConstraint::LessThan, next_maj_deb_version))),
+                );
+             },
+             "!=" => {
+                let deb_version: debversion::Version = v.parse().unwrap();
+                rels.push(Relation::new(pkg_name, Some((VersionConstraint::GreaterThan, deb_version.clone()))));
+                rels.push(Relation::new(pkg_name, Some((VersionConstraint::LessThan, deb_version))));
+            },
+            "==" if v.ends_with(".*") => {
+                let mut parts = v.split('.').map(|s| s.to_string()).collect::<Vec<String>>();
+                parts.pop();
+                let last: isize = parts.pop().unwrap().parse().unwrap();
+                parts.push((last + 1).to_string());
+                let deb_version: debversion::Version = v.parse().unwrap();
+                let next_maj_deb_version: debversion::Version = parts.join(".").parse().unwrap();
+                rels.push(Relation::new(pkg_name, Some((VersionConstraint::GreaterThanEqual, deb_version))));
+                rels.push(Relation::new(pkg_name, Some((VersionConstraint::LessThan, next_maj_deb_version))));
+            }
+            o => {
+                let vc = match o {
+                    ">=" => VersionConstraint::GreaterThanEqual,
+                    "<=" => VersionConstraint::LessThanEqual,
+                    "<" => VersionConstraint::LessThan,
+                    ">" => VersionConstraint::GreaterThan,
+                    "==" => VersionConstraint::Equal,
+                    _ => unimplemented!(),
+                };
+                let v: debversion::Version = v.parse().unwrap();
+                rels.push(Relation::new(pkg_name, Some((vc, v))));
+            }
+        }
+    }
+
+    Relations::from(rels.into_iter().map(|r| r.into()).collect::<Vec<_>>())
+}
+
+fn get_package_for_python_package(
+    apt_mgr: &AptManager, package: &str, python_version: Option<&str>, specs: Option<&[(String, String)]>,
+) -> Vec<DebianDependency> {
+    let pypy_regex = format!(
+        "/usr/lib/pypy/dist\\-packages/{}-.*\\.(dist|egg)\\-info",
+            regex::escape(&package.replace('-', "_"))
+        );
+    let cpython2_regex = format!("/usr/lib/python2\\.[0-9]/dist\\-packages/{}-.*\\.(dist|egg)\\-info",
+        regex::escape(&package.replace('-', "_")));
+    let cpython3_regex = format!(
+        "/usr/lib/python3/dist\\-packages/{}-.*\\.(dist|egg)\\-info",
+            regex::escape(&package.replace('-', "_"))
+        );
+    let paths = match python_version {
+        Some("pypy") => vec![pypy_regex],
+        Some("cpython2") => vec![cpython2_regex],
+        Some("cpython3") => vec![cpython3_regex],
+        None => vec![cpython3_regex, cpython2_regex, pypy_regex],
+        _ => unimplemented!(),
+    };
+    let names = apt_mgr.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, true).unwrap();
+    names
+        .iter()
+        .map(|name| DebianDependency::from(python_spec_to_apt_rels(name, specs)))
+        .collect()
+}
+
+
+fn get_possible_python3_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
+    let mut cpython3_regexes = vec![];
+    loop {
+        cpython3_regexes.extend(
+            [
+                Path::new(
+                    "/usr/lib/python3/dist-packages").join(
+                    regex::escape(&object_path.replace('.', "/"))
+                ).join(
+                    "__init__\\.py",
+                ),
+                Path::new(
+                    "/usr/lib/python3/dist-packages").join(
+                    format!("{}\\.py", regex::escape(&object_path.replace('.', "/")))
+                ),
+                Path::new(
+                    "/usr/lib/python3\\.[0-9]+/lib\\-dynload")
+                .join(format!("{}\\.cpython\\-.*\\.so", regex::escape(&object_path.replace('.', "/")))),
+                Path::new(
+                    "/usr/lib/python3\\.[0-9]+/",
+                ).join(format!("{}\\.py", regex::escape(&object_path.replace('.', "/")))),
+                Path::new("/usr/lib/python3\\.[0-9]+/").join(regex::escape(&object_path.replace('.', "/"))).join(
+                    "__init__\\.py",
+                ),
+            ]
+        );
+        object_path = match object_path.rsplit_once('.') {
+            Some((o, _)) => o,
+            None => break,
+        };
+    }
+    cpython3_regexes
+}
+
+fn get_possible_pypy_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
+    let mut pypy_regexes = vec![];
+    loop {
+        pypy_regexes.extend(
+            [
+                Path::new(
+                    "/usr/lib/pypy/dist\\-packages")
+                    .join(regex::escape(&object_path.replace('.', "/")))
+                    .join("__init__\\.py")
+                ,
+                Path::new(
+                    "/usr/lib/pypy/dist\\-packages").join(
+                    format!("{}\\.py", regex::escape(&object_path.replace('.', "/")))
+                ),
+                Path::new(
+                    "/usr/lib/pypy/dist\\-packages").join(
+                    format!("{}\\.pypy-.*\\.so", regex::escape(&object_path.replace('.', "/")))
+                ),
+            ]
+        );
+        object_path = match object_path.rsplit_once('.') {
+            Some((o, _)) => o,
+            None => break,
+        };
+    }
+    pypy_regexes
+}
+
+fn get_possible_python2_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
+    let mut cpython2_regexes = vec![];
+    loop {
+        cpython2_regexes.extend(
+            [
+                Path::new(
+                    "/usr/lib/python2\\.[0-9]/dist\\-packages",
+                ).join(
+                    regex::escape(&object_path.replace('.', "/"))
+                ).join(
+                    "__init__\\.py",
+                ),
+                Path::new(
+                    "/usr/lib/python2\\.[0-9]/dist\\-packages",
+                ).join(
+                    format!("{}\\.py", regex::escape(&object_path.replace('.', "/")))
+                ),
+                Path::new(
+                    "/usr/lib/python2.\\.[0-9]/lib\\-dynload",
+                ).join(
+                    format!("{}\\.so", regex::escape(&object_path.replace('.', "/")))
+                ),
+            ]
+        );
+        object_path = match object_path.rsplit_once('.') {
+            Some((o, _)) => o,
+            None => break,
+        };
+    }
+    cpython2_regexes
+}
+
+
+fn get_package_for_python_object_path(
+    apt_mgr: &AptManager, object_path: &str, python_version: Option<&str>, specs: &[(String, String)],
+) -> Vec<DebianDependency> {
+    // Try to find the most specific file
+    let paths = match python_version {
+        Some("cpython3") => {
+            get_possible_python3_paths_for_python_object(object_path)
+        }
+        Some("cpython2") => {
+            get_possible_python2_paths_for_python_object(object_path)
+        }
+        Some("pypy") => {
+            get_possible_pypy_paths_for_python_object(object_path)
+        }
+        None => {
+            get_possible_python3_paths_for_python_object(object_path).into_iter().chain(
+                get_possible_python2_paths_for_python_object(object_path))
+               .chain(get_possible_pypy_paths_for_python_object(object_path)).collect()
+        }
+        _ => unimplemented!(),
+    };
+    let names = apt_mgr.get_packages_for_paths(paths.iter().map(|x| x.to_str().unwrap()).collect(), true, false).unwrap();
+    names.into_iter().map(|name| DebianDependency::from(python_spec_to_apt_rels(&name, Some(specs)))).collect()
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for PythonModuleDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> Option<Vec<DebianDependency>> {
+        let specs = if let Some(min_version) = &self.minimum_version {
+            vec![(">=".to_string(), min_version.to_string())]
+        } else {
+            vec![]
+        };
+        Some(get_package_for_python_object_path(
+            apt,
+            &self.module,
+            self.python_version.as_deref(),
+            specs.as_slice(),
+        ))
     }
 }

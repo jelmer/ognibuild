@@ -66,6 +66,19 @@ impl Dependency for HaskellPackageDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for HaskellPackageDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> Option<Vec<super::debian::DebianDependency>> {
+        let path = format!("/var/lib/ghc/package\\.conf\\.d/{}\\-.*\\.conf", regex::escape(&self.package));
+
+        let names = apt.get_packages_for_paths(vec![path.as_str()], true, false).unwrap();
+        if names.is_empty() {
+            None
+        } else {
+            Some(names.into_iter().map(|name| super::debian::DebianDependency::new(&name)).collect())
+        }
+    }
+}
+
 pub struct HackageResolver {
     session: Box<dyn Session>,
 }

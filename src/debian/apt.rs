@@ -1,5 +1,7 @@
 use crate::session::{get_user, Session};
-use crate::dependency::{Installer, Error as DependencyError, Explanation};
+use debversion::Version;
+use std::sync::RwLock;
+use crate::dependency::{Installer, Explanation};
 use crate::dependencies::debian::{DebianDependency, TieBreaker, default_tie_breakers};
 
 pub enum Error {
@@ -96,9 +98,9 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {}
 
 pub struct AptManager<'a> {
-    session: &'a dyn Session,
+    pub session: &'a dyn Session,
     prefix: Vec<String>,
-    searchers: Option<Vec<Box<dyn crate::debian::file_search::FileSearcher<'a> + 'a>>>,
+    searchers: RwLock<Option<Vec<Box<dyn crate::debian::file_search::FileSearcher<'a> + 'a>>>>,
 }
 
 impl<'a> AptManager<'a> {
@@ -106,19 +108,8 @@ impl<'a> AptManager<'a> {
         Self {
             session,
             prefix: prefix.unwrap_or_default(),
-            searchers: None,
+            searchers: RwLock::new(None),
         }
-    }
-
-    /// Get the list of file searchers
-    pub fn searchers(&'a mut self) -> &Vec<Box<dyn crate::debian::file_search::FileSearcher<'a> + 'a>> {
-        if self.searchers.is_none() {
-            self.searchers = Some(vec![
-                crate::debian::file_search::get_apt_contents_file_searcher(self.session).unwrap(),
-                Box::new(crate::debian::file_search::GENERATED_FILE_SEARCHER.clone()),
-            ]);
-        }
-        self.searchers.as_ref().unwrap()
     }
 
     pub fn from_session(session: &'a dyn Session) -> Self {
@@ -155,6 +146,52 @@ impl<'a> AptManager<'a> {
         args.extend(deps);
         args
     }
+
+    pub fn get_packages_for_paths(
+        &self, paths: Vec<&str>, regex: bool, case_insensitive: bool
+    ) -> Result<Vec<String>, Error> {
+        log::debug!("Searching for packages containing {:?}", paths);
+        if self.searchers.read().unwrap().is_none() {
+            *self.searchers.write().unwrap() = Some(vec![
+                crate::debian::file_search::get_apt_contents_file_searcher(self.session).unwrap(),
+                Box::new(crate::debian::file_search::GENERATED_FILE_SEARCHER.clone()),
+            ]);
+        }
+
+        Ok(crate::debian::file_search::get_packages_for_paths(
+            paths,
+            self.searchers.read().unwrap().as_ref().unwrap().iter().map(|s| s.as_ref()).collect::<Vec<_>>().as_slice(),
+            regex,
+            case_insensitive,
+        ))
+    }
+}
+
+pub fn find_deps_simple(
+    apt_mgr: &AptManager,
+    paths: Vec<&str>,
+    regex: bool,
+    case_insensitive: bool,
+) -> Result<Vec<DebianDependency>, Error> {
+    let packages = apt_mgr.get_packages_for_paths(paths, regex, case_insensitive)?;
+    Ok(packages
+        .iter()
+        .map(|package| DebianDependency::simple(package))
+        .collect())
+}
+
+pub fn find_deps_with_min_version(
+    apt_mgr: &AptManager,
+    paths: Vec<&str>,
+    regex: bool,
+    minimum_version: &Version,
+    case_insensitive: bool,
+) -> Result<Vec<DebianDependency>, Error> {
+    let packages = apt_mgr.get_packages_for_paths(paths, regex, case_insensitive)?;
+    Ok(packages
+        .iter()
+        .map(|package| DebianDependency::new_with_min_version(package, minimum_version))
+        .collect())
 }
 
 pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Result<(), Error> {
@@ -215,14 +252,23 @@ fn pick_best_deb_dependency(mut dependencies: Vec<DebianDependency>, tie_breaker
     Some(dependencies.remove(0))
 }
 
-pub fn dependency_to_deb_dependency(dep: &dyn crate::dependency::Dependency, tie_breakers: &[Box<dyn TieBreaker>]) -> Result<Option<DebianDependency>, crate::dependency::Error> {
-
+pub fn dependency_to_possible_deb_dependencies(apt: &AptManager, dep: &dyn crate::dependency::Dependency) -> Vec<DebianDependency> {
     let mut candidates = vec![]; // TODO
+
+    candidates
+}
+
+pub fn dependency_to_deb_dependency(apt: &AptManager, dep: &dyn crate::dependency::Dependency, tie_breakers: &[Box<dyn TieBreaker>]) -> Result<Option<DebianDependency>, crate::dependency::Error> {
+    let candidates = dependency_to_possible_deb_dependencies(apt, dep);
+
+    if candidates.is_empty() {
+        return Ok(None);
+    }
 
     Ok(pick_best_deb_dependency(candidates, tie_breakers))
 }
 
-struct AptInstaller<'a> {
+pub struct AptInstaller<'a> {
     apt: AptManager<'a>,
     tie_breakers: Vec<Box<dyn TieBreaker>>,
 }
@@ -246,11 +292,20 @@ impl<'a> AptInstaller<'a> {
 
 impl<'a> Installer for AptInstaller<'a> {
     fn install(&self, dep: &dyn crate::dependency::Dependency, scope: crate::dependency::InstallationScope) -> Result<(), crate::dependency::Error> {
+        match scope {
+            crate::dependency::InstallationScope::User => {
+                return Err(crate::dependency::Error::UnsupportedScope(scope));
+            }
+            crate::dependency::InstallationScope::Global => {}
+            crate::dependency::InstallationScope::Vendor => {
+                return Err(crate::dependency::Error::UnsupportedScope(scope));
+            }
+        }
         if dep.present(self.apt.session) {
             return Ok(());
         }
 
-        let apt_deb = if let Some(apt_deb) = dependency_to_deb_dependency(dep, &mut self.tie_breakers.as_slice())? {
+        let apt_deb = if let Some(apt_deb) = dependency_to_deb_dependency(&self.apt, dep, self.tie_breakers.as_slice())? {
             apt_deb
         } else {
             return Err(crate::dependency::Error::UnknownDependencyFamily);
@@ -264,7 +319,7 @@ impl<'a> Installer for AptInstaller<'a> {
     }
 
     fn explain(&self, dep: &dyn crate::dependency::Dependency, _scope: crate::dependency::InstallationScope) -> Result<crate::dependency::Explanation, crate::dependency::Error> {
-        let apt_deb = if let Some(apt_deb) = dependency_to_deb_dependency(dep, &mut self.tie_breakers.as_slice())? {
+        let apt_deb = if let Some(apt_deb) = dependency_to_deb_dependency(&self.apt, dep, self.tie_breakers.as_slice())? {
             apt_deb
         } else {
             return Err(crate::dependency::Error::UnknownDependencyFamily);

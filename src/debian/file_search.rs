@@ -502,12 +502,12 @@ lazy_static::lazy_static! {
 /// # Returns
 /// A list of packages that provide the given paths.
 pub fn get_packages_for_paths(
-    paths: Vec<&str>, searchers: Vec<&dyn FileSearcher>, regex: bool, case_insensitive: bool
+    paths: Vec<&str>, searchers: &[&dyn FileSearcher], regex: bool, case_insensitive: bool
 ) -> Vec<String> {
     let mut candidates = vec![];
     // TODO(jelmer): Combine these, perhaps by creating one gigantic regex?
     for path in paths {
-        for searcher in &searchers {
+        for searcher in searchers {
             for pkg in if regex {
                 searcher.search_files_regex(path, case_insensitive)
             } else {

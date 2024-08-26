@@ -2,6 +2,7 @@ use crate::dependency::{Installer, Explanation, Error, Dependency, InstallationS
 use crate::session::Session;
 use std::str::FromStr;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GoPackageDependency {
@@ -52,6 +53,18 @@ impl Dependency for GoPackageDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for GoPackageDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let names = apt.get_packages_for_paths(
+            vec![Path::new("/usr/share/gocode/src").join(regex::escape(&self.package)).join(".*").to_str().unwrap()], true, false).unwrap();
+        if names.is_empty() {
+            return None;
+        }
+
+        Some(names.iter().map(|name| crate::dependencies::debian::DebianDependency::new(name)).collect())
     }
 }
 
@@ -159,7 +172,7 @@ impl Installer for GoResolver {
 }
 
 impl crate::dependencies::debian::IntoDebianDependency for GoDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         if let Some(version) = &self.version {
             Some(vec![crate::dependencies::debian::DebianDependency::new_with_min_version("golang-go", &version.parse().unwrap())])
         } else {

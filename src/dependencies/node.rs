@@ -40,6 +40,26 @@ impl Dependency for NodePackageDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> Option<Vec<super::debian::DebianDependency>> {
+        let paths = vec![
+            format!("/usr/share/nodejs/.*/node_modules/{}/package\\.json", regex::escape(&self.package)),
+            format!("/usr/lib/nodejs/{}/package\\.json", regex::escape(&self.package)),
+            format!("/usr/share/nodejs/{}/package\\.json", regex::escape(&self.package)),
+        ];
+
+        let names = apt.get_packages_for_paths(
+            paths.iter().map(|p| p.as_str()).collect(),
+            true, false).unwrap();
+
+        if names.is_empty() {
+            None
+        } else {
+            Some(names.into_iter().map(|name| super::debian::DebianDependency::new(&name)).collect())
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeModuleDependency {
     module: String,
@@ -84,21 +104,41 @@ impl Dependency for NodeModuleDependency {
     }
 }
 
-    fn command_package(command: &str) -> Option<&str> {
-        match command {
-            "del-cli" => Some("del-cli"),
-            "husky" => Some("husky"),
-            "cross-env" => Some("cross-env"),
-            "xo" => Some("xo"),
-            "standard" => Some("standard"),
-            "jshint" => Some("jshint"),
-            "if-node-version" => Some("if-node-version"),
-            "babel-cli" => Some("babel"),
-            "c8" => Some("c8"),
-            "prettier-standard" => Some("prettier-standard"),
-            _ => None,
+impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> Option<Vec<super::debian::DebianDependency>> {
+        let paths = vec![
+            format!("/usr/share/nodejs/.*/node_modules/{}/package\\.json", regex::escape(&self.module)),
+            format!("/usr/lib/nodejs/{}/package\\.json", regex::escape(&self.module)),
+            format!("/usr/share/nodejs/{}/package\\.json", regex::escape(&self.module)),
+        ];
+
+        let names = apt.get_packages_for_paths(
+            paths.iter().map(|p| p.as_str()).collect(),
+            true, false).unwrap();
+
+        if names.is_empty() {
+            None
+        } else {
+            Some(names.into_iter().map(|name| super::debian::DebianDependency::new(&name)).collect())
         }
     }
+}
+
+fn command_package(command: &str) -> Option<&str> {
+    match command {
+        "del-cli" => Some("del-cli"),
+        "husky" => Some("husky"),
+        "cross-env" => Some("cross-env"),
+        "xo" => Some("xo"),
+        "standard" => Some("standard"),
+        "jshint" => Some("jshint"),
+        "if-node-version" => Some("if-node-version"),
+        "babel-cli" => Some("babel"),
+        "c8" => Some("c8"),
+        "prettier-standard" => Some("prettier-standard"),
+        _ => None,
+    }
+}
 
 pub struct NpmResolver {
     session: Box<dyn Session>,
