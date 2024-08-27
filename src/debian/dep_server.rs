@@ -1,4 +1,4 @@
-use crate::dependency::{Error, Dependency, Resolver};
+use crate::dependency::{Error, Dependency};
 use crate::debian::apt::AptManager;
 use tokio::runtime::Runtime;
 use crate::dependencies::debian::{DebianDependency, TieBreaker};
@@ -45,33 +45,24 @@ async fn resolve_apt_requirement_dep_server(
     }
 }
 
-pub struct DepServerAptResolver<'a> {
-    apt: AptManager<'a>,
+pub struct DepServerAptResolver {
     dep_server_url: Url,
-    tie_breakers: Vec<Box<dyn TieBreaker>>,
 }
 
-impl<'a> DepServerAptResolver<'a> {
-    pub fn new(apt: AptManager<'a>, dep_server_url: Url, tie_breakers: Vec<Box<dyn TieBreaker>>) -> Self {
+impl DepServerAptResolver {
+    pub fn new(dep_server_url: Url) -> Self {
         Self {
-            apt,
             dep_server_url,
-            tie_breakers,
         }
     }
 
-    pub fn from_session(session: &'a dyn Session, dep_server_url: Url, tie_breakers: Vec<Box<dyn TieBreaker>>) -> Self {
+    pub fn from_session(dep_server_url: Url) -> Self {
         Self {
-            apt: AptManager::from_session(session),
             dep_server_url,
-            tie_breakers,
         }
     }
-}
 
-impl<'a> Resolver for DepServerAptResolver<'a> {
-    type Target = DebianDependency;
-    fn resolve(&self, req: &dyn Dependency) -> Result<Option<DebianDependency>, Error> {
+    pub fn resolve(&self, req: &dyn Dependency) -> Result<Option<DebianDependency>, Error> {
         let rt = Runtime::new().unwrap();
         match rt.block_on(resolve_apt_requirement_dep_server(&self.dep_server_url, req)) {
             Ok(deps) => Ok(deps),

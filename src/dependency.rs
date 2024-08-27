@@ -1,4 +1,5 @@
 use crate::session::Session;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum Error {
@@ -46,25 +47,6 @@ pub trait Dependency: std::fmt::Debug {
     fn project_present(&self, session: &dyn Session) -> bool;
 
     fn as_any(&self) -> &dyn std::any::Any;
-}
-
-/// A resolver can take one type of dependency and resolve it into another.
-pub trait Resolver {
-    type Target: Dependency;
-    fn resolve(&self, dep: &dyn Dependency) -> Result<Option<Self::Target>, Error>;
-
-    /// Resolve a list of dependencies, returning only the ones that could be resolved.
-    fn resolve_some(&self, deps: Vec<Box<dyn Dependency>>) -> Result<Vec<Self::Target>, Error> {
-        let mut resolved = Vec::new();
-        for dep in deps {
-            match self.resolve(&*dep) {
-                Ok(Some(dep)) => resolved.push(dep),
-                Ok(None) => {}
-                Err(e) => return Err(e),
-            }
-        }
-        Ok(resolved)
-    }
 }
 
 /// An explanation is a human-readable description of what to do to install a dependency.
