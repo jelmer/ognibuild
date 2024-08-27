@@ -1525,6 +1525,7 @@ dependencies = [
  "env_logger 0.10.2",
  "flate2",
  "fs_extra",
+ "inventory",
  "lazy_static",
  "libc",
  "log",

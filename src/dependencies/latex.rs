@@ -45,13 +45,13 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
     }
 }
 
-pub struct TlmgrResolver {
-    session: Box<dyn Session>,
+pub struct TlmgrResolver<'a> {
+    session: &'a dyn Session,
     repository: String,
 }
 
-impl TlmgrResolver {
-    pub fn new(session: Box<dyn Session>, repository: &str) -> Self {
+impl<'a> TlmgrResolver<'a> {
+    pub fn new(session: &'a dyn Session, repository: &str) -> Self {
         Self {
             session,
             repository: repository.to_string(),
@@ -78,7 +78,7 @@ impl TlmgrResolver {
     }
 }
 
-impl Installer for TlmgrResolver {
+impl<'a> Installer for TlmgrResolver<'a> {
 
     fn explain(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
         let dep = dep
@@ -101,7 +101,7 @@ impl Installer for TlmgrResolver {
         log::info!("tlmgr: running {:?}", cmd);
 
         match run_detecting_problems(
-            self.session.as_ref(), cmd.iter().map(|x| x.as_str()).collect(), None, false, None, None, None, None, None, None) {
+            self.session, cmd.iter().map(|x| x.as_str()).collect(), None, false, None, None, None, None, None, None) {
             Ok(_) => Ok(()),
             Err(AnalyzedError::Unidentified { lines, retcode, secondary }) => {
                 if lines.contains(&"tlmgr: user mode not initialized, please read the documentation!".to_string()) {
@@ -120,6 +120,6 @@ impl Installer for TlmgrResolver {
     }
 }
 
-pub fn ctan(session: Box<dyn Session>) -> Box<dyn Installer> {
-    Box::new(TlmgrResolver::new(session, "ctan"))
+pub fn ctan<'a>(session: &'a dyn Session) -> TlmgrResolver<'a> {
+    TlmgrResolver::new(session, "ctan")
 }

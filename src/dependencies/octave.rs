@@ -53,12 +53,12 @@ impl Dependency for OctavePackageDependency {
     }
 }
 
-pub struct OctaveForgeResolver {
-    session: Box<dyn Session>,
+pub struct OctaveForgeResolver<'a> {
+    session: &'a dyn Session,
 }
 
-impl OctaveForgeResolver {
-    pub fn new(session: Box<dyn Session>) -> Self {
+impl<'a> OctaveForgeResolver<'a> {
+    pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }
 
@@ -73,7 +73,7 @@ impl OctaveForgeResolver {
     }
 }
 
-impl Installer for OctaveForgeResolver {
+impl<'a> Installer for OctaveForgeResolver<'a> {
     fn explain(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
         let requirement = requirement
             .as_any()
@@ -93,7 +93,7 @@ impl Installer for OctaveForgeResolver {
             .unwrap();
         let cmd = self.cmd(requirement, scope)?;
         log::info!("Octave: installing {}", requirement.package);
-        crate::analyze::run_detecting_problems(self.session.as_ref(), cmd.iter().map(|x| x.as_str()).collect(), None, false, None, None, None, None, None, None)?;
+        crate::analyze::run_detecting_problems(self.session, cmd.iter().map(|x| x.as_str()).collect(), None, false, None, None, None, None, None, None)?;
         Ok(())
     }
 }

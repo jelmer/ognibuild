@@ -153,12 +153,12 @@ fn command_package(command: &str) -> Option<&str> {
     }
 }
 
-pub struct NpmResolver {
-    session: Box<dyn Session>,
+pub struct NpmResolver<'a> {
+    session: &'a dyn Session,
 }
 
-impl NpmResolver {
-    pub fn new(session: Box<dyn Session>) -> Self {
+impl<'a> NpmResolver<'a> {
+    pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }
 
@@ -203,7 +203,7 @@ fn to_node_package_req(requirement: &dyn Dependency) -> Option<NodePackageDepend
     }
 }
 
-impl Installer for NpmResolver {
+impl<'a> Installer for NpmResolver<'a> {
     fn explain(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
         let requirement = to_node_package_req(requirement)
             .ok_or(Error::UnknownDependencyFamily)?;
@@ -220,7 +220,7 @@ impl Installer for NpmResolver {
 
         let cmd = &self.cmd(&[&requirement], scope)?;
         crate::analyze::run_detecting_problems(
-            self.session.as_ref(),
+            self.session,
             cmd.iter().map(|s| s.as_str()).collect(),
             None,
             false,

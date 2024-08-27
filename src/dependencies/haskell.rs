@@ -91,12 +91,12 @@ impl crate::dependencies::debian::IntoDebianDependency for HaskellPackageDepende
     }
 }
 
-pub struct HackageResolver {
-    session: Box<dyn Session>,
+pub struct HackageResolver<'a> {
+    session: &'a dyn Session,
 }
 
-impl HackageResolver {
-    pub fn new(session: Box<dyn Session>) -> Self {
+impl<'a> HackageResolver<'a> {
+    pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }
 
@@ -117,13 +117,13 @@ impl HackageResolver {
     }
 }
 
-impl Installer for HackageResolver {
+impl<'a> Installer for HackageResolver<'a> {
     fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
         let user = if scope != InstallationScope::Global { None } else { Some("root") };
         if let Some(requirement) = requirement.as_any().downcast_ref::<HaskellPackageDependency>() {
             let cmd = self.cmd(&[requirement], scope)?;
             log::info!("Hackage: running {:?}", cmd);
-            crate::analyze::run_detecting_problems(self.session.as_ref(), cmd.iter().map(|x| x.as_str()).collect() , None, false, None, user, None, None, None, None)?;
+            crate::analyze::run_detecting_problems(self.session, cmd.iter().map(|x| x.as_str()).collect() , None, false, None, user, None, None, None, None)?;
             Ok(())
         } else {
             Err(Error::UnknownDependencyFamily)
