@@ -70,11 +70,11 @@ impl crate::dependencies::debian::IntoDebianDependency for BinaryDependency {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PytestPlugin {
+pub struct PytestPluginDependency {
     pub plugin: String,
 }
 
-impl PytestPlugin {
+impl PytestPluginDependency {
     pub fn new(plugin: &str) -> Self {
         Self {
             plugin: plugin.to_string(),
@@ -107,7 +107,7 @@ fn pytest_plugins(session: &dyn Session) -> Option<Vec<(String, String)>> {
     None
 }
 
-impl Dependency for PytestPlugin {
+impl Dependency for PytestPluginDependency {
     fn family(&self) -> &'static str {
         "pytest-plugin"
     }
@@ -129,7 +129,7 @@ impl Dependency for PytestPlugin {
     }
 }
 
-impl crate::dependencies::debian::IntoDebianDependency for PytestPlugin {
+impl crate::dependencies::debian::IntoDebianDependency for PytestPluginDependency {
     fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         Some(vec![crate::dependencies::debian::DebianDependency::simple(&format!("python3-pytest-{}", self.plugin))])
     }

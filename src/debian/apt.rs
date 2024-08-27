@@ -2,7 +2,7 @@ use crate::session::{get_user, Session};
 use debversion::Version;
 use std::sync::RwLock;
 use crate::dependency::{Installer, Explanation};
-use crate::dependencies::debian::{DebianDependency, TieBreaker, default_tie_breakers};
+use crate::dependencies::debian::{DebianDependency, TieBreaker, default_tie_breakers, IntoDebianDependency};
 
 pub enum Error {
     Unidentified {
@@ -253,7 +253,64 @@ fn pick_best_deb_dependency(mut dependencies: Vec<DebianDependency>, tie_breaker
 }
 
 pub fn dependency_to_possible_deb_dependencies(apt: &AptManager, dep: &dyn crate::dependency::Dependency) -> Vec<DebianDependency> {
-    let mut candidates = vec![]; // TODO
+    let mut candidates = vec![];
+    macro_rules! try_into_debian_dependency {
+        ($apt:expr, $dep:expr, $type:ty) => {
+            if let Some(dep) = $dep.as_any().downcast_ref::<$type>() {
+                if let Some(alts) = dep.try_into_debian_dependency($apt) {
+                    candidates.extend(alts);
+                }
+            }
+        };
+    }
+
+    // TODO: More idiomatic way to do this?
+    try_into_debian_dependency!(apt, dep, crate::dependencies::go::GoPackageDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::go::GoDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::haskell::HaskellPackageDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::java::JavaClassDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::java::JDKDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::java::JREDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::java::JDKFileDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::BinaryDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::PytestPluginDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::VcsControlDirectoryAccessDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::CargoCrateDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::PkgConfigDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::PathDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::CHeaderDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::JavaScriptRuntimeDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::ValaPackageDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::RubyGemDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::DhAddonDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::LibraryDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::StaticLibraryDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::RubyFileDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::XmlEntityDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::SprocketsFile);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::CMakefileDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::MavenArtifactDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::GnomeCommonDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::QtModuleDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::QTDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::X11Dependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::CertificateAuthorityDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::AutoconfMacroDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::LibtoolDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::BoostComponentDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::KF5ComponentDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::IntrospectionTypelibDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::node::NodePackageDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::node::NodeModuleDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::octave::OctavePackageDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::perl::PerlPreDeclaredDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::perl::PerlModuleDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::perl::PerlFileDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::php::PhpClassDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::php::PhpExtensionDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::python::PythonModuleDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::r::RPackageDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::vague::VagueDependency);
 
     candidates
 }
