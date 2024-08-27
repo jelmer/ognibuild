@@ -2,14 +2,14 @@ use log::{info, warn};
 use std::fmt::{Debug, Display};
 use buildlog_consultant::Problem;
 
-pub trait BuildFixer<O>: std::fmt::Debug + std::fmt::Display {
+pub trait BuildFixer<O: std::error::Error>: std::fmt::Debug + std::fmt::Display {
     fn can_fix(&self, problem: &dyn Problem) -> bool;
 
     fn fix(&self, problem: &dyn Problem, phase: &[&str]) -> Result<bool, Error<O>>;
 }
 
 #[derive(Debug)]
-pub enum Error<O> {
+pub enum Error<O: std::error::Error> {
     BuildProblem(Box<dyn Problem>),
     Other(O),
 }
@@ -21,7 +21,19 @@ pub enum IterateBuildError<O> {
     Other(O),
 }
 
-impl<O> From<Error<O>> for IterateBuildError<O> {
+impl<O: Display> Display for IterateBuildError<O> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IterateBuildError::FixerLimitReached(limit) => write!(f, "Fixer limit reached: {}", limit),
+            IterateBuildError::PersistentBuildProblem(p) => write!(f, "Persistent build problem: {}", p),
+            IterateBuildError::Other(e) => write!(f, "Other error: {}", e),
+        }
+    }
+}
+
+impl<O: std::error::Error> std::error::Error for IterateBuildError<O> {}
+
+impl<O: std::error::Error> From<Error<O>> for IterateBuildError<O> {
     fn from(e: Error<O>) -> Self {
         match e {
             Error::BuildProblem(_) => unreachable!(),
@@ -36,7 +48,7 @@ impl<O> From<Error<O>> for IterateBuildError<O> {
 /// * `fixers`: List of fixers to use to resolve issues
 /// * `cb`: Callable to run the build
 /// * `limit: Maximum number of fixing attempts before giving up
-pub fn iterate_with_build_fixers<T, O>(
+pub fn iterate_with_build_fixers<T, O: std::error::Error>(
     fixers: &[&dyn BuildFixer<O>],
     phase: &[&str],
     mut cb: impl FnMut() -> Result<T, Error<O>>,
@@ -87,7 +99,7 @@ pub fn iterate_with_build_fixers<T, O>(
     }
 }
 
-pub fn resolve_error<O>(
+pub fn resolve_error<O: std::error::Error>(
     problem: &dyn Problem,
     phase: &[&str],
     fixers: &[&dyn BuildFixer<O>],
@@ -111,3 +123,26 @@ pub fn resolve_error<O>(
 }
 
 
+pub fn run_with_build_fixers<O: std::error::Error + From<crate::analyze::AnalyzedError>>(
+    fixers: &[&dyn BuildFixer<O>],
+    limit: Option<usize>,
+    session: &dyn crate::session::Session,
+    args: &[&str],
+    quiet: bool,
+) -> Result<Vec<String>, IterateBuildError<O>> {
+    iterate_with_build_fixers::<Vec<String>, O>(
+        fixers,
+        &["build"],
+        || {
+            crate::analyze::run_detecting_problems(session, args.to_vec(), None, quiet, None, None, None, None, None, None)
+                .map_err(|e| match e {
+                    crate::analyze::AnalyzedError::Detailed { retcode: _, error } => Error::BuildProblem(error),
+                    e => Error::Other(e.into()),
+                })},
+        limit,
+    ).map_err(|e| match e {
+        IterateBuildError::FixerLimitReached(_) => IterateBuildError::FixerLimitReached(limit.unwrap()),
+        IterateBuildError::PersistentBuildProblem(p) => IterateBuildError::PersistentBuildProblem(p),
+        IterateBuildError::Other(e) => IterateBuildError::Other(e.into()),
+    })
+}

@@ -1,5 +1,6 @@
 use crate::dependencies::BinaryDependency;
 use crate::dependency::Dependency;
+use crate::output::Output;
 use crate::installer::{Error as InstallerError, InstallationScope, Installer, install_missing_deps};
 use crate::session::{which, Session};
 use std::path::{Path, PathBuf};
@@ -56,6 +57,13 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+#[derive(Debug, Clone)]
+pub struct InstallTarget {
+    pub scope: InstallationScope,
+
+    pub prefix: Option<PathBuf>,
+}
+
 impl DependencyCategory {
     pub fn all() -> [DependencyCategory; 5] {
         [
@@ -102,7 +110,7 @@ pub trait BuildSystem {
         installer: &dyn Installer,
         target_directory: &Path,
         quiet: bool,
-    ) -> Result<(), Error>;
+    ) -> Result<std::ffi::OsString, Error>;
 
     fn install_declared_dependencies(
         &self,
@@ -129,7 +137,7 @@ pub trait BuildSystem {
         &self,
         session: &dyn Session,
         installer: &dyn Installer,
-        install_target: &Path,
+        install_target: &InstallTarget
     ) -> Result<(), Error>;
 
     fn get_declared_dependencies(
@@ -142,7 +150,7 @@ pub trait BuildSystem {
         &self,
         session: &dyn Session,
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
-    ) -> Vec<PathBuf>;
+    ) -> Result<Vec<Box<dyn Output>>, Error>;
 }
 
 pub const PEAR_NAMESPACES: &[&str] = &[
@@ -157,7 +165,7 @@ impl Pear {
         Self(path)
     }
 
-    pub fn probe(path: &Path) -> Option<Self> {
+    pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         let package_xml_path = path.join("package.xml");
         if !package_xml_path.exists() {
             return None;
@@ -182,7 +190,7 @@ impl Pear {
 
         log::debug!("Found package.xml with namespace {}, assuming pear package.", root.namespace.as_ref().unwrap());
 
-        Some(Self(PathBuf::from(path)))
+        Some(Box::new(Self(PathBuf::from(path))))
     }
 }
 
@@ -197,14 +205,14 @@ impl BuildSystem for Pear {
         installer: &dyn Installer,
         target_directory: &Path,
         quiet: bool,
-    ) -> Result<(), Error> {
+    ) -> Result<std::ffi::OsString, Error> {
         let dc = crate::dist_catcher::DistCatcher::new(vec![session.external_path(Path::new("."))]);
         let pear = guaranteed_which(session, installer, "pear")?;
         crate::analyze::run_detecting_problems(
             session,
             vec![pear.to_str().unwrap(), "package"],
             None,
-            false,
+            quiet,
             None,
             None,
             None,
@@ -212,8 +220,7 @@ impl BuildSystem for Pear {
             None,
             None,
         )?;
-        dc.copy_single(target_directory).unwrap();
-        Ok(())
+        Ok(dc.copy_single(target_directory).unwrap().unwrap())
     }
 
     fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
@@ -235,7 +242,7 @@ impl BuildSystem for Pear {
         Ok(())
     }
 
-    fn clean(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+    fn clean(&self, _session: &dyn Session, _installer: &dyn Installer) -> Result<(), Error> {
         todo!()
     }
 
@@ -243,7 +250,7 @@ impl BuildSystem for Pear {
         &self,
         session: &dyn Session,
         installer: &dyn Installer,
-        install_target: &Path,
+        _install_target: &InstallTarget
     ) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
         crate::analyze::run_detecting_problems(
@@ -256,8 +263,8 @@ impl BuildSystem for Pear {
 
     fn get_declared_dependencies(
         &self,
-        session: &dyn Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+        _session: &dyn Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error> {
         let path = self.0.join("package.xml");
         use xmltree::Element;
@@ -301,9 +308,9 @@ impl BuildSystem for Pear {
 
     fn get_declared_outputs(
         &self,
-        session: &dyn Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
-    ) -> Vec<PathBuf> {
+        _session: &dyn Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+    ) -> Result<Vec<Box<dyn Output>>, Error> {
         todo!()
     }
 }
@@ -329,10 +336,10 @@ pub fn scan_buildsystems(path: &Path) -> Vec<(PathBuf, Box<dyn BuildSystem>)> {
 }
 
 pub fn detect_buildsystems(path: &std::path::Path) -> Option<Box<dyn BuildSystem>> {
-    for probe in [Pear::probe/*, SetupPy::probe, Npm::probe, Npm::probe, Waf::Probe, Meson::probe, Cargo::probe, Cabal::Probe, Gradle::probe, Maven::probe, DistZilla::probe, Gem::probe, PerlBuildTiny::probe, Golang::probe, R::probe, Octave::probe, Bazel::probe, CMake::probe, GnomeShellExtension::probe, /* Make is intentionally at the end of the list. */ Make::probe, Composer::probe, RunTests::probe*/] {
+    for probe in [Pear::probe, crate::buildsystems::python::SetupPy::probe/*, Npm::probe, Npm::probe, Waf::Probe, Meson::probe, Cargo::probe, Cabal::Probe, Gradle::probe, Maven::probe, DistZilla::probe, Gem::probe, PerlBuildTiny::probe, Golang::probe, R::probe, Octave::probe, Bazel::probe, CMake::probe, GnomeShellExtension::probe, /* Make is intentionally at the end of the list. */ Make::probe, Composer::probe, RunTests::probe*/] {
         let bs = probe(path);
         if let Some(bs) = bs {
-            return Some(Box::new(bs));
+            return Some(bs);
         }
     }
     None
