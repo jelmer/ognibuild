@@ -12,7 +12,7 @@ homepage = "https://github.com/jelmer/ognibuild"
 axum = { version = "0.7", optional = true, features = ["json", "http2", "tokio"] }
 breezyshim = { workspace = true }
 #buildlog-consultant = "0.0.39"
-buildlog-consultant = { git = "https://github.com/jelmer/buildlog-consultant" }
+buildlog-consultant.workspace = true
 chrono = "0.4.38"
 clap = { version = "4", features = ["derive"], optional = true }
 debian-changelog = { version = "0.1", optional = true }
@@ -56,6 +56,7 @@ dep-server = ["dep:axum", "dep:tokio"]
 [workspace.dependencies]
 pyo3 = "0.22"
 breezyshim = "0.1"
+buildlog-consultant = { git = "https://github.com/jelmer/buildlog-consultant" }
 
 [workspace]
 members = ["ognibuild-py"]

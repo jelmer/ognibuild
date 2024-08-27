@@ -1555,8 +1555,10 @@ name = "ognibuild-py"
 version = "0.0.24"
 dependencies = [
  "breezyshim",
+ "buildlog-consultant",
  "ognibuild",
  "pyo3",
+ "serde_json",
 ]
 
 [[package]]

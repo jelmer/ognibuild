@@ -85,6 +85,50 @@ impl std::fmt::Debug for PyProblem {
     }
 }
 
+fn py_to_json(py: Python, obj: PyObject) -> PyResult<serde_json::Value> {
+    if let Ok(s) = obj.extract::<String>(py) {
+        return Ok(serde_json::Value::String(s));
+    } else if let Ok(n) = obj.extract::<i64>(py) {
+        return Ok(serde_json::Value::Number(n.into()));
+    } else if let Ok(b) = obj.extract::<bool>(py) {
+        return Ok(serde_json::Value::Bool(b));
+    } else if obj.is_none(py) {
+        return Ok(serde_json::Value::Null);
+    } else if let Ok(l) = obj.extract::<Vec<PyObject>>(py) {
+        return Ok(serde_json::Value::Array(l.into_iter().map(|x| py_to_json(py, x)).collect::<PyResult<_>>()?));
+    } else if let Ok(d) = obj.extract::<HashMap<String, PyObject>>(py) {
+        return Ok(serde_json::Value::Object(
+            d.into_iter()
+                .map(|(k, v)| Ok((k, py_to_json(py, v)?)))
+                .collect::<PyResult<_>>()?,
+        ));
+    } else {
+        return Err(pyo3::exceptions::PyTypeError::new_err(("Cannot convert to JSON",)));
+    }
+}
+
+impl buildlog_consultant::Problem for PyProblem {
+    fn kind(&self) -> std::borrow::Cow<str> {
+        std::borrow::Cow::Owned(pyo3::Python::with_gil(|py| {
+            let kind = self.0.getattr(py, "kind")?;
+            kind.call0(py)?.extract(py)
+        })
+        .unwrap())
+    }
+
+    fn json(&self) -> serde_json::Value {
+        pyo3::Python::with_gil(|py| {
+            let json = self.0.call_method0(py, "json")?;
+            py_to_json(py, json)
+        })
+        .unwrap_or_else(|_| serde_json::Value::Null)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
 struct PyBuildFixer(PyObject);
 
 impl std::fmt::Debug for PyBuildFixer {
@@ -99,23 +143,35 @@ impl std::fmt::Display for PyBuildFixer {
     }
 }
 
-impl ognibuild::fix_build::BuildFixer<PyErr, PyProblem> for PyBuildFixer {
-    fn can_fix(&self, problem: &PyProblem) -> bool {
-        pyo3::Python::with_gil(|py| {
+impl ognibuild::fix_build::BuildFixer<PyErr> for PyBuildFixer {
+    fn can_fix(&self, problem: &dyn buildlog_consultant::Problem) -> bool {
+        let p = if let Some(p) = problem.as_any().downcast_ref::<PyProblem>() {
+            p
+        } else {
+            return false;
+        };
+        Python::with_gil(|py| {
             let can_fix = self.0.getattr(py, "can_fix")?;
-            can_fix.call1(py, (problem.0.clone_ref(py),))?.extract(py)
+            can_fix.call1(py, (p.0.clone_ref(py),))?.extract(py)
         })
         .unwrap_or(false)
     }
 
     fn fix(
         &self,
-        problem: &PyProblem,
+        problem: &dyn buildlog_consultant::Problem,
         phase: &[&str],
-    ) -> Result<bool, ognibuild::fix_build::Error<PyErr, PyProblem>> {
+    ) -> Result<bool, ognibuild::fix_build::Error<PyErr>> {
+        let p = if let Some(p) = problem.as_any().downcast_ref::<PyProblem>() {
+            p
+        } else {
+            return Err(ognibuild::fix_build::Error::Other(PyErr::new::<PyException, _>(
+                ("Problem is not a PyProblem",),
+            )));
+        };
         pyo3::Python::with_gil(|py| {
             let fix = self.0.getattr(py, "fix")?;
-            fix.call1(py, (problem.0.clone_ref(py), phase.to_vec()))?
+            fix.call1(py, (p.0.clone_ref(py), phase.to_vec()))?
                 .extract(py)
         })
         .map_err(ognibuild::fix_build::Error::Other)
@@ -134,13 +190,13 @@ fn iterate_with_build_fixers(
         .into_iter()
         .map(|e| Box::new(PyBuildFixer(e)))
         .collect::<Vec<_>>();
-    let cb = || -> Result<_, ognibuild::fix_build::Error<PyErr, PyProblem>> {
+    let cb = || -> Result<_, ognibuild::fix_build::Error<PyErr>> {
         pyo3::Python::with_gil(|py| cb.call0(py).map_err(ognibuild::fix_build::Error::Other))
     };
     ognibuild::fix_build::iterate_with_build_fixers(
         fixers
             .iter()
-            .map(|p| p.as_ref() as &dyn ognibuild::fix_build::BuildFixer<PyErr, PyProblem>)
+            .map(|p| p.as_ref() as &dyn ognibuild::fix_build::BuildFixer<PyErr>)
             .collect::<Vec<_>>()
             .as_slice(),
         phase
@@ -157,9 +213,10 @@ fn iterate_with_build_fixers(
             import_exception!(silver_platter.fix_build, FixerLimitReached);
             PyErr::new::<FixerLimitReached, _>((limit,))
         }
-        ognibuild::fix_build::IterateBuildError::PersistentBuildProblem(problem) => {
+        ognibuild::fix_build::IterateBuildError::PersistentBuildProblem(_problem) => {
             import_exception!(silver_platter.fix_build, PersistentBuildProblem);
-            PyErr::new::<PersistentBuildProblem, _>((problem,))
+            let p = _problem.as_any().downcast_ref::<PyProblem>().unwrap();
+            PyErr::new::<PersistentBuildProblem, _>((Python::with_gil(|py| p.0.clone_ref(py)),))
         }
     })
 }
@@ -183,7 +240,7 @@ fn resolve_error(
             .as_slice(),
         fixers
             .iter()
-            .map(|p| p as &dyn ognibuild::fix_build::BuildFixer<PyErr, PyProblem>)
+            .map(|p| p as &dyn ognibuild::fix_build::BuildFixer<PyErr>)
             .collect::<Vec<_>>()
             .as_slice(),
     );
@@ -192,7 +249,8 @@ fn resolve_error(
         Err(e) => Err(match e {
             ognibuild::fix_build::Error::Other(e) => e,
             ognibuild::fix_build::Error::BuildProblem(problem) => {
-                PyErr::from_value_bound(problem.0.into_bound(py))
+                let p = problem.as_any().downcast_ref::<PyProblem>().unwrap();
+                PyErr::from_value_bound(p.0.clone_ref(py).into_bound(py))
             }
         }),
     }

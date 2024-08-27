@@ -1,27 +1,28 @@
 use log::{info, warn};
 use std::fmt::{Debug, Display};
+use buildlog_consultant::Problem;
 
-pub trait BuildFixer<O, P>: std::fmt::Debug + std::fmt::Display {
-    fn can_fix(&self, problem: &P) -> bool;
+pub trait BuildFixer<O>: std::fmt::Debug + std::fmt::Display {
+    fn can_fix(&self, problem: &dyn Problem) -> bool;
 
-    fn fix(&self, problem: &P, phase: &[&str]) -> Result<bool, Error<O, P>>;
+    fn fix(&self, problem: &dyn Problem, phase: &[&str]) -> Result<bool, Error<O>>;
 }
 
 #[derive(Debug)]
-pub enum Error<O, P> {
-    BuildProblem(P),
+pub enum Error<O> {
+    BuildProblem(Box<dyn Problem>),
     Other(O),
 }
 
 #[derive(Debug)]
-pub enum IterateBuildError<O, P> {
+pub enum IterateBuildError<O> {
     FixerLimitReached(usize),
-    PersistentBuildProblem(P),
+    PersistentBuildProblem(Box<dyn Problem>),
     Other(O),
 }
 
-impl<O, P> From<Error<O, P>> for IterateBuildError<O, P> {
-    fn from(e: Error<O, P>) -> Self {
+impl<O> From<Error<O>> for IterateBuildError<O> {
+    fn from(e: Error<O>) -> Self {
         match e {
             Error::BuildProblem(_) => unreachable!(),
             Error::Other(e) => IterateBuildError::Other(e),
@@ -35,16 +36,16 @@ impl<O, P> From<Error<O, P>> for IterateBuildError<O, P> {
 /// * `fixers`: List of fixers to use to resolve issues
 /// * `cb`: Callable to run the build
 /// * `limit: Maximum number of fixing attempts before giving up
-pub fn iterate_with_build_fixers<T, O, P: Debug + Display + std::hash::Hash + PartialEq + Eq>(
-    fixers: &[&dyn BuildFixer<O, P>],
+pub fn iterate_with_build_fixers<T, O>(
+    fixers: &[&dyn BuildFixer<O>],
     phase: &[&str],
-    mut cb: impl FnMut() -> Result<T, Error<O, P>>,
+    mut cb: impl FnMut() -> Result<T, Error<O>>,
     limit: Option<usize>,
-) -> Result<T, IterateBuildError<O, P>> {
+) -> Result<T, IterateBuildError<O>> {
     let mut attempts = 0;
-    let mut fixed_errors: std::collections::HashSet<P> = std::collections::HashSet::new();
+    let mut fixed_errors: std::collections::HashSet<Box<dyn Problem>> = std::collections::HashSet::new();
     loop {
-        let mut to_resolve: Vec<P> = vec![];
+        let mut to_resolve: Vec<Box<dyn Problem>> = vec![];
 
         match cb() {
             Ok(v) => return Ok(v),
@@ -64,7 +65,7 @@ pub fn iterate_with_build_fixers<T, O, P: Debug + Display + std::hash::Hash + Pa
                     return Err(IterateBuildError::FixerLimitReached(limit));
                 }
             }
-            match resolve_error(&f, phase, fixers) {
+            match resolve_error(f.as_ref(), phase, fixers) {
                 Err(Error::BuildProblem(n)) => {
                     info!("New error {:?} while resolving {:?}", &n, &f);
                     if to_resolve.contains(&n) {
@@ -86,11 +87,11 @@ pub fn iterate_with_build_fixers<T, O, P: Debug + Display + std::hash::Hash + Pa
     }
 }
 
-pub fn resolve_error<O, P: Debug>(
-    problem: &P,
+pub fn resolve_error<O>(
+    problem: &dyn Problem,
     phase: &[&str],
-    fixers: &[&dyn BuildFixer<O, P>],
-) -> Result<bool, Error<O, P>> {
+    fixers: &[&dyn BuildFixer<O>],
+) -> Result<bool, Error<O>> {
     let relevant_fixers = fixers
         .iter()
         .filter(|fixer| fixer.can_fix(problem))
