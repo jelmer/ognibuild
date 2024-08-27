@@ -1974,13 +1974,6 @@ BUILDSYSTEM_CLSES: list[type[BuildSystem]] = [
 ]
 
 
-def lookup_buildsystem_cls(name: str) -> type[BuildSystem]:
-    for bs in BUILDSYSTEM_CLSES:
-        if bs.name == name:
-            return bs
-    raise KeyError(name)
-
-
 def scan_buildsystems(path: str) -> list[tuple[str, BuildSystem]]:
     """Detect build systems."""
     ret = []
