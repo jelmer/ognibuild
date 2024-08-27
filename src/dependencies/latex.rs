@@ -1,5 +1,6 @@
 use crate::analyze::{AnalyzedError, run_detecting_problems};
-use crate::dependency::{Error, Dependency, Explanation, Installer, InstallationScope};
+use crate::dependency::Dependency;
+use crate::installer::{Error, Explanation, Installer, InstallationScope};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 

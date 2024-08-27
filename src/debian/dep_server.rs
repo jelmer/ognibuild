@@ -1,4 +1,5 @@
-use crate::dependency::{Error, Dependency};
+use crate::dependency::{Dependency};
+use crate::installer::Error;
 use crate::debian::apt::AptManager;
 use tokio::runtime::Runtime;
 use crate::dependencies::debian::{DebianDependency, TieBreaker};

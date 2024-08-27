@@ -1,5 +1,6 @@
 use crate::dependencies::BinaryDependency;
-use crate::dependency::{Installer, Error, Explanation, Dependency, InstallationScope};
+use crate::dependency::Dependency;
+use crate::installer::{Installer, Error, Explanation, InstallationScope};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 

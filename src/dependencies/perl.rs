@@ -1,4 +1,5 @@
-use crate::dependency::{Dependency, Explanation, Error, InstallationScope};
+use crate::dependency::{Dependency};
+use crate::installer::{Explanation, Error, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -205,7 +206,7 @@ impl CPAN {
     }
 }
 
-impl crate::dependency::Installer for CPAN {
+impl Installer for CPAN {
 
     fn explain(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
         if let Some(dep) = dep.as_any().downcast_ref::<PerlModuleDependency>() {

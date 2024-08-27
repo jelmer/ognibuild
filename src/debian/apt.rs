@@ -1,7 +1,8 @@
 use crate::session::{get_user, Session};
 use debversion::Version;
 use std::sync::RwLock;
-use crate::dependency::{Installer, Explanation};
+use crate::dependency::Dependency;
+use crate::installer::{Installer, Explanation, InstallationScope, Error as InstallerError};
 use crate::dependencies::debian::{DebianDependency, TieBreaker, default_tie_breakers, IntoDebianDependency};
 
 pub enum Error {
@@ -252,7 +253,7 @@ fn pick_best_deb_dependency(mut dependencies: Vec<DebianDependency>, tie_breaker
     Some(dependencies.remove(0))
 }
 
-pub fn dependency_to_possible_deb_dependencies(apt: &AptManager, dep: &dyn crate::dependency::Dependency) -> Vec<DebianDependency> {
+pub fn dependency_to_possible_deb_dependencies(apt: &AptManager, dep: &dyn Dependency) -> Vec<DebianDependency> {
     let mut candidates = vec![];
     macro_rules! try_into_debian_dependency {
         ($apt:expr, $dep:expr, $type:ty) => {
@@ -315,7 +316,7 @@ pub fn dependency_to_possible_deb_dependencies(apt: &AptManager, dep: &dyn crate
     candidates
 }
 
-pub fn dependency_to_deb_dependency(apt: &AptManager, dep: &dyn crate::dependency::Dependency, tie_breakers: &[Box<dyn TieBreaker>]) -> Result<Option<DebianDependency>, crate::dependency::Error> {
+pub fn dependency_to_deb_dependency(apt: &AptManager, dep: &dyn Dependency, tie_breakers: &[Box<dyn TieBreaker>]) -> Result<Option<DebianDependency>, InstallerError> {
     let candidates = dependency_to_possible_deb_dependencies(apt, dep);
 
     if candidates.is_empty() {
@@ -348,14 +349,14 @@ impl<'a> AptInstaller<'a> {
 
 
 impl<'a> Installer for AptInstaller<'a> {
-    fn install(&self, dep: &dyn crate::dependency::Dependency, scope: crate::dependency::InstallationScope) -> Result<(), crate::dependency::Error> {
+    fn install(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<(), InstallerError> {
         match scope {
-            crate::dependency::InstallationScope::User => {
-                return Err(crate::dependency::Error::UnsupportedScope(scope));
+            InstallationScope::User => {
+                return Err(InstallerError::UnsupportedScope(scope));
             }
-            crate::dependency::InstallationScope::Global => {}
-            crate::dependency::InstallationScope::Vendor => {
-                return Err(crate::dependency::Error::UnsupportedScope(scope));
+            InstallationScope::Global => {}
+            InstallationScope::Vendor => {
+                return Err(InstallerError::UnsupportedScope(scope));
             }
         }
         if dep.present(self.apt.session) {
@@ -365,21 +366,21 @@ impl<'a> Installer for AptInstaller<'a> {
         let apt_deb = if let Some(apt_deb) = dependency_to_deb_dependency(&self.apt, dep, self.tie_breakers.as_slice())? {
             apt_deb
         } else {
-            return Err(crate::dependency::Error::UnknownDependencyFamily);
+            return Err(InstallerError::UnknownDependencyFamily);
         };
 
         match self.apt.satisfy(vec![apt_deb.relation_string().as_str()]) {
             Ok(_) => {},
-            Err(e) => { return Err(crate::dependency::Error::Other(e.to_string())); }
+            Err(e) => { return Err(InstallerError::Other(e.to_string())); }
         }
         Ok(())
     }
 
-    fn explain(&self, dep: &dyn crate::dependency::Dependency, _scope: crate::dependency::InstallationScope) -> Result<crate::dependency::Explanation, crate::dependency::Error> {
+    fn explain(&self, dep: &dyn Dependency, _scope: InstallationScope) -> Result<Explanation, InstallerError> {
         let apt_deb = if let Some(apt_deb) = dependency_to_deb_dependency(&self.apt, dep, self.tie_breakers.as_slice())? {
             apt_deb
         } else {
-            return Err(crate::dependency::Error::UnknownDependencyFamily);
+            return Err(InstallerError::UnknownDependencyFamily);
         };
 
         let apt_deb_str = apt_deb.relation_string();

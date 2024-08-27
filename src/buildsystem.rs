@@ -1,5 +1,5 @@
 use crate::dependencies::BinaryDependency;
-use crate::dependency::{Error, InstallationScope, Installer};
+use crate::installer::{Error, InstallationScope, Installer};
 use crate::session::{which, Session};
 use std::path::PathBuf;
 

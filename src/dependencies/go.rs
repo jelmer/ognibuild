@@ -1,6 +1,6 @@
-use crate::dependency::{Installer, Explanation, Error, Dependency, InstallationScope};
+use crate::dependency::Dependency;
+use crate::installer::{Installer, Explanation, Error, InstallationScope};
 use crate::session::Session;
-use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
