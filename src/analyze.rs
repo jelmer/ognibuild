@@ -13,7 +13,7 @@ pub enum AnalyzedError {
     IoError(std::io::Error),
     Detailed {
         retcode: i32,
-        error: Option<Box<dyn buildlog_consultant::Problem>>,
+        error: Box<dyn buildlog_consultant::Problem>,
     },
     Unidentified {
         retcode: i32,
@@ -40,11 +40,7 @@ impl std::fmt::Display for AnalyzedError {
                 error,
             } => {
                 write!(f, "Command failed with code {}", retcode)?;
-                if let Some(error) = error {
-                    write!(f, "\n{}", error)
-                } else {
-                    Ok(())
-                }
+                write!(f, "\n{}", error)
             }
             AnalyzedError::Unidentified {
                 retcode,
@@ -102,9 +98,7 @@ pub fn run_detecting_problems(
                 let command = args[0].to_string();
                 return Err(AnalyzedError::Detailed {
                     retcode: 127,
-                    error: Some(
-                        Box::new(MissingCommand(command)) as Box<dyn buildlog_consultant::Problem>
-                    ),
+                    error: Box::new(MissingCommand(command)) as Box<dyn buildlog_consultant::Problem>
                 });
             }
             Err(SessionError::IoError(e)) => {
@@ -122,7 +116,7 @@ pub fn run_detecting_problems(
     if let Some(error) = error {
         Err(AnalyzedError::Detailed {
             retcode,
-            error: Some(error),
+            error,
         })
     } else {
         if let Some(r#match) = r#match.as_ref() {

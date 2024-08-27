@@ -16,6 +16,33 @@ pub struct PythonPackageDependency {
 }
 
 impl PythonPackageDependency {
+    pub fn from_requirement(requirement: &pep508_rs::Requirement) -> Self {
+        // TODO: properly parse the requirement
+        Self {
+            package: requirement.name.to_string(),
+            python_version: None,
+            specs: Vec::new(),
+        }
+    }
+
+    pub fn from_requirement_str(requirement: &str) -> Self {
+        let mut parts = requirement.split(' ');
+        let package = parts.next().unwrap();
+        let specs = parts
+            .map(|part| {
+                let mut parts = part.splitn(2, |c: char| c == '=' || c == '<' || c == '>');
+                let op = parts.next().unwrap();
+                let version = parts.next().unwrap();
+                (op.to_string(), version.to_string())
+            })
+            .collect();
+        Self {
+            package: package.to_string(),
+            python_version: None,
+            specs,
+        }
+    }
+
     pub fn new(package: &str, python_version: Option<&str>, specs: Vec<(String, String)>) -> Self {
         Self {
             package: package.to_string(),

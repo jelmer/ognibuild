@@ -1,6 +1,7 @@
 pub mod analyze;
 pub mod buildlog;
 pub mod buildsystem;
+pub mod buildsystems;
 #[cfg(feature = "debian")]
 pub mod debian;
 pub mod dependencies;
