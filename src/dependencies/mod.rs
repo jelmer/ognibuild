@@ -1539,40 +1539,6 @@ impl ToDependency for buildlog_consultant::problems::common::MissingGnulibDirect
     }
 }
 
-pub struct StackedInstaller(pub Vec<Box<dyn Installer>>);
-
-impl StackedInstaller {
-    pub fn new(resolvers: Vec<Box<dyn Installer>>) -> Self {
-        Self(resolvers)
-    }
-}
-
-impl Installer for StackedInstaller {
-    fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
-        for sub in &self.0 {
-            match sub.install(requirement, scope) {
-                Ok(()) => { return Ok(()); },
-                Err(Error::UnknownDependencyFamily) => {}
-                Err(e) => { return Err(e); }
-            }
-        }
-
-        Err(Error::UnknownDependencyFamily)
-    }
-
-    fn explain(&self, requirements: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
-        for sub in &self.0 {
-            match sub.explain(requirements, scope) {
-                Ok(e) => { return Ok(e); },
-                Err(Error::UnknownDependencyFamily) => {}
-                Err(e) => { return Err(e); }
-            }
-        }
-
-        Err(Error::UnknownDependencyFamily)
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntrospectionTypelibDependency {
     library: String,

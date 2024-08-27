@@ -359,9 +359,6 @@ impl<'a> Installer for AptInstaller<'a> {
                 return Err(InstallerError::UnsupportedScope(scope));
             }
         }
-        if dep.present(self.apt.session) {
-            return Ok(());
-        }
 
         let apt_deb = if let Some(apt_deb) = dependency_to_deb_dependency(&self.apt, dep, self.tie_breakers.as_slice())? {
             apt_deb

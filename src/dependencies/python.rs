@@ -179,12 +179,12 @@ impl Dependency for PythonModuleDependency {
 }
 
 
-pub struct PypiResolver {
-    session: Box<dyn Session>,
+pub struct PypiResolver<'a> {
+    session: &'a dyn Session,
 }
 
-impl PypiResolver {
-    pub fn new(session: Box<dyn Session>) -> Self {
+impl<'a> PypiResolver<'a> {
+    pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }
 
@@ -202,14 +202,14 @@ impl PypiResolver {
     }
 }
 
-impl Installer for PypiResolver {
+impl<'a> Installer for PypiResolver<'a> {
     fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
         let req = requirement
             .as_any()
             .downcast_ref::<PythonPackageDependency>()
             .ok_or_else(|| Error::UnknownDependencyFamily)?;
         let cmd = self.cmd(vec![req], scope)?;
-        crate::analyze::run_detecting_problems(self.session.as_ref(), cmd.iter().map(|x| x.as_str()).collect(), None, false, None,  match scope {
+        crate::analyze::run_detecting_problems(self.session, cmd.iter().map(|x| x.as_str()).collect(), None, false, None,  match scope {
             InstallationScope::Global => Some("root"), InstallationScope::User => None, InstallationScope::Vendor => { return Err(Error::UnsupportedScope(scope)); }}, None, None, None, None)?;
         Ok(())
     }

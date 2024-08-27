@@ -114,12 +114,12 @@ impl Dependency for GoDependency {
     }
 }
 
-pub struct GoResolver {
-    session: Box<dyn Session>,
+pub struct GoResolver<'a> {
+    session: &'a dyn Session,
 }
 
-impl GoResolver {
-    pub fn new(session: Box<dyn Session>) -> Self {
+impl<'a> GoResolver<'a> {
+    pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }
 
@@ -132,7 +132,7 @@ impl GoResolver {
     }
 }
 
-impl Installer for GoResolver {
+impl<'a> Installer for GoResolver<'a> {
     fn explain(&self, requirement: &dyn Dependency, _scope: InstallationScope) -> Result<Explanation, Error> {
         let req = requirement
             .as_any()
@@ -163,7 +163,7 @@ impl Installer for GoResolver {
             }
         };
         crate::analyze::run_detecting_problems(
-            self.session.as_ref(),
+            self.session,
             cmd.iter().map(|s| s.as_str()).collect(),
             None,
             false,

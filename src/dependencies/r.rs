@@ -58,13 +58,13 @@ impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
     }
 }
 
-pub struct RResolver {
-    session: Box<dyn Session>,
+pub struct RResolver<'a> {
+    session: &'a dyn Session,
     repos: String,
 }
 
-impl RResolver {
-    pub fn new(session: Box<dyn Session>, repos: &str) -> Self {
+impl<'a> RResolver<'a> {
+    pub fn new(session: &'a dyn Session, repos: &str) -> Self {
         Self {
             session,
             repos: repos.to_string(),
@@ -83,7 +83,7 @@ impl RResolver {
     }
 }
 
-impl Installer for RResolver {
+impl<'a> Installer for RResolver<'a> {
     /// Install the dependency into the session.
     fn install(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
         let req = dep.as_any().downcast_ref::<RPackageDependency>().ok_or(Error::UnknownDependencyFamily)?;
@@ -96,7 +96,7 @@ impl Installer for RResolver {
             }
         };
         log::info!("RResolver({:?}): running {:?}", self.repos, cmd);
-        run_detecting_problems(self.session.as_ref(), cmd.iter().map(|x| x.as_str()).collect() , None, false, None, user, None, None, None, None)?;
+        run_detecting_problems(self.session, cmd.iter().map(|x| x.as_str()).collect() , None, false, None, user, None, None, None, None)?;
         Ok(())
     }
 
@@ -113,12 +113,12 @@ impl Installer for RResolver {
     }
 }
 
-pub fn bioconductor(session: Box<dyn Session>) -> Box<dyn Installer> {
-    Box::new(RResolver::new(session, "https://hedgehog.fhcrc.org/bioconductor"))
+pub fn bioconductor(session: &dyn Session) -> RResolver {
+    RResolver::new(session, "https://hedgehog.fhcrc.org/bioconductor")
 }
 
-pub fn cran(session: Box<dyn Session>) -> Box<dyn Installer> {
-    Box::new(RResolver::new(session, "https://cran.r-project.org"))
+pub fn cran(session: &dyn Session) -> RResolver {
+    RResolver::new(session, "https://cran.r-project.org")
 }
 
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingRPackage {

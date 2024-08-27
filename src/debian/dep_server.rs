@@ -1,5 +1,5 @@
-use crate::dependency::{Dependency};
-use crate::installer::Error;
+use crate::dependency::Dependency;
+use crate::installer::{Installer, InstallationScope, Error, Explanation};
 use crate::debian::apt::AptManager;
 use tokio::runtime::Runtime;
 use crate::dependencies::debian::{DebianDependency, TieBreaker};
@@ -46,19 +46,23 @@ async fn resolve_apt_requirement_dep_server(
     }
 }
 
-pub struct DepServerAptResolver {
+pub struct DepServerAptInstaller<'a> {
+    apt: AptManager<'a>,
     dep_server_url: Url,
 }
 
-impl DepServerAptResolver {
-    pub fn new(dep_server_url: Url) -> Self {
+impl<'a> DepServerAptInstaller<'a> {
+    pub fn new(apt: AptManager<'a>, dep_server_url: Url) -> Self {
         Self {
+            apt,
             dep_server_url,
         }
     }
 
-    pub fn from_session(dep_server_url: Url) -> Self {
+    pub fn from_session(session: &'a dyn Session, dep_server_url: Url) -> Self {
+        let apt = AptManager::from_session(session);
         Self {
+            apt,
             dep_server_url,
         }
     }
@@ -72,5 +76,56 @@ impl DepServerAptResolver {
                 Err(Error::Other(o.to_string()))
             }
         }
+    }
+}
+
+impl<'a> Installer for DepServerAptInstaller<'a> {
+    fn install(&self, dep: &dyn Dependency, scope: crate::installer::InstallationScope) -> Result<(), Error> {
+        match scope {
+            InstallationScope::User => {
+                return Err(Error::UnsupportedScope(scope));
+            }
+            InstallationScope::Global => {}
+            InstallationScope::Vendor => {
+                return Err(Error::UnsupportedScope(scope));
+            }
+        }
+        let dep = self.resolve(dep)?;
+
+        if let Some(dep) = dep {
+            match self.apt.satisfy(vec![dep.relation_string().as_str()]) {
+                Ok(_) => {},
+                Err(e) => { return Err(Error::Other(e.to_string())); }
+            }
+        Ok(())
+
+        } else {
+            Err(Error::UnknownDependencyFamily)
+        }
+    }
+
+    fn explain(&self, dep: &dyn Dependency, scope: crate::installer::InstallationScope)
+        -> Result<crate::installer::Explanation, Error> {
+        match scope {
+            InstallationScope::User => {
+                return Err(Error::UnsupportedScope(scope));
+            }
+            InstallationScope::Global => {}
+            InstallationScope::Vendor => {
+                return Err(Error::UnsupportedScope(scope));
+            }
+        }
+        let dep = self.resolve(dep)?;
+
+        let dep = dep.ok_or_else(|| {
+            Error::UnknownDependencyFamily
+        })?;
+
+        let apt_deb_str = dep.relation_string();
+        let cmd = self.apt.satisfy_command(vec![apt_deb_str.as_str()]);
+        Ok(Explanation {
+            message: format!("Install {}", dep.package_names().iter().map(|x| x.as_str()).collect::<Vec<_>>().join(", ")),
+            command: Some(cmd.iter().map(|s| s.to_string()).collect()),
+        })
     }
 }
