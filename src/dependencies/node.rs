@@ -60,6 +60,12 @@ impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency
     }
 }
 
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingNodePackage {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(NodePackageDependency::new(&self.0)))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeModuleDependency {
     module: String,
@@ -121,6 +127,12 @@ impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency 
         } else {
             Some(names.into_iter().map(|name| super::debian::DebianDependency::new(&name)).collect())
         }
+    }
+}
+
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingNodeModule {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(NodeModuleDependency::new(&self.0)))
     }
 }
 

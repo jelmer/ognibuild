@@ -66,31 +66,31 @@ pub struct PerlPreDeclaredDependency {
     name: String,
 }
 
+fn known_predeclared_module(name: &str) -> Option<&str> {
+    // TODO(jelmer): Can we obtain this information elsewhere?
+    match name {
+        "auto_set_repository" => Some("Module::Install::Repository"),
+        "author_tests" => Some("Module::Install::AuthorTests"),
+        "recursive_author_tests" => Some("Module::Install::AuthorTests"),
+        "author_requires" => Some("Module::Install::AuthorRequires"),
+        "readme_from" => Some("Module::Install::ReadmeFromPod"),
+        "catalyst" => Some("Module::Install::Catalyst"),
+        "githubmeta" => Some("Module::Install::GithubMeta"),
+        "use_ppport" => Some("Module::Install::XSUtil"),
+        "pod_from" => Some("Module::Install::PodFromEuclid"),
+        "write_doap_changes" => Some("Module::Install::DOAPChangeSets"),
+        "use_test_base" => Some("Module::Install::TestBase"),
+        "jsonmeta" => Some("Module::Install::JSONMETA"),
+        "extra_tests" => Some("Module::Install::ExtraTests"),
+        "auto_set_bugtracker" => Some("Module::Install::Bugtracker"),
+        _ => None,
+    }
+}
+
 impl PerlPreDeclaredDependency {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-        }
-    }
-
-    fn known_module(&self, name: &str) -> Option<&str> {
-        // TODO(jelmer): Can we obtain this information elsewhere?
-        match name {
-            "auto_set_repository" => Some("Module::Install::Repository"),
-            "author_tests" => Some("Module::Install::AuthorTests"),
-            "recursive_author_tests" => Some("Module::Install::AuthorTests"),
-            "author_requires" => Some("Module::Install::AuthorRequires"),
-            "readme_from" => Some("Module::Install::ReadmeFromPod"),
-            "catalyst" => Some("Module::Install::Catalyst"),
-            "githubmeta" => Some("Module::Install::GithubMeta"),
-            "use_ppport" => Some("Module::Install::XSUtil"),
-            "pod_from" => Some("Module::Install::PodFromEuclid"),
-            "write_doap_changes" => Some("Module::Install::DOAPChangeSets"),
-            "use_test_base" => Some("Module::Install::TestBase"),
-            "jsonmeta" => Some("Module::Install::JSONMETA"),
-            "extra_tests" => Some("Module::Install::ExtraTests"),
-            "auto_set_bugtracker" => Some("Module::Install::Bugtracker"),
-            _ => None,
         }
     }
 }
@@ -101,7 +101,7 @@ impl Dependency for PerlPreDeclaredDependency {
     }
 
     fn present(&self, session: &dyn Session) -> bool {
-        if let Some(module) = self.known_module(&self.name) {
+        if let Some(module) = known_predeclared_module(&self.name) {
             PerlModuleDependency::simple(module).present(session)
         } else {
             todo!()
@@ -118,10 +118,22 @@ impl Dependency for PerlPreDeclaredDependency {
 
 impl crate::dependencies::debian::IntoDebianDependency for PerlPreDeclaredDependency {
     fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        if let Some(module) = self.known_module(&self.name) {
+        if let Some(module) = known_predeclared_module(&self.name) {
             PerlModuleDependency::simple(module).try_into_debian_dependency(apt)
         } else {
             None
+        }
+    }
+}
+
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPerlPredeclared {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        match known_predeclared_module(self.0.as_str()) {
+            Some(_module) => Some(Box::new(PerlModuleDependency::simple(self.0.as_str()))),
+            None => {
+                log::warn!("Unknown predeclared function: {}", self.0);
+                None
+            }
         }
     }
 }
@@ -159,6 +171,14 @@ impl Dependency for PerlFileDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPerlFile {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(PerlFileDependency {
+            filename: self.filename.clone(),
+        }))
     }
 }
 
@@ -270,5 +290,15 @@ impl crate::dependencies::debian::IntoDebianDependency for PerlFileDependency {
         let packages = apt.get_packages_for_paths(vec![&self.filename], false, false).unwrap();
 
         Some(packages.into_iter().map(|p| crate::dependencies::debian::DebianDependency::simple(&p)).collect())
+    }
+}
+
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPerlModule {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(PerlModuleDependency {
+            module: self.module.clone(),
+            filename: self.filename.clone(),
+            inc: self.inc.clone(),
+        }))
     }
 }

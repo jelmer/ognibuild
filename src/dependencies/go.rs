@@ -68,6 +68,12 @@ impl crate::dependencies::debian::IntoDebianDependency for GoPackageDependency {
     }
 }
 
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingGoPackage {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(GoPackageDependency::simple(&self.package)))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GoDependency {
     version: Option<String>,

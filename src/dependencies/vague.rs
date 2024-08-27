@@ -180,3 +180,9 @@ impl crate::dependencies::debian::IntoDebianDependency for VagueDependency {
         Some(resolve_vague_dep_req(apt_mgr, self.clone()))
     }
 }
+
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingVagueDependency {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(VagueDependency::new(&self.name, self.minimum_version.as_deref())))
+    }
+}

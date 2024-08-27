@@ -34,6 +34,16 @@ impl Dependency for LatexPackageDependency {
     }
 }
 
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingLatexFile {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        if let Some(filename) = self.0.strip_suffix(".sty") {
+            Some(Box::new(LatexPackageDependency::new(filename)))
+        } else {
+            None
+        }
+    }
+}
+
 pub struct TlmgrResolver {
     session: Box<dyn Session>,
     repository: String,

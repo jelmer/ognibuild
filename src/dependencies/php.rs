@@ -46,6 +46,12 @@ impl crate::dependencies::debian::IntoDebianDependency for PhpClassDependency {
     }
 }
 
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPhpClass {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(PhpClassDependency::new(&self.php_class)))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhpPackageDependency {
     pub package: String,
@@ -176,5 +182,11 @@ impl Dependency for PhpExtensionDependency {
 impl crate::dependencies::debian::IntoDebianDependency for PhpExtensionDependency {
     fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         Some(vec![crate::dependencies::debian::DebianDependency::new(&format!("php-{}", &self.extension))])
+    }
+}
+
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPHPExtension {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(PhpExtensionDependency::new(&self.0)))
     }
 }
