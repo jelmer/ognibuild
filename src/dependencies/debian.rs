@@ -62,6 +62,10 @@ impl DebianDependency {
         self.0.to_string()
     }
 
+    pub fn simple(name: &str) -> DebianDependency {
+        Self::new(name)
+    }
+
     pub fn new_with_min_version(name: &str, min_version: &Version) -> DebianDependency {
         DebianDependency(
             format!("{} (>= {})", name, min_version).parse().unwrap_or_else(|_| panic!("Failed to parse dependency: {} (>= {})",

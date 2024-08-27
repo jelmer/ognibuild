@@ -43,6 +43,20 @@ impl Dependency for RPackageDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> Option<Vec<super::debian::DebianDependency>> {
+        let names = apt.get_packages_for_paths(vec![
+            std::path::Path::new("/usr/lib/R/site-library").join(&self.package).join("DESCRIPTION").to_str().unwrap()
+        ], false, false).unwrap();
+
+        if names.is_empty() {
+            return None;
+        }
+
+        Some(names.into_iter().map(|name| super::debian::DebianDependency::new(&name)).collect())
+    }
+}
+
 pub struct RResolver {
     session: Box<dyn Session>,
     repos: String,

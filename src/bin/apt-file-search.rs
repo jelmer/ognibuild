@@ -31,7 +31,7 @@ pub fn main() -> Result<(), i8> {
     let main_searcher = get_apt_contents_file_searcher(&session).unwrap();
     let searchers: Vec<&dyn FileSearcher> = vec![main_searcher.as_ref(), &*GENERATED_FILE_SEARCHER as &dyn FileSearcher];
 
-    let packages = get_packages_for_paths(args.path.iter().map(|x| x.as_path().to_str().unwrap()).collect(), searchers, args.regex, args.case_insensitive);
+    let packages = get_packages_for_paths(args.path.iter().map(|x| x.as_path().to_str().unwrap()).collect(), searchers.as_slice(), args.regex, args.case_insensitive);
     for package in packages {
         println!("{}", package);
     }

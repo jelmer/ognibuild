@@ -2,6 +2,7 @@ use crate::dependency::{Error, Dependency, Installer, Explanation, InstallationS
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::io::BufRead;
 
 #[cfg(feature = "debian")]
 pub mod debian;
@@ -15,6 +16,7 @@ pub mod perl;
 pub mod php;
 pub mod python;
 pub mod r;
+pub mod vague;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BinaryDependency {
@@ -50,6 +52,20 @@ impl Dependency for BinaryDependency {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+const BIN_PATHS: &[&str] = &["/usr/bin", "/bin"];
+
+impl crate::dependencies::debian::IntoDebianDependency for BinaryDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let paths = if std::path::Path::new(&self.binary_name).is_absolute() {
+            vec![self.binary_name.clone()]
+        } else {
+            BIN_PATHS.iter().map(|p| format!("{}/{}", p, self.binary_name)).collect()
+        };
+        // TODO(jelmer): Check for binaries which use alternatives
+        Some(apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), false, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
     }
 }
 
@@ -113,6 +129,12 @@ impl Dependency for PytestPlugin {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for PytestPlugin {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        Some(vec![crate::dependencies::debian::DebianDependency::simple(&format!("python3-pytest-{}", self.plugin))])
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VcsControlDirectoryAccessDependency {
     pub vcs: Vec<String>,
@@ -153,82 +175,19 @@ impl Dependency for VcsControlDirectoryAccessDependency {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VagueDependency {
-    pub name: String,
-    pub minimum_version: Option<String>,
-}
+impl crate::dependencies::debian::IntoDebianDependency for VcsControlDirectoryAccessDependency {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let pkgs = self.vcs.iter().filter_map(|vcs| match vcs.as_str() {
+            "git" => Some("git"),
+            "hg" => Some("mercurial"),
+            "svn" => Some("subversion"),
+            "bzr" => Some("bzr"),
+            _ => { log::warn!("Unknown VCS {}", vcs); None }
+        }).collect::<Vec<_>>();
 
-impl VagueDependency {
-    pub fn new(name: &str, minimum_version: Option<&str>) -> Self {
-        Self {
-            name: name.to_string(),
-            minimum_version: minimum_version.map(|s| s.to_string()),
-        }
-    }
+        let rels : Vec<debian_control::relations::Relations> = pkgs.iter().map(|p| p.parse().unwrap()).collect();
 
-    pub fn simple(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            minimum_version: None,
-        }
-    }
-
-    pub fn expand(&self) -> Vec<Box<dyn Dependency>> {
-        let mut ret: Vec<Box<dyn Dependency>> = vec![];
-        if !self.name.contains(' ') {
-            ret.push(Box::new(BinaryDependency::new(&self.name)) as Box<dyn Dependency>);
-            ret.push(Box::new(BinaryDependency::new(&self.name)) as Box<dyn Dependency>);
-            ret.push(Box::new(PkgConfigDependency::new(
-                &self.name.clone(),
-                self.minimum_version.clone().as_deref(),
-            )) as Box<dyn Dependency>);
-            if self.name.to_lowercase() != self.name {
-                ret.push(Box::new(BinaryDependency::new(&self.name.to_lowercase()))
-                    as Box<dyn Dependency>);
-                ret.push(Box::new(BinaryDependency::new(&self.name.to_lowercase()))
-                    as Box<dyn Dependency>);
-                ret.push(Box::new(PkgConfigDependency::new(
-                    &self.name.to_lowercase(),
-                    self.minimum_version.clone().as_deref(),
-                )) as Box<dyn Dependency>);
-            }
-            #[cfg(feature = "apt")]
-            {
-                ret.push(Box::new(AptDependency::with_min_version(
-                    self.name.to_lower(),
-                    self.minimum_version.clone(),
-                )));
-                let devname = if self.name.to_lower().starts_with("lib") {
-                    format!("{}-dev", self.name.to_lower())
-                } else {
-                    format!("lib{}-dev", self.name.to_lower())
-                };
-                ret.push(Box::new(AptDependency::with_min_version(
-                    &devname,
-                    self.minimum_version.clone(),
-                )));
-            }
-        }
-        ret
-    }
-}
-
-impl Dependency for VagueDependency {
-    fn family(&self) -> &'static str {
-        "vague"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        self.expand().iter().any(|d| d.present(session))
-    }
-
-    fn project_present(&self, session: &dyn Session) -> bool {
-        self.expand().iter().any(|d| d.project_present(session))
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+        Some(rels.into_iter().map(|p| crate::dependencies::debian::DebianDependency::from(p)).collect())
     }
 }
 
@@ -341,6 +300,13 @@ impl Dependency for CargoCrateDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for CargoCrateDependency {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let path = format!("/usr/share/cargo/registry/{}\\-[0-9]+.*/Cargo\\.toml", self.name);
+        Some(vec![crate::dependencies::debian::DebianDependency::new_with_min_version(&path, &self.api_version.as_ref().unwrap().parse().unwrap())])
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PkgConfigDependency {
     module: String,
@@ -395,6 +361,39 @@ impl Dependency for PkgConfigDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let mut names = apt.get_packages_for_paths(
+            [
+                format!("/usr/lib/.*/pkgconfig/{}\\.pc", regex::escape(&self.module)),
+            ]
+            .iter()
+            .map(|s| s.as_str())
+            .collect(), true, false).unwrap();
+
+        if !names.is_empty() {
+            names = apt.get_packages_for_paths(
+                [
+                    format!("/usr/lib/pkgconfig/{}\\.pc", regex::escape(&self.module)),
+                ]
+                .iter()
+                .map(|s| s.as_str())
+                .collect(), true, false).unwrap();
+        }
+
+        if names.is_empty() {
+            return None;
+        }
+
+        Some(if let Some(minimum_version) = &self.minimum_version {
+            let minimum_version: debversion::Version = minimum_version.parse().unwrap();
+            names.into_iter().map(|name| crate::dependencies::debian::DebianDependency::new_with_min_version(&name, &minimum_version)).collect()
+        } else {
+            names.into_iter().map(|name| crate::dependencies::debian::DebianDependency::simple(&name)).collect()
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PathDependency {
     path: PathBuf,
@@ -428,6 +427,13 @@ impl Dependency for PathDependency {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for PathDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        Some(apt.get_packages_for_paths(vec![self.path.to_str().unwrap()], false, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+    }
+
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -471,6 +477,27 @@ impl Dependency for CHeaderDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for CHeaderDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let mut deps = apt.get_packages_for_paths(
+            vec![
+                std::path::Path::new("/usr/include").join(&self.header).to_str().unwrap(),
+            ]
+            , false, false).unwrap();
+        if deps.is_empty() {
+            deps = apt.get_packages_for_paths(
+                vec![std::path::Path::new("/usr/include").join(".*").join(&self.header).to_str().unwrap()],
+                true,
+                false,
+            ).unwrap();
+        }
+        if deps.is_empty() {
+            return None;
+        }
+        Some(deps.into_iter().map(|name| crate::dependencies::debian::DebianDependency::simple(&name)).collect())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct JavaScriptRuntimeDependency;
 
@@ -495,6 +522,13 @@ impl Dependency for JavaScriptRuntimeDependency {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for JavaScriptRuntimeDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let paths = vec!["/usr/bin/node", "/usr/bin/duk"];
+        Some(apt.get_packages_for_paths(paths, false, false).map(|p| p.iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect()).unwrap())
     }
 }
 
@@ -532,6 +566,12 @@ impl Dependency for ValaPackageDependency {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for ValaPackageDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        Some(apt.get_packages_for_paths(vec![&format!("/usr/share/vala-[0-9]+/vapi/{}\\.vapi", regex::escape(&self.package))], true, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
     }
 }
 
@@ -596,6 +636,24 @@ impl Dependency for RubyGemDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for RubyGemDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let names = apt.get_packages_for_paths(
+            vec![
+                std::path::Path::new("/usr/share/rubygems-integration/all/specifications/").join(format!("{}-.*\\.gemspec", regex::escape(&self.gem)).as_str()).to_str().unwrap(),
+            ]
+            , true, false).unwrap();
+        if names.is_empty() {
+            return None;
+        }
+        Some(names.into_iter().map(|name| if let Some(min_version) = self.minimum_version.as_ref() {
+            crate::dependencies::debian::DebianDependency::new_with_min_version(&name, &min_version.parse().unwrap())
+        } else {
+            crate::dependencies::debian::DebianDependency::simple(&name)
+        }).collect())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DhAddonDependency {
     addon: String,
@@ -624,6 +682,12 @@ impl Dependency for DhAddonDependency {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for DhAddonDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        Some(apt.get_packages_for_paths(vec![&format!("/usr/share/perl5/Debian/Debhelper/Sequence/{}.pm", regex::escape(&self.addon))], true, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
     }
 }
 
@@ -714,6 +778,18 @@ impl Dependency for LibraryDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for LibraryDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let paths = vec![
+            format!("/usr/lib/lib{}.so", &self.library),
+            format!("/usr/lib/.*/lib{}.so", regex::escape(&self.library)),
+            format!("/usr/lib/lib{}.a", &self.library),
+            format!("/usr/lib/.*/lib{}.a", regex::escape(&self.library)),
+        ];
+        Some(apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StaticLibraryDependency {
     library: String,
@@ -744,6 +820,16 @@ impl Dependency for StaticLibraryDependency {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for StaticLibraryDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let paths = vec![
+            format!("/usr/lib/lib{}.a", &self.library),
+            format!("/usr/lib/.*/lib{}.a", regex::escape(&self.library)),
+        ];
+        Some(apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
     }
 }
 
@@ -783,6 +869,29 @@ impl Dependency for RubyFileDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for RubyFileDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let paths = vec![
+            format!("/usr/lib/ruby/vendor_ruby/{}.rb", regex::escape(&self.filename)),
+        ];
+        let mut names = apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), false, false).unwrap();
+
+        if names.is_empty() {
+            let paths = vec![
+                format!("/usr/share/rubygems\\-integration/all/gems/([^/]+)/lib/{}\\.rb", regex::escape(&self.filename)),
+            ];
+            names = apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false).unwrap();
+        }
+
+        if names.is_empty() {
+            return None;
+        }
+
+        Some(names.iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct XmlEntityDependency {
     url: String,
@@ -817,6 +926,28 @@ impl Dependency for XmlEntityDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+pub const XML_ENTITY_URL_MAP: &[(&str, &str)] = &[
+    ("http://www.oasis-open.org/docbook/xml/", "/usr/share/xml/docbook/schema/dtd/"),
+];
+
+impl crate::dependencies::debian::IntoDebianDependency for XmlEntityDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let path = XML_ENTITY_URL_MAP.iter().find_map(|(url, path)| {
+            if let Some(rest) = self.url.strip_prefix(url) {
+                Some(format!("{}{}", path, rest))
+            } else {
+                None
+            }
+        });
+
+        if path.is_none() {
+            return None;
+        }
+
+        Some(apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
     }
 }
 
@@ -858,6 +989,16 @@ impl Dependency for SprocketsFile {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for SprocketsFile {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let path = match self.content_type.as_str() {
+            "application/javascript" => format!("/usr/share/,*/app/assets/javascripts/{}\\.js", regex::escape(&self.name)),
+            _ => return None,
+        };
+        Some(apt.get_packages_for_paths(vec![&path], true, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CMakefileDependency {
     filename: String,
@@ -894,6 +1035,16 @@ impl Dependency for CMakefileDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for CMakefileDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let paths = vec![
+            format!("/usr/lib/.*/cmake/.*/{}", regex::escape(&self.filename)),
+            format!("/usr/share/.*/cmake/{}", regex::escape(&self.filename)),
+        ];
+        Some(apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
     }
 }
 
@@ -980,6 +1131,25 @@ impl Dependency for MavenArtifactDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for MavenArtifactDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let group_id = self.group_id.replace(".", "/");
+        let kind = self.kind.as_ref().map(|s| s.as_str()).unwrap_or("jar");
+        let (path, regex) = if let Some(version) = self.version.as_ref() {
+            (std::path::Path::new("/usr/share/maven-repo").join(group_id).join(&self.artifact_id).join(version).join(format!("{}-{}.{}", self.artifact_id, version, kind)), true)
+        } else {
+            (std::path::Path::new("/usr/share/maven-repo").join(regex::escape(&group_id)).join(regex::escape(&self.artifact_id)).join(".*").join(format!("{}-.*\\.{}", regex::escape(&self.artifact_id), kind)), false)
+        };
+
+        let names = apt.get_packages_for_paths(vec![path.to_str().unwrap()], regex, false).unwrap();
+        if names.is_empty() {
+            return None;
+        }
+
+        Some(names.iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GnomeCommonDependency;
 
@@ -1042,6 +1212,21 @@ impl Dependency for QtModuleDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for QtModuleDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let names = apt.get_packages_for_paths(
+            vec![
+                &format!("/usr/lib/.*/qt5/mkspecs/modules/qt_lib_{}\\.pri", regex::escape(&self.module)),
+            ], true, false).unwrap();
+
+        if names.is_empty() {
+            return None;
+        }
+
+        Some(names.iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QTDependency;
 
@@ -1059,6 +1244,19 @@ impl Dependency for QTDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for QTDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let names = apt.get_packages_for_paths(
+            vec!["/usr/lib/.*/qt[0-9]+/bin/qmake"], true, false).unwrap();
+
+        if names.is_empty() {
+            return None;
+        }
+
+        Some(names.iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
     }
 }
 
@@ -1119,6 +1317,12 @@ impl Dependency for CertificateAuthorityDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for CertificateAuthorityDependency {
+    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        Some(vec![crate::dependencies::debian::DebianDependency::simple("ca-certificates")])
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoconfMacroDependency {
     macro_name: String,
@@ -1146,6 +1350,43 @@ impl Dependency for AutoconfMacroDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+fn m4_macro_regex(r#macro: &str) -> String {
+    let defun_prefix = regex::escape(format!("AC_DEFUN([{}],", r#macro).as_str());
+    let au_alias_prefix = regex::escape(format!("AU_ALIAS([{}],", r#macro).as_str());
+    let m4_copy = format!(r"m4_copy\(.*,\s*\[{}\]\)", regex::escape(r#macro));
+    ["(", &defun_prefix, "|", &au_alias_prefix, "|", &m4_copy, ")"].concat()
+}
+
+fn find_local_m4_macro(r#macro: &str) -> Option<String> {
+    // TODO(jelmer): Query some external service that can search all binary packages?
+    let p = regex::Regex::new(&m4_macro_regex(r#macro)).unwrap();
+    for entry in std::fs::read_dir("/usr/share/aclocal").unwrap() {
+        let entry = entry.unwrap();
+        if !entry.metadata().unwrap().is_file() {
+            continue;
+        }
+        let f = std::fs::File::open(entry.path()).unwrap();
+        let reader = std::io::BufReader::new(f);
+        for line in reader.lines() {
+            if p.find(line.unwrap().as_str()).is_some() {
+                return Some(entry.path().to_str().unwrap().to_string());
+            }
+        }
+    }
+    None
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for AutoconfMacroDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let path = find_local_m4_macro(&self.macro_name);
+        if path.is_none() {
+            log::info!("No local m4 file found defining {}", self.macro_name);
+            return None;
+        }
+        Some(apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
     }
 }
 
@@ -1211,6 +1452,21 @@ impl Dependency for BoostComponentDependency {
     }
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for BoostComponentDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let names = apt.get_packages_for_paths(
+            vec![
+                &format!("/usr/lib/.*/libboost_{}", regex::escape(&self.name)),
+            ], true, false).unwrap();
+
+        if names.is_empty() {
+            return None;
+        }
+
+        Some(names.iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KF5ComponentDependency {
     name: String,
@@ -1238,6 +1494,21 @@ impl Dependency for KF5ComponentDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for KF5ComponentDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let names = apt.get_packages_for_paths(
+            vec![
+                &format!("/usr/lib/.*/cmake/KF5{}/KF5{}Config\\.cmake", regex::escape(&self.name), regex::escape(&self.name)),
+            ], true, false).unwrap();
+
+        if names.is_empty() {
+            return None;
+        }
+
+        Some(names.iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
     }
 }
 
@@ -1302,5 +1573,51 @@ impl Installer for StackedInstaller {
         }
 
         Err(Error::UnknownDependencyFamily)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntrospectionTypelibDependency {
+    library: String,
+}
+
+impl IntrospectionTypelibDependency {
+    pub fn new(library: &str) -> Self {
+        Self {
+            library: library.to_string(),
+        }
+    }
+}
+
+impl Dependency for IntrospectionTypelibDependency {
+    fn family(&self) -> &'static str {
+        "introspection-type-lib"
+    }
+
+    fn present(&self, _session: &dyn Session) -> bool {
+        todo!()
+    }
+
+    fn project_present(&self, _session: &dyn Session) -> bool {
+        todo!()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for IntrospectionTypelibDependency {
+    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> Option<Vec<crate::dependencies::debian::DebianDependency>> {
+        let names = apt.get_packages_for_paths(
+            vec![
+                &format!("/usr/lib/.*/girepository\\-.*/{}\\-.*.typelib", regex::escape(&self.library)),
+            ], true, false).unwrap();
+
+        if names.is_empty() {
+            return None;
+        }
+
+        Some(names.iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
     }
 }
