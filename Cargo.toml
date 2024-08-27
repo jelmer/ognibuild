@@ -9,7 +9,7 @@ repository = "https://github.com/jelmer/ognibuild.git"
 homepage = "https://github.com/jelmer/ognibuild"
 
 [dependencies]
-axum = { version = "0.6.20", optional = true, features = ["json", "http2"] }
+axum = { version = "0.7", optional = true, features = ["json", "http2", "tokio"] }
 breezyshim = { workspace = true }
 #buildlog-consultant = "0.0.39"
 buildlog-consultant = { git = "https://github.com/jelmer/buildlog-consultant" }
@@ -50,6 +50,7 @@ debian = ["dep:debian-changelog", "dep:debversion", "dep:debian-control", "dep:f
 cli = ["dep:clap", "dep:env_logger"]
 sqlx = ["dep:sqlx"]
 udd = ["dep:sqlx", "dep:tokio"]
+dep-server = ["dep:axum", "dep:tokio"]
 
 [workspace.dependencies]
 pyo3 = "0.22"
@@ -73,3 +74,8 @@ required-features = ["cli", "debian"]
 name = "apt-file-search"
 path = "src/bin/apt-file-search.rs"
 required-features = ["cli", "debian"]
+
+[[bin]]
+name = "dep-server"
+path = "src/bin/dep-server.rs"
+required-features = ["dep-server", "cli", "debian"]
