@@ -336,7 +336,7 @@ pub fn scan_buildsystems(path: &Path) -> Vec<(PathBuf, Box<dyn BuildSystem>)> {
 }
 
 pub fn detect_buildsystems(path: &std::path::Path) -> Option<Box<dyn BuildSystem>> {
-    for probe in [Pear::probe, crate::buildsystems::python::SetupPy::probe/*, Npm::probe, Npm::probe, Waf::Probe, Meson::probe, Cargo::probe, Cabal::Probe, Gradle::probe, Maven::probe, DistZilla::probe, Gem::probe, PerlBuildTiny::probe, Golang::probe, R::probe, Octave::probe, Bazel::probe, CMake::probe, GnomeShellExtension::probe, /* Make is intentionally at the end of the list. */ Make::probe, Composer::probe, RunTests::probe*/] {
+    for probe in [Pear::probe, crate::buildsystems::python::SetupPy::probe, crate::buildsystems::node::Node::probe/*, Waf::Probe, Meson::probe, Cargo::probe, Cabal::Probe, Gradle::probe, Maven::probe, DistZilla::probe, Gem::probe, PerlBuildTiny::probe, Golang::probe, R::probe, Octave::probe, Bazel::probe, CMake::probe, GnomeShellExtension::probe, /* Make is intentionally at the end of the list. */ Make::probe, Composer::probe, RunTests::probe*/] {
         let bs = probe(path);
         if let Some(bs) = bs {
             return Some(bs);
