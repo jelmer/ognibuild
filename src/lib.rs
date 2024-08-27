@@ -7,6 +7,7 @@ pub mod dependencies;
 pub mod dependency;
 pub mod dist_catcher;
 pub mod fix_build;
+pub mod installer;
 pub mod logs;
 pub mod output;
 pub mod session;

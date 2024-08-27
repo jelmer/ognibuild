@@ -1,4 +1,5 @@
-use crate::dependency::{Dependency, Installer, Error, Explanation, InstallationScope};
+use crate::dependency::Dependency;
+use crate::installer::{Installer, Error, Explanation, InstallationScope};
 use debian_control::relations::{Relation, VersionConstraint, Relations};
 use crate::debian::apt::AptManager;
 use crate::dependencies::debian::DebianDependency;

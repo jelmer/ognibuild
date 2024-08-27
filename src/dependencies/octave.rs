@@ -1,4 +1,4 @@
-use crate::dependency::{Installer, Error, Explanation, InstallationScope};
+use crate::installer::{Installer, Error, Explanation, InstallationScope};
 use crate::session::Session;
 use crate::dependency::Dependency;
 use serde::{Serialize, Deserialize};

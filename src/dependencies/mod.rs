@@ -1,5 +1,6 @@
 use crate::buildlog::ToDependency;
-use crate::dependency::{Error, Dependency, Installer, Explanation, InstallationScope};
+use crate::dependency::Dependency;
+use crate::installer::{Error, Installer, Explanation, InstallationScope};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
