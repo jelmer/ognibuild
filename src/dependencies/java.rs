@@ -50,6 +50,12 @@ impl crate::dependencies::debian::IntoDebianDependency for JavaClassDependency {
     }
 }
 
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingJavaClass {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(JavaClassDependency::new(&self.classname)))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JDKDependency;
 
@@ -82,6 +88,12 @@ impl crate::dependencies::debian::IntoDebianDependency for JDKDependency {
     }
 }
 
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingJDK {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(JDKDependency))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JREDependency;
 
@@ -111,6 +123,12 @@ impl Dependency for JREDependency {
 impl crate::dependencies::debian::IntoDebianDependency for JREDependency {
     fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         Some(vec![crate::dependencies::debian::DebianDependency::new("default-jre")])
+    }
+}
+
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingJRE {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(JREDependency))
     }
 }
 
@@ -160,5 +178,11 @@ impl crate::dependencies::debian::IntoDebianDependency for JDKFileDependency {
         } else {
             Some(names.iter().map(|name| crate::dependencies::debian::DebianDependency::simple(name)).collect())
         }
+    }
+}
+
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingJDKFile {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(JDKFileDependency::new(&self.jdk_path, &self.filename)))
     }
 }

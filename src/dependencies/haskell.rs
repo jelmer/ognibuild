@@ -24,6 +24,17 @@ impl HaskellPackageDependency {
     }
 }
 
+impl std::str::FromStr for HaskellPackageDependency {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.splitn(2, ' ');
+        let package = parts.next().ok_or("missing package name")?.to_string();
+        let specs = parts.next().map(|s| s.split(' ').collect());
+        Ok(Self::new(&package, specs))
+    }
+}
+
 fn ghc_pkg_list(session: &dyn Session) -> Vec<(String, String)> {
     let output = session
         .command(vec!["ghc-pkg", "list"])
@@ -128,5 +139,12 @@ impl Installer for HackageResolver {
         } else {
             Err(Error::UnknownDependencyFamily)
         }
+    }
+}
+
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingHaskellDependencies {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        let d: HaskellPackageDependency = self.0[0].parse().unwrap();
+        Some(Box::new(d))
     }
 }

@@ -40,6 +40,17 @@ impl PythonPackageDependency {
     }
 }
 
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPythonDistribution {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(PythonPackageDependency::new(&self.distribution, match self.python_version {
+            Some(2) => Some("cpython2"),
+            Some(3) => Some("cpython3"),
+            None => None,
+            _ => unimplemented!(),
+        }, self.minimum_version.as_ref().map(|x| vec![(">=".to_string(), x.to_string())]).unwrap_or_default())))
+    }
+}
+
 impl Dependency for PythonPackageDependency {
     fn family(&self) -> &'static str {
         "python-package"
@@ -121,6 +132,17 @@ impl PythonModuleDependency {
             None => "python3",
             _ => unimplemented!(),
         }
+    }
+}
+
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPythonModule {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(PythonModuleDependency::new(&self.module, self.minimum_version.as_ref().map(|x| x.as_str()), match self.python_version {
+            Some(2) => Some("cpython2"),
+            Some(3) => Some("cpython3"),
+            None => None,
+            _ => unimplemented!(),
+        })))
     }
 }
 
@@ -422,5 +444,16 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonModuleDependenc
             self.python_version.as_deref(),
             specs.as_slice(),
         ))
+    }
+}
+
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingSetupPyCommand {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        match self.0.as_str() {
+            "test" => {
+                Some(Box::new(PythonPackageDependency::simple("setuptools")))
+            }
+            _ => None,
+        }
     }
 }

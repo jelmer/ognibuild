@@ -119,3 +119,9 @@ pub fn bioconductor(session: Box<dyn Session>) -> Box<dyn Installer> {
 pub fn cran(session: Box<dyn Session>) -> Box<dyn Installer> {
     Box::new(RResolver::new(session, "https://cran.r-project.org"))
 }
+
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingRPackage {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(RPackageDependency::simple(&self.package)))
+    }
+}

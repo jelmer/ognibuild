@@ -1,9 +1,10 @@
+use crate::buildlog::ToDependency;
 use crate::dependency::{Error, Dependency, Installer, Explanation, InstallationScope};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::io::BufRead;
 
+pub mod autoconf;
 #[cfg(feature = "debian")]
 pub mod debian;
 pub mod go;
@@ -15,7 +16,9 @@ pub mod octave;
 pub mod perl;
 pub mod php;
 pub mod python;
+pub mod pytest;
 pub mod r;
+pub mod xml;
 pub mod vague;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +58,18 @@ impl Dependency for BinaryDependency {
     }
 }
 
+impl ToDependency for buildlog_consultant::problems::common::MissingCommand {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(BinaryDependency::new(&self.0)))
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingCommandOrBuildFile {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(BinaryDependency::new(&self.filename)))
+    }
+}
+
 const BIN_PATHS: &[&str] = &["/usr/bin", "/bin"];
 
 impl crate::dependencies::debian::IntoDebianDependency for BinaryDependency {
@@ -66,72 +81,6 @@ impl crate::dependencies::debian::IntoDebianDependency for BinaryDependency {
         };
         // TODO(jelmer): Check for binaries which use alternatives
         Some(apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), false, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PytestPluginDependency {
-    pub plugin: String,
-}
-
-impl PytestPluginDependency {
-    pub fn new(plugin: &str) -> Self {
-        Self {
-            plugin: plugin.to_string(),
-        }
-    }
-}
-
-fn pytest_plugins(session: &dyn Session) -> Option<Vec<(String, String)>> {
-    let output = session
-        .command(vec!["pytest", "--version"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .output()
-        .unwrap();
-    for line in String::from_utf8(output.stdout).unwrap().lines() {
-        if let Some(rest) = line.strip_prefix("plugins: ") {
-            return Some(
-                rest.split(',')
-                    .map(|s| {
-                        let mut parts = s.splitn(2, '=');
-                        (
-                            parts.next().unwrap().to_string(),
-                            parts.next().unwrap_or("").to_string(),
-                        )
-                    })
-                    .collect(),
-            );
-        }
-    }
-    None
-}
-
-impl Dependency for PytestPluginDependency {
-    fn family(&self) -> &'static str {
-        "pytest-plugin"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        if let Some(plugins) = pytest_plugins(session) {
-            plugins.iter().any(|(name, _)| name == &self.plugin)
-        } else {
-            false
-        }
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
-impl crate::dependencies::debian::IntoDebianDependency for PytestPluginDependency {
-    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::simple(&format!("python3-pytest-{}", self.plugin))])
     }
 }
 
@@ -191,6 +140,12 @@ impl crate::dependencies::debian::IntoDebianDependency for VcsControlDirectoryAc
     }
 }
 
+impl ToDependency for buildlog_consultant::problems::common::VcsControlDirectoryNeeded {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(VcsControlDirectoryAccessDependency::new(self.vcs.iter().map(|s| s.as_str()).collect())))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LuaModuleDependency {
     module: String,
@@ -233,6 +188,12 @@ impl Dependency for LuaModuleDependency {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingLuaModule {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(LuaModuleDependency::new(&self.0)))
     }
 }
 
@@ -304,6 +265,18 @@ impl crate::dependencies::debian::IntoDebianDependency for CargoCrateDependency 
     fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         let path = format!("/usr/share/cargo/registry/{}\\-[0-9]+.*/Cargo\\.toml", self.name);
         Some(vec![crate::dependencies::debian::DebianDependency::new_with_min_version(&path, &self.api_version.as_ref().unwrap().parse().unwrap())])
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingCargoCrate {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(CargoCrateDependency::new(&self.crate_name, None, None)))
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingRustCompiler {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(BinaryDependency::new("rustc")))
     }
 }
 
@@ -394,6 +367,12 @@ impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
     }
 }
 
+impl ToDependency for buildlog_consultant::problems::common::MissingPkgConfig {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(PkgConfigDependency::new(&self.module, self.minimum_version.as_ref().map(|s| s.as_str()))))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PathDependency {
     path: PathBuf,
@@ -434,6 +413,12 @@ impl crate::dependencies::debian::IntoDebianDependency for PathDependency {
         Some(apt.get_packages_for_paths(vec![self.path.to_str().unwrap()], false, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
     }
 
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingFile {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(PathDependency{path: PathBuf::from(&self.path)}))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -498,6 +483,12 @@ impl crate::dependencies::debian::IntoDebianDependency for CHeaderDependency {
     }
 }
 
+impl ToDependency for buildlog_consultant::problems::common::MissingCHeader {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(CHeaderDependency::new(&self.header)))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct JavaScriptRuntimeDependency;
 
@@ -529,6 +520,12 @@ impl crate::dependencies::debian::IntoDebianDependency for JavaScriptRuntimeDepe
     fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         let paths = vec!["/usr/bin/node", "/usr/bin/duk"];
         Some(apt.get_packages_for_paths(paths, false, false).map(|p| p.iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect()).unwrap())
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingJavaScriptRuntime {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(JavaScriptRuntimeDependency))
     }
 }
 
@@ -572,6 +569,12 @@ impl Dependency for ValaPackageDependency {
 impl crate::dependencies::debian::IntoDebianDependency for ValaPackageDependency {
     fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         Some(apt.get_packages_for_paths(vec![&format!("/usr/share/vala-[0-9]+/vapi/{}\\.vapi", regex::escape(&self.package))], true, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingValaPackage {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(ValaPackageDependency::new(&self.0)))
     }
 }
 
@@ -654,6 +657,12 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyGemDependency {
     }
 }
 
+impl ToDependency for buildlog_consultant::problems::common::MissingRubyGem {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(RubyGemDependency::new(&self.gem, self.version.as_ref().map(|s| s.as_str()))))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DhAddonDependency {
     addon: String,
@@ -688,6 +697,12 @@ impl Dependency for DhAddonDependency {
 impl crate::dependencies::debian::IntoDebianDependency for DhAddonDependency {
     fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         Some(apt.get_packages_for_paths(vec![&format!("/usr/share/perl5/Debian/Debhelper/Sequence/{}.pm", regex::escape(&self.addon))], true, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::DhAddonLoadFailure {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(DhAddonDependency::new(&self.path)))
     }
 }
 
@@ -790,6 +805,12 @@ impl crate::dependencies::debian::IntoDebianDependency for LibraryDependency {
     }
 }
 
+impl ToDependency for buildlog_consultant::problems::common::MissingLibrary {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(LibraryDependency::new(&self.0)))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StaticLibraryDependency {
     library: String,
@@ -830,6 +851,12 @@ impl crate::dependencies::debian::IntoDebianDependency for StaticLibraryDependen
             format!("/usr/lib/.*/lib{}.a", regex::escape(&self.library)),
         ];
         Some(apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingStaticLibrary {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(StaticLibraryDependency::new(&self.library, &self.filename)))
     }
 }
 
@@ -892,72 +919,19 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyFileDependency {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct XmlEntityDependency {
-    url: String,
-}
-
-impl XmlEntityDependency {
-    pub fn new(url: &str) -> Self {
-        Self {
-            url: url.to_string(),
-        }
-    }
-}
-
-impl Dependency for XmlEntityDependency {
-    fn family(&self) -> &'static str {
-        "xml-entity"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        // Check if the entity is defined in the local XML catalog
-        session
-            .command(vec!["xmlcatalog", "--noout", "--resolve", &self.url])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
-pub const XML_ENTITY_URL_MAP: &[(&str, &str)] = &[
-    ("http://www.oasis-open.org/docbook/xml/", "/usr/share/xml/docbook/schema/dtd/"),
-];
-
-impl crate::dependencies::debian::IntoDebianDependency for XmlEntityDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        let path = XML_ENTITY_URL_MAP.iter().find_map(|(url, path)| {
-            if let Some(rest) = self.url.strip_prefix(url) {
-                Some(format!("{}{}", path, rest))
-            } else {
-                None
-            }
-        });
-
-        if path.is_none() {
-            return None;
-        }
-
-        Some(apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+impl ToDependency for buildlog_consultant::problems::common::MissingRubyFile {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(RubyFileDependency::new(&self.filename)))
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SprocketsFile {
+pub struct SprocketsFileDependency {
     content_type: String,
     name: String,
 }
 
-impl SprocketsFile {
+impl SprocketsFileDependency {
     pub fn new(content_type: &str, name: &str) -> Self {
         Self {
             content_type: content_type.to_string(),
@@ -966,7 +940,7 @@ impl SprocketsFile {
     }
 }
 
-impl Dependency for SprocketsFile {
+impl Dependency for SprocketsFileDependency {
     fn family(&self) -> &'static str {
         "sprockets-file"
     }
@@ -989,7 +963,7 @@ impl Dependency for SprocketsFile {
     }
 }
 
-impl crate::dependencies::debian::IntoDebianDependency for SprocketsFile {
+impl crate::dependencies::debian::IntoDebianDependency for SprocketsFileDependency {
     fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         let path = match self.content_type.as_str() {
             "application/javascript" => format!("/usr/share/,*/app/assets/javascripts/{}\\.js", regex::escape(&self.name)),
@@ -999,13 +973,19 @@ impl crate::dependencies::debian::IntoDebianDependency for SprocketsFile {
     }
 }
 
+impl ToDependency for buildlog_consultant::problems::common::MissingSprocketsFile {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(SprocketsFileDependency::new(&self.content_type, &self.name)))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CMakefileDependency {
+pub struct CMakeFileDependency {
     filename: String,
     version: Option<String>,
 }
 
-impl CMakefileDependency {
+impl CMakeFileDependency {
     pub fn new(filename: &str, version: Option<&str>) -> Self {
         Self {
             filename: filename.to_string(),
@@ -1021,7 +1001,7 @@ impl CMakefileDependency {
     }
 }
 
-impl Dependency for CMakefileDependency {
+impl Dependency for CMakeFileDependency {
     fn family(&self) -> &'static str {
         "cmakefile"
     }
@@ -1038,13 +1018,19 @@ impl Dependency for CMakefileDependency {
     }
 }
 
-impl crate::dependencies::debian::IntoDebianDependency for CMakefileDependency {
+impl crate::dependencies::debian::IntoDebianDependency for CMakeFileDependency {
     fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         let paths = vec![
             format!("/usr/lib/.*/cmake/.*/{}", regex::escape(&self.filename)),
             format!("/usr/share/.*/cmake/{}", regex::escape(&self.filename)),
         ];
         Some(apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::CMakeFilesMissing {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(CMakeFileDependency::new(&self.filenames[0], self.version.as_ref().map(|s| s.as_str()))))
     }
 }
 
@@ -1150,6 +1136,28 @@ impl crate::dependencies::debian::IntoDebianDependency for MavenArtifactDependen
     }
 }
 
+impl std::str::FromStr for MavenArtifactDependency {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split(':').collect();
+        match parts.len() {
+            2 => Ok(Self::from((parts[0].to_string(), parts[1].to_string()))),
+            3 => Ok(Self::from((parts[0].to_string(), parts[1].to_string(), parts[2].to_string()))),
+            4 => Ok(Self::from((parts[0].to_string(), parts[1].to_string(), parts[2].to_string(), parts[3].to_string()))),
+            _ => Err("Invalid Maven artifact dependency".to_string()),
+        }
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingMavenArtifacts {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        let text = self.0[0].as_str();
+        let d: MavenArtifactDependency = text.parse().unwrap();
+        Some(Box::new(d))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GnomeCommonDependency;
 
@@ -1179,6 +1187,12 @@ impl Dependency for GnomeCommonDependency {
 impl crate::dependencies::debian::IntoDebianDependency for GnomeCommonDependency {
     fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         Some(vec![crate::dependencies::debian::DebianDependency::new("gnome-common")])
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingGnomeCommonDependency {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(GnomeCommonDependency))
     }
 }
 
@@ -1227,6 +1241,12 @@ impl crate::dependencies::debian::IntoDebianDependency for QtModuleDependency {
     }
 }
 
+impl ToDependency for buildlog_consultant::problems::common::MissingQtModules {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(QtModuleDependency::new(&self.0[0])))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QTDependency;
 
@@ -1260,6 +1280,12 @@ impl crate::dependencies::debian::IntoDebianDependency for QTDependency {
     }
 }
 
+impl ToDependency for buildlog_consultant::problems::common::MissingQt {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(QTDependency))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct X11Dependency;
 
@@ -1284,6 +1310,12 @@ impl Dependency for X11Dependency {
 impl crate::dependencies::debian::IntoDebianDependency for X11Dependency {
     fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         Some(vec![crate::dependencies::debian::DebianDependency::new("libx11-dev")])
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingX11 {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(X11Dependency))
     }
 }
 
@@ -1323,70 +1355,9 @@ impl crate::dependencies::debian::IntoDebianDependency for CertificateAuthorityD
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AutoconfMacroDependency {
-    macro_name: String,
-}
-
-impl AutoconfMacroDependency {
-    pub fn new(macro_name: &str) -> Self {
-        Self {
-            macro_name: macro_name.to_string(),
-        }
-    }
-}
-
-impl Dependency for AutoconfMacroDependency {
-    fn family(&self) -> &'static str {
-        "autoconf-macro"
-    }
-
-    fn present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
-fn m4_macro_regex(r#macro: &str) -> String {
-    let defun_prefix = regex::escape(format!("AC_DEFUN([{}],", r#macro).as_str());
-    let au_alias_prefix = regex::escape(format!("AU_ALIAS([{}],", r#macro).as_str());
-    let m4_copy = format!(r"m4_copy\(.*,\s*\[{}\]\)", regex::escape(r#macro));
-    ["(", &defun_prefix, "|", &au_alias_prefix, "|", &m4_copy, ")"].concat()
-}
-
-fn find_local_m4_macro(r#macro: &str) -> Option<String> {
-    // TODO(jelmer): Query some external service that can search all binary packages?
-    let p = regex::Regex::new(&m4_macro_regex(r#macro)).unwrap();
-    for entry in std::fs::read_dir("/usr/share/aclocal").unwrap() {
-        let entry = entry.unwrap();
-        if !entry.metadata().unwrap().is_file() {
-            continue;
-        }
-        let f = std::fs::File::open(entry.path()).unwrap();
-        let reader = std::io::BufReader::new(f);
-        for line in reader.lines() {
-            if p.find(line.unwrap().as_str()).is_some() {
-                return Some(entry.path().to_str().unwrap().to_string());
-            }
-        }
-    }
-    None
-}
-
-impl crate::dependencies::debian::IntoDebianDependency for AutoconfMacroDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        let path = find_local_m4_macro(&self.macro_name);
-        if path.is_none() {
-            log::info!("No local m4 file found defining {}", self.macro_name);
-            return None;
-        }
-        Some(apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+impl ToDependency for buildlog_consultant::problems::common::UnknownCertificateAuthority {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(CertificateAuthorityDependency::new(&self.0)))
     }
 }
 
@@ -1419,6 +1390,12 @@ impl Dependency for LibtoolDependency {
 impl crate::dependencies::debian::IntoDebianDependency for LibtoolDependency {
     fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         Some(vec![crate::dependencies::debian::DebianDependency::new("libtool")])
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingLibtool {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(LibtoolDependency))
     }
 }
 
@@ -1512,15 +1489,28 @@ impl crate::dependencies::debian::IntoDebianDependency for KF5ComponentDependenc
     }
 }
 
+impl ToDependency for buildlog_consultant::problems::common::MissingCMakeComponents {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        match self.name.as_str() {
+            "Boost" => Some(Box::new(BoostComponentDependency::new(&self.components[0]))),
+            "KF5" => Some(Box::new(KF5ComponentDependency::new(&self.components[0]))),
+            n => {
+                log::warn!("Unknown CMake component: {}", n);
+                None
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GnulibDirectoryDependency {
-    directory: String,
+    directory: PathBuf,
 }
 
 impl GnulibDirectoryDependency {
     pub fn new(directory: &str) -> Self {
         Self {
-            directory: directory.to_string(),
+            directory: PathBuf::from(directory),
         }
     }
 }
@@ -1539,6 +1529,12 @@ impl Dependency for GnulibDirectoryDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingGnulibDirectory {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(GnulibDirectoryDependency{directory: PathBuf::from(self.0.clone())}))
     }
 }
 
@@ -1594,7 +1590,7 @@ impl Dependency for IntrospectionTypelibDependency {
         "introspection-type-lib"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> bool {
         todo!()
     }
 
@@ -1604,6 +1600,12 @@ impl Dependency for IntrospectionTypelibDependency {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingIntrospectionTypelib {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(IntrospectionTypelibDependency::new(&self.0)))
     }
 }
 
@@ -1619,5 +1621,25 @@ impl crate::dependencies::debian::IntoDebianDependency for IntrospectionTypelibD
         }
 
         Some(names.iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingCSharpCompiler {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        Some(Box::new(BinaryDependency::new("mcs")))
+    }
+}
+
+impl ToDependency for buildlog_consultant::problems::common::MissingXfceDependency {
+    fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
+        match self.package.as_str() {
+            "gtk-doc" => {
+                Some(Box::new(BinaryDependency::new("gtkdocize")))
+            }
+            n => {
+                log::warn!("Unknown XFCE dependency: {}", n);
+                None
+            }
+        }
     }
 }
