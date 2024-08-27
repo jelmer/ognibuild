@@ -334,6 +334,154 @@ pub fn scan_buildsystems(path: &Path) -> Vec<(PathBuf, Box<dyn BuildSystem>)> {
 
     ret
 }
+pub struct Composer(pub PathBuf);
+
+impl Composer {
+    pub fn new(path: PathBuf) -> Self {
+        Self(path)
+    }
+
+    pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
+        if path.join("composer.json").exists() {
+            Some(Box::new(Self(path.into())))
+        } else {
+            None
+        }
+    }
+}
+
+impl BuildSystem for Composer {
+    fn name(&self) -> &str {
+        "composer"
+    }
+
+    fn dist(
+        &self,
+        session: &dyn Session,
+        installer: &dyn Installer,
+        target_directory: &Path,
+        quiet: bool,
+    ) -> Result<std::ffi::OsString, Error> {
+        todo!()
+    }
+
+    fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn clean(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn install(
+        &self,
+        session: &dyn Session,
+        installer: &dyn Installer,
+        install_target: &InstallTarget
+    ) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn get_declared_dependencies(
+        &self,
+        session: &dyn Session,
+        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+    ) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error> {
+        todo!()
+    }
+
+    fn get_declared_outputs(
+        &self,
+        session: &dyn Session,
+        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+    ) -> Result<Vec<Box<dyn Output>>, Error> {
+        todo!()
+    }
+}
+
+pub struct RunTests(pub PathBuf);
+
+impl RunTests {
+    pub fn new(path: PathBuf) -> Self {
+        Self(path)
+    }
+
+    pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
+        if path.join("runtests.sh").exists() {
+            Some(Box::new(Self(path.into())))
+        } else {
+            None
+        }
+    }
+}
+
+impl BuildSystem for RunTests {
+    fn name(&self) -> &str {
+        "runtests"
+    }
+
+    fn dist(
+        &self,
+        session: &dyn Session,
+        installer: &dyn Installer,
+        target_directory: &Path,
+        quiet: bool,
+    ) -> Result<std::ffi::OsString, Error> {
+        todo!()
+    }
+
+    fn test(&self, session: &dyn Session, _installer: &dyn Installer) -> Result<(), Error> {
+        let interpreter = crate::shebang::shebang_binary(&self.0.join("runtests.sh")).unwrap();
+        let argv = if interpreter.is_some() {
+            vec!["./runtests.sh"]
+        } else {
+            vec!["/bin/bash", "./runtests.sh"]
+        };
+
+        crate::analyze::run_detecting_problems(session, argv, None, false, None, None, None, None, None, None)?;
+        Ok(())
+    }
+
+    fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn clean(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn install(
+        &self,
+        session: &dyn Session,
+        installer: &dyn Installer,
+        install_target: &InstallTarget
+    ) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn get_declared_dependencies(
+        &self,
+        session: &dyn Session,
+        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+    ) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error> {
+        todo!()
+    }
+
+    fn get_declared_outputs(
+        &self,
+        session: &dyn Session,
+        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+    ) -> Result<Vec<Box<dyn Output>>, Error> {
+        todo!()
+    }
+
+}
+
+
 
 pub fn detect_buildsystems(path: &std::path::Path) -> Option<Box<dyn BuildSystem>> {
     for probe in [
@@ -356,10 +504,12 @@ pub fn detect_buildsystems(path: &std::path::Path) -> Option<Box<dyn BuildSystem
         Bazel::probe,
         CMake::probe,
         GnomeShellExtension::probe,
-        /* Make is intentionally at the end of the list. */ Make::probe,
+        */
+        /* Make is intentionally at the end of the list. */
+        // Make::probe,
         Composer::probe,
         RunTests::probe,
-        */] {
+        ] {
         let bs = probe(path);
         if let Some(bs) = bs {
             return Some(bs);
@@ -375,7 +525,7 @@ pub fn get_buildsystem(path: &Path) -> Option<(PathBuf, Box<dyn BuildSystem>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::installer::{NullInstaller};
+    use crate::installer::NullInstaller;
     use crate::session::plain::PlainSession;
 
     #[test]
