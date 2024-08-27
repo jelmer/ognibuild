@@ -9,8 +9,10 @@ publish = false
 
 [dependencies]
 breezyshim = { workspace = true }
+buildlog-consultant = { workspace = true }
 ognibuild = { path = ".." }
 pyo3 = { workspace = true, features=["extension-module"]}
+serde_json = "1.0.127"
 
 [lib]
 crate-type = ["cdylib"]
