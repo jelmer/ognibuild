@@ -193,17 +193,20 @@ pub fn native_installers<'a>(session: &'a dyn crate::session::Session) -> Vec<Bo
         .collect()
 }
 
+/// Select installers by name.
 pub fn select_installers<'a>(
     session: &'a dyn crate::session::Session,
     names: Vec<String>,
-) -> Vec<Box<dyn Installer + 'a>> {
+) -> Result<Vec<Box<dyn Installer + 'a>>, String> {
     let mut installers = Vec::new();
     for name in names {
         if let Some(installer) = installer_by_name(session, &name) {
             installers.push(installer);
+        } else {
+            return Err(format!("Unknown installer: {}", name));
         }
     }
-    installers
+    Ok(installers)
 }
 
 pub fn auto_installer<'a>(
@@ -240,4 +243,69 @@ pub fn auto_installer<'a>(
     }
     installers.extend(native_installers(session));
     Box::new(StackedInstaller::new(installers))
+}
+
+/// Install missing dependencies.
+///
+/// This function takes a list of dependencies and installs them if they are not already present.
+///
+/// # Arguments
+/// * `session` - The session to install the dependencies into.
+/// * `installer` - The installer to use.
+pub fn install_missing_deps(
+    session: &dyn Session,
+    installer: &dyn Installer,
+    scope: InstallationScope,
+    deps: &[&dyn Dependency],
+) -> Result<(), Error> {
+    if deps.is_empty() {
+        return Ok(());
+    }
+    let mut missing = vec![];
+    for dep in deps.into_iter() {
+        if !dep.present(session) {
+            missing.push(*dep)
+        }
+    }
+    if !missing.is_empty() {
+        for dep in missing.into_iter() {
+            log::info!("Installing {:?}", dep);
+            installer.install(dep, scope)?;
+        }
+    }
+    Ok(())
+}
+
+/// Explain missing dependencies.
+///
+/// This function takes a list of dependencies and returns a list of explanations for how to
+/// install them.
+///
+/// # Arguments
+/// * `session` - The session to install the dependencies into.
+/// * `installer` - The installer to use.
+pub fn explain_missing_deps<'a>(
+    session: &dyn Session,
+    installer: &dyn Installer,
+    deps: &[&'a dyn Dependency],
+) -> Result<Vec<Explanation>, Error> {
+    if deps.is_empty() {
+        return Ok(vec![]);
+    }
+    let mut missing = vec![];
+    for dep in deps.into_iter() {
+        if !dep.present(session) {
+            missing.push(*dep)
+        }
+    }
+    if !missing.is_empty() {
+        let mut explanations = vec![];
+        for dep in missing.into_iter() {
+            log::info!("Explaining {:?}", dep);
+            explanations.push(installer.explain(dep, InstallationScope::Global)?);
+        }
+        Ok(explanations)
+    } else {
+        Ok(vec![])
+    }
 }
