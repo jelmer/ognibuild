@@ -301,3 +301,50 @@ impl<'a> BuildFixer<InstallerError> for UnexpandedAutoconfMacroFixer<'a> {
         Ok(true)
     }
 }
+
+pub struct InstallFixer<'a> {
+    installer: &'a dyn crate::installer::Installer,
+    scope: crate::installer::InstallationScope,
+}
+
+impl std::fmt::Debug for InstallFixer<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InstallFixer").finish()
+    }
+}
+
+impl std::fmt::Display for InstallFixer<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "upstream requirement fixer")
+    }
+}
+
+impl<'a> InstallFixer<'a> {
+    pub fn new(
+        installer: &'a dyn crate::installer::Installer,
+        scope: crate::installer::InstallationScope,
+    ) -> Self {
+        Self { installer, scope }
+    }
+}
+
+impl<'a> BuildFixer<crate::installer::Error> for InstallFixer<'a> {
+    fn can_fix(&self, error: &dyn Problem) -> bool {
+        let req = crate::buildlog::problem_to_dependency(error);
+        req.is_some()
+    }
+
+    fn fix(
+        &self,
+        error: &dyn Problem,
+        phase: &[&str],
+    ) -> Result<bool, Error<crate::installer::Error>> {
+        let req = crate::buildlog::problem_to_dependency(error);
+        if let Some(req) = req {
+            self.installer.install(req.as_ref(), self.scope).unwrap();
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+}
