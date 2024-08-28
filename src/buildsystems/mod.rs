@@ -1,4 +1,5 @@
 pub mod haskell;
+pub mod java;
 pub mod python;
 pub mod make;
 pub mod meson;
