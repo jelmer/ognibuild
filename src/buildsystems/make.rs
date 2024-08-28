@@ -1,9 +1,9 @@
-use crate::buildsystem::{BuildSystem, Error, InstallTarget, DependencyCategory};
-use crate::installer::{Installer, InstallationScope};
-use crate::analyze::{AnalyzedError};
+use crate::analyze::AnalyzedError;
+use crate::buildsystem::{BuildSystem, DependencyCategory, Error, InstallTarget};
+use crate::dependency::Dependency;
+use crate::installer::{InstallationScope, Installer};
 use crate::session::Session;
 use crate::shebang::shebang_binary;
-use crate::dependency::Dependency;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -21,7 +21,9 @@ pub struct Make {
 }
 
 fn makefile_exists(session: &dyn Session) -> bool {
-    session.exists(Path::new("Makefile")) || session.exists(Path::new("GNUmakefile")) || session.exists(Path::new("makefile"))
+    session.exists(Path::new("Makefile"))
+        || session.exists(Path::new("GNUmakefile"))
+        || session.exists(Path::new("makefile"))
 }
 
 impl Make {
@@ -30,55 +32,109 @@ impl Make {
             Kind::MakefilePL
         } else if path.join("Makefile.am").exists() {
             Kind::Automake
-        } else if path.join("configure.ac").exists() || path.join("configure.in").exists() || path.join("autogen.sh").exists() {
+        } else if path.join("configure.ac").exists()
+            || path.join("configure.in").exists()
+            || path.join("autogen.sh").exists()
+        {
             Kind::Autoconf
-        } else if path.read_dir().unwrap().any(|n| n.unwrap().file_name().to_string_lossy().ends_with(".pro")) {
+        } else if path
+            .read_dir()
+            .unwrap()
+            .any(|n| n.unwrap().file_name().to_string_lossy().ends_with(".pro"))
+        {
             Kind::Qmake
         } else {
             Kind::Make
         };
-        Self { path: path.to_path_buf(), kind }
+        Self {
+            path: path.to_path_buf(),
+            kind,
+        }
     }
 
-    fn setup(&self, session: &dyn Session, _installer: &dyn Installer, prefix: Option<&Path>) -> Result<(), Error> {
+    fn setup(
+        &self,
+        session: &dyn Session,
+        _installer: &dyn Installer,
+        prefix: Option<&Path>,
+    ) -> Result<(), Error> {
         if self.kind == Kind::MakefilePL && !makefile_exists(session) {
-            session.command(vec!["perl", "Makefile.PL"]).run_detecting_problems()?;
+            session
+                .command(vec!["perl", "Makefile.PL"])
+                .run_detecting_problems()?;
         }
 
         if !makefile_exists(session) && !session.exists(Path::new("configure")) {
             if session.exists(Path::new("autogen.sh")) {
-                if shebang_binary(&self.path.join("autogen.sh")).unwrap().is_none() {
-                    session.command(vec!["/bin/sh", "./autogen.sh"]).run_detecting_problems()?;
+                if shebang_binary(&self.path.join("autogen.sh"))
+                    .unwrap()
+                    .is_none()
+                {
+                    session
+                        .command(vec!["/bin/sh", "./autogen.sh"])
+                        .run_detecting_problems()?;
                 }
-                match session.command(vec!["./autogen.sh"]).run_detecting_problems() {
-                    Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&"Gnulib not yet bootstrapped; run ./bootstrap instead.".to_string()) => {
-                            session.command(vec!["./bootstrap"]).run_detecting_problems()?;
-                            session.command(vec!["./autogen.sh"]).run_detecting_problems()
+                match session
+                    .command(vec!["./autogen.sh"])
+                    .run_detecting_problems()
+                {
+                    Err(AnalyzedError::Unidentified { lines, .. })
+                        if lines.contains(
+                            &"Gnulib not yet bootstrapped; run ./bootstrap instead.".to_string(),
+                        ) =>
+                    {
+                        session
+                            .command(vec!["./bootstrap"])
+                            .run_detecting_problems()?;
+                        session
+                            .command(vec!["./autogen.sh"])
+                            .run_detecting_problems()
                     }
-                    other => other
+                    other => other,
                 }?;
-            } else if session.exists(Path::new("configure.ac")) || session.exists(Path::new("configure.in")) {
-                session.command(vec!["autoreconf", "-i"]).run_detecting_problems()?;
+            } else if session.exists(Path::new("configure.ac"))
+                || session.exists(Path::new("configure.in"))
+            {
+                session
+                    .command(vec!["autoreconf", "-i"])
+                    .run_detecting_problems()?;
             }
         }
 
         if !makefile_exists(session) && session.exists(Path::new("configure")) {
-            let args = [vec!["./configure".to_string()], if let Some(p) = prefix {
-                vec![format!("--prefix={}", p.to_str().unwrap())]
-            } else {
-                vec![]
-            }].concat();
-            session.command(args.iter().map(|s| s.as_str()).collect()).run_detecting_problems()?;
+            let args = [
+                vec!["./configure".to_string()],
+                if let Some(p) = prefix {
+                    vec![format!("--prefix={}", p.to_str().unwrap())]
+                } else {
+                    vec![]
+                },
+            ]
+            .concat();
+            session
+                .command(args.iter().map(|s| s.as_str()).collect())
+                .run_detecting_problems()?;
         }
 
-        if !makefile_exists(session) && session.read_dir(Path::new(".")).unwrap().iter().any(|n| n.file_name().to_str().unwrap().ends_with(".pro")) {
+        if !makefile_exists(session)
+            && session
+                .read_dir(Path::new("."))
+                .unwrap()
+                .iter()
+                .any(|n| n.file_name().to_str().unwrap().ends_with(".pro"))
+        {
             session.command(vec!["qmake"]).run_detecting_problems()?;
         }
 
         Ok(())
     }
 
-    fn run_make(&self, session: &dyn Session, args: Vec<&str>, prefix: Option<&Path>) -> Result<(), AnalyzedError> {
+    fn run_make(
+        &self,
+        session: &dyn Session,
+        args: Vec<&str>,
+        prefix: Option<&Path>,
+    ) -> Result<(), AnalyzedError> {
         fn wants_configure(line: &str) -> bool {
             if line.starts_with("Run ./configure") {
                 return true;
@@ -92,7 +148,10 @@ impl Make {
             if line.starts_with("The project was not configured") {
                 return true;
             }
-            lazy_regex::regex_is_match!(r"Makefile:[0-9]+: \*\*\* You need to run \.\/configure .*", line)
+            lazy_regex::regex_is_match!(
+                r"Makefile:[0-9]+: \*\*\* You need to run \.\/configure .*",
+                line
+            )
         }
 
         let cwd = if session.exists(Path::new("build/Makefile")) {
@@ -103,25 +162,59 @@ impl Make {
 
         let args = [vec!["make"], args].concat();
 
-        match session.command(args.clone()).cwd(cwd).run_detecting_problems() {
-            Err(AnalyzedError::Unidentified { lines, .. }) if lines.len() < 5 && lines.iter().any(|l| wants_configure(l)) => {
-                session.command([vec!["./configure".to_string()], if let Some(p) = prefix.as_ref() {
-                    vec![format!("--prefix={}", p.to_str().unwrap())]
-                } else {
-                    vec![]
-                }].concat().iter().map(|x| x.as_str()).collect()).run_detecting_problems()?;
+        match session
+            .command(args.clone())
+            .cwd(cwd)
+            .run_detecting_problems()
+        {
+            Err(AnalyzedError::Unidentified { lines, .. })
+                if lines.len() < 5 && lines.iter().any(|l| wants_configure(l)) =>
+            {
+                session
+                    .command(
+                        [
+                            vec!["./configure".to_string()],
+                            if let Some(p) = prefix.as_ref() {
+                                vec![format!("--prefix={}", p.to_str().unwrap())]
+                            } else {
+                                vec![]
+                            },
+                        ]
+                        .concat()
+                        .iter()
+                        .map(|x| x.as_str())
+                        .collect(),
+                    )
+                    .run_detecting_problems()?;
                 session.command(args).cwd(cwd).run_detecting_problems()
             }
-            Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&"Reconfigure the source tree (via './config' or 'perl Configure'), please.".to_string()) => {
+            Err(AnalyzedError::Unidentified { lines, .. })
+                if lines.contains(
+                    &"Reconfigure the source tree (via './config' or 'perl Configure'), please."
+                        .to_string(),
+                ) =>
+            {
                 session.command(vec!["./config"]).run_detecting_problems()?;
                 session.command(args).cwd(cwd).run_detecting_problems()
             }
-            other => other
-        }.map(|_| ())
+            other => other,
+        }
+        .map(|_| ())
     }
 
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
-        if ["Makefile", "GNUmakefile", "makefile", "Makefile.PL", "autogen.sh", "configure.ac", "configure.in"].iter().any(|p| path.join(p).exists()) {
+        if [
+            "Makefile",
+            "GNUmakefile",
+            "makefile",
+            "Makefile.PL",
+            "autogen.sh",
+            "configure.ac",
+            "configure.in",
+        ]
+        .iter()
+        .any(|p| path.join(p).exists())
+        {
             return Some(Box::new(Self::new(path)));
         }
         for n in path.read_dir().unwrap() {
@@ -176,14 +269,28 @@ impl BuildSystem for Make {
         Ok(dc.copy_single(target_directory).unwrap().unwrap())
     }
 
-    fn test(&self, session: &dyn crate::session::Session, installer: &dyn Installer) -> Result<(), Error> {
+    fn test(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn Installer,
+    ) -> Result<(), Error> {
         self.setup(session, installer, None)?;
         for target in ["check", "test"] {
             match self.run_make(session, vec![target], None) {
-                Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&format!("make: *** No rule to make target '{}'.  Stop.", target)) => {
+                Err(AnalyzedError::Unidentified { lines, .. })
+                    if lines.contains(&format!(
+                        "make: *** No rule to make target '{}'.  Stop.",
+                        target
+                    )) =>
+                {
                     continue;
                 }
-                Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&format!("make[1]: *** No rule to make target '{}'.  Stop.", target)) => {
+                Err(AnalyzedError::Unidentified { lines, .. })
+                    if lines.contains(&format!(
+                        "make[1]: *** No rule to make target '{}'.  Stop.",
+                        target
+                    )) =>
+                {
                     continue;
                 }
                 other => other,
@@ -193,14 +300,20 @@ impl BuildSystem for Make {
 
         if self.path.join("t").exists() {
             // See https://perlmaven.com/how-to-run-the-tests-of-a-typical-perl-module
-            session.command(vec!["prove", "-b", "t/"]).run_detecting_problems()?;
+            session
+                .command(vec!["prove", "-b", "t/"])
+                .run_detecting_problems()?;
         } else {
             log::warn!("No test target found");
         }
         Ok(())
     }
 
-    fn build(&self, session: &dyn crate::session::Session, installer: &dyn Installer) -> Result<(), Error> {
+    fn build(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn Installer,
+    ) -> Result<(), Error> {
         self.setup(session, installer, None)?;
         let default_target = match self.kind {
             Kind::Qmake => None,
@@ -215,7 +328,11 @@ impl BuildSystem for Make {
         Ok(())
     }
 
-    fn clean(&self, session: &dyn crate::session::Session, installer: &dyn Installer) -> Result<(), Error> {
+    fn clean(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn Installer,
+    ) -> Result<(), Error> {
         self.setup(session, installer, None)?;
         self.run_make(session, vec!["clean"], None)?;
         Ok(())
@@ -225,7 +342,7 @@ impl BuildSystem for Make {
         &self,
         session: &dyn crate::session::Session,
         installer: &dyn Installer,
-        install_target: &InstallTarget
+        install_target: &InstallTarget,
     ) -> Result<(), Error> {
         self.setup(session, installer, install_target.prefix.as_deref())?;
         self.run_make(session, vec!["install"], install_target.prefix.as_deref())?;
@@ -236,17 +353,34 @@ impl BuildSystem for Make {
         &self,
         session: &dyn crate::session::Session,
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
-    ) -> Result<Vec<(crate::buildsystem::DependencyCategory, Box<dyn crate::dependency::Dependency>)>, Error> {
+    ) -> Result<
+        Vec<(
+            crate::buildsystem::DependencyCategory,
+            Box<dyn crate::dependency::Dependency>,
+        )>,
+        Error,
+    > {
         // TODO(jelmer): Split out the perl-specific stuff?
         let mut ret = vec![];
         let meta_yml = self.path.join("META.yml");
         if meta_yml.exists() {
             let mut f = std::fs::File::open(meta_yml).unwrap();
-            ret.extend(crate::buildsystems::perl::declared_deps_from_meta_yml(&mut f).into_iter().map(|d| (d.0, Box::new(d.1) as Box<dyn crate::dependency::Dependency>)));
+            ret.extend(
+                crate::buildsystems::perl::declared_deps_from_meta_yml(&mut f)
+                    .into_iter()
+                    .map(|d| (d.0, Box::new(d.1) as Box<dyn crate::dependency::Dependency>)),
+            );
         }
         let cpanfile = self.path.join("cpanfile");
         if cpanfile.exists() {
-            ret.extend(crate::buildsystems::perl::declared_deps_from_cpanfile(session, fixers.unwrap_or(&vec![])).into_iter().map(|d| (d.0, Box::new(d.1) as Box<dyn crate::dependency::Dependency>)));
+            ret.extend(
+                crate::buildsystems::perl::declared_deps_from_cpanfile(
+                    session,
+                    fixers.unwrap_or(&vec![]),
+                )
+                .into_iter()
+                .map(|d| (d.0, Box::new(d.1) as Box<dyn crate::dependency::Dependency>)),
+            );
         }
         Ok(ret)
     }
@@ -267,17 +401,27 @@ pub struct CMake {
 
 impl CMake {
     pub fn new(path: &Path) -> Self {
-        Self { path: path.to_path_buf(), builddir: "build".to_string() }
+        Self {
+            path: path.to_path_buf(),
+            builddir: "build".to_string(),
+        }
     }
 
-    fn setup(&self, session: &dyn Session, _installer: &dyn crate::installer::Installer) -> Result<(), Error> {
+    fn setup(
+        &self,
+        session: &dyn Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), Error> {
         if !session.exists(Path::new(&self.builddir)) {
-            session.mkdir(Path::new(&self.builddir));
+            session.mkdir(Path::new(&self.builddir))?;
         }
-        match session.command(vec!["cmake", ".", &format!("-B{}", self.builddir)]).run_detecting_problems() {
+        match session
+            .command(vec!["cmake", ".", &format!("-B{}", self.builddir)])
+            .run_detecting_problems()
+        {
             Ok(_) => Ok(()),
             Err(e) => {
-                session.rmtree(Path::new(&self.builddir));
+                session.rmtree(Path::new(&self.builddir))?;
                 Err(e.into())
             }
         }
@@ -306,9 +450,15 @@ impl crate::buildsystem::BuildSystem for CMake {
         todo!()
     }
 
-    fn build(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
+    fn build(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, installer)?;
-        session.command(vec!["cmake", "--build", &self.builddir]).run_detecting_problems()?;
+        session
+            .command(vec!["cmake", "--build", &self.builddir])
+            .run_detecting_problems()?;
         Ok(())
     }
 
@@ -316,16 +466,31 @@ impl crate::buildsystem::BuildSystem for CMake {
         &self,
         session: &dyn crate::session::Session,
         installer: &dyn crate::installer::Installer,
-        install_target: &crate::buildsystem::InstallTarget
+        install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, installer)?;
-        session.command(vec!["cmake", "--install", &self.builddir]).run_detecting_problems()?;
+        session
+            .command(vec!["cmake", "--install", &self.builddir])
+            .run_detecting_problems()?;
         Ok(())
     }
 
-    fn clean(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
+    fn clean(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, installer)?;
-        session.command(vec!["cmake", "--build", &self.builddir, ".", "--target", "clean"]).run_detecting_problems()?;
+        session
+            .command(vec![
+                "cmake",
+                "--build",
+                &self.builddir,
+                ".",
+                "--target",
+                "clean",
+            ])
+            .run_detecting_problems()?;
         Ok(())
     }
 
@@ -333,15 +498,30 @@ impl crate::buildsystem::BuildSystem for CMake {
         &self,
         session: &dyn crate::session::Session,
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
-    ) -> Result<Vec<(crate::buildsystem::DependencyCategory, Box<dyn crate::dependency::Dependency>)>, crate::buildsystem::Error> {
+    ) -> Result<
+        Vec<(
+            crate::buildsystem::DependencyCategory,
+            Box<dyn crate::dependency::Dependency>,
+        )>,
+        crate::buildsystem::Error,
+    > {
         // TODO(jelmer): Find a proper parser for CMakeLists.txt somewhere?
         use std::io::BufRead;
         let f = std::fs::File::open(self.path.join("CMakeLists.txt")).unwrap();
         let mut ret: Vec<(DependencyCategory, Box<dyn Dependency>)> = vec![];
         for line in std::io::BufReader::new(f).lines() {
             let line = line.unwrap();
-            if let Some((_, m)) = lazy_regex::regex_captures!(r"cmake_minimum_required\(\s*VERSION\s+(.*)\s*\)", &line) {
-                ret.push((crate::buildsystem::DependencyCategory::Build, Box::new(crate::dependencies::vague::VagueDependency::new("CMake", Some(m)))));
+            if let Some((_, m)) = lazy_regex::regex_captures!(
+                r"cmake_minimum_required\(\s*VERSION\s+(.*)\s*\)",
+                &line
+            ) {
+                ret.push((
+                    crate::buildsystem::DependencyCategory::Build,
+                    Box::new(crate::dependencies::vague::VagueDependency::new(
+                        "CMake",
+                        Some(m),
+                    )),
+                ));
             }
         }
 

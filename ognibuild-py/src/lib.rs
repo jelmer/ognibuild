@@ -87,33 +87,41 @@ impl std::fmt::Debug for PyProblem {
 
 fn py_to_json(py: Python, obj: PyObject) -> PyResult<serde_json::Value> {
     if let Ok(s) = obj.extract::<String>(py) {
-        return Ok(serde_json::Value::String(s));
+        Ok(serde_json::Value::String(s))
     } else if let Ok(n) = obj.extract::<i64>(py) {
-        return Ok(serde_json::Value::Number(n.into()));
+        Ok(serde_json::Value::Number(n.into()))
     } else if let Ok(b) = obj.extract::<bool>(py) {
-        return Ok(serde_json::Value::Bool(b));
+        Ok(serde_json::Value::Bool(b))
     } else if obj.is_none(py) {
-        return Ok(serde_json::Value::Null);
+        Ok(serde_json::Value::Null)
     } else if let Ok(l) = obj.extract::<Vec<PyObject>>(py) {
-        return Ok(serde_json::Value::Array(l.into_iter().map(|x| py_to_json(py, x)).collect::<PyResult<_>>()?));
+        Ok(serde_json::Value::Array(
+            l.into_iter()
+                .map(|x| py_to_json(py, x))
+                .collect::<PyResult<_>>()?,
+        ))
     } else if let Ok(d) = obj.extract::<HashMap<String, PyObject>>(py) {
-        return Ok(serde_json::Value::Object(
+        Ok(serde_json::Value::Object(
             d.into_iter()
                 .map(|(k, v)| Ok((k, py_to_json(py, v)?)))
                 .collect::<PyResult<_>>()?,
-        ));
+        ))
     } else {
-        return Err(pyo3::exceptions::PyTypeError::new_err(("Cannot convert to JSON",)));
+        Err(pyo3::exceptions::PyTypeError::new_err((
+            "Cannot convert to JSON",
+        )))
     }
 }
 
 impl buildlog_consultant::Problem for PyProblem {
     fn kind(&self) -> std::borrow::Cow<str> {
-        std::borrow::Cow::Owned(pyo3::Python::with_gil(|py| {
-            let kind = self.0.getattr(py, "kind")?;
-            kind.call0(py)?.extract(py)
-        })
-        .unwrap())
+        std::borrow::Cow::Owned(
+            pyo3::Python::with_gil(|py| {
+                let kind = self.0.getattr(py, "kind")?;
+                kind.call0(py)?.extract(py)
+            })
+            .unwrap(),
+        )
     }
 
     fn json(&self) -> serde_json::Value {
@@ -121,7 +129,7 @@ impl buildlog_consultant::Problem for PyProblem {
             let json = self.0.call_method0(py, "json")?;
             py_to_json(py, json)
         })
-        .unwrap_or_else(|_| serde_json::Value::Null)
+        .unwrap_or(serde_json::Value::Null)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -165,9 +173,12 @@ impl ognibuild::fix_build::BuildFixer<PyErr> for PyBuildFixer {
         let p = if let Some(p) = problem.as_any().downcast_ref::<PyProblem>() {
             p
         } else {
-            return Err(ognibuild::fix_build::Error::Other(PyErr::new::<PyException, _>(
-                ("Problem is not a PyProblem",),
-            )));
+            return Err(ognibuild::fix_build::Error::Other(PyErr::new::<
+                PyException,
+                _,
+            >((
+                "Problem is not a PyProblem",
+            ))));
         };
         pyo3::Python::with_gil(|py| {
             let fix = self.0.getattr(py, "fix")?;
@@ -218,6 +229,14 @@ fn iterate_with_build_fixers(
             let p = _problem.as_any().downcast_ref::<PyProblem>().unwrap();
             PyErr::new::<PersistentBuildProblem, _>((Python::with_gil(|py| p.0.clone_ref(py)),))
         }
+        ognibuild::fix_build::IterateBuildError::Unidentified {
+            retcode,
+            lines,
+            secondary: _,
+        } => {
+            import_exception!(ognibuild, UnidentifiedError);
+            UnidentifiedError::new_err((retcode, (), lines))
+        }
     })
 }
 
@@ -252,6 +271,14 @@ fn resolve_error(
                 let p = problem.as_any().downcast_ref::<PyProblem>().unwrap();
                 PyErr::from_value_bound(p.0.clone_ref(py).into_bound(py))
             }
+            ognibuild::fix_build::Error::Unidentified {
+                retcode,
+                lines,
+                secondary: _,
+            } => {
+                import_exception!(ognibuidl, UnidentifiedError);
+                UnidentifiedError::new_err((retcode, (), lines))
+            }
         }),
     }
 }
@@ -268,7 +295,7 @@ struct Session(Option<std::sync::Mutex<Box<dyn ognibuild::session::Session + Sen
 
 fn map_session_error(e: ognibuild::session::Error) -> PyErr {
     match e {
-        ognibuild::session::Error::CalledProcessError(e) => CalledProcessError::new_err(e),
+        ognibuild::session::Error::CalledProcessError(e) => CalledProcessError::new_err(e.code()),
         ognibuild::session::Error::SetupFailure(n, e) => {
             SessionSetupFailure::new(vec![n], e).into()
         }
@@ -411,9 +438,15 @@ impl Session {
         let stdout = extract_stdio(stdout)?;
         let stderr = extract_stdio(stderr)?;
         let stdin = extract_stdio(stdin)?;
-        let child =
-            self.get_session()?
-                .popen(argv, cwd.as_deref(), user, stdout, stderr, stdin, env);
+        let child = self.get_session()?.popen(
+            argv,
+            cwd.as_deref(),
+            user,
+            stdout,
+            stderr,
+            stdin,
+            env.as_ref(),
+        );
         Ok(Child::from(child))
     }
 }
@@ -644,13 +677,13 @@ fn run_with_tee(
         args,
         cwd.as_deref(),
         user,
-        env,
+        env.as_ref(),
         stdin,
         stdout,
         stderr,
     )
     .map_err(map_session_error)?;
-    Ok((ret, output))
+    Ok((ret.code().unwrap(), output))
 }
 
 #[pyclass]
@@ -678,7 +711,7 @@ impl DistCatcher {
     }
 
     #[pyo3(signature = ())]
-    fn __enter__<'a>(mut slf: PyRefMut<'a, Self>) -> PyResult<PyRefMut<'a, Self>> {
+    fn __enter__(mut slf: PyRefMut<'_, Self>) -> PyResult<PyRefMut<'_, Self>> {
         slf.0.start();
         Ok(slf)
     }
@@ -686,7 +719,7 @@ impl DistCatcher {
     #[pyo3(signature = (exc_type, exc_value, traceback))]
     #[allow(unused_variables)]
     fn __exit__(
-        mut slf: PyRefMut<Self>,
+        slf: PyRefMut<Self>,
         exc_type: Option<PyObject>,
         exc_value: Option<PyObject>,
         traceback: Option<PyObject>,
