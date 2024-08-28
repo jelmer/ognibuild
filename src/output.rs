@@ -6,6 +6,12 @@ pub trait Output {
 
 pub struct BinaryOutput(pub String);
 
+impl BinaryOutput {
+    pub fn new(name: &str) -> Self {
+        BinaryOutput(name.to_string())
+    }
+}
+
 impl Output for BinaryOutput {
     fn family(&self) -> &'static str {
         "binary"
