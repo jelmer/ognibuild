@@ -230,7 +230,7 @@ impl<'a> AptFileFileSearcher<'a> {
         if !session.exists(&CACHE_IS_EMPTY_PATH) {
             return Ok(false);
         }
-        match session.check_call(vec![&CACHE_IS_EMPTY_PATH.to_str().unwrap()], None, None, None) {
+        match session.command(vec![&CACHE_IS_EMPTY_PATH.to_str().unwrap()]).check_call(){
             Ok(_) => Ok(true),
             Err(SessionError::CalledProcessError(status)) => {
                 if status.code() == Some(1) {
@@ -249,7 +249,7 @@ impl<'a> AptFileFileSearcher<'a> {
             crate::debian::apt::AptManager::from_session(session).satisfy(vec!["apt-file"]).unwrap();
         }
         if !Self::has_cache(session).unwrap() {
-            session.check_call(vec!["apt-file", "update"], None, Some("root"), None).unwrap();
+            session.command(vec!["apt-file", "update"]).user("root").check_call().unwrap();
         }
         AptFileFileSearcher { session }
     }

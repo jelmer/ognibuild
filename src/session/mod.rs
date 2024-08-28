@@ -215,6 +215,15 @@ impl<'a> CommandBuilder<'a> {
         let output = p.wait_with_output()?;
         Ok(output)
     }
+
+    pub fn check_call(self) -> Result<(), Error> {
+        self.session.check_call(self.argv, self.cwd, self.user, self.env)
+    }
+
+    pub fn check_output(self) -> Result<Vec<u8>, Error> {
+        self.session
+            .check_output(self.argv, self.cwd, self.user, self.env)
+    }
 }
 
 pub fn which(session: &dyn Session, name: &str) -> Option<String> {

@@ -105,7 +105,7 @@ impl<'a> Installer for TlmgrResolver<'a> {
             Ok(_) => Ok(()),
             Err(AnalyzedError::Unidentified { lines, retcode, secondary }) => {
                 if lines.contains(&"tlmgr: user mode not initialized, please read the documentation!".to_string()) {
-                    self.session.check_call(["tlmgr", "init-usertree"].to_vec(), None, None, None)?;
+                    self.session.command(vec!["tlmgr", "init-usertree"]).check_call()?;
                     Ok(())
                 } else {
                     Err(Error::AnalyzedError(AnalyzedError::Unidentified {

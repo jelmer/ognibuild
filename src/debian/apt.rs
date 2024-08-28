@@ -198,16 +198,7 @@ pub fn find_deps_with_min_version(
 pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Result<(), Error> {
     let args = [prefix, vec!["apt", "-y"], args].concat();
     log::info!("apt: running {:?}", args);
-    let (status, mut lines) = crate::session::run_with_tee(
-        session,
-        args.clone(),
-        Some(std::path::Path::new("/")),
-        Some("root"),
-        None,
-        None,
-        None,
-        None,
-    )?;
+    let (status, mut lines) = session.command(args.clone()).cwd(std::path::Path::new("/")).user("root").run_with_tee()?;
     if status.success() {
         return Ok(());
     }
