@@ -1,9 +1,11 @@
+use crate::dependencies::debian::{
+    default_tie_breakers, DebianDependency, IntoDebianDependency, TieBreaker,
+};
+use crate::dependency::Dependency;
+use crate::installer::{Error as InstallerError, Explanation, InstallationScope, Installer};
 use crate::session::{get_user, Session};
 use debversion::Version;
 use std::sync::RwLock;
-use crate::dependency::Dependency;
-use crate::installer::{Installer, Explanation, InstallationScope, Error as InstallerError};
-use crate::dependencies::debian::{DebianDependency, TieBreaker, default_tie_breakers, IntoDebianDependency};
 
 pub enum Error {
     Unidentified {
@@ -104,6 +106,11 @@ pub struct AptManager<'a> {
     searchers: RwLock<Option<Vec<Box<dyn crate::debian::file_search::FileSearcher<'a> + 'a>>>>,
 }
 
+pub enum SatisfyEntry {
+    Required(String),
+    Conflict(String),
+}
+
 impl<'a> AptManager<'a> {
     pub fn new(session: &'a dyn Session, prefix: Option<Vec<String>>) -> Self {
         Self {
@@ -130,10 +137,13 @@ impl<'a> AptManager<'a> {
         )
     }
 
-    pub fn satisfy(&self, deps: Vec<&str>) -> Result<(), Error> {
-        let mut args = vec!["satisfy"];
-        args.extend(deps);
-        self.run_apt(args)
+    pub fn satisfy(&self, deps: Vec<SatisfyEntry>) -> Result<(), Error> {
+        let mut args = vec!["satisfy".to_string()];
+        args.extend(deps.iter().map(|dep| match dep {
+            SatisfyEntry::Required(s) => s.clone(),
+            SatisfyEntry::Conflict(s) => format!("Conflict: {}", s),
+        }));
+        self.run_apt(args.iter().map(|s| s.as_str()).collect())
     }
 
     pub fn satisfy_command<'b>(&'b self, deps: Vec<&'b str>) -> Vec<&'b str> {
@@ -149,7 +159,10 @@ impl<'a> AptManager<'a> {
     }
 
     pub fn get_packages_for_paths(
-        &self, paths: Vec<&str>, regex: bool, case_insensitive: bool
+        &self,
+        paths: Vec<&str>,
+        regex: bool,
+        case_insensitive: bool,
     ) -> Result<Vec<String>, Error> {
         log::debug!("Searching for packages containing {:?}", paths);
         if self.searchers.read().unwrap().is_none() {
@@ -161,7 +174,15 @@ impl<'a> AptManager<'a> {
 
         Ok(crate::debian::file_search::get_packages_for_paths(
             paths,
-            self.searchers.read().unwrap().as_ref().unwrap().iter().map(|s| s.as_ref()).collect::<Vec<_>>().as_slice(),
+            self.searchers
+                .read()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|s| s.as_ref())
+                .collect::<Vec<_>>()
+                .as_slice(),
             regex,
             case_insensitive,
         ))
@@ -198,7 +219,11 @@ pub fn find_deps_with_min_version(
 pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Result<(), Error> {
     let args = [prefix, vec!["apt", "-y"], args].concat();
     log::info!("apt: running {:?}", args);
-    let (status, mut lines) = session.command(args.clone()).cwd(std::path::Path::new("/")).user("root").run_with_tee()?;
+    let (status, mut lines) = session
+        .command(args.clone())
+        .cwd(std::path::Path::new("/"))
+        .user("root")
+        .run_with_tee()?;
     if status.success() {
         return Ok(());
     }
@@ -222,7 +247,10 @@ pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Res
     });
 }
 
-fn pick_best_deb_dependency(mut dependencies: Vec<DebianDependency>, tie_breakers: &[Box<dyn TieBreaker>]) -> Option<DebianDependency> {
+fn pick_best_deb_dependency(
+    mut dependencies: Vec<DebianDependency>,
+    tie_breakers: &[Box<dyn TieBreaker>],
+) -> Option<DebianDependency> {
     if dependencies.is_empty() {
         return None;
     }
@@ -240,11 +268,17 @@ fn pick_best_deb_dependency(mut dependencies: Vec<DebianDependency>, tie_breaker
         }
     }
 
-    log::info!("No tie breaker could determine a winner for dependency {:?}", dependencies);
+    log::info!(
+        "No tie breaker could determine a winner for dependency {:?}",
+        dependencies
+    );
     Some(dependencies.remove(0))
 }
 
-pub fn dependency_to_possible_deb_dependencies(apt: &AptManager, dep: &dyn Dependency) -> Vec<DebianDependency> {
+pub fn dependency_to_possible_deb_dependencies(
+    apt: &AptManager,
+    dep: &dyn Dependency,
+) -> Vec<DebianDependency> {
     let mut candidates = vec![];
     macro_rules! try_into_debian_dependency {
         ($apt:expr, $dep:expr, $type:ty) => {
@@ -259,14 +293,26 @@ pub fn dependency_to_possible_deb_dependencies(apt: &AptManager, dep: &dyn Depen
     // TODO: More idiomatic way to do this?
     try_into_debian_dependency!(apt, dep, crate::dependencies::go::GoPackageDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::go::GoDependency);
-    try_into_debian_dependency!(apt, dep, crate::dependencies::haskell::HaskellPackageDependency);
+    try_into_debian_dependency!(
+        apt,
+        dep,
+        crate::dependencies::haskell::HaskellPackageDependency
+    );
     try_into_debian_dependency!(apt, dep, crate::dependencies::java::JavaClassDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::java::JDKDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::java::JREDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::java::JDKFileDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::BinaryDependency);
-    try_into_debian_dependency!(apt, dep, crate::dependencies::pytest::PytestPluginDependency);
-    try_into_debian_dependency!(apt, dep, crate::dependencies::VcsControlDirectoryAccessDependency);
+    try_into_debian_dependency!(
+        apt,
+        dep,
+        crate::dependencies::pytest::PytestPluginDependency
+    );
+    try_into_debian_dependency!(
+        apt,
+        dep,
+        crate::dependencies::VcsControlDirectoryAccessDependency
+    );
     try_into_debian_dependency!(apt, dep, crate::dependencies::CargoCrateDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::PkgConfigDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::PathDependency);
@@ -286,28 +332,56 @@ pub fn dependency_to_possible_deb_dependencies(apt: &AptManager, dep: &dyn Depen
     try_into_debian_dependency!(apt, dep, crate::dependencies::QtModuleDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::QTDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::X11Dependency);
-    try_into_debian_dependency!(apt, dep, crate::dependencies::CertificateAuthorityDependency);
-    try_into_debian_dependency!(apt, dep, crate::dependencies::autoconf::AutoconfMacroDependency);
+    try_into_debian_dependency!(
+        apt,
+        dep,
+        crate::dependencies::CertificateAuthorityDependency
+    );
+    try_into_debian_dependency!(
+        apt,
+        dep,
+        crate::dependencies::autoconf::AutoconfMacroDependency
+    );
     try_into_debian_dependency!(apt, dep, crate::dependencies::LibtoolDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::BoostComponentDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::KF5ComponentDependency);
-    try_into_debian_dependency!(apt, dep, crate::dependencies::IntrospectionTypelibDependency);
+    try_into_debian_dependency!(
+        apt,
+        dep,
+        crate::dependencies::IntrospectionTypelibDependency
+    );
     try_into_debian_dependency!(apt, dep, crate::dependencies::node::NodePackageDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::node::NodeModuleDependency);
-    try_into_debian_dependency!(apt, dep, crate::dependencies::octave::OctavePackageDependency);
-    try_into_debian_dependency!(apt, dep, crate::dependencies::perl::PerlPreDeclaredDependency);
+    try_into_debian_dependency!(
+        apt,
+        dep,
+        crate::dependencies::octave::OctavePackageDependency
+    );
+    try_into_debian_dependency!(
+        apt,
+        dep,
+        crate::dependencies::perl::PerlPreDeclaredDependency
+    );
     try_into_debian_dependency!(apt, dep, crate::dependencies::perl::PerlModuleDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::perl::PerlFileDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::php::PhpClassDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::php::PhpExtensionDependency);
-    try_into_debian_dependency!(apt, dep, crate::dependencies::python::PythonModuleDependency);
+    try_into_debian_dependency!(
+        apt,
+        dep,
+        crate::dependencies::python::PythonModuleDependency
+    );
     try_into_debian_dependency!(apt, dep, crate::dependencies::r::RPackageDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::vague::VagueDependency);
 
     candidates
 }
 
-pub fn dependency_to_deb_dependency(apt: &AptManager, dep: &dyn Dependency, tie_breakers: &[Box<dyn TieBreaker>]) -> Result<Option<DebianDependency>, InstallerError> {
+pub fn dependency_to_deb_dependency(
+    apt: &AptManager,
+    dep: &dyn Dependency,
+    tie_breakers: &[Box<dyn TieBreaker>],
+) -> Result<Option<DebianDependency>, InstallerError> {
     let candidates = dependency_to_possible_deb_dependencies(apt, dep);
 
     if candidates.is_empty() {
@@ -328,7 +402,10 @@ impl<'a> AptInstaller<'a> {
         Self { apt, tie_breakers }
     }
 
-    pub fn new_with_tie_breakers(apt: AptManager<'a>, tie_breakers: Vec<Box<dyn TieBreaker>>) -> Self {
+    pub fn new_with_tie_breakers(
+        apt: AptManager<'a>,
+        tie_breakers: Vec<Box<dyn TieBreaker>>,
+    ) -> Self {
         Self { apt, tie_breakers }
     }
 
@@ -338,9 +415,12 @@ impl<'a> AptInstaller<'a> {
     }
 }
 
-
 impl<'a> Installer for AptInstaller<'a> {
-    fn install(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<(), InstallerError> {
+    fn install(
+        &self,
+        dep: &dyn Dependency,
+        scope: InstallationScope,
+    ) -> Result<(), InstallerError> {
         match scope {
             InstallationScope::User => {
                 return Err(InstallerError::UnsupportedScope(scope));
@@ -351,21 +431,34 @@ impl<'a> Installer for AptInstaller<'a> {
             }
         }
 
-        let apt_deb = if let Some(apt_deb) = dependency_to_deb_dependency(&self.apt, dep, self.tie_breakers.as_slice())? {
+        let apt_deb = if let Some(apt_deb) =
+            dependency_to_deb_dependency(&self.apt, dep, self.tie_breakers.as_slice())?
+        {
             apt_deb
         } else {
             return Err(InstallerError::UnknownDependencyFamily);
         };
 
-        match self.apt.satisfy(vec![apt_deb.relation_string().as_str()]) {
-            Ok(_) => {},
-            Err(e) => { return Err(InstallerError::Other(e.to_string())); }
+        match self
+            .apt
+            .satisfy(vec![SatisfyEntry::Required(apt_deb.relation_string())])
+        {
+            Ok(_) => {}
+            Err(e) => {
+                return Err(InstallerError::Other(e.to_string()));
+            }
         }
         Ok(())
     }
 
-    fn explain(&self, dep: &dyn Dependency, _scope: InstallationScope) -> Result<Explanation, InstallerError> {
-        let apt_deb = if let Some(apt_deb) = dependency_to_deb_dependency(&self.apt, dep, self.tie_breakers.as_slice())? {
+    fn explain(
+        &self,
+        dep: &dyn Dependency,
+        _scope: InstallationScope,
+    ) -> Result<Explanation, InstallerError> {
+        let apt_deb = if let Some(apt_deb) =
+            dependency_to_deb_dependency(&self.apt, dep, self.tie_breakers.as_slice())?
+        {
             apt_deb
         } else {
             return Err(InstallerError::UnknownDependencyFamily);
@@ -374,7 +467,15 @@ impl<'a> Installer for AptInstaller<'a> {
         let apt_deb_str = apt_deb.relation_string();
         let cmd = self.apt.satisfy_command(vec![apt_deb_str.as_str()]);
         Ok(Explanation {
-            message: format!("Install {}", apt_deb.package_names().iter().map(|x| x.as_str()).collect::<Vec<_>>().join(", ")),
+            message: format!(
+                "Install {}",
+                apt_deb
+                    .package_names()
+                    .iter()
+                    .map(|x| x.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             command: Some(cmd.iter().map(|s| s.to_string()).collect()),
         })
     }
@@ -399,12 +500,24 @@ mod tests {
         let dep2 = DebianDependency::new("libssl1.1-dev");
 
         // Single dependency
-        assert_eq!(pick_best_deb_dependency(vec![dep1.clone()], tie_breakers.as_mut_slice()), Some(dep1.clone()));
+        assert_eq!(
+            pick_best_deb_dependency(vec![dep1.clone()], tie_breakers.as_mut_slice()),
+            Some(dep1.clone())
+        );
 
         // No dependencies
-        assert_eq!(pick_best_deb_dependency(vec![], tie_breakers.as_mut_slice()), None);
+        assert_eq!(
+            pick_best_deb_dependency(vec![], tie_breakers.as_mut_slice()),
+            None
+        );
 
         // Multiple dependencies
-        assert_eq!(pick_best_deb_dependency(vec![dep1.clone(), dep2.clone()], tie_breakers.as_mut_slice()), Some(dep1.clone()));
+        assert_eq!(
+            pick_best_deb_dependency(
+                vec![dep1.clone(), dep2.clone()],
+                tie_breakers.as_mut_slice()
+            ),
+            Some(dep1.clone())
+        );
     }
 }
