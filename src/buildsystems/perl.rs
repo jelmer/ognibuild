@@ -13,7 +13,7 @@ fn read_cpanfile(session: &dyn Session, args: Vec<&str>, category: DependencyCat
     session.command(argv).run_fixing_problems(fixers).unwrap().into_iter().filter_map(move |line| {
         let line = line.trim();
         if !line.is_empty() {
-            Some((category, PerlModuleDependency::simple(line)))
+            Some((category.clone(), PerlModuleDependency::simple(line)))
         } else {
             None
         }

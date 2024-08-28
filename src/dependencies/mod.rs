@@ -1035,12 +1035,40 @@ impl ToDependency for buildlog_consultant::problems::common::CMakeFilesMissing {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum MavenArtifactKind {
+    #[default]
+    Jar,
+    Pom,
+}
+
+impl std::fmt::Display for MavenArtifactKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MavenArtifactKind::Jar => write!(f, "jar"),
+            MavenArtifactKind::Pom => write!(f, "pom"),
+        }
+    }
+}
+
+impl std::str::FromStr for MavenArtifactKind {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "jar" => Ok(MavenArtifactKind::Jar),
+            "pom" => Ok(MavenArtifactKind::Pom),
+            _ => Err("Invalid Maven artifact kind".to_string()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MavenArtifactDependency {
-    group_id: String,
-    artifact_id: String,
-    version: Option<String>,
-    kind: Option<String>,
+    pub group_id: String,
+    pub artifact_id: String,
+    pub version: Option<String>,
+    pub kind: Option<MavenArtifactKind>,
 }
 
 impl MavenArtifactDependency {
@@ -1054,7 +1082,7 @@ impl MavenArtifactDependency {
             group_id: group_id.to_string(),
             artifact_id: artifact_id.to_string(),
             version: version.map(|s| s.to_string()),
-            kind: kind.map(|s| s.to_string()),
+            kind: kind.map(|s| s.parse().unwrap()),
         }
     }
 
@@ -1074,7 +1102,7 @@ impl From<(String, String)> for MavenArtifactDependency {
             group_id,
             artifact_id,
             version: None,
-            kind: Some("jar".to_string()),
+            kind: Some(MavenArtifactKind::Jar),
         }
     }
 }
@@ -1085,7 +1113,7 @@ impl From<(String, String, String)> for MavenArtifactDependency {
             group_id,
             artifact_id,
             version: Some(version),
-            kind: Some("jar".to_string()),
+            kind: Some(MavenArtifactKind::Jar),
         }
     }
 }
@@ -1096,7 +1124,7 @@ impl From<(String, String, String, String)> for MavenArtifactDependency {
             group_id,
             artifact_id,
             version: Some(version),
-            kind: Some(kind),
+            kind: Some(kind.parse().unwrap()),
         }
     }
 }
@@ -1121,7 +1149,7 @@ impl Dependency for MavenArtifactDependency {
 impl crate::dependencies::debian::IntoDebianDependency for MavenArtifactDependency {
     fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         let group_id = self.group_id.replace(".", "/");
-        let kind = self.kind.as_ref().map(|s| s.as_str()).unwrap_or("jar");
+        let kind = self.kind.clone().unwrap_or_default().to_string();
         let (path, regex) = if let Some(version) = self.version.as_ref() {
             (std::path::Path::new("/usr/share/maven-repo").join(group_id).join(&self.artifact_id).join(version).join(format!("{}-{}.{}", self.artifact_id, version, kind)), true)
         } else {

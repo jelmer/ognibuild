@@ -1,7 +1,7 @@
 use crate::session::Session;
 use crate::dependency::Dependency;
 use crate::installer::{Installer, InstallationScope};
-use crate::buildsystem::{BuildSystem, Error};
+use crate::buildsystem::{DependencyCategory, BuildSystem, Error};
 use std::path::{Path,PathBuf};
 use std::os::unix::fs::PermissionsExt;
 
@@ -133,4 +133,117 @@ impl BuildSystem for Gradle {
     }
 }
 
+pub struct Maven {
+    path: PathBuf,
+}
 
+impl Maven {
+    pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
+        if path.join("pom.xml").exists() {
+            log::debug!("Found pom.xml, assuming maven package.");
+            Some(Box::new(Self::new(path.join("pom.xml"))))
+        } else {
+            None
+        }
+    }
+
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+}
+
+impl BuildSystem for Maven {
+    fn name(&self) -> &str {
+        "maven"
+    }
+
+    fn dist(
+        &self,
+        session: &dyn Session,
+        installer: &dyn Installer,
+        target_directory: &Path,
+        quiet: bool,
+    ) -> Result<std::ffi::OsString, Error> {
+        // TODO(jelmer): 'mvn generate-sources' creates a jar in target/. is that what we need?
+        todo!()
+    }
+
+    fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+        session.command(vec![
+            "mvn",
+            "test",
+        ]).run_detecting_problems()?;
+        Ok(())
+    }
+
+    fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+        session.command(vec![
+            "mvn",
+            "compile",
+        ]).run_detecting_problems()?;
+        Ok(())
+    }
+
+    fn clean(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+        session.command(vec![
+            "mvn",
+            "clean",
+        ]).run_detecting_problems()?;
+        Ok(())
+    }
+
+    fn install(
+        &self,
+        session: &dyn Session,
+        installer: &dyn Installer,
+        install_target: &crate::buildsystem::InstallTarget
+    ) -> Result<(), Error> {
+        session.command(vec![
+            "mvn",
+            "install",
+        ]).run_detecting_problems()?;
+        Ok(())
+    }
+
+    fn get_declared_dependencies(
+        &self,
+        session: &dyn Session,
+        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+    ) -> Result<Vec<(crate::buildsystem::DependencyCategory, Box<dyn Dependency>)>, Error> {
+        let mut ret = vec![];
+        use xmltree::Element;
+
+        let f = std::fs::File::open(&self.path).unwrap();
+
+        let root = Element::parse(f).unwrap();
+
+        if root.namespace != Some("http://maven.apache.org/POM/4.0.0".to_string()) {
+            log::warn!("Unknown namespace in pom.xml: {:?}", root.namespace);
+            return Ok(vec![]);
+        }
+        assert_eq!(root.name, "project");
+        if let Some(deps_tag) = root.get_child("dependencies") {
+            for dep in deps_tag.children.iter().filter_map(|x| x.as_element()) {
+                let version_tag = dep.get_child("version");
+                let group_id = dep.get_child("groupId").unwrap().get_text().unwrap().into_owned();
+                let artifact_id = dep.get_child("artifactId").unwrap().get_text().unwrap().into_owned();
+                let version = version_tag.map(|x| x.get_text().unwrap().into_owned());
+                ret.push((DependencyCategory::Universal, Box::new(crate::dependencies::MavenArtifactDependency {
+                    group_id,
+                    artifact_id,
+                    version,
+                    kind: None
+                }) as Box<dyn Dependency>));
+            }
+        }
+        Ok(ret)
+    }
+
+    fn get_declared_outputs(
+        &self,
+        session: &dyn Session,
+        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+    ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
+        todo!()
+    }
+}

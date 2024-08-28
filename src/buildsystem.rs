@@ -6,9 +6,9 @@ use crate::session::{which, Session};
 use std::path::{Path, PathBuf};
 
 /// The category of a dependency
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DependencyCategory {
-    /// A dependency that is required for the package to build
+    /// A dependency that is required for the package to build and run
     Universal,
     /// Building of artefacts
     Build,
@@ -472,8 +472,8 @@ pub fn detect_buildsystems(path: &std::path::Path) -> Option<Box<dyn BuildSystem
         crate::buildsystems::rust::Cargo::probe,
         crate::buildsystems::haskell::Cabal::probe,
         crate::buildsystems::java::Gradle::probe,
+        crate::buildsystems::java::Maven::probe,
         /*,
-        Maven::probe,
         DistZilla::probe,
         PerlBuildTiny::probe,
         Golang::probe,
