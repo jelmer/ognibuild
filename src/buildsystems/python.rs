@@ -5,7 +5,7 @@ use crate::dependencies::python::PythonPackageDependency;
 use crate::dependency::Dependency;
 use crate::installer::{Error as InstallerError, Installer, InstallationScope};
 use crate::output::{Output, BinaryOutput, PythonPackageOutput};
-use crate::fix_build::{BuildFixer, run_with_build_fixers};
+use crate::fix_build::{BuildFixer, run_fixing_problems};
 use crate::session::Session;
 use pyo3::prelude::*;
 use std::path::{Path, PathBuf};
@@ -325,7 +325,7 @@ impl SetupPy {
             ),
         ];
         let r = if let Some(fixers) = fixers {
-            run_with_build_fixers(fixers, None, session, argv.iter().map(|x| x.as_str()).collect::<Vec<_>>().as_slice(), true).map(|_| ()).map_err(|e| e.to_string())
+            run_fixing_problems(fixers, None, session, argv.iter().map(|x| x.as_str()).collect::<Vec<_>>().as_slice(), true).map(|_| ()).map_err(|e| e.to_string())
         } else {
             session.check_call(argv.iter().map(|x| x.as_str()).collect(), None, None, None).map_err(|e| e.to_string())
         };

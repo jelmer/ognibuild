@@ -309,6 +309,10 @@ impl Session for UnshareSession {
     fn command<'a>(&'a self, argv: Vec<&'a str>) -> CommandBuilder<'a> {
         CommandBuilder::new(self, argv)
     }
+
+    fn read_dir(&self, path: &std::path::Path) -> Result<Vec<std::fs::DirEntry>, Error> {
+        std::fs::read_dir(self.external_path(path)).map_err(Error::IoError)?.collect::<Result<Vec<_>, _>>().map_err(Error::IoError)
+    }
 }
 
 #[cfg(test)]

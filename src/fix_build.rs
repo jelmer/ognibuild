@@ -122,8 +122,7 @@ pub fn resolve_error<O: std::error::Error>(
     Ok(false)
 }
 
-
-pub fn run_with_build_fixers<O: std::error::Error + From<crate::analyze::AnalyzedError>>(
+pub fn run_fixing_problems<O: std::error::Error + From<crate::analyze::AnalyzedError>>(
     fixers: &[&dyn BuildFixer<O>],
     limit: Option<usize>,
     session: &dyn crate::session::Session,

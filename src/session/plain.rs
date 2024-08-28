@@ -185,6 +185,10 @@ impl Session for PlainSession {
     fn command<'a>(&'a self, argv: Vec<&'a str>) -> CommandBuilder<'a> {
         CommandBuilder::new(self, argv)
     }
+
+    fn read_dir(&self, path: &std::path::Path) -> Result<Vec<std::fs::DirEntry>, Error> {
+        std::fs::read_dir(path).map_err(Error::IoError)?.collect::<Result<Vec<_>, _>>().map_err(Error::IoError)
+    }
 }
 
 #[cfg(test)]

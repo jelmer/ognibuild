@@ -103,6 +103,8 @@ pub trait Session {
         include_controldir: Option<bool>,
         subdir: Option<&std::path::Path>,
     ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
+
+    fn read_dir(&self, path: &std::path::Path) -> Result<Vec<std::fs::DirEntry>, Error>;
 }
 
 pub struct CommandBuilder<'a> {
