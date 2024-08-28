@@ -1,8 +1,8 @@
 use crate::session::{Session, Error as SessionError, run_with_tee};
 use buildlog_consultant::problems::common::MissingCommand;
 
-fn default_check_success(retcode: i32, _lines: Vec<&str>) -> bool {
-    retcode == 0
+fn default_check_success(status: std::process::ExitStatus, _lines: Vec<&str>) -> bool {
+    status.success()
 }
 
 #[derive(Debug)]
@@ -76,7 +76,7 @@ impl std::error::Error for AnalyzedError {}
 pub fn run_detecting_problems(
     session: &dyn Session,
     args: Vec<&str>,
-    check_success: Option<&dyn Fn(i32, Vec<&str>) -> bool>,
+    check_success: Option<&dyn Fn(std::process::ExitStatus, Vec<&str>) -> bool>,
     quiet: bool,
     cwd: Option<&std::path::Path>,
     user: Option<&str>,
@@ -115,7 +115,7 @@ pub fn run_detecting_problems(
         buildlog_consultant::common::find_build_failure_description(lines.clone());
     if let Some(error) = error {
         Err(AnalyzedError::Detailed {
-            retcode,
+            retcode: retcode.code().unwrap_or(1),
             error,
         })
     } else {
@@ -126,7 +126,7 @@ pub fn run_detecting_problems(
             log::warn!("Build failed and unable to find cause. Giving up.");
         }
         Err(AnalyzedError::Unidentified {
-            retcode,
+            retcode: retcode.code().unwrap_or(1),
             lines: lines.into_iter().map(|s| s.to_string()).collect(),
             secondary: r#match,
         })

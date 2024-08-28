@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
+use std::process::ExitStatus;
 
 pub mod plain;
 #[cfg(target_os = "linux")]
@@ -9,7 +10,7 @@ pub mod unshare;
 
 #[derive(Debug)]
 pub enum Error {
-    CalledProcessError(i32),
+    CalledProcessError(ExitStatus),
     IoError(std::io::Error),
     SetupFailure(String, String),
 }
@@ -178,7 +179,7 @@ impl<'a> CommandBuilder<'a> {
         self
     }
 
-    pub fn run_with_tee(self) -> Result<(i32, Vec<String>), Error> {
+    pub fn run_with_tee(self) -> Result<(ExitStatus, Vec<String>), Error> {
         run_with_tee(
             self.session,
             self.argv,
@@ -224,7 +225,7 @@ pub fn which(session: &dyn Session, name: &str) -> Option<String> {
         None,
     ) {
         Ok(ret) => ret,
-        Err(Error::CalledProcessError(1)) => return None,
+        Err(Error::CalledProcessError(status)) if status.code() == Some(1) => return None,
         Err(e) => panic!("Unexpected error: {:?}", e),
     };
     if ret.is_empty() {
@@ -259,7 +260,7 @@ pub fn run_with_tee(
     stdin: Option<std::process::Stdio>,
     stdout: Option<std::process::Stdio>,
     stderr: Option<std::process::Stdio>,
-) -> Result<(i32, Vec<String>), Error> {
+) -> Result<(ExitStatus, Vec<String>), Error> {
     let mut p = session.popen(
         args,
         cwd,
@@ -288,7 +289,7 @@ pub fn run_with_tee(
         }
     }
     let status = p.wait().unwrap();
-    Ok((status.code().unwrap(), contents))
+    Ok((status, contents))
 }
 
 pub fn create_home(session: &impl Session) -> Result<(), Error> {

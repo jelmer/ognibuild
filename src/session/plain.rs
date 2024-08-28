@@ -69,7 +69,7 @@ impl Session for PlainSession {
                 if output.status.success() {
                     Ok(output.stdout)
                 } else {
-                    Err(Error::CalledProcessError(output.status.code().unwrap()))
+                    Err(Error::CalledProcessError(output.status))
                 }
             }
             Err(e) => Err(Error::IoError(e)),
@@ -106,7 +106,7 @@ impl Session for PlainSession {
                 if status.success() {
                     Ok(())
                 } else {
-                    Err(Error::CalledProcessError(status.code().unwrap()))
+                    Err(Error::CalledProcessError(status))
                 }
             }
             Err(e) => Err(Error::IoError(e)),

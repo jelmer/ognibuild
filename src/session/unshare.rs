@@ -74,7 +74,7 @@ impl UnshareSession {
         ) {
             Ok(_) => {}
             // Ignore if user already exists
-            Err(Error::CalledProcessError(4) | Error::CalledProcessError(9)) => {}
+            Err(Error::CalledProcessError(status)) if status.code() == Some(9) || status.code() == Some(4) => {}
             Err(e) => panic!("Error: {:?}", e),
         }
     }
@@ -183,7 +183,7 @@ impl Session for UnshareSession {
                 if output.status.success() {
                     Ok(output.stdout)
                 } else {
-                    Err(Error::CalledProcessError(output.status.code().unwrap()))
+                    Err(Error::CalledProcessError(output.status))
                 }
             }
             Err(e) => Err(Error::IoError(e)),
@@ -213,7 +213,7 @@ impl Session for UnshareSession {
                 if status.success() {
                     Ok(())
                 } else {
-                    Err(Error::CalledProcessError(status.code().unwrap()))
+                    Err(Error::CalledProcessError(status))
                 }
             }
             Err(e) => Err(Error::IoError(e)),

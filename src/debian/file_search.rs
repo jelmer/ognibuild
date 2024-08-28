@@ -232,8 +232,8 @@ impl<'a> AptFileFileSearcher<'a> {
         }
         match session.check_call(vec![&CACHE_IS_EMPTY_PATH.to_str().unwrap()], None, None, None) {
             Ok(_) => Ok(true),
-            Err(SessionError::CalledProcessError(returncode)) => {
-                if returncode == 1 {
+            Err(SessionError::CalledProcessError(status)) => {
+                if status.code() == Some(1) {
                     Ok(true)
                 } else {
                     Ok(false)
