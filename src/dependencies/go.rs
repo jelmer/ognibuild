@@ -6,8 +6,8 @@ use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GoPackageDependency {
-    package: String,
-    version: Option<String>,
+    pub package: String,
+    pub version: Option<String>,
 }
 
 impl GoPackageDependency {
@@ -76,7 +76,7 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GoDependency {
-    version: Option<String>,
+    pub version: Option<String>,
 }
 
 impl GoDependency {

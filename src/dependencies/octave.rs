@@ -23,6 +23,21 @@ impl OctavePackageDependency {
             minimum_version: None,
         }
     }
+
+}
+
+impl std::str::FromStr for OctavePackageDependency {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some((_, name, min_version)) = lazy_regex::regex_captures!("(.*) \\(>= (.*)\\)", s) {
+            Ok(Self::new(name, Some(min_version)))
+        } else if !s.contains(" ") {
+            Ok(Self::simple(s))
+        } else {
+            Err(format!("Failed to parse Octave package dependency: {}", s))
+        }
+    }
 }
 
 impl Dependency for OctavePackageDependency {

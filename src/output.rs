@@ -47,6 +47,12 @@ pub struct RPackageOutput {
     pub name: String,
 }
 
+impl RPackageOutput {
+    pub fn new(name: &str) -> Self {
+        RPackageOutput { name: name.to_string() }
+    }
+}
+
 impl Output for RPackageOutput {
     fn family(&self) -> &'static str {
         "r-package"

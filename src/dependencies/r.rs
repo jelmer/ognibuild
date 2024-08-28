@@ -23,6 +23,16 @@ impl RPackageDependency {
             minimum_version: None,
         }
     }
+
+    pub fn from_str(s: &str) -> Self {
+        if let Some((_, name, min_version)) = lazy_regex::regex_captures!("(.*) \\(>= (.*)\\)", s) {
+            Self::new(name, Some(min_version))
+        } else if !s.contains(" ") {
+            Self::simple(s)
+        } else {
+            panic!("Invalid R package dependency: {}", s);
+        }
+    }
 }
 
 impl Dependency for RPackageDependency {

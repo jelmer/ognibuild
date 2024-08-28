@@ -1,8 +1,9 @@
-use crate::buildsystem::{BuildSystem, Error, InstallTarget};
+use crate::buildsystem::{BuildSystem, Error, InstallTarget, DependencyCategory};
 use crate::installer::{Installer, InstallationScope};
 use crate::analyze::{AnalyzedError};
 use crate::session::Session;
 use crate::shebang::shebang_binary;
+use crate::dependency::Dependency;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -253,6 +254,107 @@ impl BuildSystem for Make {
     fn get_declared_outputs(
         &self,
         session: &dyn crate::session::Session,
+        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+    ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
+        todo!()
+    }
+}
+
+pub struct CMake {
+    path: PathBuf,
+    builddir: String,
+}
+
+impl CMake {
+    pub fn new(path: &Path) -> Self {
+        Self { path: path.to_path_buf(), builddir: "build".to_string() }
+    }
+
+    fn setup(&self, session: &dyn Session, _installer: &dyn crate::installer::Installer) -> Result<(), Error> {
+        if !session.exists(Path::new(&self.builddir)) {
+            session.mkdir(Path::new(&self.builddir));
+        }
+        match session.command(vec!["cmake", ".", &format!("-B{}", self.builddir)]).run_detecting_problems() {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                session.rmtree(Path::new(&self.builddir));
+                Err(e.into())
+            }
+        }
+    }
+
+    pub fn probe(path: &Path) -> Option<Box<dyn crate::buildsystem::BuildSystem>> {
+        if path.join("CMakeLists.txt").exists() {
+            return Some(Box::new(Self::new(path)));
+        }
+        None
+    }
+}
+
+impl crate::buildsystem::BuildSystem for CMake {
+    fn name(&self) -> &str {
+        "cmake"
+    }
+
+    fn dist(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn crate::installer::Installer,
+        target_directory: &std::path::Path,
+        quiet: bool,
+    ) -> Result<std::ffi::OsString, crate::buildsystem::Error> {
+        todo!()
+    }
+
+    fn build(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
+        self.setup(session, installer)?;
+        session.command(vec!["cmake", "--build", &self.builddir]).run_detecting_problems()?;
+        Ok(())
+    }
+
+    fn install(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn crate::installer::Installer,
+        install_target: &crate::buildsystem::InstallTarget
+    ) -> Result<(), crate::buildsystem::Error> {
+        self.setup(session, installer)?;
+        session.command(vec!["cmake", "--install", &self.builddir]).run_detecting_problems()?;
+        Ok(())
+    }
+
+    fn clean(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
+        self.setup(session, installer)?;
+        session.command(vec!["cmake", "--build", &self.builddir, ".", "--target", "clean"]).run_detecting_problems()?;
+        Ok(())
+    }
+
+    fn get_declared_dependencies(
+        &self,
+        session: &dyn crate::session::Session,
+        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+    ) -> Result<Vec<(crate::buildsystem::DependencyCategory, Box<dyn crate::dependency::Dependency>)>, crate::buildsystem::Error> {
+        // TODO(jelmer): Find a proper parser for CMakeLists.txt somewhere?
+        use std::io::BufRead;
+        let f = std::fs::File::open(self.path.join("CMakeLists.txt")).unwrap();
+        let mut ret: Vec<(DependencyCategory, Box<dyn Dependency>)> = vec![];
+        for line in std::io::BufReader::new(f).lines() {
+            let line = line.unwrap();
+            if let Some((_, m)) = lazy_regex::regex_captures!(r"cmake_minimum_required\(\s*VERSION\s+(.*)\s*\)", &line) {
+                ret.push((crate::buildsystem::DependencyCategory::Build, Box::new(crate::dependencies::vague::VagueDependency::new("CMake", Some(m)))));
+            }
+        }
+
+        Ok(ret)
+    }
+
+    fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn get_declared_outputs(
+        &self,
+        session: &dyn Session,
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
         todo!()

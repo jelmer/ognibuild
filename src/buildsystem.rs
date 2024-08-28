@@ -29,6 +29,8 @@ pub enum Error {
 
     Error(crate::analyze::AnalyzedError),
 
+    IoError(std::io::Error),
+
     Other(String),
 }
 
@@ -38,9 +40,36 @@ impl From<InstallerError> for Error {
     }
 }
 
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Error::IoError(e)
+    }
+}
+
 impl From<crate::analyze::AnalyzedError> for Error {
     fn from(e: crate::analyze::AnalyzedError) -> Self {
         Error::Error(e)
+    }
+}
+
+impl From<crate::session::Error> for Error {
+    fn from(e: crate::session::Error) -> Self {
+        match e {
+            crate::session::Error::CalledProcessError(e) => crate::analyze::AnalyzedError::Unidentified { retcode: e.code().unwrap(), lines: Vec::new(), secondary: None }.into(),
+            crate::session::Error::IoError(e) => e.into(),
+            crate::session::Error::SetupFailure(_, _) => unreachable!(),
+        }
+    }
+}
+
+impl From<crate::fix_build::IterateBuildError<InstallerError>> for Error {
+    fn from(e: crate::fix_build::IterateBuildError<InstallerError>) -> Self {
+        match e {
+            crate::fix_build::IterateBuildError::FixerLimitReached(n) => Error::Other(format!("Fixer limit reached: {}", n)),
+            crate::fix_build::IterateBuildError::PersistentBuildProblem(e) => crate::analyze::AnalyzedError::Detailed { error: e, retcode: 1}.into(),
+            crate::fix_build::IterateBuildError::Unidentified { retcode, lines, secondary } => crate::analyze::AnalyzedError::Unidentified { retcode, lines, secondary }.into(),
+            crate::fix_build::IterateBuildError::Other(o) => o.into(),
+        }
     }
 }
 
@@ -50,6 +79,7 @@ impl std::fmt::Display for Error {
             Error::NoBuildSystemDetected => write!(f, "No build system detected"),
             Error::DependencyInstallError(e) => write!(f, "Error installing dependency: {}", e),
             Error::Error(e) => write!(f, "Error: {}", e),
+            Error::IoError(e) => write!(f, "IO Error: {}", e),
             Error::Other(e) => write!(f, "Error: {}", e),
         }
     }
@@ -474,16 +504,14 @@ pub fn detect_buildsystems(path: &std::path::Path) -> Option<Box<dyn BuildSystem
         crate::buildsystems::java::Gradle::probe,
         crate::buildsystems::java::Maven::probe,
         crate::buildsystems::perl::DistZilla::probe,
-        /*,
-        PerlBuildTiny::probe,
-        Golang::probe,
-        R::probe,
-        Octave::probe,
-        Bazel::probe,
-        CMake::probe,
-        GnomeShellExtension::probe,
-        */
-        /* Make is intentionally at the end of the list. */
+        crate::buildsystems::perl::PerlBuildTiny::probe,
+        crate::buildsystems::go::Golang::probe,
+        crate::buildsystems::bazel::Bazel::probe,
+        crate::buildsystems::r::R::probe,
+        crate::buildsystems::octave::Octave::probe,
+        crate::buildsystems::make::CMake::probe,
+        crate::buildsystems::gnome::GnomeShellExtension::probe,
+        // Make is intentionally at the end of the list.
         crate::buildsystems::make::Make::probe,
         Composer::probe,
         RunTests::probe,

@@ -1,8 +1,9 @@
+use crate::analyze::AnalyzedError;
 use std::collections::HashMap;
 use std::io::Read;
 use crate::buildsystem::{guaranteed_which, BuildSystem};
 use crate::session::Session;
-use crate::fix_build::BuildFixer;
+use crate::fix_build::{IterateBuildError,BuildFixer};
 use crate::installer::Error as InstallerError;
 use crate::dependencies::perl::PerlModuleDependency;
 use crate::buildsystem::DependencyCategory;
@@ -183,6 +184,164 @@ impl BuildSystem for DistZilla {
             ret.extend(declared_deps_from_cpanfile(session, fixers.unwrap_or(&[])).into_iter().map(|(category, dep)| (category, Box::new(dep) as Box<dyn crate::dependency::Dependency>)));
         }
         Ok(ret)
+    }
+
+    fn get_declared_outputs(
+        &self,
+        session: &dyn Session,
+        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+    ) -> Result<Vec<Box<dyn crate::output::Output>>, crate::buildsystem::Error> {
+        todo!()
+    }
+}
+
+pub struct PerlBuildTiny {
+    path: PathBuf,
+    minilla: bool,
+}
+
+impl PerlBuildTiny {
+    pub fn new(path: PathBuf) -> Self {
+        let minilla = path.join("minil.toml").exists();
+        Self {
+            path,
+            minilla
+        }
+    }
+
+    fn setup(&self, session: &dyn Session, fixers: Option<&[&dyn BuildFixer<InstallerError>]>) -> Result<(), crate::buildsystem::Error> {
+        let fixers = fixers.unwrap_or(&[]);
+        let argv = vec!["perl", "Build.PL"];
+        session.command(argv).run_fixing_problems(fixers)?;
+        Ok(())
+    }
+
+    pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
+        if path.join("Build.PL").exists() {
+            log::debug!(
+                "Found Build.PL, assuming Module::Build::Tiny package."
+            );
+            Some(Box::new(Self::new(path.to_path_buf())))
+        } else {
+            None
+        }
+    }
+}
+
+impl BuildSystem for PerlBuildTiny {
+    fn name(&self) -> &str {
+        "Module::Build::Tiny"
+    }
+
+    fn dist(
+        &self,
+        session: &dyn Session,
+        installer: &dyn crate::installer::Installer,
+        target_directory: &Path,
+        quiet: bool,
+    ) -> Result<std::ffi::OsString, crate::buildsystem::Error> {
+        self.setup(session, None)?;
+        let mut dc = crate::dist_catcher::DistCatcher::default(&session.external_path(Path::new(".")));
+        if self.minilla {
+            // minil seems to return 0 even if it didn't produce a tarball :(
+            crate::analyze::run_detecting_problems(
+                session,
+                vec!["minil", "dist"],
+                Some(&|_, _| !dc.find_files().is_some()),
+                quiet,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None
+            )?;
+        } else {
+            match session.command(vec!["./Build", "dist"]).run_detecting_problems() {
+                Err(AnalyzedError::Unidentified { lines, .. }) if lines.iter().any(|l| l.contains("Can't find dist packages without a MANIFEST file")) => {
+                    session.command(vec!["./Build", "manifest"]).run_detecting_problems()?;
+                    session.command(vec!["./Build", "dist"]).run_detecting_problems()
+                }
+                Err(AnalyzedError::Unidentified { lines, .. }) if lines.iter().any(|l| l.contains("No such action 'dist'")) => {
+                    unimplemented!("Module::Build::Tiny dist command not supported");
+                }
+                other => other,
+            }?;
+        }
+        Ok(dc.copy_single(target_directory).unwrap().unwrap())
+    }
+
+    fn test(&self, session: &dyn Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
+        self.setup(session, None)?;
+        if self.minilla {
+            session.command(vec!["minil", "test"]).run_detecting_problems()?;
+        } else {
+            session.command(vec!["./Build", "test"]).run_detecting_problems()?;
+        }
+        Ok(())
+    }
+
+    fn build(&self, session: &dyn Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
+        self.setup(session, None)?;
+        session.command(vec!["./Build", "build"]).run_detecting_problems()?;
+        Ok(())
+    }
+
+    fn clean(&self, session: &dyn Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
+        self.setup(session, None)?;
+        session.command(vec!["./Build", "clean"]).run_detecting_problems()?;
+        Ok(())
+    }
+
+    fn install(
+        &self,
+        session: &dyn Session,
+        installer: &dyn crate::installer::Installer,
+        install_target: &crate::buildsystem::InstallTarget
+    ) -> Result<(), crate::buildsystem::Error> {
+        self.setup(session, None)?;
+        if self.minilla {
+            session.command(vec!["minil", "install"]).run_detecting_problems()?;
+        } else {
+            session.command(vec!["./Build", "install"]).run_detecting_problems()?;
+        }
+        Ok(())
+    }
+
+    fn get_declared_dependencies(
+        &self,
+        session: &dyn Session,
+        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+    ) -> Result<Vec<(DependencyCategory, Box<dyn crate::dependency::Dependency>)>, crate::buildsystem::Error> {
+        self.setup(session, fixers)?;
+        if self.minilla {
+            // Minilla doesn't seem to have a way to just regenerate the metadata :(
+        } else {
+            let cmd = session.command(vec!["./Build", "distmeta"]);
+
+            if let Some(fixers) = fixers {
+                match cmd.run_fixing_problems(fixers) {
+                    Err(IterateBuildError::Unidentified { lines, .. }) if lines.iter().any(|l| l.contains("No such action 'distmeta'")) => {
+                        // Module::Build::Tiny doesn't have a distmeta action
+                        Ok(Vec::new())
+                    }
+                    Err(IterateBuildError::Unidentified { lines, .. }) if lines.iter().any(|l| l.contains("Do not run distmeta. Install Minilla and `minil install` instead.")) => {
+                        log::warn!("did not detect  minilla, but it is required to get the dependencies");
+                        Ok(Vec::new())
+                    }
+                    other => other,
+                }?;
+            } else {
+                cmd.run_detecting_problems()?;
+            }
+        }
+        let meta_yml_path = self.path.join("META.yml");
+        if meta_yml_path.exists() {
+            let f = std::fs::File::open(&meta_yml_path).unwrap();
+            Ok(declared_deps_from_meta_yml(f).into_iter().map(|(category, dep)| (category, Box::new(dep) as Box<dyn crate::dependency::Dependency>)).collect())
+        } else {
+            Ok(vec![])
+        }
     }
 
     fn get_declared_outputs(

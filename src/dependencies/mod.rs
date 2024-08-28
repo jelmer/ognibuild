@@ -708,56 +708,6 @@ impl ToDependency for buildlog_consultant::problems::common::DhAddonLoadFailure 
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OctavePackageDependency {
-    package: String,
-    minimum_version: Option<String>,
-}
-
-impl OctavePackageDependency {
-    pub fn new(package: &str, minimum_version: Option<&str>) -> Self {
-        Self {
-            package: package.to_string(),
-            minimum_version: minimum_version.map(|s| s.to_string()),
-        }
-    }
-
-    pub fn simple(package: &str) -> Self {
-        Self {
-            package: package.to_string(),
-            minimum_version: None,
-        }
-    }
-}
-
-impl Dependency for OctavePackageDependency {
-    fn family(&self) -> &'static str {
-        "octave-package"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        session
-            .command(vec![
-                "octave",
-                "--eval",
-                &format!("pkg load {}", self.package),
-            ])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LibraryDependency {
     library: String,
 }

@@ -1,6 +1,6 @@
 use log::{info, warn};
 use std::fmt::{Debug, Display};
-use buildlog_consultant::Problem;
+use buildlog_consultant::{Match, Problem};
 
 pub trait BuildFixer<O: std::error::Error>: std::fmt::Debug + std::fmt::Display {
     fn can_fix(&self, problem: &dyn Problem) -> bool;
@@ -11,6 +11,11 @@ pub trait BuildFixer<O: std::error::Error>: std::fmt::Debug + std::fmt::Display 
 #[derive(Debug)]
 pub enum Error<O: std::error::Error> {
     BuildProblem(Box<dyn Problem>),
+    Unidentified {
+        retcode: i32,
+        lines: Vec<String>,
+        secondary: Option<Box<dyn Match>>
+    },
     Other(O),
 }
 
@@ -18,6 +23,11 @@ pub enum Error<O: std::error::Error> {
 pub enum IterateBuildError<O> {
     FixerLimitReached(usize),
     PersistentBuildProblem(Box<dyn Problem>),
+    Unidentified {
+        retcode: i32,
+        lines: Vec<String>,
+        secondary: Option<Box<dyn Match>>
+    },
     Other(O),
 }
 
@@ -26,6 +36,7 @@ impl<O: Display> Display for IterateBuildError<O> {
         match self {
             IterateBuildError::FixerLimitReached(limit) => write!(f, "Fixer limit reached: {}", limit),
             IterateBuildError::PersistentBuildProblem(p) => write!(f, "Persistent build problem: {}", p),
+            IterateBuildError::Unidentified { retcode, lines, secondary } => write!(f, "Unidentified error: retcode: {}, lines: {:?}, secondary: {:?}", retcode, lines, secondary),
             IterateBuildError::Other(e) => write!(f, "Other error: {}", e),
         }
     }
@@ -38,6 +49,7 @@ impl<O: std::error::Error> From<Error<O>> for IterateBuildError<O> {
         match e {
             Error::BuildProblem(_) => unreachable!(),
             Error::Other(e) => IterateBuildError::Other(e),
+            Error::Unidentified { retcode, lines, secondary } => IterateBuildError::Unidentified { retcode, lines, secondary },
         }
     }
 }
@@ -85,6 +97,9 @@ pub fn iterate_with_build_fixers<T, O: std::error::Error>(
                     }
                     to_resolve.push(f);
                     to_resolve.push(n);
+                }
+                Err(Error::Unidentified { retcode, lines, secondary }) => {
+                    return Err(IterateBuildError::Unidentified { retcode, lines, secondary });
                 }
                 Err(Error::Other(e)) => return Err(IterateBuildError::Other(e)),
                 Ok(resolved) if !resolved => {
@@ -139,12 +154,18 @@ pub fn run_fixing_problems<O: std::error::Error + From<crate::analyze::AnalyzedE
             crate::analyze::run_detecting_problems(session, args.to_vec(), None, quiet, cwd, user, env, None, None, None)
                 .map_err(|e| match e {
                     crate::analyze::AnalyzedError::Detailed { retcode: _, error } => Error::BuildProblem(error),
+                    crate::analyze::AnalyzedError::Unidentified { retcode, lines, secondary } => Error::Unidentified {
+                        retcode,
+                        lines,
+                        secondary,
+                    },
                     e => Error::Other(e.into()),
                 })},
         limit,
     ).map_err(|e| match e {
         IterateBuildError::FixerLimitReached(_) => IterateBuildError::FixerLimitReached(limit.unwrap()),
         IterateBuildError::PersistentBuildProblem(p) => IterateBuildError::PersistentBuildProblem(p),
+        IterateBuildError::Unidentified { retcode, lines, secondary } => IterateBuildError::Unidentified { retcode, lines, secondary },
         IterateBuildError::Other(e) => IterateBuildError::Other(e.into()),
     })
 }

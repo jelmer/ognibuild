@@ -35,6 +35,7 @@ pep508_rs = "0.6.1"
 percent-encoding = "2.3.1"
 pyo3 = { workspace = true }
 pyproject-toml = "0.11.0"
+r-description = "0.1.0"
 rand = "0.8.5"
 regex = "1.10.6"
 reqwest = { version = "0.12.7", optional = true, features = ["blocking", "json"] }

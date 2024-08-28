@@ -22,7 +22,7 @@ pub fn supported_dist_file(file: &Path) -> bool {
 pub struct DistCatcher {
     existing_files: Option<HashMap<PathBuf, HashMap<PathBuf, std::fs::DirEntry>>>,
     directories: Vec<PathBuf>,
-    files: Vec<PathBuf>,
+    files: std::sync::Mutex<Vec<PathBuf>>,
     start_time: std::time::SystemTime,
 }
 
@@ -33,7 +33,7 @@ impl DistCatcher {
                 .iter()
                 .map(|d| d.canonicalize().unwrap())
                 .collect(),
-            files: Vec::new(),
+            files: std::sync::Mutex::new(Vec::new()),
             start_time: std::time::SystemTime::now(),
             existing_files: None,
         }
@@ -63,10 +63,11 @@ impl DistCatcher {
         );
     }
 
-    pub fn find_files(&mut self) -> Option<PathBuf> {
-        let existing_files = self.existing_files.as_mut().unwrap();
+    pub fn find_files(&self) -> Option<PathBuf> {
+        let existing_files = self.existing_files.as_ref().unwrap();
+        let mut files = self.files.lock().unwrap();
         for directory in &self.directories {
-            let old_files = existing_files.get_mut(directory).unwrap();
+            let old_files = existing_files.get(directory).unwrap();
             let mut possible_new = Vec::new();
             let mut possible_updated = Vec::new();
             if !directory.is_dir() {
@@ -90,7 +91,7 @@ impl DistCatcher {
             if possible_new.len() == 1 {
                 let entry = possible_new[0].path();
                 log::info!("Found new tarball {:?} in {:?}", entry, directory);
-                self.files.push(entry.clone());
+                files.push(entry.clone());
                 return Some(entry);
             } else if possible_new.len() > 1 {
                 log::warn!(
@@ -98,14 +99,14 @@ impl DistCatcher {
                     possible_new.iter().map(|e| e.path()).collect::<Vec<_>>(),
                     directory
                 );
-                self.files.extend(possible_new.iter().map(|e| e.path()));
+                files.extend(possible_new.iter().map(|e| e.path()));
                 return Some(possible_new[0].path());
             }
 
             if possible_updated.len() == 1 {
                 let entry = possible_updated[0].path();
                 log::info!("Found updated tarball {:?} in {:?}", entry, directory);
-                self.files.push(entry.clone());
+                files.push(entry.clone());
                 return Some(entry);
             }
         }
@@ -113,7 +114,7 @@ impl DistCatcher {
     }
 
     pub fn copy_single(&self, target_dir: &Path) -> Result<Option<OsString>, std::io::Error> {
-        for path in &self.files {
+        for path in self.files.lock().unwrap().iter() {
             match std::fs::copy(path, target_dir.join(path.file_name().unwrap())) {
                 Ok(_) => return Ok(Some(path.file_name().unwrap().into())),
                 Err(e) => {
