@@ -1,3 +1,4 @@
+use crate::analyze::run_detecting_problems;
 use crate::dependencies::BinaryDependency;
 use crate::dependency::Dependency;
 use crate::output::Output;
@@ -208,7 +209,7 @@ impl BuildSystem for Pear {
     ) -> Result<std::ffi::OsString, Error> {
         let dc = crate::dist_catcher::DistCatcher::new(vec![session.external_path(Path::new("."))]);
         let pear = guaranteed_which(session, installer, "pear")?;
-        crate::analyze::run_detecting_problems(
+        run_detecting_problems(
             session,
             vec![pear.to_str().unwrap(), "package"],
             None,
@@ -225,7 +226,7 @@ impl BuildSystem for Pear {
 
     fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
-        crate::analyze::run_detecting_problems(
+        run_detecting_problems(
             session, vec![pear.to_str().unwrap(), "run-tests"],
             None, false, None, None, None, None, None, None
         )?;
@@ -234,7 +235,7 @@ impl BuildSystem for Pear {
 
     fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
-        crate::analyze::run_detecting_problems(
+        run_detecting_problems(
             session,
             vec![pear.to_str().unwrap(), "build", self.0.to_str().unwrap()],
             None, false, None, None, None, None, None, None
@@ -253,7 +254,7 @@ impl BuildSystem for Pear {
         _install_target: &InstallTarget
     ) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
-        crate::analyze::run_detecting_problems(
+        run_detecting_problems(
             session,
             vec![pear.to_str().unwrap(), "install", self.0.to_str().unwrap() ],
             None, false, None, None, None, None, None, None
@@ -442,7 +443,7 @@ impl BuildSystem for RunTests {
             vec!["/bin/bash", "./runtests.sh"]
         };
 
-        crate::analyze::run_detecting_problems(session, argv, None, false, None, None, None, None, None, None)?;
+        run_detecting_problems(session, argv, None, false, None, None, None, None, None, None)?;
         Ok(())
     }
 
@@ -506,7 +507,7 @@ pub fn detect_buildsystems(path: &std::path::Path) -> Option<Box<dyn BuildSystem
         GnomeShellExtension::probe,
         */
         /* Make is intentionally at the end of the list. */
-        // Make::probe,
+        crate::buildsystems::make::Make::probe,
         Composer::probe,
         RunTests::probe,
         ] {
