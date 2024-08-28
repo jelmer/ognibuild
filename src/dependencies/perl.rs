@@ -236,25 +236,20 @@ impl<'a> Installer for CPAN<'a> {
             }
         };
 
-        if let Some(dep) = dep.as_any().downcast_ref::<PerlModuleDependency>() {
-            let cmd = self.cmd(&[dep], scope)?;
-            log::info!("CPAN: running {:?}", cmd);
+        let dep = dep.as_any().downcast_ref::<PerlModuleDependency>().ok_or(Error::UnknownDependencyFamily)?;
+        let cmd = self.cmd(&[dep], scope)?;
+        log::info!("CPAN: running {:?}", cmd);
 
-            crate::analyze::run_detecting_problems(
-                self.session,
-                cmd.iter().map(|s| s.as_str()).collect(),
-                None,
-                false,
-                None,
-                user,
-                Some(env),
-                None, None, None,
-            )?;
+        let mut cmd = self.session.command(
+            cmd.iter().map(|s| s.as_str()).collect()).env(env);
 
-            Ok(())
-        } else {
-            Err(Error::UnknownDependencyFamily)
+        if let Some(user) = user {
+            cmd = cmd.user(user);
         }
+
+        cmd.run_detecting_problems()?;
+
+        Ok(())
     }
 
     fn explain_some(

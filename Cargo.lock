@@ -1555,6 +1555,7 @@ dependencies = [
  "percent-encoding",
  "pyo3",
  "pyproject-toml",
+ "r-description",
  "rand",
  "regex",
  "reqwest",
@@ -1919,6 +1920,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5b9d34b8991d19d98081b46eacdd8eb58c6f2b201139f7c5f643cc155a633af"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "r-description"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da429c97fc7433833b8970127c543b944a91c25978311b66a0c210a86c041290"
+dependencies = [
+ "deb822-lossless",
+ "url",
 ]
 
 [[package]]

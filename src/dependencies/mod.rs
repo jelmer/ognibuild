@@ -200,9 +200,9 @@ impl ToDependency for buildlog_consultant::problems::common::MissingLuaModule {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CargoCrateDependency {
-    name: String,
-    features: Option<Vec<String>>,
-    api_version: Option<String>,
+    pub name: String,
+    pub features: Option<Vec<String>>,
+    pub api_version: Option<String>,
 }
 
 impl CargoCrateDependency {
@@ -708,56 +708,6 @@ impl ToDependency for buildlog_consultant::problems::common::DhAddonLoadFailure 
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OctavePackageDependency {
-    package: String,
-    minimum_version: Option<String>,
-}
-
-impl OctavePackageDependency {
-    pub fn new(package: &str, minimum_version: Option<&str>) -> Self {
-        Self {
-            package: package.to_string(),
-            minimum_version: minimum_version.map(|s| s.to_string()),
-        }
-    }
-
-    pub fn simple(package: &str) -> Self {
-        Self {
-            package: package.to_string(),
-            minimum_version: None,
-        }
-    }
-}
-
-impl Dependency for OctavePackageDependency {
-    fn family(&self) -> &'static str {
-        "octave-package"
-    }
-
-    fn present(&self, session: &dyn Session) -> bool {
-        session
-            .command(vec![
-                "octave",
-                "--eval",
-                &format!("pkg load {}", self.package),
-            ])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
-    }
-
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        todo!()
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LibraryDependency {
     library: String,
 }
@@ -1035,12 +985,40 @@ impl ToDependency for buildlog_consultant::problems::common::CMakeFilesMissing {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum MavenArtifactKind {
+    #[default]
+    Jar,
+    Pom,
+}
+
+impl std::fmt::Display for MavenArtifactKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MavenArtifactKind::Jar => write!(f, "jar"),
+            MavenArtifactKind::Pom => write!(f, "pom"),
+        }
+    }
+}
+
+impl std::str::FromStr for MavenArtifactKind {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "jar" => Ok(MavenArtifactKind::Jar),
+            "pom" => Ok(MavenArtifactKind::Pom),
+            _ => Err("Invalid Maven artifact kind".to_string()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MavenArtifactDependency {
-    group_id: String,
-    artifact_id: String,
-    version: Option<String>,
-    kind: Option<String>,
+    pub group_id: String,
+    pub artifact_id: String,
+    pub version: Option<String>,
+    pub kind: Option<MavenArtifactKind>,
 }
 
 impl MavenArtifactDependency {
@@ -1054,7 +1032,7 @@ impl MavenArtifactDependency {
             group_id: group_id.to_string(),
             artifact_id: artifact_id.to_string(),
             version: version.map(|s| s.to_string()),
-            kind: kind.map(|s| s.to_string()),
+            kind: kind.map(|s| s.parse().unwrap()),
         }
     }
 
@@ -1074,7 +1052,7 @@ impl From<(String, String)> for MavenArtifactDependency {
             group_id,
             artifact_id,
             version: None,
-            kind: Some("jar".to_string()),
+            kind: Some(MavenArtifactKind::Jar),
         }
     }
 }
@@ -1085,7 +1063,7 @@ impl From<(String, String, String)> for MavenArtifactDependency {
             group_id,
             artifact_id,
             version: Some(version),
-            kind: Some("jar".to_string()),
+            kind: Some(MavenArtifactKind::Jar),
         }
     }
 }
@@ -1096,7 +1074,7 @@ impl From<(String, String, String, String)> for MavenArtifactDependency {
             group_id,
             artifact_id,
             version: Some(version),
-            kind: Some(kind),
+            kind: Some(kind.parse().unwrap()),
         }
     }
 }
@@ -1121,7 +1099,7 @@ impl Dependency for MavenArtifactDependency {
 impl crate::dependencies::debian::IntoDebianDependency for MavenArtifactDependency {
     fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         let group_id = self.group_id.replace(".", "/");
-        let kind = self.kind.as_ref().map(|s| s.as_str()).unwrap_or("jar");
+        let kind = self.kind.clone().unwrap_or_default().to_string();
         let (path, regex) = if let Some(version) = self.version.as_ref() {
             (std::path::Path::new("/usr/share/maven-repo").join(group_id).join(&self.artifact_id).join(version).join(format!("{}-{}.{}", self.artifact_id, version, kind)), true)
         } else {

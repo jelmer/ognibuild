@@ -1,4 +1,4 @@
-use crate::analyze::{run_detecting_problems, AnalyzedError};
+use crate::analyze::{AnalyzedError};
 use crate::dependency::Dependency;
 use crate::dependencies::vague::VagueDependency;
 use crate::buildsystem::{BuildSystem, DependencyCategory, Error};
@@ -23,16 +23,16 @@ impl Meson {
         if !session.exists(Path::new("build")) {
             session.mkdir(Path::new("build")).unwrap();
         }
-        run_detecting_problems(session, vec!["meson", "setup", "build"], None, false, None, None, None, None, None, None)?;
+        session.command(vec!["meson", "setup", "build"]).run_detecting_problems()?;
         Ok(())
     }
 
     fn introspect(&self, session: &dyn Session, fixers: Option<&[&dyn BuildFixer<InstallerError>]>, args: &[&str]) -> Result<serde_json::Value, InstallerError> {
         let args = [&["meson", "introspect"], args, &["./meson.build"]].concat();
         let ret = if let Some(fixers) = fixers {
-            crate::fix_build::run_fixing_problems(fixers, None, session, &args, false).unwrap()
+            session.command(args).run_fixing_problems(fixers).unwrap()
         } else {
-            run_detecting_problems(session, args, None, false, None, None, None, None, None, None)?
+            session.command(args).run_detecting_problems()?
         };
 
         let text = ret.concat();
@@ -65,7 +65,7 @@ impl BuildSystem for Meson {
     ) -> Result<std::ffi::OsString, Error> {
         self.setup(session)?;
         let dc = DistCatcher::new(vec![session.external_path(Path::new("build/meson-dist"))]);
-        match run_detecting_problems(session, vec!["ninja", "-C", "build", "dist"], None, false, None, None, None, None, None, None) {
+        match session.command(vec!["ninja", "-C", "build", "dist"]).run_detecting_problems() {
             Ok(_) => {}
             Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&"ninja: error: unknown target 'dist', did you mean 'dino'?".to_string()) => {
                     unimplemented!();
@@ -77,19 +77,19 @@ impl BuildSystem for Meson {
 
     fn test(&self, session: &dyn Session, _installer: &dyn crate::installer::Installer) -> Result<(), Error> {
         self.setup(session)?;
-        run_detecting_problems(session, vec!["ninja", "-C", "build", "test"], None, false, None, None, None, None, None, None)?;
+        session.command(vec!["ninja", "-C", "build", "test"]).run_detecting_problems()?;
         Ok(())
     }
 
     fn build(&self, session: &dyn Session, _installer: &dyn crate::installer::Installer) -> Result<(), Error> {
         self.setup(session)?;
-        run_detecting_problems(session, vec!["ninja", "-C", "build"], None, false, None, None, None, None, None, None)?;
+        session.command(vec!["ninja", "-C", "build"]).run_detecting_problems()?;
         Ok(())
     }
 
     fn clean(&self, session: &dyn Session, _installer: &dyn crate::installer::Installer) -> Result<(), Error> {
         self.setup(session)?;
-        run_detecting_problems(session, vec!["ninja", "-C", "build", "clean"], None, false, None, None, None, None, None, None)?;
+        session.command(vec!["ninja", "-C", "build", "clean"]).run_detecting_problems()?;
         Ok(())
     }
 
@@ -100,7 +100,7 @@ impl BuildSystem for Meson {
         _install_target: &crate::buildsystem::InstallTarget
     ) -> Result<(), Error> {
         self.setup(session)?;
-        run_detecting_problems(session, vec!["ninja", "-C", "build", "install"], None, false, None, None, None, None, None, None)?;
+        session.command(vec!["ninja", "-C", "build", "install"]).run_detecting_problems()?;
         Ok(())
     }
 

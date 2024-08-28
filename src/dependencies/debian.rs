@@ -121,7 +121,7 @@ impl DebianDependency {
 /// Returns `None` if the package is not installed.
 fn get_package_version(session: &dyn Session, package: &str) -> Option<debversion::Version> {
     let argv = vec!["dpkg-query", "-W", "-f='${Version}\n'", package];
-    let output = String::from_utf8(session.check_output(argv, None, None, None).unwrap()).unwrap();
+    let output = String::from_utf8(session.command(argv).check_output().unwrap()).unwrap();
 
     if output.trim().is_empty() {
         None

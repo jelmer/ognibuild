@@ -1,5 +1,5 @@
 use crate::buildsystem::{BuildSystem, Error, guaranteed_which};
-use crate::analyze::{run_detecting_problems, AnalyzedError};
+use crate::analyze::run_detecting_problems;
 use std::path::{Path, PathBuf};
 
 pub struct Gem {
@@ -51,13 +51,9 @@ impl BuildSystem for Gem {
             log::warn!("More than one gemfile. Trying the first?");
         }
         let dc = crate::dist_catcher::DistCatcher::default(&session.external_path(Path::new(".")));
-        run_detecting_problems(
-            session,
+        session.command(
             vec![guaranteed_which(session, installer, "gem2tgz")?.to_str().unwrap(), gemfiles.remove(0).to_str().unwrap()],
-            None,
-            false,
-            None, None, None, None, None, None
-        )?;
+        ).quiet(quiet).run_detecting_problems()?;
         Ok(dc.copy_single(target_directory).unwrap().unwrap())
     }
 

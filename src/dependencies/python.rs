@@ -235,9 +235,13 @@ impl<'a> Installer for PypiResolver<'a> {
             .as_any()
             .downcast_ref::<PythonPackageDependency>()
             .ok_or_else(|| Error::UnknownDependencyFamily)?;
-        let cmd = self.cmd(vec![req], scope)?;
-        crate::analyze::run_detecting_problems(self.session, cmd.iter().map(|x| x.as_str()).collect(), None, false, None,  match scope {
-            InstallationScope::Global => Some("root"), InstallationScope::User => None, InstallationScope::Vendor => { return Err(Error::UnsupportedScope(scope)); }}, None, None, None, None)?;
+        let args = self.cmd(vec![req], scope)?;
+        let mut cmd = self.session.command(args.iter().map(|x| x.as_str()).collect());
+
+       match scope {
+            InstallationScope::Global => {cmd = cmd.user("root"); }, InstallationScope::User => {}, InstallationScope::Vendor => { return Err(Error::UnsupportedScope(scope)); }}
+
+       cmd.run_detecting_problems()?;
         Ok(())
     }
 

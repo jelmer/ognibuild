@@ -1,4 +1,3 @@
-use crate::analyze::run_detecting_problems;
 use crate::dependencies::BinaryDependency;
 use crate::dependency::Dependency;
 use crate::output::Output;
@@ -7,9 +6,9 @@ use crate::session::{which, Session};
 use std::path::{Path, PathBuf};
 
 /// The category of a dependency
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DependencyCategory {
-    /// A dependency that is required for the package to build
+    /// A dependency that is required for the package to build and run
     Universal,
     /// Building of artefacts
     Build,
@@ -30,6 +29,8 @@ pub enum Error {
 
     Error(crate::analyze::AnalyzedError),
 
+    IoError(std::io::Error),
+
     Other(String),
 }
 
@@ -39,9 +40,36 @@ impl From<InstallerError> for Error {
     }
 }
 
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Error::IoError(e)
+    }
+}
+
 impl From<crate::analyze::AnalyzedError> for Error {
     fn from(e: crate::analyze::AnalyzedError) -> Self {
         Error::Error(e)
+    }
+}
+
+impl From<crate::session::Error> for Error {
+    fn from(e: crate::session::Error) -> Self {
+        match e {
+            crate::session::Error::CalledProcessError(e) => crate::analyze::AnalyzedError::Unidentified { retcode: e.code().unwrap(), lines: Vec::new(), secondary: None }.into(),
+            crate::session::Error::IoError(e) => e.into(),
+            crate::session::Error::SetupFailure(_, _) => unreachable!(),
+        }
+    }
+}
+
+impl From<crate::fix_build::IterateBuildError<InstallerError>> for Error {
+    fn from(e: crate::fix_build::IterateBuildError<InstallerError>) -> Self {
+        match e {
+            crate::fix_build::IterateBuildError::FixerLimitReached(n) => Error::Other(format!("Fixer limit reached: {}", n)),
+            crate::fix_build::IterateBuildError::PersistentBuildProblem(e) => crate::analyze::AnalyzedError::Detailed { error: e, retcode: 1}.into(),
+            crate::fix_build::IterateBuildError::Unidentified { retcode, lines, secondary } => crate::analyze::AnalyzedError::Unidentified { retcode, lines, secondary }.into(),
+            crate::fix_build::IterateBuildError::Other(o) => o.into(),
+        }
     }
 }
 
@@ -51,6 +79,7 @@ impl std::fmt::Display for Error {
             Error::NoBuildSystemDetected => write!(f, "No build system detected"),
             Error::DependencyInstallError(e) => write!(f, "Error installing dependency: {}", e),
             Error::Error(e) => write!(f, "Error: {}", e),
+            Error::IoError(e) => write!(f, "IO Error: {}", e),
             Error::Other(e) => write!(f, "Error: {}", e),
         }
     }
@@ -209,37 +238,19 @@ impl BuildSystem for Pear {
     ) -> Result<std::ffi::OsString, Error> {
         let dc = crate::dist_catcher::DistCatcher::new(vec![session.external_path(Path::new("."))]);
         let pear = guaranteed_which(session, installer, "pear")?;
-        run_detecting_problems(
-            session,
-            vec![pear.to_str().unwrap(), "package"],
-            None,
-            quiet,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )?;
+        session.command(vec![pear.to_str().unwrap(), "package"]).quiet(quiet).run_detecting_problems()?;
         Ok(dc.copy_single(target_directory).unwrap().unwrap())
     }
 
     fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
-        run_detecting_problems(
-            session, vec![pear.to_str().unwrap(), "run-tests"],
-            None, false, None, None, None, None, None, None
-        )?;
+        session.command(vec![pear.to_str().unwrap(), "run-tests"]).run_detecting_problems()?;
         Ok(())
     }
 
     fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
-        run_detecting_problems(
-            session,
-            vec![pear.to_str().unwrap(), "build", self.0.to_str().unwrap()],
-            None, false, None, None, None, None, None, None
-        )?;
+        session.command(vec![pear.to_str().unwrap(), "build", self.0.to_str().unwrap()]).run_detecting_problems()?;
         Ok(())
     }
 
@@ -254,11 +265,7 @@ impl BuildSystem for Pear {
         _install_target: &InstallTarget
     ) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
-        run_detecting_problems(
-            session,
-            vec![pear.to_str().unwrap(), "install", self.0.to_str().unwrap() ],
-            None, false, None, None, None, None, None, None
-        )?;
+        session.command(vec![pear.to_str().unwrap(), "install", self.0.to_str().unwrap()]).run_detecting_problems()?;
         Ok(())
     }
 
@@ -443,7 +450,7 @@ impl BuildSystem for RunTests {
             vec!["/bin/bash", "./runtests.sh"]
         };
 
-        run_detecting_problems(session, argv, None, false, None, None, None, None, None, None)?;
+        session.command(argv).run_detecting_problems()?;
         Ok(())
     }
 
@@ -492,21 +499,19 @@ pub fn detect_buildsystems(path: &std::path::Path) -> Option<Box<dyn BuildSystem
         crate::buildsystems::waf::Waf::probe,
         crate::buildsystems::ruby::Gem::probe,
         crate::buildsystems::meson::Meson::probe,
-        /*,
-        Cargo::probe,
-        Cabal::probe,
-        Gradle::probe,
-        Maven::probe,
-        DistZilla::probe,
-        PerlBuildTiny::probe,
-        Golang::probe,
-        R::probe,
-        Octave::probe,
-        Bazel::probe,
-        CMake::probe,
-        GnomeShellExtension::probe,
-        */
-        /* Make is intentionally at the end of the list. */
+        crate::buildsystems::rust::Cargo::probe,
+        crate::buildsystems::haskell::Cabal::probe,
+        crate::buildsystems::java::Gradle::probe,
+        crate::buildsystems::java::Maven::probe,
+        crate::buildsystems::perl::DistZilla::probe,
+        crate::buildsystems::perl::PerlBuildTiny::probe,
+        crate::buildsystems::go::Golang::probe,
+        crate::buildsystems::bazel::Bazel::probe,
+        crate::buildsystems::r::R::probe,
+        crate::buildsystems::octave::Octave::probe,
+        crate::buildsystems::make::CMake::probe,
+        crate::buildsystems::gnome::GnomeShellExtension::probe,
+        // Make is intentionally at the end of the list.
         crate::buildsystems::make::Make::probe,
         Composer::probe,
         RunTests::probe,

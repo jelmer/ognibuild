@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
+use std::process::ExitStatus;
 
 pub mod plain;
 #[cfg(target_os = "linux")]
@@ -9,7 +10,7 @@ pub mod unshare;
 
 #[derive(Debug)]
 pub enum Error {
-    CalledProcessError(i32),
+    CalledProcessError(ExitStatus),
     IoError(std::io::Error),
     SetupFailure(String, String),
 }
@@ -91,7 +92,7 @@ pub trait Session {
         stdout: Option<std::process::Stdio>,
         stderr: Option<std::process::Stdio>,
         stdin: Option<std::process::Stdio>,
-        env: Option<std::collections::HashMap<String, String>>,
+        env: Option<&std::collections::HashMap<String, String>>,
     ) -> std::process::Child;
 
     /// Check if the session is temporary.
@@ -116,6 +117,7 @@ pub struct CommandBuilder<'a> {
     stdin: Option<std::process::Stdio>,
     stdout: Option<std::process::Stdio>,
     stderr: Option<std::process::Stdio>,
+    quiet: bool,
 }
 
 impl<'a> CommandBuilder<'a> {
@@ -129,7 +131,13 @@ impl<'a> CommandBuilder<'a> {
             stdin: None,
             stdout: None,
             stderr: None,
+            quiet: false,
         }
+    }
+
+    pub fn quiet(mut self, quiet: bool) -> Self {
+        self.quiet = quiet;
+        self
     }
 
     /// Set the current working directory for the command.
@@ -178,16 +186,47 @@ impl<'a> CommandBuilder<'a> {
         self
     }
 
-    pub fn run_with_tee(self) -> Result<(i32, Vec<String>), Error> {
+    pub fn run_with_tee(self) -> Result<(ExitStatus, Vec<String>), Error> {
         run_with_tee(
             self.session,
             self.argv,
             self.cwd,
             self.user,
-            self.env,
+            self.env.as_ref(),
             self.stdin,
             self.stdout,
             self.stderr,
+        )
+    }
+
+    pub fn run_detecting_problems(self) -> Result<Vec<String>, crate::analyze::AnalyzedError> {
+        crate::analyze::run_detecting_problems(
+            self.session,
+            self.argv,
+            None,
+            self.quiet,
+            self.cwd,
+            self.user,
+            self.env.as_ref(),
+            self.stdin,
+            self.stdout,
+            self.stderr,
+        )
+    }
+
+    pub fn run_fixing_problems<O: std::error::Error + From<crate::analyze::AnalyzedError>>(self, fixers: &[&dyn crate::fix_build::BuildFixer<O>]) -> Result<Vec<String>, crate::fix_build::IterateBuildError<O>> {
+        assert!(self.stdin.is_none());
+        assert!(self.stdout.is_none());
+        assert!(self.stderr.is_none());
+        crate::fix_build::run_fixing_problems(
+            fixers,
+            None,
+            self.session,
+            self.argv.as_slice(),
+            self.quiet,
+            self.cwd,
+            self.user,
+            self.env.as_ref(),
         )
     }
 
@@ -199,7 +238,7 @@ impl<'a> CommandBuilder<'a> {
             self.stdout,
             self.stderr,
             self.stdin,
-            self.env,
+            self.env.as_ref(),
         )
     }
 
@@ -214,6 +253,15 @@ impl<'a> CommandBuilder<'a> {
         let output = p.wait_with_output()?;
         Ok(output)
     }
+
+    pub fn check_call(self) -> Result<(), Error> {
+        self.session.check_call(self.argv, self.cwd, self.user, self.env)
+    }
+
+    pub fn check_output(self) -> Result<Vec<u8>, Error> {
+        self.session
+            .check_output(self.argv, self.cwd, self.user, self.env)
+    }
 }
 
 pub fn which(session: &dyn Session, name: &str) -> Option<String> {
@@ -224,7 +272,7 @@ pub fn which(session: &dyn Session, name: &str) -> Option<String> {
         None,
     ) {
         Ok(ret) => ret,
-        Err(Error::CalledProcessError(1)) => return None,
+        Err(Error::CalledProcessError(status)) if status.code() == Some(1) => return None,
         Err(e) => panic!("Unexpected error: {:?}", e),
     };
     if ret.is_empty() {
@@ -255,11 +303,11 @@ pub fn run_with_tee(
     args: Vec<&str>,
     cwd: Option<&std::path::Path>,
     user: Option<&str>,
-    env: Option<std::collections::HashMap<String, String>>,
+    env: Option<&std::collections::HashMap<String, String>>,
     stdin: Option<std::process::Stdio>,
     stdout: Option<std::process::Stdio>,
     stderr: Option<std::process::Stdio>,
-) -> Result<(i32, Vec<String>), Error> {
+) -> Result<(ExitStatus, Vec<String>), Error> {
     let mut p = session.popen(
         args,
         cwd,
@@ -288,7 +336,7 @@ pub fn run_with_tee(
         }
     }
     let status = p.wait().unwrap();
-    Ok((status.code().unwrap(), contents))
+    Ok((status, contents))
 }
 
 pub fn create_home(session: &impl Session) -> Result<(), Error> {

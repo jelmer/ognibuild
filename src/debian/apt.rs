@@ -198,24 +198,15 @@ pub fn find_deps_with_min_version(
 pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Result<(), Error> {
     let args = [prefix, vec!["apt", "-y"], args].concat();
     log::info!("apt: running {:?}", args);
-    let (retcode, mut lines) = crate::session::run_with_tee(
-        session,
-        args.clone(),
-        Some(std::path::Path::new("/")),
-        Some("root"),
-        None,
-        None,
-        None,
-        None,
-    )?;
-    if retcode == 0 {
+    let (status, mut lines) = session.command(args.clone()).cwd(std::path::Path::new("/")).user("root").run_with_tee()?;
+    if status.success() {
         return Ok(());
     }
     let (r#match, error) =
         buildlog_consultant::apt::find_apt_get_failure(lines.iter().map(|s| s.as_str()).collect());
     if let Some(error) = error {
         return Err(Error::Detailed {
-            retcode,
+            retcode: status.code().unwrap_or(1),
             args: args.iter().map(|s| s.to_string()).collect(),
             error: Some(error),
         });
@@ -224,7 +215,7 @@ pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Res
         lines.pop();
     }
     return Err(Error::Unidentified {
-        retcode,
+        retcode: status.code().unwrap_or(1),
         args: args.iter().map(|s| s.to_string()).collect(),
         lines,
         secondary: r#match,

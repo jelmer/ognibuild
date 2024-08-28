@@ -35,12 +35,7 @@ impl Dependency for JavaClassDependency {
 impl crate::dependencies::debian::IntoDebianDependency for JavaClassDependency {
     fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         apt.satisfy(vec!["java-propose-classpath"]).unwrap();
-        let output = String::from_utf8(apt.session.check_output(
-            vec!["java-propose-classpath", &format!("-c{}", &self.classname)],
-            None,
-            None,
-            None,
-        ).unwrap()).unwrap();
+        let output = String::from_utf8(apt.session.command(vec!["java-propose-classpath", &format!("-c{}", &self.classname)]).check_output().unwrap()).unwrap();
         let classpath = output.trim_matches(':').trim().split(':').collect::<Vec<&str>>();
         if classpath.is_empty() {
             None

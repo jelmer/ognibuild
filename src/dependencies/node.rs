@@ -218,23 +218,16 @@ impl<'a> Installer for NpmResolver<'a> {
         let requirement = to_node_package_req(requirement)
             .ok_or(Error::UnknownDependencyFamily)?;
 
-        let cmd = &self.cmd(&[&requirement], scope)?;
-        crate::analyze::run_detecting_problems(
-            self.session,
-            cmd.iter().map(|s| s.as_str()).collect(),
-            None,
-            false,
-            None,
-            match scope {
-                InstallationScope::Global => Some("root"),
-                InstallationScope::User => None,
-                InstallationScope::Vendor => None,
-            },
-            None,
-            None,
-            None,
-            None
-        )?;
+        let args = &self.cmd(&[&requirement], scope)?;
+        let mut cmd = self.session.command(args.iter().map(|s| s.as_str()).collect());
+
+        match scope {
+            InstallationScope::Global => { cmd = cmd.user("root"); },
+            InstallationScope::User => {},
+            InstallationScope::Vendor => {},
+        }
+
+        cmd.run_detecting_problems()?;
 
         Ok(())
     }

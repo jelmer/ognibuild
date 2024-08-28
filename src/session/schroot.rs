@@ -240,7 +240,7 @@ impl Session for SchrootSession {
                 if output.status.success() {
                     Ok(output.stdout)
                 } else {
-                    Err(Error::CalledProcessError(output.status.code().unwrap()))
+                    Err(Error::CalledProcessError(output.status))
                 }
             }
             Err(e) => Err(Error::IoError(e)),
@@ -265,7 +265,7 @@ impl Session for SchrootSession {
                 if status.success() {
                     Ok(())
                 } else {
-                    Err(Error::CalledProcessError(status.code().unwrap()))
+                    Err(Error::CalledProcessError(status))
                 }
             }
             Err(e) => Err(Error::IoError(e)),
@@ -308,9 +308,9 @@ impl Session for SchrootSession {
         stdout: Option<std::process::Stdio>,
         stderr: Option<std::process::Stdio>,
         stdin: Option<std::process::Stdio>,
-        env: Option<std::collections::HashMap<String, String>>,
+        env: Option<&std::collections::HashMap<String, String>>,
     ) -> std::process::Child {
-        let argv = self.run_argv(argv, cwd, user, env.as_ref());
+        let argv = self.run_argv(argv, cwd, user, env);
 
         std::process::Command::new(&argv[0])
             .args(&argv[1..])
@@ -350,7 +350,10 @@ impl Session for SchrootSession {
     }
 
     fn read_dir(&self, path: &std::path::Path) -> Result<Vec<std::fs::DirEntry>, Error> {
-        std::fs::read_dir(self.external_path(path)).map_err(Error::IoError)?.collect::<Result<Vec<_>, _>>().map_err(Error::IoError)
+        std::fs::read_dir(self.external_path(path))
+            .map_err(Error::IoError)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(Error::IoError)
     }
 }
 

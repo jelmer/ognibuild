@@ -1,7 +1,15 @@
+pub mod bazel;
+pub mod go;
+pub mod haskell;
+pub mod gnome;
+pub mod java;
 pub mod python;
 pub mod make;
 pub mod meson;
 pub mod node;
+pub mod octave;
 pub mod perl;
+pub mod r;
+pub mod rust;
 pub mod ruby;
 pub mod waf;
