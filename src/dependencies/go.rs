@@ -162,17 +162,11 @@ impl<'a> Installer for GoResolver<'a> {
                 return Err(Error::UnsupportedScope(scope));
             }
         };
-        crate::analyze::run_detecting_problems(
-            self.session,
-            cmd.iter().map(|s| s.as_str()).collect(),
-            None,
-            false,
-            None, user,
-            Some(env),
-            None,
-            None,
-            None
-        )?;
+        let mut cmd = self.session.command(cmd.iter().map(|s| s.as_str()).collect()).env(env);
+        if let Some(user) = user {
+            cmd = cmd.user(user);
+        }
+        cmd.run_detecting_problems()?;
         Ok(())
     }
 }

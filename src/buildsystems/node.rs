@@ -81,14 +81,14 @@ impl BuildSystem for Node {
     ) -> Result<std::ffi::OsString, crate::buildsystem::Error> {
         self.setup(session, installer)?;
         let dc = crate::dist_catcher::DistCatcher::new(vec![session.external_path(std::path::Path::new("."))]);
-        crate::analyze::run_detecting_problems(session, vec!["npm", "pack"], None, quiet, None, None, None, None, None, None)?;
+        session.command(vec!["npm", "pack"]).quiet(quiet).run_detecting_problems()?;
         Ok(dc.copy_single(target_directory).unwrap().unwrap())
     }
 
     fn test(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, installer)?;
         if let Some(test_script) = self.package.scripts.get("test") {
-            crate::analyze::run_detecting_problems(session, vec!["bash", "-c", test_script], None, false, None, None, None, None, None, None)?;
+            session.command(vec!["bash", "-c", test_script]).run_detecting_problems()?;
         } else {
             log::info!("No test command defined in package.json");
         }
@@ -98,7 +98,7 @@ impl BuildSystem for Node {
     fn build(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, installer)?;
         if let Some(build_script) = self.package.scripts.get("build") {
-            crate::analyze::run_detecting_problems(session, vec!["bash", "-c", build_script], None, false, None, None, None, None, None, None)?;
+            session.command(vec!["bash", "-c", build_script]).run_detecting_problems()?;
         } else {
             log::info!("No build command defined in package.json");
         }
@@ -108,7 +108,7 @@ impl BuildSystem for Node {
     fn clean(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, installer)?;
         if let Some(clean_script) = self.package.scripts.get("clean") {
-            crate::analyze::run_detecting_problems(session, vec!["bash", "-c", clean_script], None, false, None, None, None, None, None, None)?;
+            session.command(vec!["bash", "-c", clean_script]).run_detecting_problems()?;
         } else {
             log::info!("No clean command defined in package.json");
         }

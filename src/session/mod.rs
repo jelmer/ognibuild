@@ -92,7 +92,7 @@ pub trait Session {
         stdout: Option<std::process::Stdio>,
         stderr: Option<std::process::Stdio>,
         stdin: Option<std::process::Stdio>,
-        env: Option<std::collections::HashMap<String, String>>,
+        env: Option<&std::collections::HashMap<String, String>>,
     ) -> std::process::Child;
 
     /// Check if the session is temporary.
@@ -117,6 +117,7 @@ pub struct CommandBuilder<'a> {
     stdin: Option<std::process::Stdio>,
     stdout: Option<std::process::Stdio>,
     stderr: Option<std::process::Stdio>,
+    quiet: bool,
 }
 
 impl<'a> CommandBuilder<'a> {
@@ -130,7 +131,13 @@ impl<'a> CommandBuilder<'a> {
             stdin: None,
             stdout: None,
             stderr: None,
+            quiet: false,
         }
+    }
+
+    pub fn quiet(mut self, quiet: bool) -> Self {
+        self.quiet = quiet;
+        self
     }
 
     /// Set the current working directory for the command.
@@ -185,10 +192,41 @@ impl<'a> CommandBuilder<'a> {
             self.argv,
             self.cwd,
             self.user,
-            self.env,
+            self.env.as_ref(),
             self.stdin,
             self.stdout,
             self.stderr,
+        )
+    }
+
+    pub fn run_detecting_problems(self) -> Result<Vec<String>, crate::analyze::AnalyzedError> {
+        crate::analyze::run_detecting_problems(
+            self.session,
+            self.argv,
+            None,
+            self.quiet,
+            self.cwd,
+            self.user,
+            self.env.as_ref(),
+            self.stdin,
+            self.stdout,
+            self.stderr,
+        )
+    }
+
+    pub fn run_fixing_problems<O: std::error::Error + From<crate::analyze::AnalyzedError>>(self, fixers: &[&dyn crate::fix_build::BuildFixer<O>]) -> Result<Vec<String>, crate::fix_build::IterateBuildError<O>> {
+        assert!(self.stdin.is_none());
+        assert!(self.stdout.is_none());
+        assert!(self.stderr.is_none());
+        crate::fix_build::run_fixing_problems(
+            fixers,
+            None,
+            self.session,
+            self.argv.as_slice(),
+            self.quiet,
+            self.cwd,
+            self.user,
+            self.env.as_ref(),
         )
     }
 
@@ -200,7 +238,7 @@ impl<'a> CommandBuilder<'a> {
             self.stdout,
             self.stderr,
             self.stdin,
-            self.env,
+            self.env.as_ref(),
         )
     }
 
@@ -265,7 +303,7 @@ pub fn run_with_tee(
     args: Vec<&str>,
     cwd: Option<&std::path::Path>,
     user: Option<&str>,
-    env: Option<std::collections::HashMap<String, String>>,
+    env: Option<&std::collections::HashMap<String, String>>,
     stdin: Option<std::process::Stdio>,
     stdout: Option<std::process::Stdio>,
     stderr: Option<std::process::Stdio>,

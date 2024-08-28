@@ -268,7 +268,7 @@ impl Session for UnshareSession {
         stdout: Option<std::process::Stdio>,
         stderr: Option<std::process::Stdio>,
         stdin: Option<std::process::Stdio>,
-        env: Option<std::collections::HashMap<String, String>>,
+        env: Option<&std::collections::HashMap<String, String>>,
     ) -> std::process::Child {
         let argv = self.run_argv(argv, cwd, user);
 

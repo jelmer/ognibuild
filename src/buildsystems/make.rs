@@ -1,6 +1,6 @@
 use crate::buildsystem::{BuildSystem, Error, InstallTarget};
 use crate::installer::{Installer, InstallationScope};
-use crate::analyze::{run_detecting_problems, AnalyzedError};
+use crate::analyze::{AnalyzedError};
 use crate::session::Session;
 use crate::shebang::shebang_binary;
 use std::path::{Path, PathBuf};
@@ -41,23 +41,23 @@ impl Make {
 
     fn setup(&self, session: &dyn Session, _installer: &dyn Installer, prefix: Option<&Path>) -> Result<(), Error> {
         if self.kind == Kind::MakefilePL && !makefile_exists(session) {
-            run_detecting_problems(session, vec!["perl", "Makefile.PL"], None, false, None, None, None, None, None, None)?;
+            session.command(vec!["perl", "Makefile.PL"]).run_detecting_problems()?;
         }
 
         if !makefile_exists(session) && !session.exists(Path::new("configure")) {
             if session.exists(Path::new("autogen.sh")) {
                 if shebang_binary(&self.path.join("autogen.sh")).unwrap().is_none() {
-                    run_detecting_problems(session, vec!["/bin/sh", "./autogen.sh"], None, false, None, None, None, None, None, None)?;
+                    session.command(vec!["/bin/sh", "./autogen.sh"]).run_detecting_problems()?;
                 }
-                match run_detecting_problems(session, vec!["./autogen.sh"], None, false, None, None, None, None, None, None) {
+                match session.command(vec!["./autogen.sh"]).run_detecting_problems() {
                     Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&"Gnulib not yet bootstrapped; run ./bootstrap instead.".to_string()) => {
-                            run_detecting_problems(session, vec!["./bootstrap"], None, false, None, None, None, None, None, None)?;
-                            run_detecting_problems(session, vec!["./autogen.sh"], None, false, None, None, None, None, None, None)
+                            session.command(vec!["./bootstrap"]).run_detecting_problems()?;
+                            session.command(vec!["./autogen.sh"]).run_detecting_problems()
                     }
                     other => other
                 }?;
             } else if session.exists(Path::new("configure.ac")) || session.exists(Path::new("configure.in")) {
-                run_detecting_problems(session, vec!["autoreconf", "-i"], None, false, None, None, None, None, None, None)?;
+                session.command(vec!["autoreconf", "-i"]).run_detecting_problems()?;
             }
         }
 
@@ -67,11 +67,11 @@ impl Make {
             } else {
                 vec![]
             }].concat();
-            run_detecting_problems(session, args.iter().map(|s| s.as_str()).collect(), None, false, None, None, None, None, None, None)?;
+            session.command(args.iter().map(|s| s.as_str()).collect()).run_detecting_problems()?;
         }
 
         if !makefile_exists(session) && session.read_dir(Path::new(".")).unwrap().iter().any(|n| n.file_name().to_str().unwrap().ends_with(".pro")) {
-            run_detecting_problems(session, vec!["qmake"], None, false, None, None, None, None, None, None)?;
+            session.command(vec!["qmake"]).run_detecting_problems()?;
         }
 
         Ok(())
@@ -95,25 +95,25 @@ impl Make {
         }
 
         let cwd = if session.exists(Path::new("build/Makefile")) {
-            Some(Path::new("build"))
+            Path::new("build")
         } else {
-            None
+            Path::new(".")
         };
 
         let args = [vec!["make"], args].concat();
 
-        match run_detecting_problems(session, args.clone(), None, false, cwd, None, None, None, None, None) {
+        match session.command(args.clone()).cwd(cwd).run_detecting_problems() {
             Err(AnalyzedError::Unidentified { lines, .. }) if lines.len() < 5 && lines.iter().any(|l| wants_configure(l)) => {
-                run_detecting_problems(session, [vec!["./configure".to_string()], if let Some(p) = prefix.as_ref() {
+                session.command([vec!["./configure".to_string()], if let Some(p) = prefix.as_ref() {
                     vec![format!("--prefix={}", p.to_str().unwrap())]
                 } else {
                     vec![]
-                }].concat().iter().map(|x| x.as_str()).collect(), None, false, None, None, None, None, None, None)?;
-                run_detecting_problems(session, args, None, false, cwd, None, None, None, None, None)
+                }].concat().iter().map(|x| x.as_str()).collect()).run_detecting_problems()?;
+                session.command(args).cwd(cwd).run_detecting_problems()
             }
             Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&"Reconfigure the source tree (via './config' or 'perl Configure'), please.".to_string()) => {
-                run_detecting_problems(session, vec!["./config"], None, false, None, None, None, None, None, None)?;
-                run_detecting_problems(session, args, None, false, cwd, None, None, None, None, None)
+                session.command(vec!["./config"]).run_detecting_problems()?;
+                session.command(args).cwd(cwd).run_detecting_problems()
             }
             other => other
         }.map(|_| ())
@@ -159,16 +159,16 @@ impl BuildSystem for Make {
                 unimplemented!();
             }
             Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&"Please try running 'make manifest' and then run 'make dist' again.".to_string()) => {
-                run_detecting_problems(session, vec!["make", "manifest"], None, false, None, None, None, None, None, None)?;
-                run_detecting_problems(session, vec!["make", "dist"], None, false, None, None, None, None, None, None).map(|_| ())
+                session.command(vec!["make", "manifest"]).run_detecting_problems()?;
+                session.command(vec!["make", "dist"]).run_detecting_problems().map(|_| ())
             }
             Err(AnalyzedError::Unidentified { lines, .. }) if lines.iter().any(|l| lazy_regex::regex_is_match!(r"(Makefile|GNUmakefile|makefile):[0-9]+: \*\*\* Missing 'Make.inc' Run './configure \[options\]' and retry.  Stop.", l)) => {
-                run_detecting_problems(session, vec!["./configure"], None, false, None, None, None, None, None, None)?;
-                run_detecting_problems(session, vec!["make", "dist"], None, false, None, None, None, None, None, None).map(|_| ())
+                session.command(vec!["./configure"]).run_detecting_problems()?;
+                session.command(vec!["make", "dist"]).run_detecting_problems().map(|_| ())
             }
             Err(AnalyzedError::Unidentified { lines, .. }) if lines.iter().any(|l| lazy_regex::regex_is_match!(r"Problem opening MANIFEST: No such file or directory at .* line [0-9]+\.", l)) => {
-                run_detecting_problems(session, vec!["make", "manifest"], None, false, None, None, None, None, None, None)?;
-                run_detecting_problems(session, vec!["make", "dist"], None, false, None, None, None, None, None, None).map(|_| ())
+                session.command(vec!["make", "manifest"]).run_detecting_problems()?;
+                session.command(vec!["make", "dist"]).run_detecting_problems().map(|_| ())
             }
             other => other
         }?;
@@ -192,7 +192,7 @@ impl BuildSystem for Make {
 
         if self.path.join("t").exists() {
             // See https://perlmaven.com/how-to-run-the-tests-of-a-typical-perl-module
-            run_detecting_problems(session, vec!["prove", "-b", "t/"], None, false, None, None, None, None, None, None)?;
+            session.command(vec!["prove", "-b", "t/"]).run_detecting_problems()?;
         } else {
             log::warn!("No test target found");
         }

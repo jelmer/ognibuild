@@ -119,15 +119,16 @@ impl<'a> HackageResolver<'a> {
 
 impl<'a> Installer for HackageResolver<'a> {
     fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
+        let requirement = requirement.as_any().downcast_ref::<HaskellPackageDependency>().ok_or(Error::UnknownDependencyFamily)?;
         let user = if scope != InstallationScope::Global { None } else { Some("root") };
-        if let Some(requirement) = requirement.as_any().downcast_ref::<HaskellPackageDependency>() {
-            let cmd = self.cmd(&[requirement], scope)?;
-            log::info!("Hackage: running {:?}", cmd);
-            crate::analyze::run_detecting_problems(self.session, cmd.iter().map(|x| x.as_str()).collect() , None, false, None, user, None, None, None, None)?;
-            Ok(())
-        } else {
-            Err(Error::UnknownDependencyFamily)
+        let cmd = self.cmd(&[requirement], scope)?;
+        log::info!("Hackage: running {:?}", cmd);
+        let mut cmd = self.session.command(cmd.iter().map(|x| x.as_str()).collect());
+        if let Some(user) = user {
+            cmd = cmd.user(user);
         }
+        cmd.run_detecting_problems()?;
+        Ok(())
     }
 
     fn explain(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {

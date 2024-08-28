@@ -200,9 +200,9 @@ impl ToDependency for buildlog_consultant::problems::common::MissingLuaModule {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CargoCrateDependency {
-    name: String,
-    features: Option<Vec<String>>,
-    api_version: Option<String>,
+    pub name: String,
+    pub features: Option<Vec<String>>,
+    pub api_version: Option<String>,
 }
 
 impl CargoCrateDependency {

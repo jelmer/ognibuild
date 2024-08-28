@@ -62,10 +62,10 @@ impl<'a> OctaveForgeResolver<'a> {
         Self { session }
     }
 
-    fn cmd(&self, requirement: &OctavePackageDependency, scope: InstallationScope) -> Result<Vec<String>, Error> {
+    fn cmd(&self, dependency: &OctavePackageDependency, scope: InstallationScope) -> Result<Vec<String>, Error> {
         match scope {
-            InstallationScope::Global => Ok(vec!["octave-cli".to_string(), "--eval".to_string(), format!("pkg install -forge -global {}", requirement.package)]),
-            InstallationScope::User => Ok(vec!["octave-cli".to_string(), "--eval".to_string(), format!("pkg install -forge -local {}", requirement.package)]),
+            InstallationScope::Global => Ok(vec!["octave-cli".to_string(), "--eval".to_string(), format!("pkg install -forge -global {}", dependency.package)]),
+            InstallationScope::User => Ok(vec!["octave-cli".to_string(), "--eval".to_string(), format!("pkg install -forge -local {}", dependency.package)]),
             InstallationScope::Vendor => {
                 Err(Error::UnsupportedScope(scope))
             }
@@ -74,26 +74,26 @@ impl<'a> OctaveForgeResolver<'a> {
 }
 
 impl<'a> Installer for OctaveForgeResolver<'a> {
-    fn explain(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
-        let requirement = requirement
+    fn explain(&self, dependency: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
+        let dependency = dependency
             .as_any()
             .downcast_ref::<OctavePackageDependency>()
             .unwrap();
-        let cmd = self.cmd(requirement, scope)?;
+        let cmd = self.cmd(dependency, scope)?;
         Ok(Explanation {
             command: Some(cmd),
-            message: format!("Install Octave package {}", requirement.package),
+            message: format!("Install Octave package {}", dependency.package),
         })
     }
 
-    fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
-        let requirement = requirement
+    fn install(&self, dependency: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
+        let dependency = dependency
             .as_any()
             .downcast_ref::<OctavePackageDependency>()
             .unwrap();
-        let cmd = self.cmd(requirement, scope)?;
-        log::info!("Octave: installing {}", requirement.package);
-        crate::analyze::run_detecting_problems(self.session, cmd.iter().map(|x| x.as_str()).collect(), None, false, None, None, None, None, None, None)?;
+        let cmd = self.cmd(dependency, scope)?;
+        log::info!("Octave: installing {}", dependency.package);
+        self.session.command(cmd.iter().map(|x| x.as_str()).collect()).run_detecting_problems()?;
         Ok(())
     }
 }

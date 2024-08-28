@@ -80,7 +80,7 @@ pub fn run_detecting_problems(
     quiet: bool,
     cwd: Option<&std::path::Path>,
     user: Option<&str>,
-    env: Option<std::collections::HashMap<String, String>>,
+    env: Option<&std::collections::HashMap<String, String>>,
     stdin: Option<std::process::Stdio>,
     stdout: Option<std::process::Stdio>,
     stderr: Option<std::process::Stdio>,

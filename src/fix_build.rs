@@ -128,12 +128,15 @@ pub fn run_fixing_problems<O: std::error::Error + From<crate::analyze::AnalyzedE
     session: &dyn crate::session::Session,
     args: &[&str],
     quiet: bool,
+    cwd: Option<&std::path::Path>,
+    user: Option<&str>,
+    env: Option<&std::collections::HashMap<String, String>>,
 ) -> Result<Vec<String>, IterateBuildError<O>> {
     iterate_with_build_fixers::<Vec<String>, O>(
         fixers,
         &["build"],
         || {
-            crate::analyze::run_detecting_problems(session, args.to_vec(), None, quiet, None, None, None, None, None, None)
+            crate::analyze::run_detecting_problems(session, args.to_vec(), None, quiet, cwd, user, env, None, None, None)
                 .map_err(|e| match e {
                     crate::analyze::AnalyzedError::Detailed { retcode: _, error } => Error::BuildProblem(error),
                     e => Error::Other(e.into()),

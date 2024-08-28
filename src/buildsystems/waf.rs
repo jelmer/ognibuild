@@ -46,22 +46,22 @@ impl BuildSystem for Waf {
     ) -> Result<std::ffi::OsString, Error> {
         self.setup(session, installer)?;
         let dc = crate::dist_catcher::DistCatcher::default(&session.external_path(std::path::Path::new(".")));
-        crate::analyze::run_detecting_problems(session, vec!["./waf", "dist"], None, false, None, None, None, None, None, None)?;
+        session.command(vec!["./waf", "dist"]).quiet(quiet).run_detecting_problems()?;
         Ok(dc.copy_single(target_directory).unwrap().unwrap())
     }
 
     fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         self.setup(session, installer)?;
-        crate::analyze::run_detecting_problems(session, vec!["./waf", "test"], None, false, None, None, None, None, None, None)?;
+        session.command(vec!["./waf", "test"]).run_detecting_problems()?;
         Ok(())
     }
 
     fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         self.setup(session, installer)?;
-        match crate::analyze::run_detecting_problems(session, vec!["./waf", "build"], None, false, None, None, None, None, None, None) {
+        match session.command(vec!["./waf", "build"]).run_detecting_problems() {
             Err(crate::analyze::AnalyzedError::Unidentified{ lines, ..}) if lines.contains(&"The project was not configured: run \"waf configure\" first!".to_string()) => {
-                crate::analyze::run_detecting_problems(session, vec!["./waf", "configure"], None, false, None, None, None, None, None, None)?;
-                crate::analyze::run_detecting_problems(session, vec!["./waf", "build"], None, false, None, None, None, None, None, None)
+                session.command(vec!["./waf", "configure"]).run_detecting_problems()?;
+                session.command(vec!["./waf", "build"]).run_detecting_problems()
             }
             other => other
         }?;

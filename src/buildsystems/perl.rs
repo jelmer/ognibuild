@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::Read;
 use crate::session::Session;
-use crate::fix_build::{run_fixing_problems, BuildFixer};
+use crate::fix_build::{BuildFixer};
 use crate::installer::Error as InstallerError;
 use crate::dependencies::perl::PerlModuleDependency;
 use crate::buildsystem::DependencyCategory;
@@ -10,7 +10,7 @@ fn read_cpanfile(session: &dyn Session, args: Vec<&str>, category: DependencyCat
     let mut argv = vec!["cpanfile-dump"];
     argv.extend(args);
 
-    run_fixing_problems(fixers, None, session, &argv, false).unwrap().into_iter().filter_map(move |line| {
+    session.command(argv).run_fixing_problems(fixers).unwrap().into_iter().filter_map(move |line| {
         let line = line.trim();
         if !line.is_empty() {
             Some((category, PerlModuleDependency::simple(line)))

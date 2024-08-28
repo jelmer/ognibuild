@@ -1,4 +1,4 @@
-use crate::analyze::{AnalyzedError, run_detecting_problems};
+use crate::analyze::{AnalyzedError};
 use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, Installer, InstallationScope};
 use crate::session::Session;
@@ -100,8 +100,8 @@ impl<'a> Installer for TlmgrResolver<'a> {
         let cmd = self.cmd(&[dep], scope)?;
         log::info!("tlmgr: running {:?}", cmd);
 
-        match run_detecting_problems(
-            self.session, cmd.iter().map(|x| x.as_str()).collect(), None, false, None, None, None, None, None, None) {
+        match self.session.command(
+            cmd.iter().map(|x| x.as_str()).collect()).run_detecting_problems() {
             Ok(_) => Ok(()),
             Err(AnalyzedError::Unidentified { lines, retcode, secondary }) => {
                 if lines.contains(&"tlmgr: user mode not initialized, please read the documentation!".to_string()) {

@@ -5,7 +5,7 @@ use crate::dependencies::python::PythonPackageDependency;
 use crate::dependency::Dependency;
 use crate::installer::{Error as InstallerError, Installer, InstallationScope};
 use crate::output::{Output, BinaryOutput, PythonPackageOutput};
-use crate::fix_build::{BuildFixer, run_fixing_problems};
+use crate::fix_build::BuildFixer;
 use crate::session::Session;
 use pyo3::prelude::*;
 use std::path::{Path, PathBuf};
@@ -325,9 +325,9 @@ impl SetupPy {
             ),
         ];
         let r = if let Some(fixers) = fixers {
-            run_fixing_problems(fixers, None, session, argv.iter().map(|x| x.as_str()).collect::<Vec<_>>().as_slice(), true).map(|_| ()).map_err(|e| e.to_string())
+            session.command(argv.iter().map(|x| x.as_str()).collect::<Vec<_>>()).quiet(true).run_fixing_problems(fixers).map(|_| ()).map_err(|e| e.to_string())
         } else {
-            session.check_call(argv.iter().map(|x| x.as_str()).collect(), None, None, None).map_err(|e| e.to_string())
+            session.command(argv.iter().map(|x| x.as_str()).collect()).check_call().map_err(|e| e.to_string())
         };
         match r {
             Ok(_) => (),
@@ -380,7 +380,7 @@ impl SetupPy {
         args.insert(0, &interpreter);
         args.insert(1, "setup.py");
         // TODO(jelmer): Perhaps this should be additive?
-        crate::analyze::run_detecting_problems(session, args, None, false, None, None, None, None, None, None)?;
+        session.command(args).run_detecting_problems()?;
         Ok(())
     }
 }
@@ -395,7 +395,7 @@ impl BuildSystem for SetupPy {
             return Ok(());
         }
         if self.config.as_ref().map(|c| c.has_section("tool:pytest") || c.has_section("pytest")).unwrap_or(false) {
-            run_detecting_problems(session, vec!["pytest"], None, false, None, None, None, None, None, None)?;
+            session.command(vec!["pytest"]).run_detecting_problems()?;
             return Ok(());
         }
         if self.has_setup_py {

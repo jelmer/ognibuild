@@ -1,4 +1,3 @@
-use crate::analyze::run_detecting_problems;
 use crate::dependencies::BinaryDependency;
 use crate::dependency::Dependency;
 use crate::output::Output;
@@ -209,37 +208,19 @@ impl BuildSystem for Pear {
     ) -> Result<std::ffi::OsString, Error> {
         let dc = crate::dist_catcher::DistCatcher::new(vec![session.external_path(Path::new("."))]);
         let pear = guaranteed_which(session, installer, "pear")?;
-        run_detecting_problems(
-            session,
-            vec![pear.to_str().unwrap(), "package"],
-            None,
-            quiet,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )?;
+        session.command(vec![pear.to_str().unwrap(), "package"]).quiet(quiet).run_detecting_problems()?;
         Ok(dc.copy_single(target_directory).unwrap().unwrap())
     }
 
     fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
-        run_detecting_problems(
-            session, vec![pear.to_str().unwrap(), "run-tests"],
-            None, false, None, None, None, None, None, None
-        )?;
+        session.command(vec![pear.to_str().unwrap(), "run-tests"]).run_detecting_problems()?;
         Ok(())
     }
 
     fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
-        run_detecting_problems(
-            session,
-            vec![pear.to_str().unwrap(), "build", self.0.to_str().unwrap()],
-            None, false, None, None, None, None, None, None
-        )?;
+        session.command(vec![pear.to_str().unwrap(), "build", self.0.to_str().unwrap()]).run_detecting_problems()?;
         Ok(())
     }
 
@@ -254,11 +235,7 @@ impl BuildSystem for Pear {
         _install_target: &InstallTarget
     ) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
-        run_detecting_problems(
-            session,
-            vec![pear.to_str().unwrap(), "install", self.0.to_str().unwrap() ],
-            None, false, None, None, None, None, None, None
-        )?;
+        session.command(vec![pear.to_str().unwrap(), "install", self.0.to_str().unwrap()]).run_detecting_problems()?;
         Ok(())
     }
 
@@ -443,7 +420,7 @@ impl BuildSystem for RunTests {
             vec!["/bin/bash", "./runtests.sh"]
         };
 
-        run_detecting_problems(session, argv, None, false, None, None, None, None, None, None)?;
+        session.command(argv).run_detecting_problems()?;
         Ok(())
     }
 

@@ -1,7 +1,6 @@
 use crate::session::Session;
 use crate::dependency::Dependency;
 use crate::installer::{Installer, Explanation, Error, InstallationScope};
-use crate::analyze::run_detecting_problems;
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,16 +86,19 @@ impl<'a> Installer for RResolver<'a> {
     /// Install the dependency into the session.
     fn install(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
         let req = dep.as_any().downcast_ref::<RPackageDependency>().ok_or(Error::UnknownDependencyFamily)?;
-        let cmd = self.cmd(req);
-        let user = match scope {
-            InstallationScope::User => None,
-            InstallationScope::Global => Some("root"),
+        let args = self.cmd(req);
+        log::info!("RResolver({:?}): running {:?}", self.repos, args);
+        let mut cmd = self.session.command(args.iter().map(|x| x.as_str()).collect());
+        match scope {
+            InstallationScope::User => {},
+            InstallationScope::Global => { cmd = cmd.user("root"); }
             InstallationScope::Vendor => {
                 return Err(Error::UnsupportedScope(scope));
             }
-        };
-        log::info!("RResolver({:?}): running {:?}", self.repos, cmd);
-        run_detecting_problems(self.session, cmd.iter().map(|x| x.as_str()).collect() , None, false, None, user, None, None, None, None)?;
+        }
+
+        cmd.run_detecting_problems()?;
+
         Ok(())
     }
 
