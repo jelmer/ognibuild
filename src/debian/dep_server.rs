@@ -1,11 +1,11 @@
-use crate::dependency::Dependency;
-use crate::installer::{Installer, InstallationScope, Error, Explanation};
 use crate::debian::apt::AptManager;
-use tokio::runtime::Runtime;
 use crate::dependencies::debian::{DebianDependency, TieBreaker};
+use crate::dependency::Dependency;
+use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
-use url::Url;
 use reqwest::StatusCode;
+use tokio::runtime::Runtime;
+use url::Url;
 
 /// Resolve a requirement to an APT requirement with a dep server.
 ///
@@ -16,7 +16,8 @@ use reqwest::StatusCode;
 /// # Returns
 /// List of APT requirements.
 async fn resolve_apt_requirement_dep_server(
-    url: &url::Url, dep: &dyn Dependency
+    url: &url::Url,
+    dep: &dyn Dependency,
 ) -> Result<Option<DebianDependency>, Error> {
     let client = reqwest::Client::new();
     let response = client
@@ -27,11 +28,17 @@ async fn resolve_apt_requirement_dep_server(
             }
         }))
         .send()
-        .await.unwrap();
+        .await
+        .unwrap();
 
     match response.status() {
         StatusCode::NOT_FOUND => {
-            if response.headers().get("Reason").map(|x| x.to_str().unwrap()) == Some("family-unknown") {
+            if response
+                .headers()
+                .get("Reason")
+                .map(|x| x.to_str().unwrap())
+                == Some("family-unknown")
+            {
                 return Err(Error::UnknownDependencyFamily);
             }
             Ok(None)
@@ -69,7 +76,10 @@ impl<'a> DepServerAptInstaller<'a> {
 
     pub fn resolve(&self, req: &dyn Dependency) -> Result<Option<DebianDependency>, Error> {
         let rt = Runtime::new().unwrap();
-        match rt.block_on(resolve_apt_requirement_dep_server(&self.dep_server_url, req)) {
+        match rt.block_on(resolve_apt_requirement_dep_server(
+            &self.dep_server_url,
+            req,
+        )) {
             Ok(deps) => Ok(deps),
             Err(o) => {
                 log::warn!("Falling back to resolving error locally");
@@ -80,7 +90,11 @@ impl<'a> DepServerAptInstaller<'a> {
 }
 
 impl<'a> Installer for DepServerAptInstaller<'a> {
-    fn install(&self, dep: &dyn Dependency, scope: crate::installer::InstallationScope) -> Result<(), Error> {
+    fn install(
+        &self,
+        dep: &dyn Dependency,
+        scope: crate::installer::InstallationScope,
+    ) -> Result<(), Error> {
         match scope {
             InstallationScope::User => {
                 return Err(Error::UnsupportedScope(scope));
@@ -93,19 +107,27 @@ impl<'a> Installer for DepServerAptInstaller<'a> {
         let dep = self.resolve(dep)?;
 
         if let Some(dep) = dep {
-            match self.apt.satisfy(vec![dep.relation_string().as_str()]) {
-                Ok(_) => {},
-                Err(e) => { return Err(Error::Other(e.to_string())); }
+            match self
+                .apt
+                .satisfy(vec![crate::debian::apt::SatisfyEntry::Required(
+                    dep.relation_string(),
+                )]) {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(Error::Other(e.to_string()));
+                }
             }
-        Ok(())
-
+            Ok(())
         } else {
             Err(Error::UnknownDependencyFamily)
         }
     }
 
-    fn explain(&self, dep: &dyn Dependency, scope: crate::installer::InstallationScope)
-        -> Result<crate::installer::Explanation, Error> {
+    fn explain(
+        &self,
+        dep: &dyn Dependency,
+        scope: crate::installer::InstallationScope,
+    ) -> Result<crate::installer::Explanation, Error> {
         match scope {
             InstallationScope::User => {
                 return Err(Error::UnsupportedScope(scope));
@@ -117,14 +139,19 @@ impl<'a> Installer for DepServerAptInstaller<'a> {
         }
         let dep = self.resolve(dep)?;
 
-        let dep = dep.ok_or_else(|| {
-            Error::UnknownDependencyFamily
-        })?;
+        let dep = dep.ok_or_else(|| Error::UnknownDependencyFamily)?;
 
         let apt_deb_str = dep.relation_string();
         let cmd = self.apt.satisfy_command(vec![apt_deb_str.as_str()]);
         Ok(Explanation {
-            message: format!("Install {}", dep.package_names().iter().map(|x| x.as_str()).collect::<Vec<_>>().join(", ")),
+            message: format!(
+                "Install {}",
+                dep.package_names()
+                    .iter()
+                    .map(|x| x.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             command: Some(cmd.iter().map(|s| s.to_string()).collect()),
         })
     }
