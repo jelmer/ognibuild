@@ -1,3 +1,4 @@
+pub mod actions;
 pub mod analyze;
 pub mod buildlog;
 pub mod buildsystem;
