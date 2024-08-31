@@ -145,21 +145,33 @@ impl<'a> Installer for StackedInstaller<'a> {
     fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
         for sub in &self.0 {
             match sub.install(requirement, scope) {
-                Ok(()) => { return Ok(()); },
+                Ok(()) => {
+                    return Ok(());
+                }
                 Err(Error::UnknownDependencyFamily) => {}
-                Err(e) => { return Err(e); }
+                Err(e) => {
+                    return Err(e);
+                }
             }
         }
 
         Err(Error::UnknownDependencyFamily)
     }
 
-    fn explain(&self, requirements: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
+    fn explain(
+        &self,
+        requirements: &dyn Dependency,
+        scope: InstallationScope,
+    ) -> Result<Explanation, Error> {
         for sub in &self.0 {
             match sub.explain(requirements, scope) {
-                Ok(e) => { return Ok(e); },
+                Ok(e) => {
+                    return Ok(e);
+                }
                 Err(Error::UnknownDependencyFamily) => {}
-                Err(e) => { return Err(e); }
+                Err(e) => {
+                    return Err(e);
+                }
             }
         }
 
@@ -167,30 +179,65 @@ impl<'a> Installer for StackedInstaller<'a> {
     }
 }
 
-pub fn installer_by_name<'a>(session: &'a dyn crate::session::Session, name: &str) -> Option<Box<dyn Installer + 'a>> {
+pub fn installer_by_name<'a>(
+    session: &'a dyn crate::session::Session,
+    name: &str,
+) -> Option<Box<dyn Installer + 'a>> {
     // TODO: Use more dynamic way to load installers
     match name {
-        "apt" => Some(Box::new(crate::debian::apt::AptInstaller::from_session(session)) as Box<dyn Installer>),
-        "cpan" => Some(Box::new(crate::dependencies::perl::CPAN::new(session, false)) as Box<dyn Installer>),
+        "apt" => Some(
+            Box::new(crate::debian::apt::AptInstaller::from_session(session)) as Box<dyn Installer>,
+        ),
+        "cpan" => Some(
+            Box::new(crate::dependencies::perl::CPAN::new(session, false)) as Box<dyn Installer>,
+        ),
         "ctan" => Some(Box::new(crate::dependencies::latex::ctan(session)) as Box<dyn Installer>),
-        "pypi" => Some(Box::new(crate::dependencies::python::PypiResolver::new(session)) as Box<dyn Installer>),
-        "npm" => Some(Box::new(crate::dependencies::node::NpmResolver::new(session)) as Box<dyn Installer>),
-        "go" => Some(Box::new(crate::dependencies::go::GoResolver::new(session)) as Box<dyn Installer>),
-        "hackage" => Some(Box::new(crate::dependencies::haskell::HackageResolver::new(session)) as Box<dyn Installer>),
+        "pypi" => Some(
+            Box::new(crate::dependencies::python::PypiResolver::new(session)) as Box<dyn Installer>,
+        ),
+        "npm" => Some(
+            Box::new(crate::dependencies::node::NpmResolver::new(session)) as Box<dyn Installer>,
+        ),
+        "go" => {
+            Some(Box::new(crate::dependencies::go::GoResolver::new(session)) as Box<dyn Installer>)
+        }
+        "hackage" => Some(
+            Box::new(crate::dependencies::haskell::HackageResolver::new(session))
+                as Box<dyn Installer>,
+        ),
         "cran" => Some(Box::new(crate::dependencies::r::cran(session)) as Box<dyn Installer>),
-        "bioconductor" => Some(Box::new(crate::dependencies::r::bioconductor(session)) as Box<dyn Installer>),
-        "octave-forge" => Some(Box::new(crate::dependencies::octave::OctaveForgeResolver::new(session)) as Box<dyn Installer>),
-        "native" => Some(Box::new(StackedInstaller::new(native_installers(session))) as Box<dyn Installer>),
-        _ => None
+        "bioconductor" => {
+            Some(Box::new(crate::dependencies::r::bioconductor(session)) as Box<dyn Installer>)
+        }
+        "octave-forge" => Some(
+            Box::new(crate::dependencies::octave::OctaveForgeResolver::new(
+                session,
+            )) as Box<dyn Installer>,
+        ),
+        "native" => {
+            Some(Box::new(StackedInstaller::new(native_installers(session))) as Box<dyn Installer>)
+        }
+        _ => None,
     }
 }
 
-pub fn native_installers<'a>(session: &'a dyn crate::session::Session) -> Vec<Box<dyn Installer + 'a>> {
+pub fn native_installers<'a>(
+    session: &'a dyn crate::session::Session,
+) -> Vec<Box<dyn Installer + 'a>> {
     // TODO: Use more dynamic way to load installers
-    ["ctan", "pypi", "npm", "go", "hackage", "cran", "bioconductor", "octave-forge"]
-        .iter()
-        .map(|name| installer_by_name(session, name).unwrap())
-        .collect()
+    [
+        "ctan",
+        "pypi",
+        "npm",
+        "go",
+        "hackage",
+        "cran",
+        "bioconductor",
+        "octave-forge",
+    ]
+    .iter()
+    .map(|name| installer_by_name(session, name).unwrap())
+    .collect()
 }
 
 /// Select installers by name.
@@ -212,7 +259,7 @@ pub fn select_installers<'a>(
 pub fn auto_installer<'a>(
     session: &'a dyn crate::session::Session,
     explain: bool,
-    system_wide : Option<bool>,
+    system_wide: Option<bool>,
     dep_server_url: Option<url::Url>,
 ) -> Box<dyn Installer + 'a> {
     // if session is SchrootSession or if we're root, use apt
@@ -230,15 +277,18 @@ pub fn auto_installer<'a>(
             false
         }
     };
-    if system_wide {
-        if has_apt {
-            if let Some(dep_server_url) = dep_server_url {
-                installers.push(
-                    Box::new(crate::debian::dep_server::DepServerAptInstaller::from_session(session, dep_server_url)) as Box<dyn Installer + 'a>
-                );
-            } else {
-                installers.push(Box::new(crate::debian::apt::AptInstaller::from_session(session)));
-            }
+    if system_wide && has_apt {
+        if let Some(dep_server_url) = dep_server_url {
+            installers.push(Box::new(
+                crate::debian::dep_server::DepServerAptInstaller::from_session(
+                    session,
+                    dep_server_url,
+                ),
+            ) as Box<dyn Installer + 'a>);
+        } else {
+            installers.push(Box::new(crate::debian::apt::AptInstaller::from_session(
+                session,
+            )));
         }
     }
     installers.extend(native_installers(session));

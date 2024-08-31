@@ -214,7 +214,13 @@ impl<'a> CommandBuilder<'a> {
         )
     }
 
-    pub fn run_fixing_problems<O: std::error::Error + From<crate::analyze::AnalyzedError>>(self, fixers: &[&dyn crate::fix_build::BuildFixer<O>]) -> Result<Vec<String>, crate::fix_build::IterateBuildError<O>> {
+    pub fn run_fixing_problems<
+        I: std::error::Error,
+        E: From<I> + std::error::Error + From<std::io::Error>,
+    >(
+        self,
+        fixers: &[&dyn crate::fix_build::BuildFixer<I>],
+    ) -> Result<Vec<String>, crate::fix_build::IterateBuildError<E>> {
         assert!(self.stdin.is_none());
         assert!(self.stdout.is_none());
         assert!(self.stderr.is_none());
@@ -255,7 +261,8 @@ impl<'a> CommandBuilder<'a> {
     }
 
     pub fn check_call(self) -> Result<(), Error> {
-        self.session.check_call(self.argv, self.cwd, self.user, self.env)
+        self.session
+            .check_call(self.argv, self.cwd, self.user, self.env)
     }
 
     pub fn check_output(self) -> Result<Vec<u8>, Error> {
@@ -380,5 +387,4 @@ mod tests {
         let which = super::which(&session, "ls");
         assert!(which.unwrap().ends_with("/ls"));
     }
-
 }

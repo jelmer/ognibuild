@@ -187,7 +187,10 @@ impl Session for PlainSession {
     }
 
     fn read_dir(&self, path: &std::path::Path) -> Result<Vec<std::fs::DirEntry>, Error> {
-        std::fs::read_dir(path).map_err(Error::IoError)?.collect::<Result<Vec<_>, _>>().map_err(Error::IoError)
+        std::fs::read_dir(path)
+            .map_err(Error::IoError)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(Error::IoError)
     }
 }
 

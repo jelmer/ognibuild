@@ -72,7 +72,7 @@ impl Cargo {
         if let Some(fixers) = fixers {
             session
                 .command(vec!["cargo", "fetch"])
-                .run_fixing_problems(fixers)
+                .run_fixing_problems::<_, Error>(fixers)
                 .unwrap();
         } else {
             session

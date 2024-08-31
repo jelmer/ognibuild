@@ -30,7 +30,7 @@ impl Meson {
     fn introspect(&self, session: &dyn Session, fixers: Option<&[&dyn BuildFixer<InstallerError>]>, args: &[&str]) -> Result<serde_json::Value, InstallerError> {
         let args = [&["meson", "introspect"], args, &["./meson.build"]].concat();
         let ret = if let Some(fixers) = fixers {
-            session.command(args).run_fixing_problems(fixers).unwrap()
+            session.command(args).run_fixing_problems::<_, Error>(fixers).unwrap()
         } else {
             session.command(args).run_detecting_problems()?
         };

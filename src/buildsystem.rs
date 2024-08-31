@@ -1,7 +1,9 @@
 use crate::dependencies::BinaryDependency;
 use crate::dependency::Dependency;
+use crate::installer::{
+    install_missing_deps, Error as InstallerError, InstallationScope, Installer,
+};
 use crate::output::Output;
-use crate::installer::{Error as InstallerError, InstallationScope, Installer, install_missing_deps};
 use crate::session::{which, Session};
 use std::path::{Path, PathBuf};
 
@@ -55,7 +57,14 @@ impl From<crate::analyze::AnalyzedError> for Error {
 impl From<crate::session::Error> for Error {
     fn from(e: crate::session::Error) -> Self {
         match e {
-            crate::session::Error::CalledProcessError(e) => crate::analyze::AnalyzedError::Unidentified { retcode: e.code().unwrap(), lines: Vec::new(), secondary: None }.into(),
+            crate::session::Error::CalledProcessError(e) => {
+                crate::analyze::AnalyzedError::Unidentified {
+                    retcode: e.code().unwrap(),
+                    lines: Vec::new(),
+                    secondary: None,
+                }
+                .into()
+            }
             crate::session::Error::IoError(e) => e.into(),
             crate::session::Error::SetupFailure(_, _) => unreachable!(),
         }
@@ -65,10 +74,66 @@ impl From<crate::session::Error> for Error {
 impl From<crate::fix_build::IterateBuildError<InstallerError>> for Error {
     fn from(e: crate::fix_build::IterateBuildError<InstallerError>) -> Self {
         match e {
-            crate::fix_build::IterateBuildError::FixerLimitReached(n) => Error::Other(format!("Fixer limit reached: {}", n)),
-            crate::fix_build::IterateBuildError::PersistentBuildProblem(e) => crate::analyze::AnalyzedError::Detailed { error: e, retcode: 1}.into(),
-            crate::fix_build::IterateBuildError::Unidentified { retcode, lines, secondary } => crate::analyze::AnalyzedError::Unidentified { retcode, lines, secondary }.into(),
+            crate::fix_build::IterateBuildError::FixerLimitReached(n) => {
+                Error::Other(format!("Fixer limit reached: {}", n))
+            }
+            crate::fix_build::IterateBuildError::Persistent(e) => {
+                crate::analyze::AnalyzedError::Detailed {
+                    error: e,
+                    retcode: 1,
+                }
+                .into()
+            }
+            crate::fix_build::IterateBuildError::Unidentified {
+                retcode,
+                lines,
+                secondary,
+            } => crate::analyze::AnalyzedError::Unidentified {
+                retcode,
+                lines,
+                secondary,
+            }
+            .into(),
             crate::fix_build::IterateBuildError::Other(o) => o.into(),
+        }
+    }
+}
+
+impl From<crate::fix_build::IterateBuildError<Error>> for Error {
+    fn from(e: crate::fix_build::IterateBuildError<Error>) -> Self {
+        match e {
+            crate::fix_build::IterateBuildError::FixerLimitReached(n) => {
+                Error::Other(format!("Fixer limit reached: {}", n))
+            }
+            crate::fix_build::IterateBuildError::Persistent(e) => {
+                crate::analyze::AnalyzedError::Detailed {
+                    error: e,
+                    retcode: 1,
+                }
+                .into()
+            }
+            crate::fix_build::IterateBuildError::Unidentified {
+                retcode,
+                lines,
+                secondary,
+            } => crate::analyze::AnalyzedError::Unidentified {
+                retcode,
+                lines,
+                secondary,
+            }
+            .into(),
+            crate::fix_build::IterateBuildError::Other(o) => o.into(),
+        }
+    }
+}
+
+impl From<Error> for crate::fix_build::InterimError<Error> {
+    fn from(e: Error) -> Self {
+        match e {
+            Error::Error(crate::analyze::AnalyzedError::Detailed { error, retcode: _ }) => {
+                crate::fix_build::InterimError::Recognized(error)
+            }
+            e => crate::fix_build::InterimError::Other(e),
         }
     }
 }
@@ -151,9 +216,21 @@ pub trait BuildSystem {
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<(), Error> {
         let declared_deps = self.get_declared_dependencies(session, fixers)?;
-        let relevant =
-            declared_deps.into_iter().filter(|(c, _d)| categories.contains(c)).map(|(_, d)| d).collect::<Vec<_>>();
-        install_missing_deps(session, installer, scope, relevant.iter().map(|d| d.as_ref()).collect::<Vec<_>>().as_slice())?;
+        let relevant = declared_deps
+            .into_iter()
+            .filter(|(c, _d)| categories.contains(c))
+            .map(|(_, d)| d)
+            .collect::<Vec<_>>();
+        install_missing_deps(
+            session,
+            installer,
+            scope,
+            relevant
+                .iter()
+                .map(|d| d.as_ref())
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )?;
         Ok(())
     }
 
@@ -167,7 +244,7 @@ pub trait BuildSystem {
         &self,
         session: &dyn Session,
         installer: &dyn Installer,
-        install_target: &InstallTarget
+        install_target: &InstallTarget,
     ) -> Result<(), Error>;
 
     fn get_declared_dependencies(
@@ -208,8 +285,16 @@ impl Pear {
         // Check that the root tag is <package> and that the namespace is one of the known PEAR
         // namespaces.
 
-        if root.namespace.as_deref().and_then(|ns| PEAR_NAMESPACES.iter().find(|&n| *n == ns)).is_none() {
-            log::warn!("Namespace of package.xml is not recognized as a PEAR package: {:?}", root.namespace);
+        if root
+            .namespace
+            .as_deref()
+            .and_then(|ns| PEAR_NAMESPACES.iter().find(|&n| *n == ns))
+            .is_none()
+        {
+            log::warn!(
+                "Namespace of package.xml is not recognized as a PEAR package: {:?}",
+                root.namespace
+            );
             return None;
         }
 
@@ -218,7 +303,10 @@ impl Pear {
             return None;
         }
 
-        log::debug!("Found package.xml with namespace {}, assuming pear package.", root.namespace.as_ref().unwrap());
+        log::debug!(
+            "Found package.xml with namespace {}, assuming pear package.",
+            root.namespace.as_ref().unwrap()
+        );
 
         Some(Box::new(Self(PathBuf::from(path))))
     }
@@ -238,19 +326,30 @@ impl BuildSystem for Pear {
     ) -> Result<std::ffi::OsString, Error> {
         let dc = crate::dist_catcher::DistCatcher::new(vec![session.external_path(Path::new("."))]);
         let pear = guaranteed_which(session, installer, "pear")?;
-        session.command(vec![pear.to_str().unwrap(), "package"]).quiet(quiet).run_detecting_problems()?;
+        session
+            .command(vec![pear.to_str().unwrap(), "package"])
+            .quiet(quiet)
+            .run_detecting_problems()?;
         Ok(dc.copy_single(target_directory).unwrap().unwrap())
     }
 
     fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
-        session.command(vec![pear.to_str().unwrap(), "run-tests"]).run_detecting_problems()?;
+        session
+            .command(vec![pear.to_str().unwrap(), "run-tests"])
+            .run_detecting_problems()?;
         Ok(())
     }
 
     fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
-        session.command(vec![pear.to_str().unwrap(), "build", self.0.to_str().unwrap()]).run_detecting_problems()?;
+        session
+            .command(vec![
+                pear.to_str().unwrap(),
+                "build",
+                self.0.to_str().unwrap(),
+            ])
+            .run_detecting_problems()?;
         Ok(())
     }
 
@@ -262,10 +361,16 @@ impl BuildSystem for Pear {
         &self,
         session: &dyn Session,
         installer: &dyn Installer,
-        _install_target: &InstallTarget
+        _install_target: &InstallTarget,
     ) -> Result<(), Error> {
         let pear = guaranteed_which(session, installer, "pear")?;
-        session.command(vec![pear.to_str().unwrap(), "install", self.0.to_str().unwrap()]).run_detecting_problems()?;
+        session
+            .command(vec![
+                pear.to_str().unwrap(),
+                "install",
+                self.0.to_str().unwrap(),
+            ])
+            .run_detecting_problems()?;
         Ok(())
     }
 
@@ -281,8 +386,16 @@ impl BuildSystem for Pear {
         // Check that the root tag is <package> and that the namespace is one of the known PEAR
         // namespaces.
 
-        if root.namespace.as_deref().and_then(|ns| PEAR_NAMESPACES.iter().find(|&n| *n == ns)).is_none() {
-            log::warn!("Namespace of package.xml is not recognized as a PEAR package: {:?}", root.namespace);
+        if root
+            .namespace
+            .as_deref()
+            .and_then(|ns| PEAR_NAMESPACES.iter().find(|&n| *n == ns))
+            .is_none()
+        {
+            log::warn!(
+                "Namespace of package.xml is not recognized as a PEAR package: {:?}",
+                root.namespace
+            );
             return Ok(vec![]);
         }
 
@@ -291,27 +404,51 @@ impl BuildSystem for Pear {
             return Ok(vec![]);
         }
 
-        let dependencies_tag = root.get_child("dependencies").ok_or_else(|| {
-            Error::Other("No <dependencies> tag found in <package>".to_string())
-        })?;
+        let dependencies_tag = root
+            .get_child("dependencies")
+            .ok_or_else(|| Error::Other("No <dependencies> tag found in <package>".to_string()))?;
 
-        let required_tag = dependencies_tag.get_child("required").ok_or_else(|| {
-            Error::Other("No <required> tag found in <dependencies>".to_string())
-        })?;
+        let required_tag = dependencies_tag
+            .get_child("required")
+            .ok_or_else(|| Error::Other("No <required> tag found in <dependencies>".to_string()))?;
 
-        Ok(required_tag.children.iter().filter_map(|x| x.as_element()).filter(|c| c.name.as_str() == "package").filter_map(|package_tag| -> Option<(DependencyCategory, Box<dyn Dependency>)> {
-            let name = package_tag.get_child("name").and_then(|n| n.get_text()).unwrap().into_owned();
-            let min_version = package_tag.get_child("min").and_then(|m| m.get_text()).map(|s| s.into_owned());
-            let max_version = package_tag.get_child("max").and_then(|m| m.get_text()).map(|s| s.into_owned());
-            let channel = package_tag.get_child("channel").and_then(|c| c.get_text()).map(|s| s.into_owned());
+        Ok(required_tag
+            .children
+            .iter()
+            .filter_map(|x| x.as_element())
+            .filter(|c| c.name.as_str() == "package")
+            .filter_map(
+                |package_tag| -> Option<(DependencyCategory, Box<dyn Dependency>)> {
+                    let name = package_tag
+                        .get_child("name")
+                        .and_then(|n| n.get_text())
+                        .unwrap()
+                        .into_owned();
+                    let min_version = package_tag
+                        .get_child("min")
+                        .and_then(|m| m.get_text())
+                        .map(|s| s.into_owned());
+                    let max_version = package_tag
+                        .get_child("max")
+                        .and_then(|m| m.get_text())
+                        .map(|s| s.into_owned());
+                    let channel = package_tag
+                        .get_child("channel")
+                        .and_then(|c| c.get_text())
+                        .map(|s| s.into_owned());
 
-            Some((DependencyCategory::Universal, Box::new(crate::dependencies::php::PhpPackageDependency {
-                package: name,
-                channel,
-                min_version,
-                max_version,
-            }) as Box<dyn Dependency>))
-        }).collect())
+                    Some((
+                        DependencyCategory::Universal,
+                        Box::new(crate::dependencies::php::PhpPackageDependency {
+                            package: name,
+                            channel,
+                            min_version,
+                            max_version,
+                        }) as Box<dyn Dependency>,
+                    ))
+                },
+            )
+            .collect())
     }
 
     fn get_declared_outputs(
@@ -326,7 +463,11 @@ impl BuildSystem for Pear {
 /// Detect build systems.
 pub fn scan_buildsystems(path: &Path) -> Vec<(PathBuf, Box<dyn BuildSystem>)> {
     let mut ret = vec![];
-    ret.extend(detect_buildsystems(path).map(|bs| (PathBuf::from(path), bs)));
+    ret.extend(
+        detect_buildsystems(path)
+            .into_iter()
+            .map(|bs| (PathBuf::from(path), bs)),
+    );
 
     if ret.is_empty() {
         // Nothing found. Try the next level?
@@ -334,7 +475,9 @@ pub fn scan_buildsystems(path: &Path) -> Vec<(PathBuf, Box<dyn BuildSystem>)> {
             let entry = entry.unwrap();
             if entry.file_type().unwrap().is_dir() {
                 ret.extend(
-                    detect_buildsystems(&entry.path()).map(|bs| (entry.path(), bs))
+                    detect_buildsystems(&entry.path())
+                        .into_iter()
+                        .map(|bs| (entry.path(), bs)),
                 );
             }
         }
@@ -365,47 +508,47 @@ impl BuildSystem for Composer {
 
     fn dist(
         &self,
-        session: &dyn Session,
-        installer: &dyn Installer,
-        target_directory: &Path,
-        quiet: bool,
+        _session: &dyn Session,
+        _installer: &dyn Installer,
+        _target_directory: &Path,
+        _quiet: bool,
     ) -> Result<std::ffi::OsString, Error> {
         todo!()
     }
 
-    fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+    fn test(&self, _session: &dyn Session, _installer: &dyn Installer) -> Result<(), Error> {
         todo!()
     }
 
-    fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+    fn build(&self, _session: &dyn Session, _installer: &dyn Installer) -> Result<(), Error> {
         todo!()
     }
 
-    fn clean(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+    fn clean(&self, _session: &dyn Session, _installer: &dyn Installer) -> Result<(), Error> {
         todo!()
     }
 
     fn install(
         &self,
-        session: &dyn Session,
-        installer: &dyn Installer,
-        install_target: &InstallTarget
+        _session: &dyn Session,
+        _installer: &dyn Installer,
+        _install_target: &InstallTarget,
     ) -> Result<(), Error> {
         todo!()
     }
 
     fn get_declared_dependencies(
         &self,
-        session: &dyn Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+        _session: &dyn Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error> {
         todo!()
     }
 
     fn get_declared_outputs(
         &self,
-        session: &dyn Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+        _session: &dyn Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<Box<dyn Output>>, Error> {
         todo!()
     }
@@ -434,10 +577,10 @@ impl BuildSystem for RunTests {
 
     fn dist(
         &self,
-        session: &dyn Session,
-        installer: &dyn Installer,
-        target_directory: &Path,
-        quiet: bool,
+        _session: &dyn Session,
+        _installer: &dyn Installer,
+        _target_directory: &Path,
+        _quiet: bool,
     ) -> Result<std::ffi::OsString, Error> {
         todo!()
     }
@@ -454,44 +597,42 @@ impl BuildSystem for RunTests {
         Ok(())
     }
 
-    fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+    fn build(&self, _session: &dyn Session, _installer: &dyn Installer) -> Result<(), Error> {
         todo!()
     }
 
-    fn clean(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+    fn clean(&self, _session: &dyn Session, _installer: &dyn Installer) -> Result<(), Error> {
         todo!()
     }
 
     fn install(
         &self,
-        session: &dyn Session,
-        installer: &dyn Installer,
-        install_target: &InstallTarget
+        _session: &dyn Session,
+        _installer: &dyn Installer,
+        _install_target: &InstallTarget,
     ) -> Result<(), Error> {
         todo!()
     }
 
     fn get_declared_dependencies(
         &self,
-        session: &dyn Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+        _session: &dyn Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error> {
         todo!()
     }
 
     fn get_declared_outputs(
         &self,
-        session: &dyn Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+        _session: &dyn Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<Box<dyn Output>>, Error> {
         todo!()
     }
-
 }
 
-
-
-pub fn detect_buildsystems(path: &std::path::Path) -> Option<Box<dyn BuildSystem>> {
+pub fn detect_buildsystems(path: &std::path::Path) -> Vec<Box<dyn BuildSystem>> {
+    let mut ret = vec![];
     for probe in [
         Pear::probe,
         crate::buildsystems::python::SetupPy::probe,
@@ -515,13 +656,13 @@ pub fn detect_buildsystems(path: &std::path::Path) -> Option<Box<dyn BuildSystem
         crate::buildsystems::make::Make::probe,
         Composer::probe,
         RunTests::probe,
-        ] {
+    ] {
         let bs = probe(path);
         if let Some(bs) = bs {
-            return Some(bs);
+            ret.push(bs);
         }
     }
-    None
+    ret
 }
 
 pub fn get_buildsystem(path: &Path) -> Option<(PathBuf, Box<dyn BuildSystem>)> {

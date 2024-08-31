@@ -325,7 +325,7 @@ impl SetupPy {
             ),
         ];
         let r = if let Some(fixers) = fixers {
-            session.command(argv.iter().map(|x| x.as_str()).collect::<Vec<_>>()).quiet(true).run_fixing_problems(fixers).map(|_| ()).map_err(|e| e.to_string())
+            session.command(argv.iter().map(|x| x.as_str()).collect::<Vec<_>>()).quiet(true).run_fixing_problems::<_, Error>(fixers).map(|_| ()).map_err(|e| e.to_string())
         } else {
             session.command(argv.iter().map(|x| x.as_str()).collect()).check_call().map_err(|e| e.to_string())
         };

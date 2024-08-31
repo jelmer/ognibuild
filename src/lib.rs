@@ -6,6 +6,7 @@ pub mod buildsystems;
 pub mod debian;
 pub mod dependencies;
 pub mod dependency;
+pub mod dist;
 pub mod dist_catcher;
 pub mod fix_build;
 pub mod fixers;
