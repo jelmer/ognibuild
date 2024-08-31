@@ -82,7 +82,7 @@ name = "ognibuild-deb"
 path = "src/bin/ognibuild-deb.rs"
 required-features = ["cli", "debian"]
 
-[[bin]]
+[[example]]
 name = "apt-file-search"
 path = "src/bin/apt-file-search.rs"
 required-features = ["cli", "debian"]
