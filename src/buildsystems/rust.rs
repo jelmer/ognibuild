@@ -1,7 +1,7 @@
-use crate::analyze::{AnalyzedError};
-use crate::dependency::Dependency;
+use crate::analyze::AnalyzedError;
+use crate::buildsystem::{BuildSystem, DependencyCategory, Error};
 use crate::dependencies::CargoCrateDependency;
-use crate::buildsystem::{BuildSystem, Error, DependencyCategory};
+use crate::dependency::Dependency;
 use std::path::{Path, PathBuf};
 
 #[derive(serde::Deserialize)]
@@ -18,7 +18,7 @@ enum CrateDependency {
         optional: Option<bool>,
         features: Option<Vec<String>>,
         default_features: Option<bool>,
-    }
+    },
 }
 
 impl CrateDependency {
@@ -43,7 +43,6 @@ struct CargoToml {
     dependencies: Option<std::collections::HashMap<String, CrateDependency>>,
 }
 
-
 pub struct Cargo {
     path: PathBuf,
     local_crate: CargoToml,
@@ -53,10 +52,7 @@ impl Cargo {
     pub fn new(path: PathBuf) -> Self {
         let cargo_toml = std::fs::read_to_string(path.join("Cargo.toml")).unwrap();
         let local_crate: CargoToml = toml::from_str(&cargo_toml).unwrap();
-        Self {
-            path,
-            local_crate,
-        }
+        Self { path, local_crate }
     }
 
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
@@ -68,11 +64,20 @@ impl Cargo {
         }
     }
 
-    fn install_declared_requirements(&self, session: &dyn crate::session::Session, fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>) -> Result<(), Error> {
+    fn install_declared_requirements(
+        &self,
+        session: &dyn crate::session::Session,
+        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+    ) -> Result<(), Error> {
         if let Some(fixers) = fixers {
-            session.command(vec!["cargo", "fetch"]).run_fixing_problems(fixers).unwrap();
+            session
+                .command(vec!["cargo", "fetch"])
+                .run_fixing_problems(fixers)
+                .unwrap();
         } else {
-            session.command(vec!["cargo", "fetch"]).run_detecting_problems()?;
+            session
+                .command(vec!["cargo", "fetch"])
+                .run_detecting_problems()?;
         }
         Ok(())
     }
@@ -93,23 +98,45 @@ impl BuildSystem for Cargo {
         todo!()
     }
 
-    fn test(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), Error> {
-        session.command(vec!["cargo", "test"]).run_detecting_problems()?;
+    fn test(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn crate::installer::Installer,
+    ) -> Result<(), Error> {
+        session
+            .command(vec!["cargo", "test"])
+            .run_detecting_problems()?;
         Ok(())
     }
 
-    fn build(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), Error> {
-        match session.command(vec!["cargo", "generate"]).run_detecting_problems() {
+    fn build(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn crate::installer::Installer,
+    ) -> Result<(), Error> {
+        match session
+            .command(vec!["cargo", "generate"])
+            .run_detecting_problems()
+        {
             Ok(_) => {}
-            Err(AnalyzedError::Unidentified { lines, ..}) if lines == ["error: no such subcommand: `generate`"] => {}
+            Err(AnalyzedError::Unidentified { lines, .. })
+                if lines == ["error: no such subcommand: `generate`"] => {}
             Err(e) => return Err(e.into()),
         }
-        session.command(vec!["cargo", "build"]).run_detecting_problems()?;
+        session
+            .command(vec!["cargo", "build"])
+            .run_detecting_problems()?;
         Ok(())
     }
 
-    fn clean(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), Error> {
-        session.command(vec!["cargo", "clean"]).run_detecting_problems()?;
+    fn clean(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn crate::installer::Installer,
+    ) -> Result<(), Error> {
+        session
+            .command(vec!["cargo", "clean"])
+            .run_detecting_problems()?;
         Ok(())
     }
 
@@ -117,13 +144,19 @@ impl BuildSystem for Cargo {
         &self,
         session: &dyn crate::session::Session,
         installer: &dyn crate::installer::Installer,
-        install_target: &crate::buildsystem::InstallTarget
+        install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), Error> {
-        let mut args = vec!["cargo".to_string(), "install".to_string(), "--path=.".to_string()];
+        let mut args = vec![
+            "cargo".to_string(),
+            "install".to_string(),
+            "--path=.".to_string(),
+        ];
         if let Some(prefix) = install_target.prefix.as_ref() {
             args.push(format!("-root={}", prefix.to_str().unwrap()));
         }
-        session.command(args.iter().map(|x| x.as_str()).collect()).run_detecting_problems()?;
+        session
+            .command(args.iter().map(|x| x.as_str()).collect())
+            .run_detecting_problems()?;
         Ok(())
     }
 
@@ -131,14 +164,29 @@ impl BuildSystem for Cargo {
         &self,
         session: &dyn crate::session::Session,
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
-    ) -> Result<Vec<(crate::buildsystem::DependencyCategory, Box<dyn crate::dependency::Dependency>)>, Error> {
+    ) -> Result<
+        Vec<(
+            crate::buildsystem::DependencyCategory,
+            Box<dyn crate::dependency::Dependency>,
+        )>,
+        Error,
+    > {
         let mut ret: Vec<(DependencyCategory, Box<dyn Dependency>)> = vec![];
-        for (name, details) in self.local_crate.dependencies.as_ref().unwrap_or(&std::collections::HashMap::new()) {
-            ret.push((DependencyCategory::Build, Box::new(CargoCrateDependency {
-                name: name.clone(),
-                features: Some(details.features().unwrap_or(&[]).to_vec()),
-                api_version: None
-            })));
+        for (name, details) in self
+            .local_crate
+            .dependencies
+            .as_ref()
+            .unwrap_or(&std::collections::HashMap::new())
+        {
+            ret.push((
+                DependencyCategory::Build,
+                Box::new(CargoCrateDependency {
+                    name: name.clone(),
+                    features: Some(details.features().unwrap_or(&[]).to_vec()),
+                    api_version: None,
+                    minimum_version: None,
+                }),
+            ));
         }
         Ok(ret)
     }

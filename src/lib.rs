@@ -14,4 +14,5 @@ pub mod logs;
 pub mod output;
 pub mod session;
 pub mod shebang;
+pub mod upstream;
 pub mod vcs;

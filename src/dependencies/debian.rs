@@ -1,10 +1,10 @@
+use crate::dependency::Dependency;
+use crate::session::Session;
 use debian_control::relations::{Relation, Relations, VersionConstraint};
 use debversion::Version;
-use crate::session::Session;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashSet;
 use std::hash::Hash;
-use crate::dependency::Dependency;
-use serde::{Serialize, Serializer, Deserialize, Deserializer};
 
 #[derive(Debug)]
 pub struct DebianDependency(Relations);
@@ -68,8 +68,11 @@ impl DebianDependency {
 
     pub fn new_with_min_version(name: &str, min_version: &Version) -> DebianDependency {
         DebianDependency(
-            format!("{} (>= {})", name, min_version).parse().unwrap_or_else(|_| panic!("Failed to parse dependency: {} (>= {})",
-                name, min_version)),
+            format!("{} (>= {})", name, min_version)
+                .parse()
+                .unwrap_or_else(|_| {
+                    panic!("Failed to parse dependency: {} (>= {})", name, min_version)
+                }),
         )
     }
 
@@ -94,7 +97,10 @@ impl DebianDependency {
         names
     }
 
-    pub fn satisfied_by(&self, versions: &std::collections::HashMap<String, debversion::Version>) -> bool {
+    pub fn satisfied_by(
+        &self,
+        versions: &std::collections::HashMap<String, debversion::Version>,
+    ) -> bool {
         let relation_satisfied = |relation: Relation| -> bool {
             let name = relation.name();
             let version = if let Some(version) = versions.get(&name) {
@@ -112,7 +118,9 @@ impl DebianDependency {
             }
         };
 
-        self.0.entries().all(|entry| entry.relations().any(relation_satisfied))
+        self.0
+            .entries()
+            .all(|entry| entry.relations().any(relation_satisfied))
     }
 }
 
@@ -190,25 +198,93 @@ pub fn default_tie_breakers(session: &dyn Session) -> Vec<Box<dyn TieBreaker>> {
 }
 
 pub trait IntoDebianDependency: Dependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> Option<Vec<DebianDependency>>;
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> Option<Vec<DebianDependency>>;
 }
 
 impl IntoDebianDependency for DebianDependency {
-    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> Option<Vec<DebianDependency>> {
+    fn try_into_debian_dependency(
+        &self,
+        _apt: &crate::debian::apt::AptManager,
+    ) -> Option<Vec<DebianDependency>> {
         Some(vec![self.clone()])
     }
 }
 
-impl crate::buildlog::ToDependency for buildlog_consultant::problems::debian::UnsatisfiedAptDependencies {
+pub trait FromDebianDependency {
+    fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>>;
+}
+
+impl crate::buildlog::ToDependency
+    for buildlog_consultant::problems::debian::UnsatisfiedAptDependencies
+{
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(DebianDependency::new(&self.0)))
     }
 }
 
+pub fn extract_simple_exact_version(
+    dep: &DebianDependency,
+) -> Option<(String, Option<debversion::Version>)> {
+    // Extract the package name and exact version from a dependency. Return None
+    // if there are non-1 entries in the dependency, or non-1 relations in the entry or if the
+    // version constraint is not Equal.
+    let mut entries = dep.0.entries();
+    let first_entry = entries.next()?;
+    if entries.next().is_some() {
+        return None;
+    }
+
+    let mut relations = first_entry.relations();
+    let first_relation = relations.next()?;
+    if relations.next().is_some() {
+        return None;
+    }
+
+    let name = first_relation.name();
+    let version = match first_relation.version() {
+        Some((VersionConstraint::Equal, v)) => Some(v),
+        None => None,
+        _ => return None,
+    };
+
+    Some((name.to_string(), version))
+}
+
+pub fn extract_simple_min_version(
+    dep: &DebianDependency,
+) -> Option<(String, Option<debversion::Version>)> {
+    // Extract the package name and minimum version from a dependency. Return None
+    // if there are non-1 entries in the dependency, or non-1 relations in the entry or if the
+    // version constraint is not GreaterThanEqual or absent.
+    let mut entries = dep.0.entries();
+    let first_entry = entries.next()?;
+    if entries.next().is_some() {
+        return None;
+    }
+
+    let mut relations = first_entry.relations();
+    let first_relation = relations.next()?;
+    if relations.next().is_some() {
+        return None;
+    }
+
+    let name = first_relation.name();
+    let version = match first_relation.version() {
+        Some((VersionConstraint::GreaterThanEqual, v)) => Some(v),
+        None => None,
+        _ => return None,
+    };
+
+    Some((name.to_string(), version))
+}
+
 #[cfg(test)]
 mod tests {
-    use maplit::hashset;
     use super::*;
+    use maplit::hashset;
 
     #[test]
     fn test_touches_package() {
@@ -220,19 +296,25 @@ mod tests {
     #[test]
     fn test_package_names() {
         let dep = DebianDependency::new("libssl-dev");
-        assert_eq!(dep.package_names(), hashset!{"libssl-dev".to_string()});
+        assert_eq!(dep.package_names(), hashset! {"libssl-dev".to_string()});
     }
 
     #[test]
     fn test_package_names_multiple() {
         let dep = DebianDependency::new("libssl-dev, libssl1.1");
-        assert_eq!(dep.package_names(), hashset!{"libssl-dev".to_string(), "libssl1.1".to_string()});
+        assert_eq!(
+            dep.package_names(),
+            hashset! {"libssl-dev".to_string(), "libssl1.1".to_string()}
+        );
     }
 
     #[test]
     fn test_package_names_multiple_with_version() {
         let dep = DebianDependency::new("libssl-dev (>= 1.1), libssl1.1 (>= 1.1)");
-        assert_eq!(dep.package_names(), hashset!{"libssl-dev".to_string(), "libssl1.1".to_string()});
+        assert_eq!(
+            dep.package_names(),
+            hashset! {"libssl-dev".to_string(), "libssl1.1".to_string()}
+        );
     }
 
     #[test]
