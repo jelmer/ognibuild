@@ -1,5 +1,5 @@
 use crate::dependency::Dependency;
-use crate::installer::{Error, Explanation, Installer, InstallationScope};
+use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -79,14 +79,27 @@ impl Dependency for HaskellPackageDependency {
 }
 
 impl crate::dependencies::debian::IntoDebianDependency for HaskellPackageDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> Option<Vec<super::debian::DebianDependency>> {
-        let path = format!("/var/lib/ghc/package\\.conf\\.d/{}\\-.*\\.conf", regex::escape(&self.package));
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> Option<Vec<super::debian::DebianDependency>> {
+        let path = format!(
+            "/var/lib/ghc/package\\.conf\\.d/{}\\-.*\\.conf",
+            regex::escape(&self.package)
+        );
 
-        let names = apt.get_packages_for_paths(vec![path.as_str()], true, false).unwrap();
+        let names = apt
+            .get_packages_for_paths(vec![path.as_str()], true, false)
+            .unwrap();
         if names.is_empty() {
             None
         } else {
-            Some(names.into_iter().map(|name| super::debian::DebianDependency::new(&name)).collect())
+            Some(
+                names
+                    .into_iter()
+                    .map(|name| super::debian::DebianDependency::new(&name))
+                    .collect(),
+            )
         }
     }
 }
@@ -100,14 +113,18 @@ impl<'a> HackageResolver<'a> {
         Self { session }
     }
 
-    fn cmd(&self, reqs: &[&HaskellPackageDependency], scope: InstallationScope) -> Result<Vec<String>, Error> {
+    fn cmd(
+        &self,
+        reqs: &[&HaskellPackageDependency],
+        scope: InstallationScope,
+    ) -> Result<Vec<String>, Error> {
         let mut cmd = vec!["cabal".to_string(), "install".to_string()];
 
         match scope {
             InstallationScope::User => {
                 cmd.push("--user".to_string());
             }
-            InstallationScope::Global => {},
+            InstallationScope::Global => {}
             InstallationScope::Vendor => {
                 return Err(Error::UnsupportedScope(scope));
             }
@@ -119,11 +136,20 @@ impl<'a> HackageResolver<'a> {
 
 impl<'a> Installer for HackageResolver<'a> {
     fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
-        let requirement = requirement.as_any().downcast_ref::<HaskellPackageDependency>().ok_or(Error::UnknownDependencyFamily)?;
-        let user = if scope != InstallationScope::Global { None } else { Some("root") };
+        let requirement = requirement
+            .as_any()
+            .downcast_ref::<HaskellPackageDependency>()
+            .ok_or(Error::UnknownDependencyFamily)?;
+        let user = if scope != InstallationScope::Global {
+            None
+        } else {
+            Some("root")
+        };
         let cmd = self.cmd(&[requirement], scope)?;
         log::info!("Hackage: running {:?}", cmd);
-        let mut cmd = self.session.command(cmd.iter().map(|x| x.as_str()).collect());
+        let mut cmd = self
+            .session
+            .command(cmd.iter().map(|x| x.as_str()).collect());
         if let Some(user) = user {
             cmd = cmd.user(user);
         }
@@ -131,8 +157,15 @@ impl<'a> Installer for HackageResolver<'a> {
         Ok(())
     }
 
-    fn explain(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
-        if let Some(requirement) = requirement.as_any().downcast_ref::<HaskellPackageDependency>() {
+    fn explain(
+        &self,
+        requirement: &dyn Dependency,
+        scope: InstallationScope,
+    ) -> Result<Explanation, Error> {
+        if let Some(requirement) = requirement
+            .as_any()
+            .downcast_ref::<HaskellPackageDependency>()
+        {
             let cmd = self.cmd(&[requirement], scope)?;
             Ok(Explanation {
                 message: format!("Install Haskell package {}", requirement.package),
@@ -144,9 +177,18 @@ impl<'a> Installer for HackageResolver<'a> {
     }
 }
 
-impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingHaskellDependencies {
+impl crate::buildlog::ToDependency
+    for buildlog_consultant::problems::common::MissingHaskellDependencies
+{
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         let d: HaskellPackageDependency = self.0[0].parse().unwrap();
         Some(Box::new(d))
+    }
+}
+
+#[cfg(feature = "upstream")]
+impl crate::upstream::FindUpstream for HaskellPackageDependency {
+    fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
+        upstream_ontologist::providers::haskell::remote_hackage_data(&self.package).ok()
     }
 }

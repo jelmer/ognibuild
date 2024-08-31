@@ -1,6 +1,6 @@
 use crate::dependencies::BinaryDependency;
 use crate::dependency::Dependency;
-use crate::installer::{Installer, Error, Explanation, InstallationScope};
+use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -42,21 +42,38 @@ impl Dependency for NodePackageDependency {
 }
 
 impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> Option<Vec<super::debian::DebianDependency>> {
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> Option<Vec<super::debian::DebianDependency>> {
         let paths = vec![
-            format!("/usr/share/nodejs/.*/node_modules/{}/package\\.json", regex::escape(&self.package)),
-            format!("/usr/lib/nodejs/{}/package\\.json", regex::escape(&self.package)),
-            format!("/usr/share/nodejs/{}/package\\.json", regex::escape(&self.package)),
+            format!(
+                "/usr/share/nodejs/.*/node_modules/{}/package\\.json",
+                regex::escape(&self.package)
+            ),
+            format!(
+                "/usr/lib/nodejs/{}/package\\.json",
+                regex::escape(&self.package)
+            ),
+            format!(
+                "/usr/share/nodejs/{}/package\\.json",
+                regex::escape(&self.package)
+            ),
         ];
 
-        let names = apt.get_packages_for_paths(
-            paths.iter().map(|p| p.as_str()).collect(),
-            true, false).unwrap();
+        let names = apt
+            .get_packages_for_paths(paths.iter().map(|p| p.as_str()).collect(), true, false)
+            .unwrap();
 
         if names.is_empty() {
             None
         } else {
-            Some(names.into_iter().map(|name| super::debian::DebianDependency::new(&name)).collect())
+            Some(
+                names
+                    .into_iter()
+                    .map(|name| super::debian::DebianDependency::new(&name))
+                    .collect(),
+            )
         }
     }
 }
@@ -64,6 +81,13 @@ impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingNodePackage {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(NodePackageDependency::new(&self.0)))
+    }
+}
+
+#[cfg(feature = "upstream")]
+impl crate::upstream::FindUpstream for NodePackageDependency {
+    fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
+        upstream_ontologist::providers::node::remote_npm_metadata(&self.package).ok()
     }
 }
 
@@ -112,21 +136,38 @@ impl Dependency for NodeModuleDependency {
 }
 
 impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> Option<Vec<super::debian::DebianDependency>> {
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> Option<Vec<super::debian::DebianDependency>> {
         let paths = vec![
-            format!("/usr/share/nodejs/.*/node_modules/{}/package\\.json", regex::escape(&self.module)),
-            format!("/usr/lib/nodejs/{}/package\\.json", regex::escape(&self.module)),
-            format!("/usr/share/nodejs/{}/package\\.json", regex::escape(&self.module)),
+            format!(
+                "/usr/share/nodejs/.*/node_modules/{}/package\\.json",
+                regex::escape(&self.module)
+            ),
+            format!(
+                "/usr/lib/nodejs/{}/package\\.json",
+                regex::escape(&self.module)
+            ),
+            format!(
+                "/usr/share/nodejs/{}/package\\.json",
+                regex::escape(&self.module)
+            ),
         ];
 
-        let names = apt.get_packages_for_paths(
-            paths.iter().map(|p| p.as_str()).collect(),
-            true, false).unwrap();
+        let names = apt
+            .get_packages_for_paths(paths.iter().map(|p| p.as_str()).collect(), true, false)
+            .unwrap();
 
         if names.is_empty() {
             None
         } else {
-            Some(names.into_iter().map(|name| super::debian::DebianDependency::new(&name)).collect())
+            Some(
+                names
+                    .into_iter()
+                    .map(|name| super::debian::DebianDependency::new(&name))
+                    .collect(),
+            )
         }
     }
 }
@@ -162,11 +203,15 @@ impl<'a> NpmResolver<'a> {
         Self { session }
     }
 
-    fn cmd(&self, reqs: &[&NodePackageDependency], scope: InstallationScope) -> Result<Vec<String>, Error> {
+    fn cmd(
+        &self,
+        reqs: &[&NodePackageDependency],
+        scope: InstallationScope,
+    ) -> Result<Vec<String>, Error> {
         let mut cmd = vec!["npm".to_string(), "install".to_string()];
         match scope {
             InstallationScope::Global => cmd.push("-g".to_string()),
-            InstallationScope::User => {},
+            InstallationScope::User => {}
             InstallationScope::Vendor => {
                 return Err(Error::UnsupportedScope(scope));
             }
@@ -174,7 +219,6 @@ impl<'a> NpmResolver<'a> {
         cmd.extend(reqs.iter().map(|req| req.package.clone()));
         Ok(cmd)
     }
-
 }
 
 impl From<NodeModuleDependency> for NodePackageDependency {
@@ -186,7 +230,7 @@ impl From<NodeModuleDependency> for NodePackageDependency {
                 parts[..2].join("/")
             } else {
                 parts[0].to_string()
-            }
+            },
         }
     }
 }
@@ -204,9 +248,12 @@ fn to_node_package_req(requirement: &dyn Dependency) -> Option<NodePackageDepend
 }
 
 impl<'a> Installer for NpmResolver<'a> {
-    fn explain(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
-        let requirement = to_node_package_req(requirement)
-            .ok_or(Error::UnknownDependencyFamily)?;
+    fn explain(
+        &self,
+        requirement: &dyn Dependency,
+        scope: InstallationScope,
+    ) -> Result<Explanation, Error> {
+        let requirement = to_node_package_req(requirement).ok_or(Error::UnknownDependencyFamily)?;
 
         Ok(Explanation {
             message: format!("install node package {}", requirement.package),
@@ -215,16 +262,19 @@ impl<'a> Installer for NpmResolver<'a> {
     }
 
     fn install(&self, requirement: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
-        let requirement = to_node_package_req(requirement)
-            .ok_or(Error::UnknownDependencyFamily)?;
+        let requirement = to_node_package_req(requirement).ok_or(Error::UnknownDependencyFamily)?;
 
         let args = &self.cmd(&[&requirement], scope)?;
-        let mut cmd = self.session.command(args.iter().map(|s| s.as_str()).collect());
+        let mut cmd = self
+            .session
+            .command(args.iter().map(|s| s.as_str()).collect());
 
         match scope {
-            InstallationScope::Global => { cmd = cmd.user("root"); },
-            InstallationScope::User => {},
-            InstallationScope::Vendor => {},
+            InstallationScope::Global => {
+                cmd = cmd.user("root");
+            }
+            InstallationScope::User => {}
+            InstallationScope::Vendor => {}
         }
 
         cmd.run_detecting_problems()?;

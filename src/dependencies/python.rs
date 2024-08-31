@@ -159,6 +159,13 @@ impl Dependency for PythonPackageDependency {
     }
 }
 
+#[cfg(feature = "upstream")]
+impl crate::upstream::FindUpstream for PythonPackageDependency {
+    fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
+        upstream_ontologist::providers::python::remote_pypi_metadata(&self.package).ok()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PythonModuleDependency {
     module: String,

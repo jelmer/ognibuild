@@ -1,5 +1,5 @@
-use crate::dependency::{Dependency};
-use crate::installer::{Explanation, Error, InstallationScope, Installer};
+use crate::dependency::Dependency;
+use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -62,6 +62,12 @@ impl Dependency for PerlModuleDependency {
     }
 }
 
+impl crate::upstream::FindUpstream for PerlModuleDependency {
+    fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
+        upstream_ontologist::providers::perl::remote_cpan_data(&self.module).ok()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerlPreDeclaredDependency {
     name: String,
@@ -118,7 +124,10 @@ impl Dependency for PerlPreDeclaredDependency {
 }
 
 impl crate::dependencies::debian::IntoDebianDependency for PerlPreDeclaredDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         if let Some(module) = known_predeclared_module(&self.name) {
             PerlModuleDependency::simple(module).try_into_debian_dependency(apt)
         } else {
@@ -127,7 +136,9 @@ impl crate::dependencies::debian::IntoDebianDependency for PerlPreDeclaredDepend
     }
 }
 
-impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPerlPredeclared {
+impl crate::buildlog::ToDependency
+    for buildlog_consultant::problems::common::MissingPerlPredeclared
+{
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         match known_predeclared_module(self.0.as_str()) {
             Some(_module) => Some(Box::new(PerlModuleDependency::simple(self.0.as_str()))),
@@ -196,7 +207,11 @@ impl<'a> CPAN<'a> {
         }
     }
 
-    fn cmd(&self, reqs: &[&PerlModuleDependency], _scope: InstallationScope) -> Result<Vec<String>, Error> {
+    fn cmd(
+        &self,
+        reqs: &[&PerlModuleDependency],
+        _scope: InstallationScope,
+    ) -> Result<Vec<String>, Error> {
         let mut ret = vec!["cpan".to_string(), "-i".to_string()];
         if self.skip_tests {
             ret.push("-T".to_string());
@@ -207,8 +222,11 @@ impl<'a> CPAN<'a> {
 }
 
 impl<'a> Installer for CPAN<'a> {
-
-    fn explain(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
+    fn explain(
+        &self,
+        dep: &dyn Dependency,
+        scope: InstallationScope,
+    ) -> Result<Explanation, Error> {
         if let Some(dep) = dep.as_any().downcast_ref::<PerlModuleDependency>() {
             let cmd = self.cmd(&[&dep], scope)?;
             let explanation = Explanation {
@@ -236,12 +254,17 @@ impl<'a> Installer for CPAN<'a> {
             }
         };
 
-        let dep = dep.as_any().downcast_ref::<PerlModuleDependency>().ok_or(Error::UnknownDependencyFamily)?;
+        let dep = dep
+            .as_any()
+            .downcast_ref::<PerlModuleDependency>()
+            .ok_or(Error::UnknownDependencyFamily)?;
         let cmd = self.cmd(&[dep], scope)?;
         log::info!("CPAN: running {:?}", cmd);
 
-        let mut cmd = self.session.command(
-            cmd.iter().map(|s| s.as_str()).collect()).env(env);
+        let mut cmd = self
+            .session
+            .command(cmd.iter().map(|s| s.as_str()).collect())
+            .env(env);
 
         if let Some(user) = user {
             cmd = cmd.user(user);
@@ -293,38 +316,82 @@ impl<'a> Installer for CPAN<'a> {
 }
 
 pub const DEFAULT_PERL_PATHS: &[&str] = &[
-        "/usr/share/perl5",
-        "/usr/lib/.*/perl5/.*",
-        "/usr/lib/.*/perl-base",
-        "/usr/lib/.*/perl/[^/]+",
-        "/usr/share/perl/[^/]+",
-    ];
+    "/usr/share/perl5",
+    "/usr/lib/.*/perl5/.*",
+    "/usr/lib/.*/perl-base",
+    "/usr/lib/.*/perl/[^/]+",
+    "/usr/share/perl/[^/]+",
+];
 
 impl crate::dependencies::debian::IntoDebianDependency for PerlModuleDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        let (regex, paths) = if let (Some(inc), Some(filename)) = (self.inc.as_ref(), self.filename.as_ref()) {
-            (false, inc.iter().map(|s| Path::new(s).join(filename)).collect())
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let (regex, paths) = if let (Some(inc), Some(filename)) =
+            (self.inc.as_ref(), self.filename.as_ref())
+        {
+            (
+                false,
+                inc.iter().map(|s| Path::new(s).join(filename)).collect(),
+            )
         } else if let Some(filename) = &self.filename {
             if !Path::new(filename).is_absolute() {
-                (true, DEFAULT_PERL_PATHS.iter().map(|s| Path::new(s).join(filename)).collect())
+                (
+                    true,
+                    DEFAULT_PERL_PATHS
+                        .iter()
+                        .map(|s| Path::new(s).join(filename))
+                        .collect(),
+                )
             } else {
                 (false, vec![Path::new(filename).to_path_buf()])
             }
         } else {
-            (true, DEFAULT_PERL_PATHS.iter().map(|s| Path::new(s).join(format!("{}.pm", &self.module.replace("::", "/")))).collect())
+            (
+                true,
+                DEFAULT_PERL_PATHS
+                    .iter()
+                    .map(|s| Path::new(s).join(format!("{}.pm", &self.module.replace("::", "/"))))
+                    .collect(),
+            )
         };
 
-        let packages = apt.get_packages_for_paths(paths.iter().map(|s| s.to_str().unwrap()).collect::<Vec<_>>(), regex, false).unwrap();
+        let packages = apt
+            .get_packages_for_paths(
+                paths
+                    .iter()
+                    .map(|s| s.to_str().unwrap())
+                    .collect::<Vec<_>>(),
+                regex,
+                false,
+            )
+            .unwrap();
 
-        Some(packages.into_iter().map(|p| crate::dependencies::debian::DebianDependency::simple(&p)).collect())
+        Some(
+            packages
+                .into_iter()
+                .map(|p| crate::dependencies::debian::DebianDependency::simple(&p))
+                .collect(),
+        )
     }
 }
 
 impl crate::dependencies::debian::IntoDebianDependency for PerlFileDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        let packages = apt.get_packages_for_paths(vec![&self.filename], false, false).unwrap();
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let packages = apt
+            .get_packages_for_paths(vec![&self.filename], false, false)
+            .unwrap();
 
-        Some(packages.into_iter().map(|p| crate::dependencies::debian::DebianDependency::simple(&p)).collect())
+        Some(
+            packages
+                .into_iter()
+                .map(|p| crate::dependencies::debian::DebianDependency::simple(&p))
+                .collect(),
+        )
     }
 }
 

@@ -353,6 +353,13 @@ impl ToDependency for buildlog_consultant::problems::common::MissingRustCompiler
     }
 }
 
+#[cfg(feature = "upstream")]
+impl crate::upstream::FindUpstream for CargoCrateDependency {
+    fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
+        upstream_ontologist::providers::rust::remote_crate_data(&self.name).ok()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PkgConfigDependency {
     module: String,
@@ -855,6 +862,13 @@ impl ToDependency for buildlog_consultant::problems::common::MissingRubyGem {
             &self.gem,
             self.version.as_ref().map(|s| s.as_str()),
         )))
+    }
+}
+
+#[cfg(feature = "upstream")]
+impl crate::upstream::FindUpstream for RubyGemDependency {
+    fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
+        upstream_ontologist::providers::ruby::remote_rubygem_metadata(&self.gem).ok()
     }
 }
 

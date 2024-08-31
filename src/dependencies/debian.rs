@@ -226,8 +226,9 @@ pub fn extract_upstream_dependency(dep: &DebianDependency) -> Option<Box<dyn Dep
         .or_else(|| crate::dependencies::CargoCrateDependency::from_debian_dependency(dep))
 }
 
+#[cfg(feature = "upstream")]
 impl crate::upstream::FindUpstream for DebianDependency {
-    fn find_upstream(&self) -> Option<crate::upstream::Upstream> {
+    fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
         let upstream_dep = extract_upstream_dependency(self)?;
 
         crate::upstream::find_upstream(upstream_dep.as_ref())
