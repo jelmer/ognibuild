@@ -91,3 +91,8 @@ required-features = ["cli", "debian"]
 name = "dep-server"
 path = "src/bin/dep-server.rs"
 required-features = ["dep-server", "cli", "debian"]
+
+[[bin]]
+name = "ognibuild-dist"
+path = "src/bin/ognibuild-dist.rs"
+required-features = ["cli"]

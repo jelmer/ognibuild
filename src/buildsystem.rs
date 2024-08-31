@@ -33,6 +33,8 @@ pub enum Error {
 
     IoError(std::io::Error),
 
+    Unimplemented,
+
     Other(String),
 }
 
@@ -122,7 +124,7 @@ impl From<crate::fix_build::IterateBuildError<Error>> for Error {
                 secondary,
             }
             .into(),
-            crate::fix_build::IterateBuildError::Other(o) => o.into(),
+            crate::fix_build::IterateBuildError::Other(o) => o,
         }
     }
 }
@@ -146,6 +148,7 @@ impl std::fmt::Display for Error {
             Error::Error(e) => write!(f, "Error: {}", e),
             Error::IoError(e) => write!(f, "IO Error: {}", e),
             Error::Other(e) => write!(f, "Error: {}", e),
+            Error::Unimplemented => write!(f, "Unimplemented"),
         }
     }
 }

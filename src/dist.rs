@@ -4,6 +4,7 @@ use crate::fixers::*;
 use crate::installer::{auto_installer, Error as InstallerError, InstallationScope};
 use crate::logs::{wrap, LogManager};
 use crate::session::Session;
+use breezyshim::tree::Tree;
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -79,21 +80,22 @@ pub fn dist(
 /// * `tree` - Tree object to work in
 /// * `target_dir` - Directory to write tarball into
 /// * `include_controldir` - Whether to include the version control directory
-/// * `subdir` - subdirectory in the tree to operate in
+/// * `temp_subdir` - name of subdirectory in which to check out the source code;
+///            defaults to "package"
 pub fn create_dist<T: crate::vcs::DupableTree>(
     session: &mut dyn Session,
     tree: &T,
     target_dir: &Path,
-    include_controldir: bool,
-    subdir: Option<&str>,
+    include_controldir: Option<bool>,
     log_manager: &mut dyn LogManager,
     version: Option<&str>,
     subpath: &Path,
+    temp_subdir: Option<&str>,
 ) -> Result<OsString, Error> {
-    let subdir = subdir.unwrap_or("package");
+    let temp_subdir = temp_subdir.unwrap_or("package");
 
     let (export_directory, reldir) =
-        session.setup_from_vcs(tree, Some(include_controldir), Some(Path::new(subdir)))?;
+        session.setup_from_vcs(tree, include_controldir, Some(Path::new(temp_subdir)))?;
 
     dist(
         session,
@@ -103,5 +105,44 @@ pub fn create_dist<T: crate::vcs::DupableTree>(
         log_manager,
         version,
         false,
+    )
+}
+
+/// Create a dist tarball for a tree.
+///
+/// # Arguments
+/// * `session` - session to run it
+/// * `tree` - Tree object to work in
+/// * `target_dir` - Directory to write tarball into
+/// * `include_controldir` - Whether to include the version control directory
+/// * `temp_subdir` - name of subdirectory in which to check out the source code;
+///             defaults to "package"
+pub fn create_dist_schroot<T: crate::vcs::DupableTree>(
+    tree: &T,
+    target_dir: &Path,
+    chroot: &str,
+    packaging_tree: Option<&dyn Tree>,
+    packaging_subpath: Option<&Path>,
+    include_controldir: Option<bool>,
+    subpath: &Path,
+    log_manager: &mut dyn LogManager,
+    version: Option<&str>,
+    temp_subdir: Option<&str>,
+) -> Result<OsString, Error> {
+    // TODO(jelmer): pass in package name as part of session prefix
+    let mut session = crate::session::schroot::SchrootSession::new(chroot, Some("ognibuild-dist"))?;
+    if let (Some(packaging_tree), Some(packaging_subpath)) = (packaging_tree, packaging_subpath) {
+        crate::debian::satisfy_build_deps(&session, packaging_tree, packaging_subpath)
+            .map_err(|e| Error::Other(format!("Failed to satisfy build dependencies: {:?}", e)))?;
+    }
+    create_dist(
+        &mut session,
+        tree,
+        target_dir,
+        include_controldir,
+        log_manager,
+        version,
+        subpath,
+        temp_subdir,
     )
 }
