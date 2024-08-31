@@ -85,7 +85,7 @@ impl crate::dependencies::debian::IntoDebianDependency for GoPackageDependency {
     }
 }
 
-impl crate::upstream::FromDebianDependency for GoPackageDependency {
+impl crate::dependencies::debian::FromDebianDependency for GoPackageDependency {
     fn from_debian_dependency(
         dependency: &super::debian::DebianDependency,
     ) -> Option<Box<dyn Dependency>> {

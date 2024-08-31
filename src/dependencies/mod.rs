@@ -323,7 +323,7 @@ impl ToDependency for buildlog_consultant::problems::common::MissingCargoCrate {
     }
 }
 
-impl crate::upstream::FromDebianDependency for CargoCrateDependency {
+impl crate::dependencies::debian::FromDebianDependency for CargoCrateDependency {
     fn from_debian_dependency(
         dependency: &crate::dependencies::debian::DebianDependency,
     ) -> Option<Box<dyn Dependency>> {
@@ -834,7 +834,7 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyGemDependency {
     }
 }
 
-impl crate::upstream::FromDebianDependency for RubyGemDependency {
+impl crate::dependencies::debian::FromDebianDependency for RubyGemDependency {
     fn from_debian_dependency(
         dependency: &crate::dependencies::debian::DebianDependency,
     ) -> Option<Box<dyn Dependency>> {

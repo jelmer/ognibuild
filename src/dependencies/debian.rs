@@ -213,6 +213,10 @@ impl IntoDebianDependency for DebianDependency {
     }
 }
 
+pub trait FromDebianDependency {
+    fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>>;
+}
+
 impl crate::buildlog::ToDependency
     for buildlog_consultant::problems::debian::UnsatisfiedAptDependencies
 {

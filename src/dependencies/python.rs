@@ -88,7 +88,7 @@ impl crate::buildlog::ToDependency
     }
 }
 
-impl crate::upstream::FromDebianDependency for PythonPackageDependency {
+impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependency {
     fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>> {
         let (name, min_version) =
             crate::dependencies::debian::extract_simple_min_version(dependency)?;
