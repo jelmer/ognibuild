@@ -1,4 +1,4 @@
-use crate::session::{Session, Error as SessionError, run_with_tee};
+use crate::session::{run_with_tee, Error as SessionError, Session};
 use buildlog_consultant::problems::common::MissingCommand;
 
 fn default_check_success(status: std::process::ExitStatus, _lines: Vec<&str>) -> bool {
@@ -24,6 +24,13 @@ pub enum AnalyzedError {
 
 impl From<std::io::Error> for AnalyzedError {
     fn from(e: std::io::Error) -> Self {
+        #[cfg(unix)]
+        if e.raw_os_error() == Some(libc::ENOSPC) {
+            return AnalyzedError::Detailed {
+                retcode: 1,
+                error: Box::new(buildlog_consultant::problems::common::NoSpaceOnDevice),
+            };
+        }
         AnalyzedError::IoError(e)
     }
 }
@@ -35,10 +42,7 @@ impl std::fmt::Display for AnalyzedError {
                 write!(f, "Command not found: {}", command)
             }
             AnalyzedError::IoError(e) => write!(f, "IO error: {}", e),
-            AnalyzedError::Detailed {
-                retcode,
-                error,
-            } => {
+            AnalyzedError::Detailed { retcode, error } => {
                 write!(f, "Command failed with code {}", retcode)?;
                 write!(f, "\n{}", error)
             }
@@ -98,7 +102,8 @@ pub fn run_detecting_problems(
                 let command = args[0].to_string();
                 return Err(AnalyzedError::Detailed {
                     retcode: 127,
-                    error: Box::new(MissingCommand(command)) as Box<dyn buildlog_consultant::Problem>
+                    error: Box::new(MissingCommand(command))
+                        as Box<dyn buildlog_consultant::Problem>,
                 });
             }
             Err(SessionError::IoError(e)) => {

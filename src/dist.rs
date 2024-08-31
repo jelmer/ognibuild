@@ -1,7 +1,7 @@
 use crate::buildsystem::{detect_buildsystems, BuildSystem, Error};
-use crate::fix_build::{iterate_with_build_fixers, BuildFixer, InterimError, IterateBuildError};
+use crate::fix_build::{iterate_with_build_fixers, BuildFixer, InterimError};
 use crate::fixers::*;
-use crate::installer::{auto_installer, Error as InstallerError, InstallationScope, Installer};
+use crate::installer::{auto_installer, Error as InstallerError, InstallationScope};
 use crate::logs::{wrap, LogManager};
 use crate::session::Session;
 use std::ffi::OsString;
@@ -69,4 +69,39 @@ pub fn dist(
     }
 
     Err(Error::NoBuildSystemDetected)
+}
+
+// This is the function used by debianize()
+/// Create a dist tarball for a tree.
+///
+/// # Arguments
+/// * `session` - session to run it
+/// * `tree` - Tree object to work in
+/// * `target_dir` - Directory to write tarball into
+/// * `include_controldir` - Whether to include the version control directory
+/// * `subdir` - subdirectory in the tree to operate in
+pub fn create_dist<T: crate::vcs::DupableTree>(
+    session: &mut dyn Session,
+    tree: &T,
+    target_dir: &Path,
+    include_controldir: bool,
+    subdir: Option<&str>,
+    log_manager: &mut dyn LogManager,
+    version: Option<&str>,
+    subpath: &Path,
+) -> Result<OsString, Error> {
+    let subdir = subdir.unwrap_or("package");
+
+    let (export_directory, reldir) =
+        session.setup_from_vcs(tree, Some(include_controldir), Some(Path::new(subdir)))?;
+
+    dist(
+        session,
+        &export_directory.join(subpath),
+        &reldir.join(subpath),
+        target_dir,
+        log_manager,
+        version,
+        false,
+    )
 }
