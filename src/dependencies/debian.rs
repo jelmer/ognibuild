@@ -217,6 +217,23 @@ pub trait FromDebianDependency {
     fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>>;
 }
 
+pub fn extract_upstream_dependency(dep: &DebianDependency) -> Option<Box<dyn Dependency>> {
+    crate::dependencies::RubyGemDependency::from_debian_dependency(dep)
+        .or_else(|| {
+            crate::dependencies::python::PythonPackageDependency::from_debian_dependency(dep)
+        })
+        .or_else(|| crate::dependencies::RubyGemDependency::from_debian_dependency(dep))
+        .or_else(|| crate::dependencies::CargoCrateDependency::from_debian_dependency(dep))
+}
+
+impl crate::upstream::FindUpstream for DebianDependency {
+    fn find_upstream(&self) -> Option<crate::upstream::Upstream> {
+        let upstream_dep = extract_upstream_dependency(self)?;
+
+        crate::upstream::find_upstream(upstream_dep.as_ref())
+    }
+}
+
 impl crate::buildlog::ToDependency
     for buildlog_consultant::problems::debian::UnsatisfiedAptDependencies
 {
