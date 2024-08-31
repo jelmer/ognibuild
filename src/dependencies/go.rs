@@ -1,5 +1,5 @@
 use crate::dependency::Dependency;
-use crate::installer::{Installer, Explanation, Error, InstallationScope};
+use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -57,14 +57,55 @@ impl Dependency for GoPackageDependency {
 }
 
 impl crate::dependencies::debian::IntoDebianDependency for GoPackageDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        let names = apt.get_packages_for_paths(
-            vec![Path::new("/usr/share/gocode/src").join(regex::escape(&self.package)).join(".*").to_str().unwrap()], true, false).unwrap();
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        let names = apt
+            .get_packages_for_paths(
+                vec![Path::new("/usr/share/gocode/src")
+                    .join(regex::escape(&self.package))
+                    .join(".*")
+                    .to_str()
+                    .unwrap()],
+                true,
+                false,
+            )
+            .unwrap();
         if names.is_empty() {
             return None;
         }
 
-        Some(names.iter().map(|name| crate::dependencies::debian::DebianDependency::new(name)).collect())
+        Some(
+            names
+                .iter()
+                .map(|name| crate::dependencies::debian::DebianDependency::new(name))
+                .collect(),
+        )
+    }
+}
+
+impl crate::upstream::FromDebianDependency for GoPackageDependency {
+    fn from_debian_dependency(
+        dependency: &super::debian::DebianDependency,
+    ) -> Option<Box<dyn Dependency>> {
+        let (package, version) =
+            crate::dependencies::debian::extract_simple_exact_version(&dependency)?;
+        let (_, package) = lazy_regex::regex_captures!(r"golang-(.*)-dev", &package)?;
+
+        let mut parts = package.split('-').collect::<Vec<_>>();
+
+        if parts[0] == "gitub" {
+            parts[1] = "github.com";
+        }
+        if parts[0] == "gopkg" {
+            parts[1] = "gopkg.in";
+        }
+
+        Some(Box::new(GoPackageDependency::new(
+            &parts.join("/"),
+            version.map(|s| s.to_string()).as_deref(),
+        )))
     }
 }
 
@@ -133,7 +174,11 @@ impl<'a> GoResolver<'a> {
 }
 
 impl<'a> Installer for GoResolver<'a> {
-    fn explain(&self, requirement: &dyn Dependency, _scope: InstallationScope) -> Result<Explanation, Error> {
+    fn explain(
+        &self,
+        requirement: &dyn Dependency,
+        _scope: InstallationScope,
+    ) -> Result<Explanation, Error> {
         let req = requirement
             .as_any()
             .downcast_ref::<GoPackageDependency>()
@@ -151,18 +196,25 @@ impl<'a> Installer for GoResolver<'a> {
             .ok_or(Error::UnknownDependencyFamily)?;
         let cmd = self.cmd(&[&req]);
         let (env, user) = match scope {
-            InstallationScope::User=> {
-                (std::collections::HashMap::new(), None)
-            }
+            InstallationScope::User => (std::collections::HashMap::new(), None),
             InstallationScope::Global => {
                 // TODO(jelmer): Isn't this Debian-specific?
-                (std::collections::HashMap::from([("GOPATH".to_string(), "/usr/share/gocode".to_string())]), Some("root"))
+                (
+                    std::collections::HashMap::from([(
+                        "GOPATH".to_string(),
+                        "/usr/share/gocode".to_string(),
+                    )]),
+                    Some("root"),
+                )
             }
             InstallationScope::Vendor => {
                 return Err(Error::UnsupportedScope(scope));
             }
         };
-        let mut cmd = self.session.command(cmd.iter().map(|s| s.as_str()).collect()).env(env);
+        let mut cmd = self
+            .session
+            .command(cmd.iter().map(|s| s.as_str()).collect())
+            .env(env);
         if let Some(user) = user {
             cmd = cmd.user(user);
         }
@@ -172,11 +224,21 @@ impl<'a> Installer for GoResolver<'a> {
 }
 
 impl crate::dependencies::debian::IntoDebianDependency for GoDependency {
-    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    fn try_into_debian_dependency(
+        &self,
+        _apt: &crate::debian::apt::AptManager,
+    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         if let Some(version) = &self.version {
-            Some(vec![crate::dependencies::debian::DebianDependency::new_with_min_version("golang-go", &version.parse().unwrap())])
+            Some(vec![
+                crate::dependencies::debian::DebianDependency::new_with_min_version(
+                    "golang-go",
+                    &version.parse().unwrap(),
+                ),
+            ])
         } else {
-            Some(vec![crate::dependencies::debian::DebianDependency::new("golang-go")])
+            Some(vec![crate::dependencies::debian::DebianDependency::new(
+                "golang-go",
+            )])
         }
     }
 }
