@@ -14,5 +14,6 @@ pub mod logs;
 pub mod output;
 pub mod session;
 pub mod shebang;
+#[cfg(feature = "upstream")]
 pub mod upstream;
 pub mod vcs;
