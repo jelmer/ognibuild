@@ -53,6 +53,7 @@ struct Args {
     #[clap(long, short, default_value = ".")]
     directory: String,
 
+    #[cfg(target_os = "linux")]
     #[clap(long)]
     schroot: Option<String>,
 
@@ -366,11 +367,15 @@ fn main() -> Result<(), i32> {
         )
         .init();
 
+    #[cfg(target_os = "linux")]
     let mut session: Box<dyn Session> = if let Some(schroot) = args.schroot.as_ref() {
         Box::new(ognibuild::session::schroot::SchrootSession::new(schroot, None).unwrap())
     } else {
         Box::new(ognibuild::session::plain::PlainSession::new())
     };
+
+    #[cfg(not(target_os = "linux"))]
+    let mut session: Box<dyn Session> = Box::new(ognibuild::session::plain::PlainSession::new());
 
     let url = if let Ok(url) = args.directory.parse::<url::Url>() {
         url
