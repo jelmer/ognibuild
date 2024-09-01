@@ -47,7 +47,7 @@ impl BuildSystem for R {
         session: &dyn crate::session::Session,
         installer: &dyn crate::installer::Installer,
         target_directory: &Path,
-        quiet: bool,
+        _quiet: bool,
     ) -> Result<std::ffi::OsString, crate::buildsystem::Error> {
         let dc = DistCatcher::new(vec![session.external_path(Path::new("."))]);
         let r_path = guaranteed_which(session, installer, "R").unwrap();
@@ -90,8 +90,8 @@ impl BuildSystem for R {
 
     fn clean(
         &self,
-        session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
     ) -> Result<(), crate::buildsystem::Error> {
         Err(crate::buildsystem::Error::Unimplemented)
     }

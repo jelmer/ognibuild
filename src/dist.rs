@@ -1,4 +1,4 @@
-use crate::buildsystem::{detect_buildsystems, BuildSystem, Error};
+use crate::buildsystem::{detect_buildsystems, Error};
 use crate::fix_build::{iterate_with_build_fixers, BuildFixer, InterimError};
 use crate::fixers::*;
 use crate::installer::{
@@ -111,6 +111,7 @@ pub fn create_dist<T: crate::vcs::DupableTree>(
     )
 }
 
+#[cfg(target_os = "linux")]
 /// Create a dist tarball for a tree.
 ///
 /// # Arguments

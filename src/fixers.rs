@@ -192,7 +192,7 @@ impl<'a> BuildFixer<InstallerError> for MinimumAutoconfFixer<'a> {
     fn fix(
         &self,
         problem: &dyn Problem,
-        phase: &[&str],
+        _phase: &[&str],
     ) -> Result<bool, InterimError<InstallerError>> {
         let problem = problem
             .as_any()

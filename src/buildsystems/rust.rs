@@ -27,6 +27,7 @@ enum CrateDependency {
     },
 }
 
+#[allow(dead_code)]
 impl CrateDependency {
     fn version(&self) -> Option<&str> {
         match self {
@@ -66,6 +67,7 @@ struct CargoToml {
 
 #[derive(Debug)]
 pub struct Cargo {
+    #[allow(dead_code)]
     path: PathBuf,
     local_crate: CargoToml,
 }
@@ -84,24 +86,6 @@ impl Cargo {
         } else {
             None
         }
-    }
-
-    fn install_declared_requirements(
-        &self,
-        session: &dyn crate::session::Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
-    ) -> Result<(), Error> {
-        if let Some(fixers) = fixers {
-            session
-                .command(vec!["cargo", "fetch"])
-                .run_fixing_problems::<_, Error>(fixers)
-                .unwrap();
-        } else {
-            session
-                .command(vec!["cargo", "fetch"])
-                .run_detecting_problems()?;
-        }
-        Ok(())
     }
 }
 
@@ -226,5 +210,29 @@ impl BuildSystem for Cargo {
         }
         // TODO: library output
         Ok(ret)
+    }
+
+    fn install_declared_dependencies(
+        &self,
+        _categories: &[crate::buildsystem::DependencyCategory],
+        scope: crate::installer::InstallationScope,
+        session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+    ) -> Result<(), Error> {
+        if scope != crate::installer::InstallationScope::Vendor {
+            return Err(crate::installer::Error::UnsupportedScope(scope).into());
+        }
+        if let Some(fixers) = fixers {
+            session
+                .command(vec!["cargo", "fetch"])
+                .run_fixing_problems::<_, Error>(fixers)
+                .unwrap();
+        } else {
+            session
+                .command(vec!["cargo", "fetch"])
+                .run_detecting_problems()?;
+        }
+        Ok(())
     }
 }

@@ -88,7 +88,7 @@ impl SetupCfgSection {
         })
     }
 
-    fn has_key(&self, key: &str) -> bool {
+    pub fn has_key(&self, key: &str) -> bool {
         Python::with_gil(|py| {
             self.0
                 .call_method1(py, "__contains__", (key,))
@@ -233,6 +233,7 @@ pub struct SetupPy {
     has_setup_py: bool,
     config: Option<SetupCfg>,
     pyproject: Option<pyproject_toml::PyProjectToml>,
+    #[allow(dead_code)]
     buildsystem: Option<String>,
 }
 

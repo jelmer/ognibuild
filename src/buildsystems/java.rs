@@ -139,14 +139,14 @@ impl BuildSystem for Gradle {
 
     fn install(
         &self,
-        session: &dyn Session,
-        installer: &dyn crate::installer::Installer,
+        _session: &dyn Session,
+        _installer: &dyn crate::installer::Installer,
         _install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), crate::buildsystem::Error> {
         return Err(crate::buildsystem::Error::Unimplemented);
         // TODO(jelmer): installDist just creates files under build/install/...
-        self.run(session, installer, "installDist", [].to_vec())?;
-        Ok(())
+        // self.run(session, installer, "installDist", [].to_vec())?;
+        // Ok(())
     }
 
     fn get_declared_dependencies(
@@ -208,21 +208,21 @@ impl BuildSystem for Maven {
         Err(Error::Unimplemented)
     }
 
-    fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+    fn test(&self, session: &dyn Session, _installer: &dyn Installer) -> Result<(), Error> {
         session
             .command(vec!["mvn", "test"])
             .run_detecting_problems()?;
         Ok(())
     }
 
-    fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+    fn build(&self, session: &dyn Session, _installer: &dyn Installer) -> Result<(), Error> {
         session
             .command(vec!["mvn", "compile"])
             .run_detecting_problems()?;
         Ok(())
     }
 
-    fn clean(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+    fn clean(&self, session: &dyn Session, _installer: &dyn Installer) -> Result<(), Error> {
         session
             .command(vec!["mvn", "clean"])
             .run_detecting_problems()?;

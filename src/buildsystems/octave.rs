@@ -9,6 +9,7 @@ pub struct Octave {
     path: PathBuf,
 }
 
+#[allow(dead_code)]
 pub struct Version {
     major: u32,
     minor: u32,

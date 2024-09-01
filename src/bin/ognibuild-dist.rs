@@ -117,6 +117,12 @@ pub fn main() -> Result<(), i32> {
             Ok(())
         }
         Mode::Auto | Mode::Buildsystem => {
+            #[cfg(not(target_os = "linux"))]
+            {
+                log::error!("Unsupported mode: {}", args.mode);
+                Err(1)
+            }
+            #[cfg(target_os = "linux")]
             match ognibuild::dist::create_dist_schroot(
                 &tree,
                 &args.target_directory.canonicalize().unwrap(),

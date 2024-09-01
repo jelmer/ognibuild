@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct Waf {
+    #[allow(dead_code)]
     path: PathBuf,
 }
 

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
 pub struct Cabal {
+    #[allow(dead_code)]
     path: PathBuf,
 }
 

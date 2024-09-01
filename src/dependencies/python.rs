@@ -396,6 +396,21 @@ pub fn python_spec_to_apt_rels(pkg_name: &str, specs: Option<&[(String, String)]
     Relations::from(rels.into_iter().map(|r| r.into()).collect::<Vec<_>>())
 }
 
+impl crate::dependencies::debian::IntoDebianDependency for PythonPackageDependency {
+    fn try_into_debian_dependency(
+        &self,
+        apt_mgr: &crate::debian::apt::AptManager,
+    ) -> Option<Vec<DebianDependency>> {
+        let names = get_package_for_python_package(
+            apt_mgr,
+            &self.package,
+            self.python_version.as_deref(),
+            Some(&self.specs),
+        );
+        Some(names)
+    }
+}
+
 fn get_package_for_python_package(
     apt_mgr: &AptManager,
     package: &str,
@@ -424,6 +439,7 @@ fn get_package_for_python_package(
     let names = apt_mgr
         .get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, true)
         .unwrap();
+
     names
         .iter()
         .map(|name| DebianDependency::from(python_spec_to_apt_rels(name, specs)))
@@ -612,7 +628,7 @@ impl Dependency for PythonDependency {
                 "-c".to_string(),
                 format!(
                     "import sys; sys.exit(0 if sys.version_info >= ({}) else 1)",
-                    min_version.replace(".", ", ")
+                    min_version.replace('.', ", ")
                 ),
             ],
             None => vec![

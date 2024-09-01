@@ -37,7 +37,7 @@ impl Session for PlainSession {
     }
 
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), Error> {
-        self.0 = path.into();
+        self.0 = self.0.join(path);
         Ok(())
     }
 
@@ -60,9 +60,7 @@ impl Session for PlainSession {
         let mut binding = std::process::Command::new(argv[0]);
         let mut cmd = binding.args(&argv[1..]);
 
-        if let Some(cwd) = cwd {
-            cmd = cmd.current_dir(cwd);
-        }
+        cmd = cmd.current_dir(cwd.unwrap_or(self.0.as_path()));
 
         if let Some(env) = env {
             cmd = cmd.envs(env);
@@ -97,9 +95,7 @@ impl Session for PlainSession {
         let mut binding = std::process::Command::new(argv[0]);
         let mut cmd = binding.args(&argv[1..]);
 
-        if let Some(cwd) = cwd {
-            cmd = cmd.current_dir(cwd);
-        }
+        cmd = cmd.current_dir(cwd.unwrap_or(self.0.as_path()));
 
         if let Some(env) = env {
             cmd = cmd.envs(env);
@@ -151,9 +147,7 @@ impl Session for PlainSession {
             .stdout(stdout.unwrap_or(std::process::Stdio::inherit()))
             .stderr(stderr.unwrap_or(std::process::Stdio::inherit()));
 
-        if let Some(cwd) = cwd {
-            cmd = cmd.current_dir(cwd);
-        }
+        cmd = cmd.current_dir(cwd.unwrap_or(self.0.as_path()));
 
         if let Some(env) = env {
             cmd = cmd.envs(env);
@@ -271,15 +265,10 @@ mod tests {
         let path = td.path().join("test");
         session.mkdir(&path).unwrap();
         session.chdir(&path).unwrap();
-        assert_eq!(
-            session
-                .check_output(vec!["pwd"], None, None, None)
-                .unwrap()
-                .as_slice()
-                .strip_suffix(b"\n")
-                .unwrap(),
-            path.canonicalize().unwrap().to_str().unwrap().as_bytes()
-        );
+        let pwd_bytes = session.check_output(vec!["pwd"], None, None, None).unwrap();
+        let reported =
+            std::str::from_utf8(pwd_bytes.as_slice().strip_suffix(b"\n").unwrap()).unwrap();
+        assert_eq!(reported, path.canonicalize().unwrap().to_str().unwrap());
     }
 
     #[test]

@@ -1,7 +1,7 @@
 use crate::analyze::AnalyzedError;
 use crate::buildsystem::{BuildSystem, DependencyCategory, Error, InstallTarget};
 use crate::dependency::Dependency;
-use crate::installer::{InstallationScope, Installer};
+use crate::installer::Installer;
 use crate::session::Session;
 use crate::shebang::shebang_binary;
 use std::path::{Path, PathBuf};
@@ -238,7 +238,7 @@ impl BuildSystem for Make {
         session: &dyn crate::session::Session,
         installer: &dyn Installer,
         target_directory: &std::path::Path,
-        quiet: bool,
+        _quiet: bool,
     ) -> Result<std::ffi::OsString, Error> {
         self.setup(session, installer, None)?;
         let dc = crate::dist_catcher::DistCatcher::default(&session.external_path(Path::new(".")));
@@ -388,8 +388,8 @@ impl BuildSystem for Make {
 
     fn get_declared_outputs(
         &self,
-        session: &dyn crate::session::Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+        _session: &dyn crate::session::Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
         Err(Error::Unimplemented)
     }
@@ -468,7 +468,7 @@ impl crate::buildsystem::BuildSystem for CMake {
         &self,
         session: &dyn crate::session::Session,
         installer: &dyn crate::installer::Installer,
-        install_target: &crate::buildsystem::InstallTarget,
+        _install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, installer)?;
         session

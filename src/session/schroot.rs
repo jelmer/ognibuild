@@ -212,7 +212,7 @@ impl Session for SchrootSession {
     }
 
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), Error> {
-        self.cwd = path.to_path_buf();
+        self.cwd = self.cwd.join(path);
         Ok(())
     }
 

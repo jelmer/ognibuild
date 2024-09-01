@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
 pub struct Meson {
+    #[allow(dead_code)]
     path: PathBuf,
 }
 
@@ -70,9 +71,9 @@ impl BuildSystem for Meson {
     fn dist(
         &self,
         session: &dyn Session,
-        installer: &dyn crate::installer::Installer,
+        _installer: &dyn crate::installer::Installer,
         target_directory: &Path,
-        quiet: bool,
+        _quiet: bool,
     ) -> Result<std::ffi::OsString, Error> {
         self.setup(session)?;
         let dc = DistCatcher::new(vec![session.external_path(Path::new("build/meson-dist"))]);

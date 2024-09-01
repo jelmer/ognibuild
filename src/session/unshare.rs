@@ -140,7 +140,7 @@ impl UnshareSession {
 
 impl Session for UnshareSession {
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), crate::session::Error> {
-        self.cwd = path.to_path_buf();
+        self.cwd = self.cwd.join(path);
         Ok(())
     }
 

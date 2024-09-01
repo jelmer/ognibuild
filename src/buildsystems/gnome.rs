@@ -60,8 +60,8 @@ impl BuildSystem for GnomeShellExtension {
 
     fn test(
         &self,
-        session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
     ) -> Result<(), crate::buildsystem::Error> {
         Ok(())
     }

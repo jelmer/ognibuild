@@ -385,7 +385,7 @@ impl BuildSystem for PerlBuildTiny {
     fn test(
         &self,
         session: &dyn Session,
-        installer: &dyn crate::installer::Installer,
+        _installer: &dyn crate::installer::Installer,
     ) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, None)?;
         if self.minilla {
@@ -403,7 +403,7 @@ impl BuildSystem for PerlBuildTiny {
     fn build(
         &self,
         session: &dyn Session,
-        installer: &dyn crate::installer::Installer,
+        _installer: &dyn crate::installer::Installer,
     ) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, None)?;
         session
@@ -415,7 +415,7 @@ impl BuildSystem for PerlBuildTiny {
     fn clean(
         &self,
         session: &dyn Session,
-        installer: &dyn crate::installer::Installer,
+        _installer: &dyn crate::installer::Installer,
     ) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, None)?;
         session

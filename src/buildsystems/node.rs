@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Node {
     path: PathBuf,
     package: NodePackage,
@@ -54,8 +55,8 @@ impl Node {
 impl BuildSystem for Node {
     fn get_declared_dependencies(
         &self,
-        session: &dyn Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+        _session: &dyn Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error> {
         let mut dependencies: Vec<(DependencyCategory, Box<dyn Dependency>)> = vec![];
 
