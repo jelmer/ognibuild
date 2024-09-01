@@ -18,7 +18,6 @@
 __all__ = [
     "UnidentifiedError",
     "DetailedFailure",
-    "run_dist",
     "create_dist_schroot",
     "create_dist",
     "dist",
@@ -48,42 +47,6 @@ from .session import Session
 from .session.schroot import SchrootSession
 
 DIST_LOG_FILENAME = "dist.log"
-
-
-def run_dist(
-    session,
-    buildsystems,
-    resolver,
-    fixers,
-    target_directory,
-    quiet=False,
-    log_manager=None,
-):
-    # Some things want to write to the user's home directory,
-    # e.g. pip caches in ~/.cache
-    session.create_home()
-
-    logging.info("Using dependency resolver: %s", resolver)
-
-    if log_manager is None:
-        log_manager = NoLogManager()
-
-    for buildsystem in buildsystems:
-        return iterate_with_build_fixers(
-            fixers,
-            ["dist"],
-            log_manager.wrap(
-                partial(
-                    buildsystem.dist,
-                    session,
-                    resolver,
-                    target_directory,
-                    quiet=quiet,
-                )
-            ),
-        )
-
-    raise NoBuildToolsFound()
 
 
 def dist(
