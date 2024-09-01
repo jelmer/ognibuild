@@ -78,7 +78,6 @@ testing = [
 ]
 
 [project.scripts]
-ogni = "ognibuild.__main__:main"
 deb-fix-build = "ognibuild.debian.fix_build:main"
 deb-upstream-deps = "ognibuild.debian.upstream_deps:main"
 
