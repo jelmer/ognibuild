@@ -1,5 +1,5 @@
 use crate::debian::apt::AptManager;
-use crate::dependencies::debian::{DebianDependency, TieBreaker};
+use crate::dependencies::debian::{DebianDependency};
 use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
@@ -59,19 +59,16 @@ pub struct DepServerAptInstaller<'a> {
 }
 
 impl<'a> DepServerAptInstaller<'a> {
-    pub fn new(apt: AptManager<'a>, dep_server_url: Url) -> Self {
+    pub fn new(apt: AptManager<'a>, dep_server_url: &Url) -> Self {
         Self {
             apt,
-            dep_server_url,
+            dep_server_url: dep_server_url.clone(),
         }
     }
 
-    pub fn from_session(session: &'a dyn Session, dep_server_url: Url) -> Self {
+    pub fn from_session(session: &'a dyn Session, dep_server_url: &'_ Url) -> Self {
         let apt = AptManager::from_session(session);
-        Self {
-            apt,
-            dep_server_url,
-        }
+        Self::new(apt, dep_server_url)
     }
 
     pub fn resolve(&self, req: &dyn Dependency) -> Result<Option<DebianDependency>, Error> {

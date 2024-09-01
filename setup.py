@@ -13,6 +13,11 @@ setup(
             "ognibuild-deb",
             "Cargo.toml",
             features = ["cli", "debian"]
+        ),
+        RustBin(
+            "ogni",
+            "Cargo.toml",
+            features = ["cli"]
         )
     ],
 )

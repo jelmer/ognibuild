@@ -1,13 +1,14 @@
-use std::path::{Path,PathBuf};
-use crate::buildsystem::{BuildSystem, DependencyCategory};
+use crate::buildsystem::{BuildSystem, DependencyCategory, Error};
 use crate::dependencies::vague::VagueDependency;
+use std::path::{Path, PathBuf};
 
-
+#[derive(Debug)]
 pub struct GnomeShellExtension {
     path: PathBuf,
 }
 
 #[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
 struct Metadata {
     name: String,
     description: String,
@@ -23,12 +24,9 @@ struct Metadata {
     _generated: Option<bool>,
 }
 
-
 impl GnomeShellExtension {
     pub fn new(path: PathBuf) -> Self {
-        Self {
-            path,
-        }
+        Self { path }
     }
 
     pub fn exists(path: &PathBuf) -> bool {
@@ -52,56 +50,78 @@ impl BuildSystem for GnomeShellExtension {
 
     fn dist(
         &self,
-        session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
-        target_directory: &std::path::Path,
-        quiet: bool,
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+        _target_directory: &std::path::Path,
+        _quiet: bool,
     ) -> Result<std::ffi::OsString, crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 
-    fn test(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
+    fn test(
+        &self,
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
         Ok(())
     }
 
-    fn build(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
+    fn build(
+        &self,
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
         Ok(())
     }
 
-    fn clean(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
-        todo!()
+    fn clean(
+        &self,
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
+        Err(Error::Unimplemented)
     }
 
     fn install(
         &self,
-        session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
-        install_target: &crate::buildsystem::InstallTarget
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+        _install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 
     fn get_declared_dependencies(
         &self,
-        session: &dyn crate::session::Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
-    ) -> Result<Vec<(crate::buildsystem::DependencyCategory, Box<dyn crate::dependency::Dependency>)>, crate::buildsystem::Error> {
+        _session: &dyn crate::session::Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+    ) -> Result<
+        Vec<(
+            crate::buildsystem::DependencyCategory,
+            Box<dyn crate::dependency::Dependency>,
+        )>,
+        crate::buildsystem::Error,
+    > {
         let f = std::fs::File::open(self.path.join("metadata.json")).unwrap();
 
         let metadata: Metadata = serde_json::from_reader(f).unwrap();
 
-        let mut deps: Vec<(DependencyCategory, Box<dyn crate::dependency::Dependency>)> = vec![];
-
-        deps.push((DependencyCategory::Universal, Box::new(VagueDependency::new("gnome-shell", Some(&metadata.shell_version)))));
+        let deps: Vec<(DependencyCategory, Box<dyn crate::dependency::Dependency>)> = vec![(
+            DependencyCategory::Universal,
+            Box::new(VagueDependency::new(
+                "gnome-shell",
+                Some(&metadata.shell_version),
+            )),
+        )];
 
         Ok(deps)
     }
 
     fn get_declared_outputs(
         &self,
-        session: &dyn crate::session::Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+        _session: &dyn crate::session::Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 }

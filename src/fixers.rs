@@ -1,4 +1,4 @@
-use crate::fix_build::{BuildFixer, Error};
+use crate::fix_build::{BuildFixer, InterimError};
 use crate::installer::{Error as InstallerError, InstallationScope, Installer};
 use crate::session::Session;
 use buildlog_consultant::problems::common::{
@@ -38,7 +38,11 @@ impl<'a> BuildFixer<InstallerError> for GnulibDirectoryFixer<'a> {
             .is_some()
     }
 
-    fn fix(&self, problem: &dyn Problem, phase: &[&str]) -> Result<bool, Error<InstallerError>> {
+    fn fix(
+        &self,
+        _problem: &dyn Problem,
+        _phase: &[&str],
+    ) -> Result<bool, InterimError<InstallerError>> {
         self.session
             .command(vec!["./gnulib.sh"])
             .check_call()
@@ -77,7 +81,11 @@ impl<'a> BuildFixer<InstallerError> for GitIdentityFixer<'a> {
             .is_some()
     }
 
-    fn fix(&self, problem: &dyn Problem, phase: &[&str]) -> Result<bool, Error<InstallerError>> {
+    fn fix(
+        &self,
+        _problem: &dyn Problem,
+        _phase: &[&str],
+    ) -> Result<bool, InterimError<InstallerError>> {
         for name in ["user.email", "user.name"] {
             let output = std::process::Command::new("git")
                 .arg("config")
@@ -125,7 +133,11 @@ impl<'a> BuildFixer<InstallerError> for SecretGpgKeyFixer<'a> {
             .is_some()
     }
 
-    fn fix(&self, problem: &dyn Problem, phase: &[&str]) -> Result<bool, Error<InstallerError>> {
+    fn fix(
+        &self,
+        _problem: &dyn Problem,
+        _phase: &[&str],
+    ) -> Result<bool, InterimError<InstallerError>> {
         let mut td = tempfile::tempfile().unwrap();
         let script = br#"""Key-Type: 1
 Key-Length: 4096
@@ -177,7 +189,11 @@ impl<'a> BuildFixer<InstallerError> for MinimumAutoconfFixer<'a> {
             .is_some()
     }
 
-    fn fix(&self, problem: &dyn Problem, phase: &[&str]) -> Result<bool, Error<InstallerError>> {
+    fn fix(
+        &self,
+        problem: &dyn Problem,
+        _phase: &[&str],
+    ) -> Result<bool, InterimError<InstallerError>> {
         let problem = problem
             .as_any()
             .downcast_ref::<MinimumAutoconfTooOld>()
@@ -241,7 +257,11 @@ impl<'a> BuildFixer<InstallerError> for MissingGoSumEntryFixer<'a> {
             .is_some()
     }
 
-    fn fix(&self, problem: &dyn Problem, phase: &[&str]) -> Result<bool, Error<InstallerError>> {
+    fn fix(
+        &self,
+        problem: &dyn Problem,
+        _phase: &[&str],
+    ) -> Result<bool, InterimError<InstallerError>> {
         let problem = problem
             .as_any()
             .downcast_ref::<MissingGoSumEntry>()
@@ -285,7 +305,11 @@ impl<'a> BuildFixer<InstallerError> for UnexpandedAutoconfMacroFixer<'a> {
             .is_some()
     }
 
-    fn fix(&self, problem: &dyn Problem, phase: &[&str]) -> Result<bool, Error<InstallerError>> {
+    fn fix(
+        &self,
+        problem: &dyn Problem,
+        _phase: &[&str],
+    ) -> Result<bool, InterimError<InstallerError>> {
         let problem = problem
             .as_any()
             .downcast_ref::<MissingAutoconfMacro>()
@@ -337,8 +361,8 @@ impl<'a> BuildFixer<crate::installer::Error> for InstallFixer<'a> {
     fn fix(
         &self,
         error: &dyn Problem,
-        phase: &[&str],
-    ) -> Result<bool, Error<crate::installer::Error>> {
+        _phase: &[&str],
+    ) -> Result<bool, InterimError<crate::installer::Error>> {
         let req = crate::buildlog::problem_to_dependency(error);
         if let Some(req) = req {
             self.installer.install(req.as_ref(), self.scope).unwrap();

@@ -1,14 +1,15 @@
-use crate::buildsystem::BuildSystem;
-use crate::session::Session;
-use crate::dependency::Dependency;
+use crate::buildsystem::{BuildSystem, Error};
 use crate::dependencies::octave::OctavePackageDependency;
+use crate::dependency::Dependency;
+use crate::session::Session;
 use std::path::{Path, PathBuf};
 
-
+#[derive(Debug)]
 pub struct Octave {
     path: PathBuf,
 }
 
+#[allow(dead_code)]
 pub struct Version {
     major: u32,
     minor: u32,
@@ -23,10 +24,13 @@ impl std::str::FromStr for Version {
         let major = parts.next().unwrap().parse()?;
         let minor = parts.next().unwrap().parse()?;
         let patch = parts.next().unwrap().parse()?;
-        Ok(Self { major, minor, patch })
+        Ok(Self {
+            major,
+            minor,
+            patch,
+        })
     }
 }
-
 
 #[derive(Default)]
 pub struct Description {
@@ -46,7 +50,9 @@ pub struct Description {
     build_requires: Option<Vec<String>>,
 }
 
-fn read_description_fields<R: std::io::BufRead>(r: R) -> Result<Vec<(String, String)>, std::io::Error> {
+fn read_description_fields<R: std::io::BufRead>(
+    r: R,
+) -> Result<Vec<(String, String)>, std::io::Error> {
     let mut fields = Vec::new();
     let mut lines = r.lines();
     let line = lines.next().unwrap()?;
@@ -85,19 +91,40 @@ pub fn read_description<R: std::io::BufRead>(r: R) -> Result<Description, std::i
             "Author" => description.author = Some(value),
             "Maintainer" => description.maintainer = Some(value),
             "Title" => description.title = Some(value),
-            "Categories" => description.categories = Some(value.split(',').map(|s| s.trim().to_string()).collect()),
-            "Problems" => description.problems = Some(value.split(',').map(|s| s.trim().to_string()).collect()),
-            "URL" => description.url = Some(value.split(',').map(|s| s.trim().to_string()).map(|s| s.parse().unwrap()).collect::<Vec<url::Url>>()),
-            "Depends" => description.depends = Some(value.split(',').map(|s| s.trim().to_string()).collect()),
+            "Categories" => {
+                description.categories =
+                    Some(value.split(',').map(|s| s.trim().to_string()).collect())
+            }
+            "Problems" => {
+                description.problems =
+                    Some(value.split(',').map(|s| s.trim().to_string()).collect())
+            }
+            "URL" => {
+                description.url = Some(
+                    value
+                        .split(',')
+                        .map(|s| s.trim().to_string())
+                        .map(|s| s.parse().unwrap())
+                        .collect::<Vec<url::Url>>(),
+                )
+            }
+            "Depends" => {
+                description.depends = Some(value.split(',').map(|s| s.trim().to_string()).collect())
+            }
             "License" => description.license = Some(value),
-            "SystemRequirements" => description.system_requirements = Some(value.split(',').map(|s| s.trim().to_string()).collect()),
-            "BuildRequires" => description.build_requires = Some(value.split(',').map(|s| s.trim().to_string()).collect()),
+            "SystemRequirements" => {
+                description.system_requirements =
+                    Some(value.split(',').map(|s| s.trim().to_string()).collect())
+            }
+            "BuildRequires" => {
+                description.build_requires =
+                    Some(value.split(',').map(|s| s.trim().to_string()).collect())
+            }
             name => log::warn!("Unknown field in DESCRIPTION: {}", name),
         }
     }
     Ok(description)
 }
-
 
 impl Octave {
     pub fn new(path: PathBuf) -> Self {
@@ -117,10 +144,23 @@ impl Octave {
             if !entry.file_type().unwrap().is_dir() {
                 continue;
             }
-            for subentry in entry.path().read_dir().unwrap() {
-                let subentry = subentry.unwrap();
-                if subentry.file_name().to_string_lossy().ends_with(".m") {
-                    return true;
+            match entry.path().read_dir() {
+                Ok(subentries) => {
+                    for subentry in subentries {
+                        let subentry = subentry.unwrap();
+                        if subentry.file_name().to_string_lossy().ends_with(".m") {
+                            return true;
+                        }
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                    log::debug!(
+                        "Permission denied while reading directory: {}",
+                        entry.path().display()
+                    );
+                }
+                Err(e) => {
+                    panic!("Error reading directory: {}", e);
                 }
             }
         }
@@ -135,9 +175,7 @@ impl Octave {
             None
         }
     }
-
 }
-
 
 impl BuildSystem for Octave {
     fn name(&self) -> &str {
@@ -146,44 +184,60 @@ impl BuildSystem for Octave {
 
     fn dist(
         &self,
-        session: &dyn Session,
-        installer: &dyn crate::installer::Installer,
-        target_directory: &Path,
-        quiet: bool,
+        _session: &dyn Session,
+        _installer: &dyn crate::installer::Installer,
+        _target_directory: &Path,
+        _quiet: bool,
     ) -> Result<std::ffi::OsString, crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 
-    fn test(&self, session: &dyn Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
-        todo!()
+    fn test(
+        &self,
+        _session: &dyn Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
+        Err(Error::Unimplemented)
     }
 
-    fn build(&self, session: &dyn Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
-        todo!()
+    fn build(
+        &self,
+        _session: &dyn Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
+        Err(Error::Unimplemented)
     }
 
-    fn clean(&self, session: &dyn Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
-        todo!()
+    fn clean(
+        &self,
+        _session: &dyn Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
+        Err(Error::Unimplemented)
     }
 
     fn install(
         &self,
-        session: &dyn Session,
-        installer: &dyn crate::installer::Installer,
-        install_target: &crate::buildsystem::InstallTarget
+        _session: &dyn Session,
+        _installer: &dyn crate::installer::Installer,
+        _install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 
     fn get_declared_dependencies(
         &self,
-        session: &dyn Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
-    ) -> Result<Vec<(crate::buildsystem::DependencyCategory, Box<dyn Dependency>)>, crate::buildsystem::Error> {
+        _session: &dyn Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+    ) -> Result<
+        Vec<(crate::buildsystem::DependencyCategory, Box<dyn Dependency>)>,
+        crate::buildsystem::Error,
+    > {
         let f = std::fs::File::open(self.path.join("DESCRIPTION")).unwrap();
         let description = read_description(std::io::BufReader::new(f)).unwrap();
 
-        let mut ret: Vec<(crate::buildsystem::DependencyCategory, Box<dyn Dependency>)> = Vec::new();
+        let mut ret: Vec<(crate::buildsystem::DependencyCategory, Box<dyn Dependency>)> =
+            Vec::new();
 
         for depend in description.depends.unwrap_or_default() {
             let d: OctavePackageDependency = depend.parse().unwrap();
@@ -200,9 +254,9 @@ impl BuildSystem for Octave {
 
     fn get_declared_outputs(
         &self,
-        session: &dyn Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+        _session: &dyn Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 }

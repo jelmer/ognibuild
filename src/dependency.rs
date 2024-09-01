@@ -1,5 +1,4 @@
 use crate::session::Session;
-use serde::{Deserialize, Serialize};
 
 /// A dependency is a component that is required by a project to build or run.
 pub trait Dependency: std::fmt::Debug {

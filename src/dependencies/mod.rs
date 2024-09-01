@@ -1,6 +1,5 @@
 use crate::buildlog::ToDependency;
 use crate::dependency::Dependency;
-use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -1931,7 +1930,7 @@ impl Dependency for IntrospectionTypelibDependency {
         "introspection-type-lib"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> bool {
         todo!()
     }
 

@@ -1,13 +1,15 @@
-use std::path::PathBuf;
-use crate::buildsystem::{Error, BuildSystem, DependencyCategory, InstallTarget};
-use serde::Deserialize;
+use crate::buildsystem::{BuildSystem, DependencyCategory, Error};
 use crate::dependencies::node::NodePackageDependency;
 use crate::dependencies::BinaryDependency;
 use crate::dependency::Dependency;
+use crate::installer::{Error as InstallerError, InstallationScope, Installer};
 use crate::session::Session;
-use crate::installer::{Installer, InstallationScope, Error as InstallerError};
+use serde::Deserialize;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
+#[derive(Debug)]
+#[allow(dead_code)]
 pub struct Node {
     path: PathBuf,
     package: NodePackage,
@@ -19,7 +21,6 @@ struct NodePackage {
     #[serde(rename = "devDependencies")]
     dev_dependencies: HashMap<String, String>,
     scripts: HashMap<String, String>,
-
 }
 
 impl Node {
@@ -52,17 +53,27 @@ impl Node {
 }
 
 impl BuildSystem for Node {
-    fn get_declared_dependencies(&self, session: &dyn Session, fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error> {
+    fn get_declared_dependencies(
+        &self,
+        _session: &dyn Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+    ) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error> {
         let mut dependencies: Vec<(DependencyCategory, Box<dyn Dependency>)> = vec![];
 
         for (name, _version) in self.package.dependencies.iter() {
             // TODO(jelmer): Look at version
-            dependencies.push((DependencyCategory::Universal, Box::new(NodePackageDependency::new(name))));
+            dependencies.push((
+                DependencyCategory::Universal,
+                Box::new(NodePackageDependency::new(name)),
+            ));
         }
 
         for (name, _version) in self.package.dev_dependencies.iter() {
             // TODO(jelmer): Look at version
-            dependencies.push((DependencyCategory::Build, Box::new(NodePackageDependency::new(name))));
+            dependencies.push((
+                DependencyCategory::Build,
+                Box::new(NodePackageDependency::new(name)),
+            ));
         }
 
         Ok(dependencies)
@@ -80,35 +91,58 @@ impl BuildSystem for Node {
         quiet: bool,
     ) -> Result<std::ffi::OsString, crate::buildsystem::Error> {
         self.setup(session, installer)?;
-        let dc = crate::dist_catcher::DistCatcher::new(vec![session.external_path(std::path::Path::new("."))]);
-        session.command(vec!["npm", "pack"]).quiet(quiet).run_detecting_problems()?;
+        let dc = crate::dist_catcher::DistCatcher::new(vec![
+            session.external_path(std::path::Path::new("."))
+        ]);
+        session
+            .command(vec!["npm", "pack"])
+            .quiet(quiet)
+            .run_detecting_problems()?;
         Ok(dc.copy_single(target_directory).unwrap().unwrap())
     }
 
-    fn test(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
+    fn test(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, installer)?;
         if let Some(test_script) = self.package.scripts.get("test") {
-            session.command(vec!["bash", "-c", test_script]).run_detecting_problems()?;
+            session
+                .command(vec!["bash", "-c", test_script])
+                .run_detecting_problems()?;
         } else {
             log::info!("No test command defined in package.json");
         }
         Ok(())
     }
 
-    fn build(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
+    fn build(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, installer)?;
         if let Some(build_script) = self.package.scripts.get("build") {
-            session.command(vec!["bash", "-c", build_script]).run_detecting_problems()?;
+            session
+                .command(vec!["bash", "-c", build_script])
+                .run_detecting_problems()?;
         } else {
             log::info!("No build command defined in package.json");
         }
         Ok(())
     }
 
-    fn clean(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
+    fn clean(
+        &self,
+        session: &dyn crate::session::Session,
+        installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
         self.setup(session, installer)?;
         if let Some(clean_script) = self.package.scripts.get("clean") {
-            session.command(vec!["bash", "-c", clean_script]).run_detecting_problems()?;
+            session
+                .command(vec!["bash", "-c", clean_script])
+                .run_detecting_problems()?;
         } else {
             log::info!("No clean command defined in package.json");
         }
@@ -117,18 +151,18 @@ impl BuildSystem for Node {
 
     fn install(
         &self,
-        session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
-        install_target: &crate::buildsystem::InstallTarget
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+        _install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 
     fn get_declared_outputs(
         &self,
-        session: &dyn crate::session::Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+        _session: &dyn crate::session::Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 }

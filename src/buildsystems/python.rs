@@ -1,24 +1,27 @@
 use crate::analyze::{run_detecting_problems, AnalyzedError};
-use crate::dist_catcher::DistCatcher;
 use crate::buildsystem::{BuildSystem, DependencyCategory, Error, InstallTarget};
-use crate::dependencies::python::PythonPackageDependency;
+use crate::dependencies::python::{PythonDependency, PythonPackageDependency};
 use crate::dependency::Dependency;
-use crate::installer::{Error as InstallerError, Installer, InstallationScope};
-use crate::output::{Output, BinaryOutput, PythonPackageOutput};
+use crate::dist_catcher::DistCatcher;
 use crate::fix_build::BuildFixer;
+use crate::installer::{Error as InstallerError, InstallationScope, Installer};
+use crate::output::{BinaryOutput, Output, PythonPackageOutput};
 use crate::session::Session;
+use pyo3::exceptions::{
+    PyFileNotFoundError, PyImportError, PyModuleNotFoundError, PyRuntimeError, PySystemExit,
+};
 use pyo3::prelude::*;
-use std::path::{Path, PathBuf};
-use std::io::Seek;
-use pyo3::exceptions::{PySystemExit, PyRuntimeError, PyImportError, PyFileNotFoundError, PyModuleNotFoundError};
 use pyo3::types::PyDict;
 use serde::Deserialize;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
+use std::io::Seek;
+use std::path::{Path, PathBuf};
 use toml;
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct Distribution {
-    name: String,
+    name: Option<String>,
     requires: Vec<String>,
     setup_requires: Vec<String>,
     install_requires: Vec<String>,
@@ -35,19 +38,29 @@ fn load_toml(path: &Path) -> Result<pyproject_toml::PyProjectToml, PyErr> {
     Ok(toml::from_str(&text).unwrap())
 }
 
+#[derive(Debug)]
 pub struct SetupCfg(PyObject);
 
 impl SetupCfg {
     fn has_section(&self, section: &str) -> bool {
         Python::with_gil(|py| {
-            self.0.call_method1(py, "__contains__", (section,)).unwrap().extract::<bool>(py).unwrap()
+            self.0
+                .call_method1(py, "__contains__", (section,))
+                .unwrap()
+                .extract::<bool>(py)
+                .unwrap()
         })
     }
 
     fn get_section(&self, section: &str) -> Option<SetupCfgSection> {
         Python::with_gil(|py| {
             if self.has_section(section) {
-                let section: Option<PyObject> = self.0.call_method1(py, "get", (section, py.None())).unwrap().extract(py).ok();
+                let section: Option<PyObject> = self
+                    .0
+                    .call_method1(py, "get", (section, py.None()))
+                    .unwrap()
+                    .extract(py)
+                    .ok();
                 Some(SetupCfgSection(section.to_object(py)))
             } else {
                 None
@@ -60,22 +73,28 @@ pub struct SetupCfgSection(PyObject);
 
 impl Default for SetupCfg {
     fn default() -> Self {
-        Python::with_gil(|py| {
-            SetupCfg(py.None())
-        })
+        Python::with_gil(|py| SetupCfg(py.None()))
     }
 }
 
 impl SetupCfgSection {
     fn get<T: for<'a> FromPyObject<'a>>(&self, key: &str) -> Option<T> {
         Python::with_gil(|py| {
-            self.0.call_method1(py, "get", (key, py.None())).unwrap().extract::<Option<T>>(py).unwrap()
+            self.0
+                .call_method1(py, "get", (key, py.None()))
+                .unwrap()
+                .extract::<Option<T>>(py)
+                .unwrap()
         })
     }
 
-    fn has_key(&self, key: &str) -> bool {
+    pub fn has_key(&self, key: &str) -> bool {
         Python::with_gil(|py| {
-            self.0.call_method1(py, "__contains__", (key,)).unwrap().extract::<bool>(py).unwrap()
+            self.0
+                .call_method1(py, "__contains__", (key,))
+                .unwrap()
+                .extract::<bool>(py)
+                .unwrap()
         })
     }
 }
@@ -100,53 +119,63 @@ fn load_setup_cfg(path: &Path) -> Result<Option<SetupCfg>, PyErr> {
 // Imported from Python's distutils.core, Copyright (C) PSF
 
 fn run_setup(py: Python, script_name: &Path, stop_after: &str) -> PyResult<PyObject> {
-    assert!(stop_after == "init" || stop_after == "config" || stop_after == "commandline" || stop_after == "run");
+    assert!(
+        stop_after == "init"
+            || stop_after == "config"
+            || stop_after == "commandline"
+            || stop_after == "run"
+    );
     // Import setuptools, just in case it decides to replace distutils
-        let _ = py.import_bound("setuptools");
+    let _ = py.import_bound("setuptools");
 
-        let core = match py.import_bound("distutils.core") {
-            Ok(m) => m,
-            Err(e) if e.is_instance_of::<PyImportError>(py) => {
-                // Importing distutils failed, but that's fine.
-                match py.import_bound("setuptools._distutils.core") {
-                    Ok(m) => m,
-                    Err(e) => return Err(e),
-                }
+    let core = match py.import_bound("distutils.core") {
+        Ok(m) => m,
+        Err(e) if e.is_instance_of::<PyImportError>(py) => {
+            // Importing distutils failed, but that's fine.
+            match py.import_bound("setuptools._distutils.core") {
+                Ok(m) => m,
+                Err(e) => return Err(e),
             }
-            Err(e) => return Err(e),
-        };
-
-        core.setattr("_setup_stop_after", stop_after)?;
-
-        let sys = py.import_bound("sys")?;
-        let os = py.import_bound("os")?;
-
-        let save_argv = sys.getattr("argv")?;
-
-        let g = PyDict::new_bound(py);
-        g.set_item("__file__", script_name)?;
-        g.set_item("__name__", "__main")?;
-
-        let old_cwd = os.getattr("getcwd")?.call0()?.extract::<String>()?;
-        os.call_method1("chdir", (os.getattr("path")?.call_method1("dirname", (script_name,))?,))?;
-
-        sys.setattr("argv", vec![script_name])?;
-
-        let text = std::fs::read_to_string(script_name)?;
-
-        let r = py.eval_bound(text.as_str(), Some(&g), None);
-
-        os.call_method1("chdir", (old_cwd,))?;
-        sys.setattr("argv", save_argv)?;
-        core.setattr("_setup_stop_after", py.None())?;
-
-        match r {
-            Ok(_) => Ok(core.getattr("_setup_distribution")?.to_object(py)),
-            Err(e) if e.is_instance_of::<PySystemExit>(py) => Ok(core.getattr("_setup_distribution")?.to_object(py)),
-            Err(e) => Err(e),
         }
-}
+        Err(e) => return Err(e),
+    };
 
+    core.setattr("_setup_stop_after", stop_after)?;
+
+    let sys = py.import_bound("sys")?;
+    let os = py.import_bound("os")?;
+
+    let save_argv = sys.getattr("argv")?;
+
+    let g = PyDict::new_bound(py);
+    g.set_item("__file__", script_name)?;
+    g.set_item("__name__", "__main")?;
+
+    let old_cwd = os.getattr("getcwd")?.call0()?.extract::<String>()?;
+    os.call_method1(
+        "chdir",
+        (os.getattr("path")?
+            .call_method1("dirname", (script_name,))?,),
+    )?;
+
+    sys.setattr("argv", vec![script_name])?;
+
+    let text = std::fs::read_to_string(script_name)?;
+
+    let r = py.eval_bound(text.as_str(), Some(&g), None);
+
+    os.call_method1("chdir", (old_cwd,))?;
+    sys.setattr("argv", save_argv)?;
+    core.setattr("_setup_stop_after", py.None())?;
+
+    match r {
+        Ok(_) => Ok(core.getattr("_setup_distribution")?.to_object(py)),
+        Err(e) if e.is_instance_of::<PySystemExit>(py) => {
+            Ok(core.getattr("_setup_distribution")?.to_object(py))
+        }
+        Err(e) => Err(e),
+    }
+}
 
 const SETUP_WRAPPER: &str = r#"""
 try:
@@ -157,9 +186,11 @@ import distutils
 from distutils import core
 import sys
 
-script_name = %(script_name)s
+import os
+script_name = "%(script_name)s"
+os.chdir(os.path.dirname(script_name))
 
-g = {"__file__": script_name, "__name__": "__main__"}
+g = {"__file__": os.path.basename(script_name), "__name__": "__main__"}
 try:
     core._setup_stop_after = "init"
     sys.argv[0] = script_name
@@ -181,7 +212,7 @@ if core._setup_distribution is None:
 
 d = core._setup_distribution
 r = {
-    'name': d.name,
+    'name': getattr(d, "name", None) or None,
     'setup_requires': getattr(d, "setup_requires", []),
     'install_requires': getattr(d, "install_requires", []),
     'tests_require': getattr(d, "tests_require", []) or [],
@@ -196,12 +227,13 @@ with open(%(output_path)s, 'w') as f:
     json.dump(r, f)
 """#;
 
-
+#[derive(Debug)]
 pub struct SetupPy {
     path: PathBuf,
     has_setup_py: bool,
     config: Option<SetupCfg>,
     pyproject: Option<pyproject_toml::PyProjectToml>,
+    #[allow(dead_code)]
     buildsystem: Option<String>,
 }
 
@@ -210,41 +242,39 @@ impl SetupPy {
         let has_setup_py = path.join("setup.py").exists();
 
         Python::with_gil(|py| {
-        let config = match load_setup_cfg(path) {
-            Ok(config) => config,
-            Err(e) if e.is_instance_of::<PyFileNotFoundError>(py) => {
-                None
-            }
-            Err(e) if e.is_instance_of::<PyModuleNotFoundError>(py) => {
-                log::warn!("Error parsing setup.cfg: {}", e);
-                None
-            }
-            Err(e) => {
-                panic!("Error parsing setup.cfg: {}", e);
-            }
-        };
+            let config = match load_setup_cfg(path) {
+                Ok(config) => config,
+                Err(e) if e.is_instance_of::<PyFileNotFoundError>(py) => None,
+                Err(e) if e.is_instance_of::<PyModuleNotFoundError>(py) => {
+                    log::warn!("Error parsing setup.cfg: {}", e);
+                    None
+                }
+                Err(e) => {
+                    panic!("Error parsing setup.cfg: {}", e);
+                }
+            };
 
-        let (pyproject, buildsystem) = match load_toml(path) {
-            Ok(pyproject) => {
-                let buildsystem = pyproject.build_system.as_ref().and_then(|bs| bs.build_backend.clone());
-                (Some(pyproject), buildsystem)
-            }
-            Err(e) if e.is_instance_of::<PyFileNotFoundError>(py) => {
-                (None, None)
-            }
-            Err(e) => {
-                panic!("Error parsing pyproject.toml: {}", e);
-            }
-        };
+            let (pyproject, buildsystem) = match load_toml(path) {
+                Ok(pyproject) => {
+                    let buildsystem = pyproject
+                        .build_system
+                        .as_ref()
+                        .and_then(|bs| bs.build_backend.clone());
+                    (Some(pyproject), buildsystem)
+                }
+                Err(e) if e.is_instance_of::<PyFileNotFoundError>(py) => (None, None),
+                Err(e) => {
+                    panic!("Error parsing pyproject.toml: {}", e);
+                }
+            };
 
-        Self {
-            has_setup_py,
-            path: path.to_owned(),
-            config,
-            pyproject,
-            buildsystem
-        }
-
+            Self {
+                has_setup_py,
+                path: path.to_owned(),
+                config,
+                pyproject,
+                buildsystem,
+            }
         })
     }
 
@@ -275,14 +305,46 @@ impl SetupPy {
                 }
             };
 
-            let name: String = d.getattr(py, "name").unwrap().extract(py).unwrap();
-            let setup_requires: Vec<String> = d.call_method1(py, "get", ("setup_requires", Vec::<String>::new())).unwrap().extract(py).unwrap();
-            let install_requires: Vec<String> = d.call_method1(py, "get", ("install_requires", Vec::<String>::new())).unwrap().extract(py).unwrap();
-            let tests_require: Vec<String> = d.call_method1(py, "get", ("tests_require", Vec::<String>::new())).unwrap().extract(py).unwrap();
-            let scripts: Vec<String> = d.call_method1(py, "get", ("scripts", Vec::<String>::new())).unwrap().extract(py).unwrap();
-            let entry_points: HashMap<String, Vec<String>> = d.call_method1(py, "get", ("entry_points", HashMap::<String, Vec<String>>::new())).unwrap().extract(py).unwrap();
-            let packages: Vec<String> = d.call_method1(py, "get", ("packages", Vec::<String>::new())).unwrap().extract(py).unwrap();
-            let requires: Vec<String> = d.call_method0(py, "get_requires").unwrap().extract(py).unwrap();
+            let name: Option<String> = d.getattr(py, "name").unwrap().extract(py).unwrap();
+            let setup_requires: Vec<String> = d
+                .call_method1(py, "get", ("setup_requires", Vec::<String>::new()))
+                .unwrap()
+                .extract(py)
+                .unwrap();
+            let install_requires: Vec<String> = d
+                .call_method1(py, "get", ("install_requires", Vec::<String>::new()))
+                .unwrap()
+                .extract(py)
+                .unwrap();
+            let tests_require: Vec<String> = d
+                .call_method1(py, "get", ("tests_require", Vec::<String>::new()))
+                .unwrap()
+                .extract(py)
+                .unwrap();
+            let scripts: Vec<String> = d
+                .call_method1(py, "get", ("scripts", Vec::<String>::new()))
+                .unwrap()
+                .extract(py)
+                .unwrap();
+            let entry_points: HashMap<String, Vec<String>> = d
+                .call_method1(
+                    py,
+                    "get",
+                    ("entry_points", HashMap::<String, Vec<String>>::new()),
+                )
+                .unwrap()
+                .extract(py)
+                .unwrap();
+            let packages: Vec<String> = d
+                .call_method1(py, "get", ("packages", Vec::<String>::new()))
+                .unwrap()
+                .extract(py)
+                .unwrap();
+            let requires: Vec<String> = d
+                .call_method0(py, "get_requires")
+                .unwrap()
+                .extract(py)
+                .unwrap();
 
             Some(Distribution {
                 name,
@@ -293,13 +355,19 @@ impl SetupPy {
                 entry_points,
                 packages,
                 requires,
-            })})
+            })
+        })
     }
 
     fn determine_interpreter(&self) -> String {
         if let Some(config) = self.config.as_ref() {
-            let python_requires: Option<String> = config.get_section("options").and_then(|s|s.get::<String>("python_requires"));
-            if python_requires.map(|pr| !pr.contains("2.7")).unwrap_or(true) {
+            let python_requires: Option<String> = config
+                .get_section("options")
+                .and_then(|s| s.get::<String>("python_requires"));
+            if python_requires
+                .map(|pr| !pr.contains("2.7"))
+                .unwrap_or(true)
+            {
                 return "python3".to_owned();
             }
         }
@@ -309,25 +377,47 @@ impl SetupPy {
         shebang_binary.unwrap_or("python3".to_owned())
     }
 
-    fn extract_setup_in_session(&self, session: &dyn Session, fixers: Option<&[&dyn BuildFixer<InstallerError>]>) -> Option<Distribution> {
+    fn extract_setup_in_session(
+        &self,
+        session: &dyn Session,
+        fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
+    ) -> Option<Distribution> {
         let interpreter = self.determine_interpreter();
 
         let mut output_f = tempfile::NamedTempFile::new_in(session.location().join("tmp")).unwrap();
-        // TODO(jelmer): Perhaps run this in session, so we can install missing dependencies?
         let argv: Vec<String> = vec![
             interpreter,
             "-c".to_string(),
-            SETUP_WRAPPER.replace(
-                "%(script_name)s", "\"setup.py\""
-            ).replace(
-                "%(output_path)s",
-                &format!("\"/{}\"", output_f.path().to_str().unwrap().strip_prefix(&session.location().to_str().unwrap()).unwrap())
-            ),
+            SETUP_WRAPPER
+                .replace(
+                    "%(script_name)s",
+                    session.pwd().join("setup.py").to_str().unwrap(),
+                )
+                .replace(
+                    "%(output_path)s",
+                    &format!(
+                        "\"/{}\"",
+                        output_f
+                            .path()
+                            .to_str()
+                            .unwrap()
+                            .strip_prefix(session.location().to_str().unwrap())
+                            .unwrap()
+                    ),
+                ),
         ];
         let r = if let Some(fixers) = fixers {
-            session.command(argv.iter().map(|x| x.as_str()).collect::<Vec<_>>()).quiet(true).run_fixing_problems(fixers).map(|_| ()).map_err(|e| e.to_string())
+            session
+                .command(argv.iter().map(|x| x.as_str()).collect::<Vec<_>>())
+                .quiet(true)
+                .run_fixing_problems::<_, Error>(fixers)
+                .map(|_| ())
+                .map_err(|e| e.to_string())
         } else {
-            session.command(argv.iter().map(|x| x.as_str()).collect()).check_call().map_err(|e| e.to_string())
+            session
+                .command(argv.iter().map(|x| x.as_str()).collect())
+                .check_call()
+                .map_err(|e| e.to_string())
         };
         match r {
             Ok(_) => (),
@@ -340,7 +430,11 @@ impl SetupPy {
         Some(serde_json::from_reader(output_f).unwrap())
     }
 
-    fn extract_setup(&self, session: Option<&dyn Session>, fixers: Option<&[&dyn BuildFixer<InstallerError>]>) -> Option<Distribution> {
+    fn extract_setup(
+        &self,
+        session: Option<&dyn Session>,
+        fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
+    ) -> Option<Distribution> {
         if !self.has_setup_py {
             return None;
         }
@@ -353,16 +447,22 @@ impl SetupPy {
 
     fn setup_requires(&self) -> Vec<PythonPackageDependency> {
         let mut ret = vec![];
-        if let Some(build_system) = self.pyproject.as_ref().and_then(|p| p.build_system.as_ref()) {
+        if let Some(build_system) = self
+            .pyproject
+            .as_ref()
+            .and_then(|p| p.build_system.as_ref())
+        {
             let requires = &build_system.requires;
             for require in requires {
-                ret.push(PythonPackageDependency::from_requirement(&require));
+                ret.push(PythonPackageDependency::from_requirement(require));
             }
         }
 
         if let Some(config) = &self.config {
             let options = config.get_section("options");
-            let setup_requires = options.and_then(|os| os.get::<Vec<String>>("setup_requires")).unwrap_or(vec![]);
+            let setup_requires = options
+                .and_then(|os| os.get::<Vec<String>>("setup_requires"))
+                .unwrap_or(vec![]);
             for require in &setup_requires {
                 ret.push(PythonPackageDependency::from_requirement_str(require));
             }
@@ -370,11 +470,29 @@ impl SetupPy {
         ret
     }
 
-    fn run_setup(&self, session: &dyn Session, installer: &dyn Installer, args: Vec<&str>) -> Result<(), Error> {
+    fn run_setup(
+        &self,
+        session: &dyn Session,
+        installer: &dyn Installer,
+        args: Vec<&str>,
+    ) -> Result<(), Error> {
         // Install the setup_requires beforehand, since otherwise
         // setuptools might fetch eggs instead of our preferred installer.
-        let setup_requires = self.setup_requires().into_iter().map(|x| Box::new(x) as Box<dyn Dependency>).collect::<Vec<_>>();
-        crate::installer::install_missing_deps(session, installer, crate::installer::InstallationScope::Global, setup_requires.iter().map(|x| x.as_ref()).collect::<Vec<_>>().as_slice())?;
+        let setup_requires = self
+            .setup_requires()
+            .into_iter()
+            .map(|x| Box::new(x) as Box<dyn Dependency>)
+            .collect::<Vec<_>>();
+        crate::installer::install_missing_deps(
+            session,
+            installer,
+            crate::installer::InstallationScope::Global,
+            setup_requires
+                .iter()
+                .map(|x| x.as_ref())
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )?;
         let interpreter = self.determine_interpreter().clone();
         let mut args = args.clone();
         args.insert(0, &interpreter);
@@ -386,15 +504,26 @@ impl SetupPy {
 }
 
 impl BuildSystem for SetupPy {
-
     fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         if self.path.join("tox.ini").exists() {
             run_detecting_problems(
-                session, vec!["tox", "--skip-missing-interpreters"], None, false, None, None, None, None, None, None
+                session,
+                vec!["tox", "--skip-missing-interpreters"],
+                None,
+                false,
+                None,
+                None,
+                None,
+                None,
             )?;
             return Ok(());
         }
-        if self.config.as_ref().map(|c| c.has_section("tool:pytest") || c.has_section("pytest")).unwrap_or(false) {
+        if self
+            .config
+            .as_ref()
+            .map(|c| c.has_section("tool:pytest") || c.has_section("pytest"))
+            .unwrap_or(false)
+        {
             session.command(vec!["pytest"]).run_detecting_problems()?;
             return Ok(());
         }
@@ -407,9 +536,17 @@ impl BuildSystem for SetupPy {
                 installer.install(&setuptools_dep, InstallationScope::Global)?;
             }
             match self.run_setup(session, installer, vec!["test"]) {
-                Ok(_) => { return Ok(()); },
-                Err(Error::Error(AnalyzedError::Unidentified{lines,..})) if lines.contains(&"error: invalid command 'test'".to_string()) => { return Ok(()); },
-                Err(e) => { return Err(e); },
+                Ok(_) => {
+                    return Ok(());
+                }
+                Err(Error::Error(AnalyzedError::Unidentified { lines, .. }))
+                    if lines.contains(&"error: invalid command 'test'".to_string()) =>
+                {
+                    return Ok(());
+                }
+                Err(e) => {
+                    return Err(e);
+                }
             }
         }
         unimplemented!();
@@ -423,7 +560,13 @@ impl BuildSystem for SetupPy {
         }
     }
 
-    fn dist(&self, session: &dyn Session, installer: &dyn Installer, target_directory: &Path, quiet: bool) -> Result<std::ffi::OsString, Error> {
+    fn dist(
+        &self,
+        session: &dyn Session,
+        installer: &dyn Installer,
+        target_directory: &Path,
+        quiet: bool,
+    ) -> Result<std::ffi::OsString, Error> {
         // TODO(jelmer): Look at self.build_backend
         let dc = DistCatcher::new(vec![session.external_path(Path::new("dist"))]);
         if self.has_setup_py {
@@ -442,7 +585,12 @@ impl BuildSystem for SetupPy {
             run_detecting_problems(
                 session,
                 vec!["python3", "-m", "build", "--sdist", "."],
-                None, false, None, None, None, None, None, None
+                None,
+                false,
+                None,
+                None,
+                None,
+                None,
             )?;
         } else {
             panic!("No setup.py or pyproject.toml");
@@ -458,7 +606,12 @@ impl BuildSystem for SetupPy {
         }
     }
 
-    fn install(&self, session: &dyn Session, installer: &dyn Installer, install_target: &InstallTarget) -> Result<(), Error> {
+    fn install(
+        &self,
+        session: &dyn Session,
+        installer: &dyn Installer,
+        install_target: &InstallTarget,
+    ) -> Result<(), Error> {
         if self.has_setup_py {
             let mut args = vec![];
             if install_target.scope == InstallationScope::User {
@@ -468,62 +621,164 @@ impl BuildSystem for SetupPy {
                 args.push(format!("--prefix={}", prefix.to_str().unwrap()));
             }
             args.insert(0, "install".to_owned());
-            self.run_setup(session, installer, args.iter().map(|x| x.as_str()).collect())?;
-            return Ok(());
+            self.run_setup(
+                session,
+                installer,
+                args.iter().map(|x| x.as_str()).collect(),
+            )?;
+            Ok(())
         } else {
             unimplemented!();
         }
     }
 
-    fn get_declared_dependencies(&self, session: &dyn Session, fixers: std::option::Option<&[&dyn BuildFixer<InstallerError>]>) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error> {
+    fn get_declared_dependencies(
+        &self,
+        session: &dyn Session,
+        fixers: std::option::Option<&[&dyn BuildFixer<InstallerError>]>,
+    ) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error> {
         let mut ret: Vec<(DependencyCategory, Box<dyn Dependency>)> = vec![];
         let distribution = self.extract_setup(Some(session), fixers);
         if let Some(distribution) = distribution {
             for require in &distribution.requires {
-                ret.push((DependencyCategory::Universal, Box::new(PythonPackageDependency::from_requirement_str(require))));
+                ret.push((
+                    DependencyCategory::Universal,
+                    Box::new(PythonPackageDependency::from_requirement_str(require)),
+                ));
             }
             // Not present for distutils-only packages
             for require in &distribution.setup_requires {
-                ret.push((DependencyCategory::Build, Box::new(PythonPackageDependency::from_requirement_str(require))));
+                ret.push((
+                    DependencyCategory::Build,
+                    Box::new(PythonPackageDependency::from_requirement_str(require)),
+                ));
             }
             // Not present for distutils-only packages
             for require in &distribution.install_requires {
-                ret.push((DependencyCategory::Universal, Box::new(PythonPackageDependency::from_requirement_str(require))));
+                ret.push((
+                    DependencyCategory::Universal,
+                    Box::new(PythonPackageDependency::from_requirement_str(require)),
+                ));
             }
             // Not present for distutils-only packages
             for require in &distribution.tests_require {
-                ret.push((DependencyCategory::Test, Box::new(PythonPackageDependency::from_requirement_str(require))));
+                ret.push((
+                    DependencyCategory::Test,
+                    Box::new(PythonPackageDependency::from_requirement_str(require)),
+                ));
             }
         }
         if let Some(pyproject) = self.pyproject.as_ref() {
             if let Some(build_system) = pyproject.build_system.as_ref() {
                 for require in &build_system.requires {
-                    ret.push((DependencyCategory::Universal, Box::new(PythonPackageDependency::from_requirement(&require))));
+                    ret.push((
+                        DependencyCategory::Universal,
+                        Box::new(PythonPackageDependency::from_requirement(require)),
+                    ));
                 }
             }
         }
         if let Some(options) = self.config.as_ref().and_then(|c| c.get_section("options")) {
-            for require in options.get::<Vec<String>>("setup_requires").unwrap_or_default() {
-                ret.push((DependencyCategory::Build, Box::new(PythonPackageDependency::from_requirement_str(&require))));
+            for require in options
+                .get::<Vec<String>>("setup_requires")
+                .unwrap_or_default()
+            {
+                ret.push((
+                    DependencyCategory::Build,
+                    Box::new(PythonPackageDependency::from_requirement_str(&require)),
+                ));
             }
-            for require in options.get::<Vec<String>>("install_requires").unwrap_or_default() {
-                ret.push((DependencyCategory::Universal, Box::new(PythonPackageDependency::from_requirement_str(&require))));
+            for require in options
+                .get::<Vec<String>>("install_requires")
+                .unwrap_or_default()
+            {
+                ret.push((
+                    DependencyCategory::Universal,
+                    Box::new(PythonPackageDependency::from_requirement_str(&require)),
+                ));
+            }
+        }
+
+        if let Some(pyproject_toml) = self.pyproject.as_ref() {
+            if let Some(build_system) = pyproject_toml.build_system.as_ref() {
+                for require in &build_system.requires {
+                    ret.push((
+                        DependencyCategory::Build,
+                        Box::new(PythonPackageDependency::from_requirement(require)),
+                    ));
+                }
+            }
+
+            if let Some(dependencies) = pyproject_toml
+                .project
+                .as_ref()
+                .and_then(|p| p.dependencies.as_ref())
+            {
+                for dep in dependencies {
+                    ret.push((
+                        DependencyCategory::Universal,
+                        Box::new(PythonPackageDependency::from(dep)),
+                    ));
+                }
+            }
+
+            if let Some(extras) = pyproject_toml
+                .project
+                .as_ref()
+                .and_then(|p| p.optional_dependencies.as_ref())
+            {
+                for (name, deps) in extras {
+                    for dep in deps {
+                        ret.push((
+                            DependencyCategory::RuntimeExtra(name.clone()),
+                            Box::new(PythonPackageDependency::from(dep)),
+                        ));
+                    }
+                }
+            }
+
+            if let Some(requires_python) = pyproject_toml
+                .project
+                .as_ref()
+                .and_then(|p| p.requires_python.as_ref())
+            {
+                ret.push((
+                    DependencyCategory::Universal,
+                    Box::new(PythonDependency::from(requires_python)),
+                ));
             }
         }
 
         Ok(ret)
     }
 
-    fn get_declared_outputs(&self, session: &dyn Session, fixers: Option<&[&dyn BuildFixer<InstallerError>]>) -> Result<Vec<Box<dyn Output>>, Error> {
+    fn get_declared_outputs(
+        &self,
+        session: &dyn Session,
+        fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
+    ) -> Result<Vec<Box<dyn Output>>, Error> {
         let mut ret: Vec<Box<dyn Output>> = vec![];
         let distribution = self.extract_setup(Some(session), fixers);
         let mut all_packages = HashSet::new();
         if let Some(distribution) = distribution {
             for script in &distribution.scripts {
-                ret.push(Box::new(BinaryOutput(Path::new(script).file_name().unwrap().to_str().unwrap().to_owned())));
+                ret.push(Box::new(BinaryOutput(
+                    Path::new(script)
+                        .file_name()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .to_owned(),
+                )));
             }
-            for script in distribution.entry_points.get("console_scripts").unwrap_or(&vec![]) {
-                ret.push(Box::new(BinaryOutput(script.split_once('=').unwrap().0.to_string().to_owned())));
+            for script in distribution
+                .entry_points
+                .get("console_scripts")
+                .unwrap_or(&vec![])
+            {
+                ret.push(Box::new(BinaryOutput(
+                    script.split_once('=').unwrap().0.to_string().to_owned(),
+                )));
             }
             all_packages.extend(distribution.packages);
         }
@@ -531,17 +786,46 @@ impl BuildSystem for SetupPy {
             all_packages.extend(options.get::<Vec<String>>("packages").unwrap_or_default());
             for script in options.get::<Vec<String>>("scripts").unwrap_or_default() {
                 let p = Path::new(&script);
-                ret.push(Box::new(BinaryOutput(p.file_name().unwrap().to_str().unwrap().to_owned())));
+                ret.push(Box::new(BinaryOutput(
+                    p.file_name().unwrap().to_str().unwrap().to_owned(),
+                )));
             }
-            let entry_points = options.get::<HashMap<String, Vec<String>>>("entry_points").unwrap_or_default();
+            let entry_points = options
+                .get::<HashMap<String, Vec<String>>>("entry_points")
+                .unwrap_or_default();
             for script in entry_points.get("console_scripts").unwrap_or(&vec![]) {
-                ret.push(Box::new(BinaryOutput(script.split_once("=").unwrap().0.to_string().to_owned())));
+                ret.push(Box::new(BinaryOutput(
+                    script.split_once('=').unwrap().0.to_string().to_owned(),
+                )));
             }
         }
 
         for package in all_packages {
-            ret.push(Box::new(PythonPackageOutput::new(&&package, Some("cpython3"))));
+            ret.push(Box::new(PythonPackageOutput::new(
+                &package,
+                Some("cpython3"),
+            )));
         }
+
+        if let Some(pyproject) = self.pyproject.as_ref().and_then(|p| p.project.as_ref()) {
+            if let Some(scripts) = pyproject.scripts.as_ref() {
+                for (script, _from) in scripts {
+                    ret.push(Box::new(BinaryOutput(script.to_string())));
+                }
+            }
+
+            if let Some(gui_scripts) = pyproject.gui_scripts.as_ref() {
+                for (script, _from) in gui_scripts {
+                    ret.push(Box::new(BinaryOutput(script.to_string())));
+                }
+            }
+
+            ret.push(Box::new(PythonPackageOutput::new(
+                &pyproject.name,
+                pyproject.version.as_ref().map(|v| v.to_string()).as_deref(),
+            )));
+        }
+
         Ok(ret)
     }
 

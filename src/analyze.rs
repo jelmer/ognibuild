@@ -1,4 +1,4 @@
-use crate::session::{Session, Error as SessionError, run_with_tee};
+use crate::session::{run_with_tee, Error as SessionError, Session};
 use buildlog_consultant::problems::common::MissingCommand;
 
 fn default_check_success(status: std::process::ExitStatus, _lines: Vec<&str>) -> bool {
@@ -24,6 +24,13 @@ pub enum AnalyzedError {
 
 impl From<std::io::Error> for AnalyzedError {
     fn from(e: std::io::Error) -> Self {
+        #[cfg(unix)]
+        if e.raw_os_error() == Some(libc::ENOSPC) {
+            return AnalyzedError::Detailed {
+                retcode: 1,
+                error: Box::new(buildlog_consultant::problems::common::NoSpaceOnDevice),
+            };
+        }
         AnalyzedError::IoError(e)
     }
 }
@@ -35,10 +42,7 @@ impl std::fmt::Display for AnalyzedError {
                 write!(f, "Command not found: {}", command)
             }
             AnalyzedError::IoError(e) => write!(f, "IO error: {}", e),
-            AnalyzedError::Detailed {
-                retcode,
-                error,
-            } => {
+            AnalyzedError::Detailed { retcode, error } => {
                 write!(f, "Command failed with code {}", retcode)?;
                 write!(f, "\n{}", error)
             }
@@ -71,8 +75,6 @@ impl std::error::Error for AnalyzedError {}
 /// * `user`: User to run the command as
 /// * `env`: Environment variables to set for the command
 /// * `stdin`: Stdin for the command
-/// * `stdout`: Stdout for the command
-/// * `stderr`: Stderr for the command
 pub fn run_detecting_problems(
     session: &dyn Session,
     args: Vec<&str>,
@@ -82,30 +84,27 @@ pub fn run_detecting_problems(
     user: Option<&str>,
     env: Option<&std::collections::HashMap<String, String>>,
     stdin: Option<std::process::Stdio>,
-    stdout: Option<std::process::Stdio>,
-    stderr: Option<std::process::Stdio>,
 ) -> Result<Vec<String>, AnalyzedError> {
     if !quiet {
         log::info!("Running {:?}", args);
     }
     let check_success = check_success.unwrap_or(&default_check_success);
 
-    let (retcode, contents) =
-        match run_with_tee(session, args.clone(), cwd, user, env, stdin, stdout, stderr) {
-            Ok((retcode, contents)) => (retcode, contents),
-            Err(SessionError::SetupFailure(..)) => unreachable!(),
-            Err(SessionError::IoError(e)) if e.kind() == std::io::ErrorKind::NotFound => {
-                let command = args[0].to_string();
-                return Err(AnalyzedError::Detailed {
-                    retcode: 127,
-                    error: Box::new(MissingCommand(command)) as Box<dyn buildlog_consultant::Problem>
-                });
-            }
-            Err(SessionError::IoError(e)) => {
-                return Err(AnalyzedError::IoError(e));
-            }
-            Err(SessionError::CalledProcessError(retcode)) => (retcode, vec![]),
-        };
+    let (retcode, contents) = match run_with_tee(session, args.clone(), cwd, user, env, stdin) {
+        Ok((retcode, contents)) => (retcode, contents),
+        Err(SessionError::SetupFailure(..)) => unreachable!(),
+        Err(SessionError::IoError(e)) if e.kind() == std::io::ErrorKind::NotFound => {
+            let command = args[0].to_string();
+            return Err(AnalyzedError::Detailed {
+                retcode: 127,
+                error: Box::new(MissingCommand(command)) as Box<dyn buildlog_consultant::Problem>,
+            });
+        }
+        Err(SessionError::IoError(e)) => {
+            return Err(AnalyzedError::IoError(e));
+        }
+        Err(SessionError::CalledProcessError(retcode)) => (retcode, vec![]),
+    };
     if check_success(retcode, contents.iter().map(|s| s.as_str()).collect()) {
         return Ok(contents);
     }

@@ -371,6 +371,8 @@ pub fn dependency_to_possible_deb_dependencies(
         dep,
         crate::dependencies::python::PythonModuleDependency
     );
+    try_into_debian_dependency!(apt, dep, crate::dependencies::python::PythonPackageDependency);
+    try_into_debian_dependency!(apt, dep, crate::dependencies::python::PythonDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::r::RPackageDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::vague::VagueDependency);
 

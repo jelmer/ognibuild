@@ -37,6 +37,8 @@ pub trait Session {
     /// Change the current working directory in the session.
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), crate::session::Error>;
 
+    fn pwd(&self) -> &std::path::Path;
+
     /// Return the external path for a path inside the session.
     fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf;
 
@@ -187,6 +189,8 @@ impl<'a> CommandBuilder<'a> {
     }
 
     pub fn run_with_tee(self) -> Result<(ExitStatus, Vec<String>), Error> {
+        assert!(self.stdout.is_none());
+        assert!(self.stderr.is_none());
         run_with_tee(
             self.session,
             self.argv,
@@ -194,12 +198,12 @@ impl<'a> CommandBuilder<'a> {
             self.user,
             self.env.as_ref(),
             self.stdin,
-            self.stdout,
-            self.stderr,
         )
     }
 
     pub fn run_detecting_problems(self) -> Result<Vec<String>, crate::analyze::AnalyzedError> {
+        assert!(self.stdout.is_none());
+        assert!(self.stderr.is_none());
         crate::analyze::run_detecting_problems(
             self.session,
             self.argv,
@@ -209,12 +213,16 @@ impl<'a> CommandBuilder<'a> {
             self.user,
             self.env.as_ref(),
             self.stdin,
-            self.stdout,
-            self.stderr,
         )
     }
 
-    pub fn run_fixing_problems<O: std::error::Error + From<crate::analyze::AnalyzedError>>(self, fixers: &[&dyn crate::fix_build::BuildFixer<O>]) -> Result<Vec<String>, crate::fix_build::IterateBuildError<O>> {
+    pub fn run_fixing_problems<
+        I: std::error::Error,
+        E: From<I> + std::error::Error + From<std::io::Error>,
+    >(
+        self,
+        fixers: &[&dyn crate::fix_build::BuildFixer<I>],
+    ) -> Result<Vec<String>, crate::fix_build::IterateBuildError<E>> {
         assert!(self.stdin.is_none());
         assert!(self.stdout.is_none());
         assert!(self.stderr.is_none());
@@ -255,7 +263,8 @@ impl<'a> CommandBuilder<'a> {
     }
 
     pub fn check_call(self) -> Result<(), Error> {
-        self.session.check_call(self.argv, self.cwd, self.user, self.env)
+        self.session
+            .check_call(self.argv, self.cwd, self.user, self.env)
     }
 
     pub fn check_output(self) -> Result<Vec<u8>, Error> {
@@ -305,15 +314,14 @@ pub fn run_with_tee(
     user: Option<&str>,
     env: Option<&std::collections::HashMap<String, String>>,
     stdin: Option<std::process::Stdio>,
-    stdout: Option<std::process::Stdio>,
-    stderr: Option<std::process::Stdio>,
 ) -> Result<(ExitStatus, Vec<String>), Error> {
+    log::debug!("Running command: {:?}", args);
     let mut p = session.popen(
         args,
         cwd,
         user,
-        stdout,
-        stderr,
+        Some(std::process::Stdio::piped()),
+        Some(std::process::Stdio::piped()),
         Some(stdin.unwrap_or(std::process::Stdio::null())),
         env,
     );
@@ -380,5 +388,4 @@ mod tests {
         let which = super::which(&session, "ls");
         assert!(which.unwrap().ends_with("/ls"));
     }
-
 }

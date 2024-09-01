@@ -23,7 +23,7 @@ pub fn generate_session_id(prefix: &str) -> String {
 }
 
 pub struct SchrootSession {
-    cwd: Option<std::path::PathBuf>,
+    cwd: std::path::PathBuf,
     session_id: String,
     location: std::path::PathBuf,
 }
@@ -85,7 +85,7 @@ impl SchrootSession {
         );
 
         Ok(Self {
-            cwd: None,
+            cwd: std::path::PathBuf::from("/"),
             session_id,
             location,
         })
@@ -105,14 +105,13 @@ impl SchrootSession {
             "-c".to_string(),
             format!("session:{}", self.session_id),
         ];
-        let cwd = cwd.or(self.cwd.as_deref());
+        let cwd = cwd.unwrap_or(self.pwd());
 
-        if let Some(cwd) = cwd {
-            base_argv.extend([
-                "-d".to_string(),
-                cwd.to_path_buf().to_string_lossy().to_string(),
-            ]);
-        }
+        base_argv.extend([
+            "-d".to_string(),
+            cwd.to_path_buf().to_string_lossy().to_string(),
+        ]);
+
         if let Some(user) = user {
             base_argv.extend(["-u".to_string(), user.to_string()]);
         }
@@ -192,14 +191,15 @@ impl Session for SchrootSession {
         if let Some(rest) = path.strip_prefix('/') {
             return self.location().join(rest);
         }
-        if let Some(cwd) = &self.cwd {
-            return self
-                .location()
-                .join(cwd.to_string_lossy().to_string().trim_end_matches('/'))
-                .join(path.as_ref());
-        } else {
-            panic!("no cwd set");
-        }
+
+        self.location()
+            .join(
+                self.cwd
+                    .to_string_lossy()
+                    .to_string()
+                    .trim_start_matches('/'),
+            )
+            .join(path.as_ref())
     }
 
     fn location(&self) -> std::path::PathBuf {
@@ -212,8 +212,12 @@ impl Session for SchrootSession {
     }
 
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), Error> {
-        self.cwd = Some(path.to_path_buf());
+        self.cwd = self.cwd.join(path);
         Ok(())
+    }
+
+    fn pwd(&self) -> &std::path::Path {
+        &self.cwd
     }
 
     fn mkdir(&self, path: &std::path::Path) -> Result<(), Error> {

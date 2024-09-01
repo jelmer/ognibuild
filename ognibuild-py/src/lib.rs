@@ -169,11 +169,11 @@ impl ognibuild::fix_build::BuildFixer<PyErr> for PyBuildFixer {
         &self,
         problem: &dyn buildlog_consultant::Problem,
         phase: &[&str],
-    ) -> Result<bool, ognibuild::fix_build::Error<PyErr>> {
+    ) -> Result<bool, ognibuild::fix_build::InterimError<PyErr>> {
         let p = if let Some(p) = problem.as_any().downcast_ref::<PyProblem>() {
             p
         } else {
-            return Err(ognibuild::fix_build::Error::Other(PyErr::new::<
+            return Err(ognibuild::fix_build::InterimError::Other(PyErr::new::<
                 PyException,
                 _,
             >((
@@ -185,7 +185,7 @@ impl ognibuild::fix_build::BuildFixer<PyErr> for PyBuildFixer {
             fix.call1(py, (p.0.clone_ref(py), phase.to_vec()))?
                 .extract(py)
         })
-        .map_err(ognibuild::fix_build::Error::Other)
+        .map_err(ognibuild::fix_build::InterimError::Other)
     }
 }
 
@@ -201,8 +201,11 @@ fn iterate_with_build_fixers(
         .into_iter()
         .map(|e| Box::new(PyBuildFixer(e)))
         .collect::<Vec<_>>();
-    let cb = || -> Result<_, ognibuild::fix_build::Error<PyErr>> {
-        pyo3::Python::with_gil(|py| cb.call0(py).map_err(ognibuild::fix_build::Error::Other))
+    let cb = || -> Result<_, ognibuild::fix_build::InterimError<PyErr>> {
+        pyo3::Python::with_gil(|py| {
+            cb.call0(py)
+                .map_err(ognibuild::fix_build::InterimError::Other)
+        })
     };
     ognibuild::fix_build::iterate_with_build_fixers(
         fixers
@@ -224,7 +227,7 @@ fn iterate_with_build_fixers(
             import_exception!(silver_platter.fix_build, FixerLimitReached);
             PyErr::new::<FixerLimitReached, _>((limit,))
         }
-        ognibuild::fix_build::IterateBuildError::PersistentBuildProblem(_problem) => {
+        ognibuild::fix_build::IterateBuildError::Persistent(_problem) => {
             import_exception!(silver_platter.fix_build, PersistentBuildProblem);
             let p = _problem.as_any().downcast_ref::<PyProblem>().unwrap();
             PyErr::new::<PersistentBuildProblem, _>((Python::with_gil(|py| p.0.clone_ref(py)),))
@@ -266,12 +269,12 @@ fn resolve_error(
     match r {
         Ok(r) => Ok(r),
         Err(e) => Err(match e {
-            ognibuild::fix_build::Error::Other(e) => e,
-            ognibuild::fix_build::Error::BuildProblem(problem) => {
+            ognibuild::fix_build::InterimError::Other(e) => e,
+            ognibuild::fix_build::InterimError::Recognized(problem) => {
                 let p = problem.as_any().downcast_ref::<PyProblem>().unwrap();
                 PyErr::from_value_bound(p.0.clone_ref(py).into_bound(py))
             }
-            ognibuild::fix_build::Error::Unidentified {
+            ognibuild::fix_build::InterimError::Unidentified {
                 retcode,
                 lines,
                 secondary: _,
@@ -657,7 +660,7 @@ fn get_user(session: &Session) -> PyResult<String> {
 struct UnshareSession;
 
 #[pyfunction]
-#[pyo3(signature = (session, args, cwd=None, user=None, env=None, stdin=None, stdout=None, stderr=None))]
+#[pyo3(signature = (session, args, cwd=None, user=None, env=None, stdin=None))]
 fn run_with_tee(
     session: &Session,
     args: Vec<String>,
@@ -665,13 +668,9 @@ fn run_with_tee(
     user: Option<&str>,
     env: Option<HashMap<String, String>>,
     stdin: Option<PyObject>,
-    stdout: Option<PyObject>,
-    stderr: Option<PyObject>,
 ) -> PyResult<(i32, Vec<String>)> {
     let args = args.iter().map(|x| x.as_str()).collect::<Vec<_>>();
     let stdin = extract_stdio(stdin)?;
-    let stdout = extract_stdio(stdout)?;
-    let stderr = extract_stdio(stderr)?;
     let (ret, output) = ognibuild::session::run_with_tee(
         session.get_session()?.as_ref(),
         args,
@@ -679,8 +678,6 @@ fn run_with_tee(
         user,
         env.as_ref(),
         stdin,
-        stdout,
-        stderr,
     )
     .map_err(map_session_error)?;
     Ok((ret.code().unwrap(), output))
