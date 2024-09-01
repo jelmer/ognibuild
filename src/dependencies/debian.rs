@@ -224,6 +224,7 @@ pub fn extract_upstream_dependency(dep: &DebianDependency) -> Option<Box<dyn Dep
         })
         .or_else(|| crate::dependencies::RubyGemDependency::from_debian_dependency(dep))
         .or_else(|| crate::dependencies::CargoCrateDependency::from_debian_dependency(dep))
+        .or_else(|| crate::dependencies::python::PythonDependency::from_debian_dependency(dep))
 }
 
 #[cfg(feature = "upstream")]

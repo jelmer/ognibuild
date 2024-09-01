@@ -1,6 +1,5 @@
 use crate::analyze::AnalyzedError;
-use crate::buildsystem::DependencyCategory;
-use crate::buildsystem::{guaranteed_which, BuildSystem};
+use crate::buildsystem::{guaranteed_which, BuildSystem, DependencyCategory, Error};
 use crate::dependencies::perl::PerlModuleDependency;
 use crate::fix_build::{BuildFixer, IterateBuildError};
 use crate::installer::Error as InstallerError;
@@ -102,6 +101,7 @@ pub fn declared_deps_from_meta_yml<R: Read>(
     ret
 }
 
+#[derive(Debug)]
 pub struct DistZilla {
     path: PathBuf,
     dist_inkt_class: Option<String>,
@@ -232,19 +232,19 @@ impl BuildSystem for DistZilla {
 
     fn clean(
         &self,
-        session: &dyn Session,
-        installer: &dyn crate::installer::Installer,
+        _session: &dyn Session,
+        _installer: &dyn crate::installer::Installer,
     ) -> Result<(), crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 
     fn install(
         &self,
-        session: &dyn Session,
-        installer: &dyn crate::installer::Installer,
-        install_target: &crate::buildsystem::InstallTarget,
+        _session: &dyn Session,
+        _installerr: &dyn crate::installer::Installer,
+        _install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 
     fn get_declared_dependencies(
@@ -286,13 +286,14 @@ impl BuildSystem for DistZilla {
 
     fn get_declared_outputs(
         &self,
-        session: &dyn Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
+        _session: &dyn Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 }
 
+#[derive(Debug)]
 pub struct PerlBuildTiny {
     path: PathBuf,
     minilla: bool,
@@ -348,8 +349,6 @@ impl BuildSystem for PerlBuildTiny {
                 vec!["minil", "dist"],
                 Some(&|_, _| !dc.find_files().is_some()),
                 quiet,
-                None,
-                None,
                 None,
                 None,
                 None,
@@ -508,6 +507,6 @@ impl BuildSystem for PerlBuildTiny {
         _session: &dyn Session,
         _fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 }

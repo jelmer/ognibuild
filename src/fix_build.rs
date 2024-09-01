@@ -209,8 +209,6 @@ pub fn run_fixing_problems<
                 user,
                 env,
                 None,
-                None,
-                None,
             )
             .map_err(|e| match e {
                 crate::analyze::AnalyzedError::Detailed { retcode: _, error } => {

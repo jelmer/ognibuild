@@ -15,6 +15,12 @@ pub struct PythonPackageDependency {
     specs: Vec<(String, String)>,
 }
 
+impl From<&pep508_rs::Requirement> for PythonPackageDependency {
+    fn from(requirement: &pep508_rs::Requirement) -> Self {
+        Self::from_requirement(requirement)
+    }
+}
+
 impl PythonPackageDependency {
     pub fn from_requirement(requirement: &pep508_rs::Requirement) -> Self {
         // TODO: properly parse the requirement
@@ -561,5 +567,136 @@ impl crate::buildlog::ToDependency
             "test" => Some(Box::new(PythonPackageDependency::simple("setuptools"))),
             _ => None,
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PythonDependency {
+    pub min_version: Option<String>,
+}
+
+impl PythonDependency {
+    pub fn new(min_version: Option<&str>) -> Self {
+        Self {
+            min_version: min_version.map(|s| s.to_string()),
+        }
+    }
+
+    pub fn simple() -> Self {
+        Self { min_version: None }
+    }
+
+    fn executable(&self) -> &str {
+        match &self.min_version {
+            Some(min_version) => {
+                if min_version.starts_with("2") {
+                    "python"
+                } else {
+                    "python3"
+                }
+            }
+            None => "python3",
+        }
+    }
+}
+
+impl Dependency for PythonDependency {
+    fn family(&self) -> &'static str {
+        "python"
+    }
+
+    fn present(&self, session: &dyn Session) -> bool {
+        let cmd = match self.min_version {
+            Some(ref min_version) => vec![
+                self.executable().to_string(),
+                "-c".to_string(),
+                format!(
+                    "import sys; sys.exit(0 if sys.version_info >= ({}) else 1)",
+                    min_version.replace(".", ", ")
+                ),
+            ],
+            None => vec![
+                "python3".to_string(),
+                "-c".to_string(),
+                "import sys; sys.exit(0 if sys.version_info >= (3, 0) else 1)".to_string(),
+            ],
+        };
+        session
+            .command(cmd.iter().map(|s| s.as_str()).collect())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .run()
+            .unwrap()
+            .success()
+    }
+
+    fn project_present(&self, session: &dyn Session) -> bool {
+        // Check if a virtualenv is present
+        session.exists(Path::new("bin/python"))
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+impl From<&pep440_rs::VersionSpecifiers> for PythonDependency {
+    fn from(specs: &pep440_rs::VersionSpecifiers) -> Self {
+        for specifier in specs.iter() {
+            match specifier.operator() {
+                pep440_rs::Operator::GreaterThanEqual => {
+                    return Self {
+                        min_version: Some(specifier.version().to_string()),
+                    }
+                }
+                _ => {}
+            }
+        }
+        Self { min_version: None }
+    }
+}
+
+impl crate::dependencies::debian::FromDebianDependency for PythonDependency {
+    fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>> {
+        let (name, min_version) =
+            crate::dependencies::debian::extract_simple_min_version(dependency)?;
+        if name == "python" || name == "python3" {
+            Some(Box::new(PythonDependency {
+                min_version: min_version.map(|x| x.upstream_version.clone()),
+            }))
+        } else {
+            None
+        }
+    }
+}
+
+impl crate::dependencies::debian::IntoDebianDependency for PythonDependency {
+    fn try_into_debian_dependency(
+        &self,
+        _apt: &crate::debian::apt::AptManager,
+    ) -> Option<Vec<DebianDependency>> {
+        let mut deps = vec![];
+        if let Some(min_version) = &self.min_version {
+            if min_version.starts_with("2") {
+                deps.push(
+                    crate::dependencies::debian::DebianDependency::new_with_min_version(
+                        "python",
+                        &min_version.parse::<debversion::Version>().unwrap(),
+                    ),
+                );
+            } else {
+                deps.push(
+                    crate::dependencies::debian::DebianDependency::new_with_min_version(
+                        "python3",
+                        &min_version.parse::<debversion::Version>().unwrap(),
+                    ),
+                );
+            }
+        } else {
+            deps.push(crate::dependencies::debian::DebianDependency::simple(
+                "python3",
+            ));
+        }
+        Some(deps)
     }
 }

@@ -1,6 +1,7 @@
+use crate::buildsystem::{BuildSystem, Error};
 use std::path::{Path, PathBuf};
-use crate::buildsystem::BuildSystem;
 
+#[derive(Debug)]
 pub struct Bazel {
     path: PathBuf,
 }
@@ -32,51 +33,75 @@ impl BuildSystem for Bazel {
 
     fn dist(
         &self,
-        session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
-        target_directory: &Path,
-        quiet: bool,
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+        _target_directory: &Path,
+        _quiet: bool,
     ) -> Result<std::ffi::OsString, crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 
-    fn test(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
-        session.command(vec!["bazel", "test", "//..."]).run_detecting_problems()?;
+    fn test(
+        &self,
+        session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
+        session
+            .command(vec!["bazel", "test", "//..."])
+            .run_detecting_problems()?;
         Ok(())
     }
 
-    fn build(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
-        session.command(vec!["bazel", "build", "//..."]).run_detecting_problems()?;
+    fn build(
+        &self,
+        session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
+        session
+            .command(vec!["bazel", "build", "//..."])
+            .run_detecting_problems()?;
         Ok(())
     }
 
-    fn clean(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
-        todo!()
+    fn clean(
+        &self,
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
+        Err(Error::Unimplemented)
     }
 
     fn install(
         &self,
         session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
-        install_target: &crate::buildsystem::InstallTarget
+        _installer: &dyn crate::installer::Installer,
+        _install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), crate::buildsystem::Error> {
-        session.command(vec!["bazel", "build", "//..."]).run_detecting_problems()?;
-        todo!()
+        session
+            .command(vec!["bazel", "build", "//..."])
+            .run_detecting_problems()?;
+        Err(Error::Unimplemented)
     }
 
     fn get_declared_dependencies(
         &self,
-        session: &dyn crate::session::Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
-    ) -> Result<Vec<(crate::buildsystem::DependencyCategory, Box<dyn crate::dependency::Dependency>)>, crate::buildsystem::Error> {
-        todo!()
+        _session: &dyn crate::session::Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+    ) -> Result<
+        Vec<(
+            crate::buildsystem::DependencyCategory,
+            Box<dyn crate::dependency::Dependency>,
+        )>,
+        crate::buildsystem::Error,
+    > {
+        Err(Error::Unimplemented)
     }
 
     fn get_declared_outputs(
         &self,
-        session: &dyn crate::session::Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+        _session: &dyn crate::session::Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 }

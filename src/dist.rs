@@ -1,7 +1,9 @@
 use crate::buildsystem::{detect_buildsystems, BuildSystem, Error};
 use crate::fix_build::{iterate_with_build_fixers, BuildFixer, InterimError};
 use crate::fixers::*;
-use crate::installer::{auto_installer, Error as InstallerError, InstallationScope};
+use crate::installer::{
+    auto_installation_scope, auto_installer, Error as InstallerError, InstallationScope,
+};
 use crate::logs::{wrap, LogManager};
 use crate::session::Session;
 use breezyshim::tree::Tree;
@@ -26,7 +28,8 @@ pub fn dist(
 
     // TODO(jelmer): use scan_buildsystems to also look in subdirectories
     let buildsystems = detect_buildsystems(export_directory);
-    let installer = auto_installer(session, false, None, None);
+    let scope = auto_installation_scope(session);
+    let installer = auto_installer(session, scope, None);
     let mut fixers: Vec<Box<dyn BuildFixer<InstallerError>>> = vec![
         Box::new(UnexpandedAutoconfMacroFixer::new(
             session,

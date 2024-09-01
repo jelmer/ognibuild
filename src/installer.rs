@@ -42,6 +42,29 @@ pub struct Explanation {
     pub command: Option<Vec<String>>,
 }
 
+impl Explanation {
+    pub fn new(message: String, command: Option<Vec<String>>) -> Self {
+        Explanation { message, command }
+    }
+}
+
+impl std::fmt::Display for Explanation {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.message)?;
+        if let Some(command) = &self.command {
+            write!(
+                f,
+                "\n\nRun the following command to install the dependency:\n\n"
+            )?;
+            for arg in command {
+                write!(f, "{} ", arg)?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    }
+}
+
 /// The scope of an installation.
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum InstallationScope {
@@ -53,6 +76,19 @@ pub enum InstallationScope {
 
     /// Vendored in the projects' source directory
     Vendor,
+}
+
+impl std::str::FromStr for InstallationScope {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "global" => Ok(InstallationScope::Global),
+            "user" => Ok(InstallationScope::User),
+            "vendor" => Ok(InstallationScope::Vendor),
+            _ => Err(Error::Other(format!("Unknown installation scope: {}", s))),
+        }
+    }
 }
 
 /// An installer can take a dependency and install it into the session.
@@ -243,41 +279,53 @@ pub fn native_installers<'a>(
 /// Select installers by name.
 pub fn select_installers<'a>(
     session: &'a dyn crate::session::Session,
-    names: Vec<String>,
-) -> Result<Vec<Box<dyn Installer + 'a>>, String> {
+    names: &[&str],
+    dep_server_url: Option<&url::Url>,
+) -> Result<Box<dyn Installer + 'a>, String> {
     let mut installers = Vec::new();
-    for name in names {
-        if let Some(installer) = installer_by_name(session, &name) {
+    for name in names.iter() {
+        if name == &"apt" {
+            if let Some(dep_server_url) = dep_server_url {
+                installers.push(Box::new(
+                    crate::debian::dep_server::DepServerAptInstaller::from_session(
+                        session,
+                        dep_server_url,
+                    ),
+                ) as Box<dyn Installer + 'a>);
+            } else {
+                installers.push(Box::new(crate::debian::apt::AptInstaller::from_session(
+                    session,
+                )));
+            }
+        } else if let Some(installer) = installer_by_name(session, &name) {
             installers.push(installer);
         } else {
             return Err(format!("Unknown installer: {}", name));
         }
     }
-    Ok(installers)
+    Ok(Box::new(StackedInstaller(installers)))
+}
+
+pub fn auto_installation_scope(session: &dyn crate::session::Session) -> InstallationScope {
+    let user = crate::session::get_user(session);
+    // TODO(jelmer): Check VIRTUAL_ENV, and prioritize PypiResolver if
+    // present?
+    if user == "root" || session.is_temporary() {
+        InstallationScope::Global
+    } else {
+        InstallationScope::User
+    }
 }
 
 pub fn auto_installer<'a>(
     session: &'a dyn crate::session::Session,
-    explain: bool,
-    system_wide: Option<bool>,
-    dep_server_url: Option<url::Url>,
+    scope: InstallationScope,
+    dep_server_url: Option<&url::Url>,
 ) -> Box<dyn Installer + 'a> {
     // if session is SchrootSession or if we're root, use apt
     let mut installers: Vec<Box<dyn Installer + 'a>> = Vec::new();
     let has_apt = crate::session::which(session, "apt-get").is_some();
-    let system_wide = if let Some(system_wide) = system_wide {
-        system_wide
-    } else {
-        let user = crate::session::get_user(session);
-        // TODO(jelmer): Check VIRTUAL_ENV, and prioritize PypiResolver if
-        // present?
-        if has_apt && (session.is_temporary() || user == "root" || explain) {
-            true
-        } else {
-            false
-        }
-    };
-    if system_wide && has_apt {
+    if scope == InstallationScope::Global && has_apt {
         if let Some(dep_server_url) = dep_server_url {
             installers.push(Box::new(
                 crate::debian::dep_server::DepServerAptInstaller::from_session(
@@ -334,10 +382,10 @@ pub fn install_missing_deps(
 /// # Arguments
 /// * `session` - The session to install the dependencies into.
 /// * `installer` - The installer to use.
-pub fn explain_missing_deps<'a>(
+pub fn explain_missing_deps(
     session: &dyn Session,
     installer: &dyn Installer,
-    deps: &[&'a dyn Dependency],
+    deps: &[&dyn Dependency],
 ) -> Result<Vec<Explanation>, Error> {
     if deps.is_empty() {
         return Ok(vec![]);

@@ -3,7 +3,7 @@ use crate::session::{CommandBuilder, Error, Session};
 pub struct UnshareSession {
     root: std::path::PathBuf,
     _tempdir: Option<tempfile::TempDir>,
-    cwd: Option<std::path::PathBuf>,
+    cwd: std::path::PathBuf,
 }
 
 impl UnshareSession {
@@ -28,7 +28,7 @@ impl UnshareSession {
         let s = Self {
             root: root.to_path_buf(),
             _tempdir: Some(td),
-            cwd: None,
+            cwd: std::path::PathBuf::from("/"),
         };
 
         s.ensure_current_user();
@@ -98,9 +98,7 @@ impl UnshareSession {
             "--root",
             self.root.to_str().unwrap(),
             "--wd",
-            cwd.or(self.cwd.as_deref())
-                .map(|x| x.to_str().unwrap())
-                .unwrap_or("/"),
+            cwd.unwrap_or(&self.cwd).to_str().unwrap(),
         ];
         if let Some(user) = user {
             if user == "root" {
@@ -142,22 +140,26 @@ impl UnshareSession {
 
 impl Session for UnshareSession {
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), crate::session::Error> {
-        self.cwd = Some(path.to_path_buf());
+        self.cwd = path.to_path_buf();
         Ok(())
+    }
+
+    fn pwd(&self) -> &std::path::Path {
+        &self.cwd
     }
 
     fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf {
         if let Ok(rest) = path.strip_prefix("/") {
             return self.location().join(rest);
         }
-        if let Some(cwd) = &self.cwd {
-            return self
-                .location()
-                .join(cwd.to_string_lossy().to_string().trim_start_matches('/'))
-                .join(path.to_string_lossy().to_string().trim_start_matches('/'));
-        } else {
-            panic!("no cwd set");
-        }
+        self.location()
+            .join(
+                self.cwd
+                    .to_string_lossy()
+                    .to_string()
+                    .trim_start_matches('/'),
+            )
+            .join(path)
     }
 
     fn location(&self) -> std::path::PathBuf {

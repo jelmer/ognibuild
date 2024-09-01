@@ -1,13 +1,14 @@
-use crate::analyze::{AnalyzedError};
-use crate::dependency::Dependency;
-use crate::dependencies::vague::VagueDependency;
+use crate::analyze::AnalyzedError;
 use crate::buildsystem::{BuildSystem, DependencyCategory, Error};
-use crate::session::Session;
+use crate::dependencies::vague::VagueDependency;
+use crate::dependency::Dependency;
 use crate::dist_catcher::DistCatcher;
 use crate::fix_build::BuildFixer;
 use crate::installer::Error as InstallerError;
+use crate::session::Session;
 use std::path::{Path, PathBuf};
 
+#[derive(Debug)]
 pub struct Meson {
     path: PathBuf,
 }
@@ -23,14 +24,24 @@ impl Meson {
         if !session.exists(Path::new("build")) {
             session.mkdir(Path::new("build")).unwrap();
         }
-        session.command(vec!["meson", "setup", "build"]).run_detecting_problems()?;
+        session
+            .command(vec!["meson", "setup", "build"])
+            .run_detecting_problems()?;
         Ok(())
     }
 
-    fn introspect(&self, session: &dyn Session, fixers: Option<&[&dyn BuildFixer<InstallerError>]>, args: &[&str]) -> Result<serde_json::Value, InstallerError> {
+    fn introspect(
+        &self,
+        session: &dyn Session,
+        fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
+        args: &[&str],
+    ) -> Result<serde_json::Value, InstallerError> {
         let args = [&["meson", "introspect"], args, &["./meson.build"]].concat();
         let ret = if let Some(fixers) = fixers {
-            session.command(args).run_fixing_problems::<_, Error>(fixers).unwrap()
+            session
+                .command(args)
+                .run_fixing_problems::<_, Error>(fixers)
+                .unwrap()
         } else {
             session.command(args).run_detecting_problems()?
         };
@@ -65,31 +76,56 @@ impl BuildSystem for Meson {
     ) -> Result<std::ffi::OsString, Error> {
         self.setup(session)?;
         let dc = DistCatcher::new(vec![session.external_path(Path::new("build/meson-dist"))]);
-        match session.command(vec!["ninja", "-C", "build", "dist"]).run_detecting_problems() {
+        match session
+            .command(vec!["ninja", "-C", "build", "dist"])
+            .run_detecting_problems()
+        {
             Ok(_) => {}
-            Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&"ninja: error: unknown target 'dist', did you mean 'dino'?".to_string()) => {
-                    unimplemented!();
+            Err(AnalyzedError::Unidentified { lines, .. })
+                if lines.contains(
+                    &"ninja: error: unknown target 'dist', did you mean 'dino'?".to_string(),
+                ) =>
+            {
+                unimplemented!();
             }
             Err(e) => return Err(e.into()),
         }
         Ok(dc.copy_single(target_directory).unwrap().unwrap())
     }
 
-    fn test(&self, session: &dyn Session, _installer: &dyn crate::installer::Installer) -> Result<(), Error> {
+    fn test(
+        &self,
+        session: &dyn Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), Error> {
         self.setup(session)?;
-        session.command(vec!["ninja", "-C", "build", "test"]).run_detecting_problems()?;
+        session
+            .command(vec!["ninja", "-C", "build", "test"])
+            .run_detecting_problems()?;
         Ok(())
     }
 
-    fn build(&self, session: &dyn Session, _installer: &dyn crate::installer::Installer) -> Result<(), Error> {
+    fn build(
+        &self,
+        session: &dyn Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), Error> {
         self.setup(session)?;
-        session.command(vec!["ninja", "-C", "build"]).run_detecting_problems()?;
+        session
+            .command(vec!["ninja", "-C", "build"])
+            .run_detecting_problems()?;
         Ok(())
     }
 
-    fn clean(&self, session: &dyn Session, _installer: &dyn crate::installer::Installer) -> Result<(), Error> {
+    fn clean(
+        &self,
+        session: &dyn Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), Error> {
         self.setup(session)?;
-        session.command(vec!["ninja", "-C", "build", "clean"]).run_detecting_problems()?;
+        session
+            .command(vec!["ninja", "-C", "build", "clean"])
+            .run_detecting_problems()?;
         Ok(())
     }
 
@@ -97,10 +133,12 @@ impl BuildSystem for Meson {
         &self,
         session: &dyn Session,
         _installer: &dyn crate::installer::Installer,
-        _install_target: &crate::buildsystem::InstallTarget
+        _install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), Error> {
         self.setup(session)?;
-        session.command(vec!["ninja", "-C", "build", "install"]).run_detecting_problems()?;
+        session
+            .command(vec!["ninja", "-C", "build", "install"])
+            .run_detecting_problems()?;
         Ok(())
     }
 
@@ -122,10 +160,13 @@ impl BuildSystem for Meson {
                 log::warn!("Unable to parse version constraints: {:?}", version);
             }
             // TODO(jelmer): Include entry['required']
-            ret.push((DependencyCategory::Universal, Box::new(VagueDependency {
-                name: entry["name"].as_str().unwrap().to_string(),
-                minimum_version,
-            })));
+            ret.push((
+                DependencyCategory::Universal,
+                Box::new(VagueDependency {
+                    name: entry["name"].as_str().unwrap().to_string(),
+                    minimum_version,
+                }),
+            ));
         }
         Ok(ret)
     }
@@ -145,7 +186,9 @@ impl BuildSystem for Meson {
             if entry.get("type").unwrap().as_str() == Some("executable") {
                 for name in entry.get("filename").unwrap().as_array().unwrap() {
                     let p = PathBuf::from(name.as_str().unwrap());
-                    ret.push(Box::new(crate::output::BinaryOutput::new(p.file_name().unwrap().to_str().unwrap())));
+                    ret.push(Box::new(crate::output::BinaryOutput::new(
+                        p.file_name().unwrap().to_str().unwrap(),
+                    )));
                 }
             }
             // TODO(jelmer): Handle other types
@@ -154,5 +197,3 @@ impl BuildSystem for Meson {
         Ok(ret)
     }
 }
-
-

@@ -4,28 +4,34 @@ use crate::dependencies::CargoCrateDependency;
 use crate::dependency::Dependency;
 use std::path::{Path, PathBuf};
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
+#[allow(dead_code)]
 struct Package {
     name: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 #[serde(untagged)]
+#[allow(dead_code)]
 enum CrateDependency {
     Version(String),
     Details {
-        version: String,
+        version: Option<String>,
         optional: Option<bool>,
         features: Option<Vec<String>>,
+        workspace: Option<bool>,
+        git: Option<String>,
+        branch: Option<String>,
+        #[serde(rename = "default-features")]
         default_features: Option<bool>,
     },
 }
 
 impl CrateDependency {
-    fn version(&self) -> &str {
+    fn version(&self) -> Option<&str> {
         match self {
-            Self::Version(v) => v,
-            Self::Details { version, .. } => version,
+            Self::Version(v) => Some(v.as_str()),
+            Self::Details { version, .. } => version.as_deref(),
         }
     }
 
@@ -37,12 +43,28 @@ impl CrateDependency {
     }
 }
 
-#[derive(serde::Deserialize)]
-struct CargoToml {
-    package: Package,
-    dependencies: Option<std::collections::HashMap<String, CrateDependency>>,
+#[derive(serde::Deserialize, Debug)]
+#[allow(dead_code)]
+pub struct CrateBinary {
+    name: String,
+    path: Option<PathBuf>,
+    #[serde(rename = "required-features")]
+    required_features: Option<Vec<String>>,
 }
 
+#[derive(serde::Deserialize, Debug)]
+pub struct CrateLibrary {}
+
+#[derive(serde::Deserialize, Debug)]
+#[allow(dead_code)]
+struct CargoToml {
+    package: Option<Package>,
+    dependencies: Option<std::collections::HashMap<String, CrateDependency>>,
+    bin: Option<Vec<CrateBinary>>,
+    lib: Option<CrateLibrary>,
+}
+
+#[derive(Debug)]
 pub struct Cargo {
     path: PathBuf,
     local_crate: CargoToml,
@@ -90,18 +112,18 @@ impl BuildSystem for Cargo {
 
     fn dist(
         &self,
-        session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
-        target_directory: &std::path::Path,
-        quiet: bool,
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+        _target_directory: &std::path::Path,
+        _quiet: bool,
     ) -> Result<std::ffi::OsString, Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 
     fn test(
         &self,
         session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
+        _installer: &dyn crate::installer::Installer,
     ) -> Result<(), Error> {
         session
             .command(vec!["cargo", "test"])
@@ -112,7 +134,7 @@ impl BuildSystem for Cargo {
     fn build(
         &self,
         session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
+        _installer: &dyn crate::installer::Installer,
     ) -> Result<(), Error> {
         match session
             .command(vec!["cargo", "generate"])
@@ -132,7 +154,7 @@ impl BuildSystem for Cargo {
     fn clean(
         &self,
         session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
+        _installer: &dyn crate::installer::Installer,
     ) -> Result<(), Error> {
         session
             .command(vec!["cargo", "clean"])
@@ -143,7 +165,7 @@ impl BuildSystem for Cargo {
     fn install(
         &self,
         session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
+        _installer: &dyn crate::installer::Installer,
         install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), Error> {
         let mut args = vec![
@@ -162,8 +184,8 @@ impl BuildSystem for Cargo {
 
     fn get_declared_dependencies(
         &self,
-        session: &dyn crate::session::Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+        _session: &dyn crate::session::Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<
         Vec<(
             crate::buildsystem::DependencyCategory,
@@ -193,9 +215,16 @@ impl BuildSystem for Cargo {
 
     fn get_declared_outputs(
         &self,
-        session: &dyn crate::session::Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+        _session: &dyn crate::session::Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
-        todo!()
+        let mut ret: Vec<Box<dyn crate::output::Output>> = vec![];
+        if let Some(bins) = &self.local_crate.bin {
+            for bin in bins {
+                ret.push(Box::new(crate::output::BinaryOutput::new(&bin.name)));
+            }
+        }
+        // TODO: library output
+        Ok(ret)
     }
 }

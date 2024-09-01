@@ -1,8 +1,8 @@
-use crate::buildsystem::{BuildSystem, DependencyCategory};
-use std::collections::HashMap;
+use crate::buildsystem::{BuildSystem, Error};
 use crate::dependencies::go::{GoDependency, GoPackageDependency};
 use std::path::{Path, PathBuf};
 
+#[derive(Debug)]
 pub struct Golang {
     path: PathBuf,
 }
@@ -23,14 +23,26 @@ impl Golang {
         }
         for entry in path.read_dir().unwrap() {
             let entry = entry.unwrap();
-            if entry.file_type().unwrap().is_dir() {
-                for subentry in entry.path().read_dir().unwrap() {
-                    let subentry = subentry.unwrap();
-                    if subentry.file_type().unwrap().is_file() {
-                        if subentry.path().extension().unwrap() == "go" {
+            if !entry.file_type().unwrap().is_dir() {
+                continue;
+            }
+            match entry.path().read_dir() {
+                Ok(d) => {
+                    for subentry in d {
+                        let subentry = subentry.unwrap();
+                        if subentry.file_type().unwrap().is_file()
+                            && subentry.path().extension() == Some(std::ffi::OsStr::new("go"))
+                        {
                             return Some(Box::new(Self::new(path)));
                         }
                     }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                    // Ignore permission denied errors.
+                    log::debug!("Permission denied reading {:?}", entry.path());
+                }
+                Err(e) => {
+                    panic!("Error reading {:?}: {:?}", entry.path(), e);
                 }
             }
         }
@@ -45,74 +57,87 @@ impl BuildSystem for Golang {
 
     fn dist(
         &self,
-        session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
-        target_directory: &Path,
-        quiet: bool,
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+        _target_directory: &Path,
+        _quiet: bool,
     ) -> Result<std::ffi::OsString, crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 
-    fn test(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
-        session.command(vec![
-            "go",
-            "test",
-            "./...",
-        ]).run_detecting_problems()?;
+    fn test(
+        &self,
+        session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
+        session
+            .command(vec!["go", "test", "./..."])
+            .run_detecting_problems()?;
         Ok(())
     }
 
-    fn build(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
-        session.command(vec![
-            "go",
-            "build",
-        ]).run_detecting_problems()?;
+    fn build(
+        &self,
+        session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
+        session
+            .command(vec!["go", "build"])
+            .run_detecting_problems()?;
         Ok(())
     }
 
-    fn clean(&self, session: &dyn crate::session::Session, installer: &dyn crate::installer::Installer) -> Result<(), crate::buildsystem::Error> {
-        session.command(vec![
-            "go",
-            "clean",
-        ]).check_call()?;
+    fn clean(
+        &self,
+        session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+    ) -> Result<(), crate::buildsystem::Error> {
+        session.command(vec!["go", "clean"]).check_call()?;
         Ok(())
     }
 
     fn install(
         &self,
         session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
-        install_target: &crate::buildsystem::InstallTarget
+        _installer: &dyn crate::installer::Installer,
+        _install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), crate::buildsystem::Error> {
-        session.command(vec![
-            "go",
-            "install",
-        ]).run_detecting_problems()?;
+        session
+            .command(vec!["go", "install"])
+            .run_detecting_problems()?;
         Ok(())
     }
 
     fn get_declared_dependencies(
         &self,
-        session: &dyn crate::session::Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
-    ) -> Result<Vec<(crate::buildsystem::DependencyCategory, Box<dyn crate::dependency::Dependency>)>, crate::buildsystem::Error> {
+        _session: &dyn crate::session::Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+    ) -> Result<
+        Vec<(
+            crate::buildsystem::DependencyCategory,
+            Box<dyn crate::dependency::Dependency>,
+        )>,
+        crate::buildsystem::Error,
+    > {
         let mut ret = vec![];
         let go_mod_path = self.path.join("go.mod");
         if go_mod_path.exists() {
             let f = std::fs::File::open(go_mod_path).unwrap();
-            ret.extend(go_mod_dependencies(f).into_iter().map(|dep| {
-                (crate::buildsystem::DependencyCategory::Build, dep)
-            }));
+            ret.extend(
+                go_mod_dependencies(f)
+                    .into_iter()
+                    .map(|dep| (crate::buildsystem::DependencyCategory::Build, dep)),
+            );
         }
         Ok(ret)
     }
 
     fn get_declared_outputs(
         &self,
-        session: &dyn crate::session::Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+        _session: &dyn crate::session::Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, crate::buildsystem::Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 }
 
@@ -134,7 +159,12 @@ impl GoModEntry {
             "exclude" => GoModEntry::Exclude(args[0].to_string(), args[1].to_string()),
             "replace" => {
                 assert_eq!(args[2], "=>");
-                GoModEntry::Replace(args[0].to_string(), args[1].to_string(), args[3].to_string(), args[4].to_string())
+                GoModEntry::Replace(
+                    args[0].to_string(),
+                    args[1].to_string(),
+                    args[3].to_string(),
+                    args[4].to_string(),
+                )
             }
             "retract" => GoModEntry::Retract(args[0].to_string(), args[1].to_string()),
             "toolchain" => GoModEntry::Toolchain(args[0].to_string()),
@@ -144,12 +174,15 @@ impl GoModEntry {
     }
 }
 
-
 fn parse_go_mod<R: std::io::Read>(f: R) -> Vec<GoModEntry> {
     let f = std::io::BufReader::new(f);
     let mut ret = vec![];
     use std::io::BufRead;
-    let lines = f.lines().map(|l| l.unwrap()).map(|l| l.split("//").next().unwrap().to_string()).collect::<Vec<_>>();
+    let lines = f
+        .lines()
+        .map(|l| l.unwrap())
+        .map(|l| l.split("//").next().unwrap().to_string())
+        .collect::<Vec<_>>();
     let mut line_iter = lines.iter();
     while let Some(mut line) = line_iter.next() {
         let parts = line.trim().split(" ").collect::<Vec<_>>();
@@ -159,7 +192,10 @@ fn parse_go_mod<R: std::io::Read>(f: R) -> Vec<GoModEntry> {
         if parts.len() == 2 && parts[1] == "(" {
             line = line_iter.next().unwrap();
             while line.trim() != ")" {
-                ret.push(GoModEntry::parse(parts[0], line.trim().split(' ').collect::<Vec<_>>().as_slice()));
+                ret.push(GoModEntry::parse(
+                    parts[0],
+                    line.trim().split(' ').collect::<Vec<_>>().as_slice(),
+                ));
                 line = line_iter.next().expect("unexpected EOF");
             }
         } else {
@@ -177,12 +213,15 @@ fn go_mod_dependencies<R: std::io::Read>(r: R) -> Vec<Box<dyn crate::dependency:
                 ret.push(Box::new(GoDependency::new(Some(&version))));
             }
             GoModEntry::Require(name, version) => {
-                ret.push(Box::new(GoPackageDependency::new(&name, Some(version.strip_prefix('v').unwrap()))));
+                ret.push(Box::new(GoPackageDependency::new(
+                    &name,
+                    Some(version.strip_prefix('v').unwrap()),
+                )));
             }
             GoModEntry::Exclude(_name, _version) => {
                 // TODO(jelmer): Create conflicts?
             }
-            GoModEntry::Module(_name) => {},
+            GoModEntry::Module(_name) => {}
             GoModEntry::Retract(_name, _version) => {}
             GoModEntry::Toolchain(_name) => {}
             GoModEntry::Replace(_n1, _v1, _n2, _v2) => {

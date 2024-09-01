@@ -1,9 +1,10 @@
-pub trait Output {
+pub trait Output: std::fmt::Debug {
     fn family(&self) -> &'static str;
 
     fn get_declared_dependencies(&self) -> Vec<String>;
 }
 
+#[derive(Debug)]
 pub struct BinaryOutput(pub String);
 
 impl BinaryOutput {
@@ -22,6 +23,7 @@ impl Output for BinaryOutput {
     }
 }
 
+#[derive(Debug)]
 pub struct PythonPackageOutput {
     pub name: String,
     pub version: Option<String>,
@@ -43,6 +45,7 @@ impl Output for PythonPackageOutput {
     }
 }
 
+#[derive(Debug)]
 pub struct RPackageOutput {
     pub name: String,
 }

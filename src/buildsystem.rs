@@ -8,7 +8,7 @@ use crate::session::{which, Session};
 use std::path::{Path, PathBuf};
 
 /// The category of a dependency
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, std::hash::Hash)]
 pub enum DependencyCategory {
     /// A dependency that is required for the package to build and run
     Universal,
@@ -20,6 +20,24 @@ pub enum DependencyCategory {
     Test,
     /// Needed for development, e.g. linters or IDE plugins
     Dev,
+    /// Extra build dependencies, e.g. for optional features
+    BuildExtra(String),
+    /// Extra dependencies, e.g. for optional features
+    RuntimeExtra(String),
+}
+
+impl std::fmt::Display for DependencyCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            DependencyCategory::Universal => write!(f, "universal"),
+            DependencyCategory::Build => write!(f, "build"),
+            DependencyCategory::Runtime => write!(f, "runtime"),
+            DependencyCategory::Test => write!(f, "test"),
+            DependencyCategory::Dev => write!(f, "dev"),
+            DependencyCategory::BuildExtra(s) => write!(f, "build-extra:{}", s),
+            DependencyCategory::RuntimeExtra(s) => write!(f, "runtime-extra:{}", s),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -198,7 +216,7 @@ pub fn guaranteed_which(
 }
 
 /// A particular buildsystem.
-pub trait BuildSystem {
+pub trait BuildSystem: std::fmt::Debug {
     /// The name of the buildsystem.
     fn name(&self) -> &str;
 
@@ -268,6 +286,7 @@ pub const PEAR_NAMESPACES: &[&str] = &[
     "http://pear.php.net/dtd/package-2.1",
 ];
 
+#[derive(Debug)]
 pub struct Pear(pub PathBuf);
 
 impl Pear {
@@ -488,6 +507,8 @@ pub fn scan_buildsystems(path: &Path) -> Vec<(PathBuf, Box<dyn BuildSystem>)> {
 
     ret
 }
+
+#[derive(Debug)]
 pub struct Composer(pub PathBuf);
 
 impl Composer {
@@ -557,6 +578,7 @@ impl BuildSystem for Composer {
     }
 }
 
+#[derive(Debug)]
 pub struct RunTests(pub PathBuf);
 
 impl RunTests {

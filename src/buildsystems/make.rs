@@ -15,6 +15,7 @@ enum Kind {
     Make,
 }
 
+#[derive(Debug)]
 pub struct Make {
     path: PathBuf,
     kind: Kind,
@@ -390,10 +391,11 @@ impl BuildSystem for Make {
         session: &dyn crate::session::Session,
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 }
 
+#[derive(Debug)]
 pub struct CMake {
     path: PathBuf,
     builddir: String,
@@ -442,12 +444,12 @@ impl crate::buildsystem::BuildSystem for CMake {
 
     fn dist(
         &self,
-        session: &dyn crate::session::Session,
-        installer: &dyn crate::installer::Installer,
-        target_directory: &std::path::Path,
-        quiet: bool,
+        _session: &dyn crate::session::Session,
+        _installer: &dyn crate::installer::Installer,
+        _target_directory: &std::path::Path,
+        _quiet: bool,
     ) -> Result<std::ffi::OsString, crate::buildsystem::Error> {
-        todo!()
+        Err(crate::buildsystem::Error::Unimplemented)
     }
 
     fn build(
@@ -496,8 +498,8 @@ impl crate::buildsystem::BuildSystem for CMake {
 
     fn get_declared_dependencies(
         &self,
-        session: &dyn crate::session::Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+        _session: &dyn crate::session::Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<
         Vec<(
             crate::buildsystem::DependencyCategory,
@@ -528,15 +530,15 @@ impl crate::buildsystem::BuildSystem for CMake {
         Ok(ret)
     }
 
-    fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
-        todo!()
+    fn test(&self, _session: &dyn Session, _installer: &dyn Installer) -> Result<(), Error> {
+        Err(Error::Unimplemented)
     }
 
     fn get_declared_outputs(
         &self,
-        session: &dyn Session,
-        fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
+        _session: &dyn Session,
+        _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
-        todo!()
+        Err(Error::Unimplemented)
     }
 }

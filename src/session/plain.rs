@@ -1,5 +1,6 @@
-pub struct PlainSession;
 use crate::session::{CommandBuilder, Error, Session};
+
+pub struct PlainSession(std::path::PathBuf);
 
 impl Default for PlainSession {
     fn default() -> Self {
@@ -9,7 +10,7 @@ impl Default for PlainSession {
 
 impl PlainSession {
     pub fn new() -> Self {
-        PlainSession
+        PlainSession(std::path::PathBuf::from("/"))
     }
 
     fn prepend_user<'a>(&'a self, user: Option<&'a str>, mut args: Vec<&'a str>) -> Vec<&'a str> {
@@ -36,7 +37,12 @@ impl Session for PlainSession {
     }
 
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), Error> {
-        std::env::set_current_dir(path).map_err(Error::IoError)
+        self.0 = path.into();
+        Ok(())
+    }
+
+    fn pwd(&self) -> &std::path::Path {
+        &self.0
     }
 
     fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf {
