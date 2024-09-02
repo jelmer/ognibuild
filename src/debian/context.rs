@@ -4,7 +4,7 @@ use breezyshim::debian::debcommit::debcommit;
 use breezyshim::error::Error as BrzError;
 use breezyshim::tree::{MutableTree, Tree};
 use breezyshim::workingtree::WorkingTree;
-use buildlog_consultant::sbuild::Phase;
+pub use buildlog_consultant::sbuild::Phase;
 use debian_analyzer::abstract_control::AbstractControlEditor;
 use debian_analyzer::editor::{Editor, EditorError, Marshallable, MutableTreeEdit, TreeEditor};
 use std::path::{Path, PathBuf};
@@ -70,14 +70,14 @@ pub struct DebianPackagingContext {
 impl DebianPackagingContext {
     pub fn new(
         tree: WorkingTree,
-        subpath: PathBuf,
+        subpath: &Path,
         committer: Option<(String, String)>,
         update_changelog: bool,
         commit_reporter: Box<dyn CommitReporter>,
     ) -> Self {
         Self {
             tree,
-            subpath,
+            subpath: subpath.to_path_buf(),
             committer: committer.unwrap_or_else(|| debian_changelog::get_maintainer().unwrap()),
             update_changelog,
             commit_reporter,

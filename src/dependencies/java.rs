@@ -42,7 +42,7 @@ impl crate::dependencies::debian::IntoDebianDependency for JavaClassDependency {
         )])
         .unwrap();
         let output = String::from_utf8(
-            apt.session
+            apt.session()
                 .command(vec![
                     "java-propose-classpath",
                     &format!("-c{}", &self.classname),

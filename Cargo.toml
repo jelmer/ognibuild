@@ -108,3 +108,8 @@ required-features = ["cli"]
 name = "ogni"
 path = "src/bin/ogni.rs"
 required-features = ["cli"]
+
+[[bin]]
+name = "deb-fix-build"
+path = "src/bin/deb-fix-build.rs"
+required-features = ["debian", "cli"]

@@ -32,7 +32,7 @@ pub fn builddeb_command(
     result_dir: Option<&std::path::Path>,
     apt_repository: Option<&str>,
     apt_repository_key: Option<&str>,
-    extra_repositories: Option<Vec<&str>>,
+    extra_repositories: Option<&Vec<&str>>,
 ) -> Vec<String> {
     let mut build_command = build_command.unwrap_or(DEFAULT_BUILDER).to_string();
 
@@ -88,7 +88,7 @@ pub fn build(
     source_date_epoch: Option<chrono::DateTime<chrono::Utc>>,
     apt_repository: Option<&str>,
     apt_repository_key: Option<&str>,
-    extra_repositories: Option<Vec<&str>>,
+    extra_repositories: Option<&Vec<&str>>,
 ) -> Result<(), BuildFailedError> {
     let args = builddeb_command(
         Some(build_command),
@@ -170,7 +170,7 @@ pub fn build_once(
     source_date_epoch: Option<chrono::DateTime<chrono::Utc>>,
     apt_repository: Option<&str>,
     apt_repository_key: Option<&str>,
-    extra_repositories: Option<Vec<&str>>,
+    extra_repositories: Option<&Vec<&str>>,
 ) -> Result<BuildOnceResult, BuildOnceError> {
     use buildlog_consultant::problems::debian::DpkgSourceLocalChanges;
     use buildlog_consultant::sbuild::{worker_failure_from_sbuild_log, SbuildLog};
@@ -345,7 +345,7 @@ pub fn attempt_build(
     run_gbp_dch: bool,
     apt_repository: Option<&str>,
     apt_repository_key: Option<&str>,
-    extra_repositories: Option<Vec<&str>>,
+    extra_repositories: Option<&Vec<&str>>,
 ) -> Result<BuildOnceResult, BuildOnceError> {
     if run_gbp_dch
         && subpath == std::path::Path::new("")
@@ -494,7 +494,7 @@ mod tests {
             Some(std::path::Path::new("/tmp")),
             Some("ppa:my-ppa/ppa"),
             Some("my-ppa-key"),
-            Some(vec!["deb http://example.com/debian buster main"]),
+            Some(&vec!["deb http://example.com/debian buster main"]),
         );
         assert_eq!(command, vec![
             python_command(),

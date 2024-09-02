@@ -101,7 +101,7 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {}
 
 pub struct AptManager<'a> {
-    pub session: &'a dyn Session,
+    session: &'a dyn Session,
     prefix: Vec<String>,
     searchers: RwLock<Option<Vec<Box<dyn crate::debian::file_search::FileSearcher<'a> + 'a>>>>,
 }
@@ -112,6 +112,10 @@ pub enum SatisfyEntry {
 }
 
 impl<'a> AptManager<'a> {
+    pub fn session(&self) -> &'a dyn Session {
+        self.session
+    }
+
     pub fn new(session: &'a dyn Session, prefix: Option<Vec<String>>) -> Self {
         Self {
             session,
