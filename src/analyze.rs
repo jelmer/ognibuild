@@ -25,11 +25,20 @@ pub enum AnalyzedError {
 impl From<std::io::Error> for AnalyzedError {
     fn from(e: std::io::Error) -> Self {
         #[cfg(unix)]
-        if e.raw_os_error() == Some(libc::ENOSPC) {
-            return AnalyzedError::Detailed {
-                retcode: 1,
-                error: Box::new(buildlog_consultant::problems::common::NoSpaceOnDevice),
-            };
+        match e.raw_os_error() {
+            Some(libc::ENOSPC) => {
+                return AnalyzedError::Detailed {
+                    retcode: 1,
+                    error: Box::new(buildlog_consultant::problems::common::NoSpaceOnDevice),
+                };
+            }
+            Some(libc::EMFILE) => {
+                return AnalyzedError::Detailed {
+                    retcode: 1,
+                    error: Box::new(buildlog_consultant::problems::common::TooManyOpenFiles)
+                }
+            }
+            _ => {}
         }
         AnalyzedError::IoError(e)
     }
