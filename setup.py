@@ -18,6 +18,16 @@ setup(
             "ogni",
             "Cargo.toml",
             features = ["cli"]
-        )
+        ),
+        RustBin(
+            "deb-upstream-deps",
+            "Cargo.toml",
+            features = ["cli", "debian"]
+        ),
+        RustBin(
+            "deb-fix-build",
+            "Cargo.toml",
+            features = ["cli", "debian"]
+        ),
     ],
 )

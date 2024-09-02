@@ -115,6 +115,6 @@ path = "src/bin/deb-fix-build.rs"
 required-features = ["debian", "cli"]
 
 [[bin]]
-name = "deb-sync-upstream-deps"
-path = "src/bin/deb-sync-upstream-deps.rs"
+name = "deb-upstream-deps"
+path = "src/bin/deb-upstream-deps.rs"
 required-features = ["cli", "debian"]
