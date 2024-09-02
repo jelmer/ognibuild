@@ -1,6 +1,6 @@
 use crate::buildsystem::{BuildSystem, Error, InstallTarget};
 use crate::fix_build::{iterate_with_build_fixers, BuildFixer, InterimError};
-use crate::installer::{Error as InstallerError, Installer, InstallationScope};
+use crate::installer::{Error as InstallerError, InstallationScope, Installer};
 use crate::logs::{wrap, LogManager};
 use crate::session::Session;
 use std::path::Path;
@@ -25,7 +25,6 @@ pub fn run_install(
     for buildsystem in buildsystems {
         return Ok(iterate_with_build_fixers(
             fixers,
-            &["install"],
             || -> Result<_, InterimError<Error>> {
                 Ok(wrap(log_manager, || -> Result<_, Error> {
                     Ok(buildsystem.install(session, installer, &target)?)

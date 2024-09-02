@@ -127,7 +127,7 @@ pub fn build_incrementally(
                 return Ok(result);
             }
             Err(BuildOnceError::Unidentified {
-                stage,
+                stage: _,
                 phase,
                 retcode,
                 command,

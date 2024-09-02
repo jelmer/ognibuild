@@ -8,7 +8,7 @@ pub trait BuildFixer<O: std::error::Error>: std::fmt::Debug + std::fmt::Display 
     fn can_fix(&self, problem: &dyn Problem) -> bool;
 
     /// Attempt to resolve the given problem.
-    fn fix(&self, problem: &dyn Problem, phase: &[&str]) -> Result<bool, InterimError<O>>;
+    fn fix(&self, problem: &dyn Problem) -> Result<bool, InterimError<O>>;
 }
 
 #[derive(Debug)]
@@ -86,7 +86,6 @@ pub fn iterate_with_build_fixers<
     E: From<I> + std::error::Error,
 >(
     fixers: &[&dyn BuildFixer<I>],
-    phase: &[&str],
     mut cb: impl FnMut() -> Result<T, InterimError<E>>,
     limit: Option<usize>,
 ) -> Result<T, IterateBuildError<E>> {
@@ -125,7 +124,7 @@ pub fn iterate_with_build_fixers<
                     return Err(IterateBuildError::FixerLimitReached(limit));
                 }
             }
-            match resolve_error(f.as_ref(), phase, fixers) {
+            match resolve_error(f.as_ref(), fixers) {
                 Err(InterimError::Recognized(n)) => {
                     info!("New error {:?} while resolving {:?}", &n, &f);
                     if to_resolve.contains(&n) {
@@ -160,7 +159,6 @@ pub fn iterate_with_build_fixers<
 
 pub fn resolve_error<O: std::error::Error>(
     problem: &dyn Problem,
-    phase: &[&str],
     fixers: &[&dyn BuildFixer<O>],
 ) -> Result<bool, InterimError<O>> {
     let relevant_fixers = fixers
@@ -173,7 +171,7 @@ pub fn resolve_error<O: std::error::Error>(
     }
     for fixer in relevant_fixers {
         info!("Attempting to use fixer {} to address {:?}", fixer, problem);
-        let made_changes = fixer.fix(problem, phase)?;
+        let made_changes = fixer.fix(problem)?;
         if made_changes {
             return Ok(true);
         }
@@ -198,7 +196,6 @@ pub fn run_fixing_problems<
 ) -> Result<Vec<String>, IterateBuildError<E>> {
     iterate_with_build_fixers::<Vec<String>, I, E>(
         fixers,
-        &["build"],
         || {
             crate::analyze::run_detecting_problems(
                 session,

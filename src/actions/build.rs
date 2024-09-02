@@ -17,7 +17,6 @@ pub fn run_build(
     for buildsystem in buildsystems {
         return Ok(iterate_with_build_fixers(
             fixers,
-            &["build"],
             || -> Result<_, InterimError<Error>> {
                 Ok(wrap(log_manager, || -> Result<_, Error> {
                     Ok(buildsystem.build(session, installer)?)
