@@ -18,10 +18,6 @@
 
 import logging
 import os
-import sys
-
-from debian.deb822 import PkgRelation
-from debmutate.control import ControlEditor, ensure_relation
 
 from ognibuild.buildlog import InstallFixer
 from ognibuild.resolver.apt import AptResolver
@@ -78,86 +74,3 @@ def get_project_wide_deps(
                 else:
                     raise ValueError(f"unknown dependency kind {kind}")
     return (build_deps, test_deps)
-
-
-def main(argv=None):  # noqa: C901
-    import argparse
-
-    import breezy
-    from breezy.errors import NotBranchError
-    from breezy.workingtree import WorkingTree
-
-    breezy.initialize()  # type: ignore
-    import breezy.bzr  # noqa: E402
-    import breezy.git  # noqa: E402
-
-    from ognibuild.buildsystem import scan_buildsystems
-    from ognibuild.session.plain import PlainSession
-
-    parser = argparse.ArgumentParser(prog="deb-sync-upstream-deps")
-    parser.add_argument(
-        "--verbose", help="be verbose", action="store_true", default=False
-    )
-    parser.add_argument(
-        "--update", action="store_true", help="Update current package"
-    )
-    parser.add_argument(
-        "--directory",
-        "-d",
-        metavar="DIRECTORY",
-        help="directory to run in",
-        type=str,
-        default=".",
-    )
-
-    args = parser.parse_args(argv)
-
-    if args.verbose:
-        loglevel = logging.DEBUG
-    else:
-        loglevel = logging.INFO
-    logging.basicConfig(level=loglevel, format="%(message)s")
-
-    try:
-        wt, subpath = WorkingTree.open_containing(args.directory)
-    except NotBranchError as e:
-        logging.fatal("please run deps in an existing branch: %s", e)
-        return 1
-
-    build_deps = []
-    test_deps = []
-
-    session = PlainSession()
-    for bs_subpath, bs in scan_buildsystems(wt.abspath(subpath)):
-        bs_build_deps, bs_test_deps = get_project_wide_deps(
-            session, wt, subpath, bs, bs_subpath
-        )
-        build_deps.extend(bs_build_deps)
-        test_deps.extend(bs_test_deps)
-    if build_deps:
-        print(
-            "Build-Depends: {}".format(
-                ", ".join([x.pkg_relation_str() for x in build_deps])
-            )
-        )
-    if test_deps:
-        print(
-            "Test-Depends: {}".format(
-                ", ".join([x.pkg_relation_str() for x in test_deps])
-            )
-        )
-    if args.update:
-        with ControlEditor(
-            wt.abspath(os.path.join(subpath, "debian", "control"))
-        ) as control:
-            for build_dep in build_deps:
-                for rel in build_dep.relations:
-                    old_str = control.source.get("Build-Depends", "")
-                    new_str = ensure_relation(old_str, PkgRelation.str([rel]))
-                    if old_str != new_str:
-                        logging.info("Bumped to %s", rel)
-                        control.source["Build-Depends"] = new_str
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))

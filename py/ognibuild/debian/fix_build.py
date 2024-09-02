@@ -22,7 +22,6 @@ __all__ = [
 import logging
 import os
 import shutil
-import sys
 from functools import partial
 from typing import Optional
 
@@ -80,7 +79,6 @@ from ..resolver.apt import (
 from .apt import AptManager
 from .build import (
     BUILD_LOG_FILENAME,
-    DEFAULT_BUILDER,
     DetailedDebianBuildFailure,
     UnidentifiedDebianBuildError,
     attempt_build,
@@ -635,158 +633,3 @@ def build_incrementally(
 
 
 rescue_build_log = _ognibuild_rs.rescue_build_log
-
-
-def main(argv=None):
-    import argparse
-
-    parser = argparse.ArgumentParser("ognibuild.debian.fix_build")
-    modifications = parser.add_argument_group("Modifications")
-    modifications.add_argument(
-        "--suffix",
-        type=str,
-        help="Suffix to use for test builds.",
-        default="fixbuild1",
-    )
-    modifications.add_argument(
-        "--suite", type=str, help="Suite to target.", default="unstable"
-    )
-    modifications.add_argument(
-        "--committer",
-        type=str,
-        help="Committer string (name and email)",
-        default=None,
-    )
-    modifications.add_argument(
-        "--no-update-changelog",
-        action="store_false",
-        default=None,
-        dest="update_changelog",
-        help="do not update the changelog",
-    )
-    modifications.add_argument(
-        "--update-changelog",
-        action="store_true",
-        dest="update_changelog",
-        help="force updating of the changelog",
-        default=None,
-    )
-    build_behaviour = parser.add_argument_group("Build Behaviour")
-    build_behaviour.add_argument(
-        "--output-directory", type=str, help="Output directory.", default=None
-    )
-    build_behaviour.add_argument(
-        "--build-command",
-        type=str,
-        help="Build command",
-        default=(DEFAULT_BUILDER + " -A -s -v"),
-    )
-
-    build_behaviour.add_argument(
-        "--max-iterations",
-        type=int,
-        default=DEFAULT_MAX_ITERATIONS,
-        help="Maximum number of issues to attempt to fix before giving up.",
-    )
-    build_behaviour.add_argument("--schroot", type=str, help="chroot to use.")
-    parser.add_argument(
-        "--dep-server-url",
-        type=str,
-        help="ognibuild dep server to use",
-        default=os.environ.get("OGNIBUILD_DEPS"),
-    )
-    parser.add_argument("--verbose", action="store_true", help="Be verbose")
-
-    args = parser.parse_args()
-    import contextlib
-    import tempfile
-
-    import breezy.bzr  # noqa: F401
-    import breezy.git  # noqa: F401
-
-    from ..session import Session
-    from ..session.plain import PlainSession
-    from ..session.schroot import SchrootSession
-
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
-    else:
-        logging.basicConfig(level=logging.INFO, format="%(message)s")
-
-    with contextlib.ExitStack() as es:
-        if args.output_directory is None:
-            output_directory = es.enter_context(tempfile.TemporaryDirectory())
-            logging.info("Using output directory %s", output_directory)
-        else:
-            output_directory = args.output_directory
-            if not os.path.isdir(output_directory):
-                parser.error(
-                    f"output directory {output_directory} is not a directory"
-                )
-
-        tree, subpath = WorkingTree.open_containing(".")
-        session: Session
-        if args.schroot:
-            # TODO(jelmer): pass in package name as part of session prefix
-            session = SchrootSession(
-                args.schroot, session_prefix="deb-fix-build"
-            )
-        else:
-            session = PlainSession()
-
-        es.enter_context(session)
-
-        apt = AptManager(session)
-
-        fixers = default_fixers(
-            tree,
-            subpath,
-            apt,
-            committer=args.committer,
-            update_changelog=args.update_changelog,
-            dep_server_url=args.dep_server_url,
-        )
-
-        try:
-            (changes_filenames, cl_entry) = build_incrementally(
-                local_tree=tree,
-                suffix=args.suffix,
-                build_suite=args.suite,
-                output_directory=output_directory,
-                build_command=args.build_command,
-                fixers=fixers,
-                max_iterations=args.max_iterations,
-                run_gbp_dch=(args.update_changelog is False),
-            )
-        except DetailedDebianBuildFailure as e:
-            if e.phase is None:
-                phase = "unknown phase"
-            elif len(e.phase) == 1:
-                phase = e.phase[0]
-            else:
-                phase = f"{e.phase[0]} ({e.phase[1]})"
-            logging.fatal("Error during %s: %s", phase, e.error)
-            if not args.output_directory:
-                rescue_build_log(output_directory, tree=tree)
-            return 1
-        except UnidentifiedDebianBuildError as e:
-            if e.phase is None:
-                phase = "unknown phase"
-            elif len(e.phase) == 1:
-                phase = e.phase[0]
-            else:
-                phase = f"{e.phase[0]} ({e.phase[1]})"
-            logging.fatal("Error during %s: %s", phase, e.description)
-            if not args.output_directory:
-                rescue_build_log(output_directory, tree=tree)
-            return 1
-
-        logging.info(
-            "Built %s - changes file at %r.",
-            cl_entry.version,
-            changes_filenames,
-        )
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv))

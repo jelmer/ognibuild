@@ -9,6 +9,7 @@ pub mod fixers;
 pub mod sources_list;
 #[cfg(feature = "udd")]
 pub mod udd;
+pub mod upstream_deps;
 use breezyshim::tree::{Path, Tree};
 
 use crate::session::Session;

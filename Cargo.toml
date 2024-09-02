@@ -19,7 +19,6 @@ clap = { version = "4", features = ["derive", "env"], optional = true }
 deb822-lossless = "0.1.23"
 debian-analyzer = { git = "https://salsa.debian.org/jelmer/lintian-brush", optional = true }
 #debian-analyzer = { path = "../lintian-brush/analyzer", optional = true }
-
 debian-changelog = { version = "0.1", optional = true }
 debian-control = { version = "0.1.25", optional = true }
 debversion = { version = "0.4", optional = true }
@@ -69,6 +68,7 @@ cli = ["dep:clap", "dep:env_logger"]
 udd = ["dep:sqlx", "dep:tokio", "debian"]
 dep-server = ["dep:axum", "dep:tokio"]
 upstream = ["dep:upstream-ontologist"]
+debian-analyzer = ["dep:debian-analyzer"]
 
 [workspace.dependencies]
 pyo3 = "0.22"
@@ -113,3 +113,8 @@ required-features = ["cli"]
 name = "deb-fix-build"
 path = "src/bin/deb-fix-build.rs"
 required-features = ["debian", "cli"]
+
+[[bin]]
+name = "deb-upstream-deps"
+path = "src/bin/deb-upstream-deps.rs"
+required-features = ["cli", "debian"]
