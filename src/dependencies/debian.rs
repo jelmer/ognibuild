@@ -58,6 +58,10 @@ impl DebianDependency {
         )
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = debian_control::relations::Entry> + '_ {
+        self.0.entries()
+    }
+
     pub fn relation_string(&self) -> String {
         self.0.to_string()
     }
