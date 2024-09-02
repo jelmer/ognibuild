@@ -62,7 +62,6 @@ pub fn dist(
                 .map(|x| x.as_ref())
                 .collect::<Vec<_>>()
                 .as_slice(),
-            &["dist"],
             || -> Result<_, InterimError<Error>> {
                 Ok(wrap(log_manager, || -> Result<_, Error> {
                     Ok(buildsystem.dist(session, installer.as_ref(), target_dir, quiet)?)

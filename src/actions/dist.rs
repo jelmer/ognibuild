@@ -21,7 +21,6 @@ pub fn run_dist(
     for buildsystem in buildsystems {
         return Ok(iterate_with_build_fixers(
             fixers,
-            &["dist"],
             || -> Result<_, InterimError<Error>> {
                 Ok(wrap(log_manager, || -> Result<_, Error> {
                     Ok(buildsystem.dist(session, installer, target_directory, quiet)?)

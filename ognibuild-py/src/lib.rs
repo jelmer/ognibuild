@@ -168,7 +168,6 @@ impl ognibuild::fix_build::BuildFixer<PyErr> for PyBuildFixer {
     fn fix(
         &self,
         problem: &dyn buildlog_consultant::Problem,
-        phase: &[&str],
     ) -> Result<bool, ognibuild::fix_build::InterimError<PyErr>> {
         let p = if let Some(p) = problem.as_any().downcast_ref::<PyProblem>() {
             p
@@ -182,7 +181,7 @@ impl ognibuild::fix_build::BuildFixer<PyErr> for PyBuildFixer {
         };
         pyo3::Python::with_gil(|py| {
             let fix = self.0.getattr(py, "fix")?;
-            fix.call1(py, (p.0.clone_ref(py), phase.to_vec()))?
+            fix.call1(py, (p.0.clone_ref(py), vec!["build".to_string()]))?
                 .extract(py)
         })
         .map_err(ognibuild::fix_build::InterimError::Other)
@@ -211,11 +210,6 @@ fn iterate_with_build_fixers(
         fixers
             .iter()
             .map(|p| p.as_ref() as &dyn ognibuild::fix_build::BuildFixer<PyErr>)
-            .collect::<Vec<_>>()
-            .as_slice(),
-        phase
-            .iter()
-            .map(|x| x.as_str())
             .collect::<Vec<_>>()
             .as_slice(),
         cb,
@@ -250,16 +244,10 @@ fn resolve_error(
     phase: Vec<String>,
     fixers: Vec<PyObject>,
 ) -> PyResult<bool> {
-    let phase = phase.as_slice();
     let problem = PyProblem(problem);
     let fixers = fixers.into_iter().map(PyBuildFixer).collect::<Vec<_>>();
     let r = ognibuild::fix_build::resolve_error(
         &problem,
-        phase
-            .iter()
-            .map(|x| x.as_str())
-            .collect::<Vec<_>>()
-            .as_slice(),
         fixers
             .iter()
             .map(|p| p as &dyn ognibuild::fix_build::BuildFixer<PyErr>)
