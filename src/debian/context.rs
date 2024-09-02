@@ -38,12 +38,33 @@ impl From<std::io::Error> for Error {
     }
 }
 
+impl From<Error> for crate::fix_build::InterimError<Error> {
+    fn from(e: Error) -> crate::fix_build::InterimError<Error> {
+        crate::fix_build::InterimError::Other(e)
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::CircularDependency(pkg) => write!(f, "Circular dependency on {}", pkg),
+            Error::MissingSource => write!(f, "No source stanza"),
+            Error::BrzError(e) => write!(f, "{}", e),
+            Error::EditorError(e) => write!(f, "{}", e),
+            Error::IoError(e) => write!(f, "{}", e),
+            Error::InvalidField(field, e) => write!(f, "Invalid field {}: {}", field, e),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
 pub struct DebianPackagingContext {
-    tree: WorkingTree,
-    subpath: PathBuf,
-    committer: (String, String),
-    update_changelog: bool,
-    commit_reporter: Box<dyn CommitReporter>,
+    pub tree: WorkingTree,
+    pub subpath: PathBuf,
+    pub committer: (String, String),
+    pub update_changelog: bool,
+    pub commit_reporter: Box<dyn CommitReporter>,
 }
 
 impl DebianPackagingContext {
@@ -61,6 +82,10 @@ impl DebianPackagingContext {
             update_changelog,
             commit_reporter,
         }
+    }
+
+    pub fn has_filename(&self, path: &Path) -> bool {
+        self.tree.has_filename(&self.subpath.join(path))
     }
 
     pub fn abspath(&self, path: &Path) -> PathBuf {
@@ -137,19 +162,27 @@ impl DebianPackagingContext {
         }
     }
 
-    fn add_build_dependency(&self, requirement: &DebianDependency) -> Result<bool, Error> {
-        let mut control: Box<dyn AbstractControlEditor> = if self
+    pub fn edit_control<'a>(&'a self) -> Result<Box<dyn AbstractControlEditor + 'a>, Error> {
+        if self
             .tree
             .has_filename(&self.subpath.join("debian/debcargo.toml"))
         {
-            Box::new(debian_analyzer::debcargo::DebcargoEditor::from_directory(
-                &self.tree.abspath(&self.subpath)?,
-            )?)
+            Ok(Box::new(
+                debian_analyzer::debcargo::DebcargoEditor::from_directory(
+                    &self.tree.abspath(&self.subpath).unwrap(),
+                )?,
+            ))
         } else {
             let control_path = self.abspath(Path::new("debian/control"));
-            Box::new(self.edit_file::<debian_control::Control>(&control_path, false)?)
-                as Box<dyn AbstractControlEditor>
-        };
+            Ok(
+                Box::new(self.edit_file::<debian_control::Control>(&control_path, false)?)
+                    as Box<dyn AbstractControlEditor>,
+            )
+        }
+    }
+
+    fn add_build_dependency(&self, requirement: &DebianDependency) -> Result<bool, Error> {
+        let mut control = self.edit_control()?;
 
         for binary in control.binaries() {
             if requirement.touches_package(&binary.name().unwrap()) {
@@ -180,6 +213,14 @@ impl DebianPackagingContext {
         Ok(true)
     }
 
+    pub fn edit_tests_control(&self) -> Result<TreeEditor<deb822_lossless::Deb822>, Error> {
+        Ok(self.edit_file::<deb822_lossless::Deb822>(Path::new("debian/tests/control"), false)?)
+    }
+
+    pub fn edit_rules(&self) -> Result<TreeEditor<makefile_lossless::Makefile>, Error> {
+        Ok(self.edit_file::<makefile_lossless::Makefile>(Path::new("debian/rules"), false)?)
+    }
+
     fn add_test_dependency(
         &self,
         testname: &str,
@@ -188,8 +229,7 @@ impl DebianPackagingContext {
         // TODO(jelmer): If requirement is for one of our binary packages  but "@" is already
         // present then don't do anything.
 
-        let editor =
-            self.edit_file::<deb822_lossless::Deb822>(Path::new("debian/tests/control"), false)?;
+        let editor = self.edit_tests_control()?;
 
         let mut command_counter = 1;
         for mut para in editor.paragraphs() {
