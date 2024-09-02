@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.x'
       - name: Install native dependencies (Ubuntu)
-        run: sudo apt-get update && sudo apt-get install -y libgpgme-dev
+        run: sudo apt-get update && sudo apt-get install -y libgpgme-dev libssl-dev
         if: "matrix.os == 'ubuntu-latest'"
       - name: set up rust
         if: matrix.os != 'ubuntu'
