@@ -167,9 +167,10 @@ impl Session for PlainSession {
         subdir: Option<&str>,
     ) -> Result<Project, Error> {
         use crate::vcs::{dupe_vcs_tree, export_vcs_tree};
-        if include_controldir == Some(false)
-            || (tree.basedir().is_some() && include_controldir.is_none())
-        {
+        if include_controldir.unwrap_or(true) && tree.basedir().is_some() {
+            // Optimization: just use the directory as-is, don't copy anything
+            Ok(Project::Noop(tree.basedir().unwrap()))
+        } else if !include_controldir.unwrap_or(false) {
             let td = tempfile::tempdir().unwrap();
             let p = if let Some(subdir) = subdir {
                 td.path().join(subdir)
@@ -180,9 +181,9 @@ impl Session for PlainSession {
             Ok(Project::Temporary {
                 internal_path: p.clone(),
                 external_path: p,
-                td: td.path().to_path_buf(),
+                td: td.into_path(),
             })
-        } else if tree.basedir().is_none() {
+        } else {
             let td = tempfile::tempdir().unwrap();
             let p = if let Some(subdir) = subdir {
                 td.path().join(subdir)
@@ -193,10 +194,8 @@ impl Session for PlainSession {
             Ok(Project::Temporary {
                 internal_path: p.clone(),
                 external_path: p,
-                td: td.path().to_path_buf(),
+                td: td.into_path(),
             })
-        } else {
-            Ok(Project::Noop(tree.basedir().unwrap()))
         }
     }
 
@@ -215,6 +214,7 @@ impl Session for PlainSession {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use breezyshim::tree::MutableTree;
 
     #[test]
     fn test_prepend_user() {
@@ -344,5 +344,40 @@ mod tests {
         );
         let output = child.wait_with_output().unwrap();
         assert_eq!(output.stdout, b"hello\n");
+    }
+
+    #[test]
+    fn test_project_from_vcs() {
+        let session = PlainSession::new();
+
+        let td = tempfile::tempdir().unwrap();
+        let tree = breezyshim::controldir::create_standalone_workingtree(
+            td.path(),
+            &breezyshim::controldir::ControlDirFormat::default(),
+        )
+        .unwrap();
+
+        let path = td.path();
+
+        tree.put_file_bytes_non_atomic(std::path::Path::new("test"), b"hello")
+            .unwrap();
+        tree.add(&[std::path::Path::new("test")]).unwrap();
+        tree.build_commit().message("test").commit().unwrap();
+        let project = session.project_from_vcs(&tree, None, None).unwrap();
+        assert_eq!(project.external_path(), path);
+        assert_eq!(project.internal_path(), path);
+        assert!(project.external_path().join(".bzr").exists());
+
+        let project = session.project_from_vcs(&tree, Some(true), None).unwrap();
+        assert_eq!(project.external_path(), path);
+        assert_eq!(project.internal_path(), path);
+
+        assert!(project.external_path().join(".bzr").exists());
+
+        let project = session.project_from_vcs(&tree, Some(false), None).unwrap();
+        assert_ne!(project.external_path(), path);
+        assert_ne!(project.internal_path(), path);
+
+        assert!(!project.external_path().join(".bzr").exists());
     }
 }
