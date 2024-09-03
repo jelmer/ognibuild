@@ -96,13 +96,12 @@ pub fn create_dist<T: crate::vcs::DupableTree>(
 ) -> Result<OsString, Error> {
     let temp_subdir = temp_subdir.unwrap_or("package");
 
-    let (export_directory, reldir) =
-        session.setup_from_vcs(tree, include_controldir, Some(Path::new(temp_subdir)))?;
+    let project = session.project_from_vcs(tree, include_controldir, Some(temp_subdir))?;
 
     dist(
         session,
-        &export_directory.join(subpath),
-        &reldir.join(subpath),
+        project.external_path(),
+        project.internal_path(),
         target_dir,
         log_manager,
         version,

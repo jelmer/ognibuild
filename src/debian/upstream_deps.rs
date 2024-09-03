@@ -15,10 +15,8 @@ pub fn get_project_wide_deps(
     let mut build_deps = vec![];
     let mut test_deps = vec![];
 
-    let (external_dir, internal_dir) = session
-        .setup_from_vcs(wt, None, Some(&subpath.join(buildsystem_subpath)))
-        .unwrap();
-    session.chdir(&internal_dir).unwrap();
+    let project = session.project_from_vcs(wt, None, None).unwrap();
+    session.chdir(&project.internal_path()).unwrap();
 
     let apt = crate::debian::apt::AptManager::new(session, None);
 

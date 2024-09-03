@@ -385,7 +385,7 @@ fn main() -> Result<(), i32> {
     };
     let mut td = None;
     // TODO(jelmer): Get a list of supported schemes from breezy?
-    let (external_dir, internal_dir) = if ["git", "http", "https", "ssh"].contains(&url.scheme()) {
+    let project = if ["git", "http", "https", "ssh"].contains(&url.scheme()) {
         let b = breezyshim::branch::open(&url).unwrap();
         log::info!("Cloning {}", args.directory);
         td = Some(tempfile::tempdir().unwrap());
@@ -400,7 +400,7 @@ fn main() -> Result<(), i32> {
             )
             .unwrap();
         let wt = to_dir.open_workingtree().unwrap();
-        session.setup_from_vcs(&wt, None, None).unwrap()
+        session.project_from_vcs(&wt, None, None).unwrap()
     } else {
         let directory = if url.scheme() == "file" {
             Path::new(url.path()).to_path_buf()
@@ -408,10 +408,10 @@ fn main() -> Result<(), i32> {
             PathBuf::from(args.directory.clone())
         };
         log::info!("Preparing directory {}", directory.display());
-        session.setup_from_directory(&directory, None).unwrap()
+        session.project_from_directory(&directory, None).unwrap()
     };
-    session.chdir(&internal_dir).unwrap();
-    std::env::set_current_dir(&external_dir).unwrap();
+    session.chdir(&project.internal_path()).unwrap();
+    std::env::set_current_dir(&project.external_path()).unwrap();
 
     if !session.is_temporary() && matches!(args.command, Command::Info) {
         args.explain = true;
@@ -460,7 +460,7 @@ fn main() -> Result<(), i32> {
     match run_action(
         session.as_ref(),
         scope,
-        external_dir.as_ref(),
+        project.external_path(),
         installer.as_ref(),
         fixers
             .iter()

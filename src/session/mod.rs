@@ -73,16 +73,16 @@ pub trait Session {
     /// Recursively remove a directory.
     fn rmtree(&self, path: &std::path::Path) -> Result<(), crate::session::Error>;
 
-    /// Setup a session from an existing directory.
+    /// Setup a project from an existing directory.
     ///
     /// # Arguments
     /// * `path` - The path to the directory to setup the session from.
     /// * `subdir` - The subdirectory to use as the session root.
-    fn setup_from_directory(
+    fn project_from_directory(
         &self,
         path: &std::path::Path,
         subdir: Option<&str>,
-    ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
+    ) -> Result<Project, Error>;
 
     fn command<'a>(&'a self, argv: Vec<&'a str>) -> CommandBuilder<'a>;
 
@@ -100,14 +100,78 @@ pub trait Session {
     /// Check if the session is temporary.
     fn is_temporary(&self) -> bool;
 
-    fn setup_from_vcs(
+    /// Setup a project from a VCS tree.
+    ///
+    /// # Arguments
+    /// * `tree` - The VCS tree to setup the session from.
+    /// * `include_controldir` - Whether to include the control directory.
+    /// * `subdir` - The subdirectory to use as the session root.
+    ///
+    /// # Returns
+    /// A tuple containing the path to the tree in the session and
+    /// the external path.
+    fn project_from_vcs(
         &self,
         tree: &dyn crate::vcs::DupableTree,
         include_controldir: Option<bool>,
-        subdir: Option<&std::path::Path>,
-    ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error>;
+        subdir: Option<&str>,
+    ) -> Result<Project, Error>;
 
     fn read_dir(&self, path: &std::path::Path) -> Result<Vec<std::fs::DirEntry>, Error>;
+}
+
+pub enum Project {
+    /// A project that does not need to be cleaned up.
+    Noop(std::path::PathBuf),
+
+    /// A temporary project that needs to be cleaned up.
+    Temporary {
+        external_path: std::path::PathBuf,
+        internal_path: std::path::PathBuf,
+        td: std::path::PathBuf,
+    },
+}
+
+impl Drop for Project {
+    fn drop(&mut self) {
+        match self {
+            Project::Noop(_) => {}
+            Project::Temporary {
+                external_path: _,
+                internal_path: _,
+                td,
+            } => {
+                log::info!("Removing temporary project {}", td.display());
+                std::fs::remove_dir_all(td).unwrap();
+            }
+        }
+    }
+}
+
+impl Project {
+    pub fn internal_path(&self) -> &std::path::Path {
+        match self {
+            Project::Noop(path) => path,
+            Project::Temporary { internal_path, .. } => internal_path,
+        }
+    }
+
+    pub fn external_path(&self) -> &std::path::Path {
+        match self {
+            Project::Noop(path) => path,
+            Project::Temporary { external_path, .. } => external_path,
+        }
+    }
+}
+
+impl From<tempfile::TempDir> for Project {
+    fn from(tempdir: tempfile::TempDir) -> Self {
+        Project::Temporary {
+            external_path: tempdir.path().to_path_buf(),
+            internal_path: tempdir.path().to_path_buf(),
+            td: tempdir.into_path(),
+        }
+    }
 }
 
 pub struct CommandBuilder<'a> {

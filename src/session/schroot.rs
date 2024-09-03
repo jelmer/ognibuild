@@ -1,4 +1,4 @@
-use crate::session::{CommandBuilder, Error, Session};
+use crate::session::{CommandBuilder, Error, Project, Session};
 use std::io::{BufRead, Read};
 
 extern crate rand;
@@ -280,11 +280,11 @@ impl Session for SchrootSession {
         crate::session::create_home(self)
     }
 
-    fn setup_from_directory(
+    fn project_from_directory(
         &self,
         path: &std::path::Path,
         subdir: Option<&str>,
-    ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
+    ) -> Result<Project, Error> {
         let subdir = subdir.unwrap_or("package");
         let reldir = self.build_tempdir();
         let export_directory = self.external_path(&reldir).join(subdir);
@@ -301,7 +301,11 @@ impl Session for SchrootSession {
         // Perform the copy operation
         fs_extra::dir::copy(path, &export_directory, &options).unwrap();
 
-        Ok((export_directory, reldir.join(subdir)))
+        Ok(Project::Temporary {
+            external_path: export_directory,
+            internal_path: reldir.join(subdir),
+            td: self.external_path(&reldir),
+        })
     }
 
     fn popen(
@@ -329,24 +333,28 @@ impl Session for SchrootSession {
         true
     }
 
-    fn setup_from_vcs(
+    fn project_from_vcs(
         &self,
         tree: &dyn crate::vcs::DupableTree,
         include_controldir: Option<bool>,
-        subdir: Option<&std::path::Path>,
-    ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
+        subdir: Option<&str>,
+    ) -> Result<Project, Error> {
         let reldir = self.build_tempdir();
 
-        let subdir = subdir.unwrap_or_else(|| std::path::Path::new("package"));
+        let subdir = subdir.unwrap_or("package");
 
         let export_directory = self.external_path(&reldir).join(subdir);
         if !include_controldir.unwrap_or(false) {
-            crate::vcs::export_vcs_tree(tree.as_tree(), &export_directory, Some(subdir)).unwrap();
+            crate::vcs::export_vcs_tree(tree.as_tree(), &export_directory, None).unwrap();
         } else {
             crate::vcs::dupe_vcs_tree(tree, &export_directory).unwrap();
         }
 
-        Ok((export_directory, reldir.join(subdir)))
+        Ok(Project::Temporary {
+            external_path: export_directory,
+            internal_path: reldir.join(subdir),
+            td: self.external_path(&reldir),
+        })
     }
 
     fn command<'a>(&'a self, argv: Vec<&'a str>) -> CommandBuilder<'a> {
