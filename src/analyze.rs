@@ -35,7 +35,7 @@ impl From<std::io::Error> for AnalyzedError {
             Some(libc::EMFILE) => {
                 return AnalyzedError::Detailed {
                     retcode: 1,
-                    error: Box::new(buildlog_consultant::problems::common::TooManyOpenFiles)
+                    error: Box::new(buildlog_consultant::problems::common::TooManyOpenFiles),
                 }
             }
             _ => {}
@@ -94,9 +94,6 @@ pub fn run_detecting_problems(
     env: Option<&std::collections::HashMap<String, String>>,
     stdin: Option<std::process::Stdio>,
 ) -> Result<Vec<String>, AnalyzedError> {
-    if !quiet {
-        log::info!("Running {:?}", args);
-    }
     let check_success = check_success.unwrap_or(&default_check_success);
 
     let (retcode, contents) = match run_with_tee(session, args.clone(), cwd, user, env, stdin) {
@@ -114,14 +111,21 @@ pub fn run_detecting_problems(
         }
         Err(SessionError::CalledProcessError(retcode)) => (retcode, vec![]),
     };
+
+    log::debug!(
+        "Command returned code {}, with {} lines of output.",
+        retcode.code().unwrap_or(1),
+        contents.len()
+    );
+
     if check_success(retcode, contents.iter().map(|s| s.as_str()).collect()) {
         return Ok(contents);
     }
-    let body = contents.join("");
-    let lines = body.split('\n').collect::<Vec<_>>();
-    let (r#match, error) =
-        buildlog_consultant::common::find_build_failure_description(lines.clone());
+    let (r#match, error) = buildlog_consultant::common::find_build_failure_description(
+        contents.iter().map(|x| x.as_str()).collect(),
+    );
     if let Some(error) = error {
+        log::debug!("Identified error: {}", error);
         Err(AnalyzedError::Detailed {
             retcode: retcode.code().unwrap_or(1),
             error,
@@ -131,11 +135,11 @@ pub fn run_detecting_problems(
             log::warn!("Build failed with unidentified error:");
             log::warn!("{}", r#match.line().trim_end_matches('\n'));
         } else {
-            log::warn!("Build failed and unable to find cause. Giving up.");
+            log::warn!("Build failed without error being identified.");
         }
         Err(AnalyzedError::Unidentified {
             retcode: retcode.code().unwrap_or(1),
-            lines: lines.into_iter().map(|s| s.to_string()).collect(),
+            lines: contents,
             secondary: r#match,
         })
     }
