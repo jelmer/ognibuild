@@ -184,7 +184,10 @@ fn fix_missing_config_status_input(
     context.commit("Run autogen.sh during build.", None)
 }
 
-pub struct PackageDependencyFixer<'a, 'b, 'c> where 'c: 'a {
+pub struct PackageDependencyFixer<'a, 'b, 'c>
+where
+    'c: 'a,
+{
     apt: &'a AptManager<'c>,
     context: &'b DebianPackagingContext,
     tie_breakers: Vec<Box<dyn TieBreaker>>,
@@ -233,7 +236,10 @@ impl<'a, 'b, 'c> DebianBuildFixer for PackageDependencyFixer<'a, 'b, 'c> {
     }
 }
 
-pub struct PgBuildExtOutOfDateControlFixer<'a, 'b, 'c, 'd> where 'a: 'c {
+pub struct PgBuildExtOutOfDateControlFixer<'a, 'b, 'c, 'd>
+where
+    'a: 'c,
+{
     session: &'a dyn Session,
     context: &'b DebianPackagingContext,
     apt: &'c AptManager<'d>,
@@ -275,17 +281,17 @@ impl<'a, 'b, 'c, 'd> DebianBuildFixer for PgBuildExtOutOfDateControlFixer<'a, 'b
                 "postgresql-common".to_string(),
             )])
             .unwrap();
-        let (_external_dir, internal_dir) = self
+        let project = self
             .session
-            .setup_from_vcs(&self.context.tree, None, Some(&self.context.subpath))
+            .project_from_vcs(&self.context.tree, None, None)
             .unwrap();
         self.session
             .command(vec!["pg_buildext", "updatecontrol"])
-            .cwd(&internal_dir)
+            .cwd(&project.internal_path())
             .check_call()
             .unwrap();
         std::fs::copy(
-            internal_dir.join(&error.generated_path),
+            project.internal_path().join(&error.generated_path),
             self.context.abspath(Path::new(&error.generated_path)),
         )
         .unwrap();
@@ -400,7 +406,13 @@ pub fn versioned_package_fixers<'a, 'b, 'c, 'd, 'e>(
     session: &'c dyn Session,
     packaging_context: &'b DebianPackagingContext,
     apt: &'a AptManager<'e>,
-) -> Vec<Box<dyn DebianBuildFixer + 'd>> where 'a: 'd, 'b: 'd, 'c: 'd, 'c: 'a {
+) -> Vec<Box<dyn DebianBuildFixer + 'd>>
+where
+    'a: 'd,
+    'b: 'd,
+    'c: 'd,
+    'c: 'a,
+{
     vec![
         Box::new(PgBuildExtOutOfDateControlFixer {
             context: packaging_context,
@@ -419,7 +431,11 @@ pub fn versioned_package_fixers<'a, 'b, 'c, 'd, 'e>(
 pub fn apt_fixers<'a, 'b, 'c, 'd>(
     apt: &'a AptManager<'d>,
     packaging_context: &'b DebianPackagingContext,
-) -> Vec<Box<dyn DebianBuildFixer + 'c>> where 'a: 'c, 'b: 'c {
+) -> Vec<Box<dyn DebianBuildFixer + 'c>>
+where
+    'a: 'c,
+    'b: 'c,
+{
     let apt_tie_breakers: Vec<Box<dyn TieBreaker>> = vec![
         Box::new(PythonTieBreaker::from_tree(
             &packaging_context.tree,
@@ -441,7 +457,11 @@ pub fn apt_fixers<'a, 'b, 'c, 'd>(
 pub fn default_fixers<'a, 'b, 'c, 'd>(
     packaging_context: &'a DebianPackagingContext,
     apt: &'b AptManager<'d>,
-) -> Vec<Box<dyn DebianBuildFixer + 'c>> where 'a: 'c, 'b: 'c {
+) -> Vec<Box<dyn DebianBuildFixer + 'c>>
+where
+    'a: 'c,
+    'b: 'c,
+{
     let mut ret = Vec::new();
     ret.extend(versioned_package_fixers(
         apt.session(),

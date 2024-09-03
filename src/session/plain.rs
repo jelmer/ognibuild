@@ -1,4 +1,4 @@
-use crate::session::{CommandBuilder, Error, Session};
+use crate::session::{CommandBuilder, Error, Project, Session};
 
 pub struct PlainSession(std::path::PathBuf);
 
@@ -119,12 +119,12 @@ impl Session for PlainSession {
         Ok(())
     }
 
-    fn setup_from_directory(
+    fn project_from_directory(
         &self,
         path: &std::path::Path,
         _subdir: Option<&str>,
-    ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
-        Ok((path.into(), path.into()))
+    ) -> Result<Project, Error> {
+        Ok(Project::Noop(path.to_path_buf()))
     }
 
     fn popen(
@@ -160,25 +160,43 @@ impl Session for PlainSession {
         false
     }
 
-    fn setup_from_vcs(
+    fn project_from_vcs(
         &self,
         tree: &dyn crate::vcs::DupableTree,
         include_controldir: Option<bool>,
-        subdir: Option<&std::path::Path>,
-    ) -> Result<(std::path::PathBuf, std::path::PathBuf), Error> {
+        subdir: Option<&str>,
+    ) -> Result<Project, Error> {
         use crate::vcs::{dupe_vcs_tree, export_vcs_tree};
         if include_controldir == Some(false)
             || (tree.basedir().is_some() && include_controldir.is_none())
         {
             let td = tempfile::tempdir().unwrap();
-            export_vcs_tree(tree.as_tree(), td.path(), subdir).unwrap();
-            Ok((td.path().to_path_buf(), td.path().to_path_buf()))
+            let p = if let Some(subdir) = subdir {
+                td.path().join(subdir)
+            } else {
+                td.path().to_path_buf()
+            };
+            export_vcs_tree(tree.as_tree(), &p, None).unwrap();
+            Ok(Project::Temporary {
+                internal_path: p.clone(),
+                external_path: p,
+                td: td.path().to_path_buf(),
+            })
         } else if tree.basedir().is_none() {
             let td = tempfile::tempdir().unwrap();
-            dupe_vcs_tree(tree, td.path()).unwrap();
-            Ok((td.path().to_path_buf(), td.path().to_path_buf()))
+            let p = if let Some(subdir) = subdir {
+                td.path().join(subdir)
+            } else {
+                td.path().to_path_buf()
+            };
+            dupe_vcs_tree(tree, &p).unwrap();
+            Ok(Project::Temporary {
+                internal_path: p.clone(),
+                external_path: p,
+                td: td.path().to_path_buf(),
+            })
         } else {
-            Ok((tree.basedir().unwrap(), tree.basedir().unwrap()))
+            Ok(Project::Noop(tree.basedir().unwrap()))
         }
     }
 
@@ -302,14 +320,14 @@ mod tests {
     }
 
     #[test]
-    fn test_setup_from_directory() {
+    fn test_project_from_directory() {
         let session = PlainSession::new();
         let td = tempfile::tempdir().unwrap();
         let path = td.path().join("test");
         session.mkdir(&path).unwrap();
-        let (src, dest) = session.setup_from_directory(&path, None).unwrap();
-        assert_eq!(src, path);
-        assert_eq!(dest, path);
+        let project = session.project_from_directory(&path, None).unwrap();
+        assert_eq!(project.external_path(), path);
+        assert_eq!(project.internal_path(), path);
     }
 
     #[test]

@@ -657,6 +657,9 @@ impl BuildSystem for RunTests {
 }
 
 pub fn detect_buildsystems(path: &std::path::Path) -> Vec<Box<dyn BuildSystem>> {
+    if !path.exists() {
+        panic!("Path does not exist: {:?}", path);
+    }
     let mut ret = vec![];
     for probe in [
         Pear::probe,
