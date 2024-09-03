@@ -389,7 +389,10 @@ impl Session {
             .project_from_directory(path.as_path(), subdir)
             .map_err(map_session_error)?;
 
-        Ok((project.external_path(), project.internal_path()))
+        Ok((
+            project.external_path().to_path_buf(),
+            project.internal_path().to_path_buf(),
+        ))
     }
 
     #[pyo3(signature = (tree, include_controldir=None, subdir=None))]
@@ -398,7 +401,7 @@ impl Session {
         py: Python,
         tree: PyObject,
         include_controldir: Option<bool>,
-        subdir: Option<std::path::PathBuf>,
+        subdir: Option<&str>,
     ) -> Result<(std::path::PathBuf, std::path::PathBuf), PyErr> {
         let tree: Box<dyn ognibuild::vcs::DupableTree> = if tree.bind(py).hasattr("_repository")? {
             Box::new(breezyshim::tree::RevisionTree(tree)) as _
@@ -407,10 +410,13 @@ impl Session {
         };
         let project = self
             .get_session()?
-            .project_from_vcs(tree.as_ref(), include_controldir, subdir.as_deref())
+            .project_from_vcs(tree.as_ref(), include_controldir, subdir)
             .map_err(map_session_error)?;
 
-        Ok((project.external_path(), project.internal_path()))
+        Ok((
+            project.external_path().to_path_buf(),
+            project.internal_path().to_path_buf(),
+        ))
     }
 
     #[getter]
