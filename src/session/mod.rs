@@ -371,6 +371,81 @@ pub fn get_user(session: &dyn Session) -> String {
     .to_string()
 }
 
+/// A function to capture and forward stdout and stderr of a child process.
+fn capture_and_forward_output(
+    mut child: std::process::Child,
+) -> Result<(std::process::ExitStatus, Vec<String>), std::io::Error> {
+    use std::io::{BufRead, BufReader};
+    use std::sync::mpsc::{channel, Receiver, Sender};
+    use std::thread;
+    let mut output_log = Vec::<String>::new();
+
+    // Channels to handle communication from threads
+    let (tx, rx): (Sender<Option<String>>, Receiver<Option<String>>) = channel();
+
+    // Function to handle the stdout of the child process
+    let stdout_tx = tx.clone();
+    let stdout = child.stdout.take().expect("Failed to capture stdout");
+    let stdout_handle = thread::spawn(move || -> Result<(), std::io::Error> {
+        let reader = BufReader::new(stdout);
+        for line in reader.lines() {
+            let line = line?;
+            std::io::stdout().write_all(line.as_bytes())?;
+            stdout_tx
+                .send(Some(line))
+                .expect("Failed to send stdout through channel");
+        }
+
+        stdout_tx
+            .send(None)
+            .expect("Failed to send None through channel");
+        Ok(())
+    });
+
+    // Function to handle the stderr of the child process
+    let stderr_tx = tx.clone();
+    let stderr = child.stderr.take().expect("Failed to capture stderr");
+    let stderr_handle = thread::spawn(move || -> Result<(), std::io::Error> {
+        let reader = BufReader::new(stderr);
+        for line in reader.lines() {
+            let line = line?;
+            std::io::stderr().write_all(line.as_bytes())?;
+            stderr_tx
+                .send(Some(line))
+                .expect("Failed to send stderr through channel");
+        }
+        stderr_tx
+            .send(None)
+            .expect("Failed to send None through channel");
+        Ok(())
+    });
+
+    // Wait for the child process to exit
+    let status = child.wait().expect("Child process wasn't running");
+    stderr_handle
+        .join()
+        .expect("Failed to join stderr thread")?;
+    stdout_handle
+        .join()
+        .expect("Failed to join stdout thread")?;
+
+    let mut terminated = 0;
+
+    // Collect all output from both stdout and stderr
+    while let Ok(line) = rx.recv() {
+        if let Some(line) = line {
+            output_log.push(line);
+        } else {
+            terminated += 1;
+            if terminated == 2 {
+                break;
+            }
+        }
+    }
+
+    Ok((status, output_log))
+}
+
 pub fn run_with_tee(
     session: &dyn Session,
     args: Vec<&str>,
@@ -379,8 +454,16 @@ pub fn run_with_tee(
     env: Option<&std::collections::HashMap<String, String>>,
     stdin: Option<std::process::Stdio>,
 ) -> Result<(ExitStatus, Vec<String>), Error> {
-    log::debug!("Running command: {:?}", args);
-    let mut p = session.popen(
+    if let (Some(cwd), Some(user)) = (cwd, user) {
+        log::debug!("Running command: {:?} in {:?} as user {}", args, cwd, user);
+    } else if let Some(cwd) = cwd {
+        log::debug!("Running command: {:?} in {:?}", args, cwd);
+    } else if let Some(user) = user {
+        log::debug!("Running command: {:?} as user {}", args, user);
+    } else {
+        log::debug!("Running command: {:?}", args);
+    }
+    let p = session.popen(
         args,
         cwd,
         user,
@@ -391,24 +474,7 @@ pub fn run_with_tee(
     );
     // While the process is running, read its output and write it to stdout
     // *and* to the contents variable.
-    let mut contents = Vec::new();
-    let stdout = p.stdout.as_mut().unwrap();
-    let mut stdout_reader = std::io::BufReader::new(stdout);
-    loop {
-        let mut line = String::new();
-        match stdout_reader.read_line(&mut line) {
-            Ok(0) => break,
-            Ok(_) => {
-                std::io::stdout().write_all(line.as_bytes()).unwrap();
-                contents.push(line);
-            }
-            Err(e) => {
-                return Err(Error::IoError(e));
-            }
-        }
-    }
-    let status = p.wait().unwrap();
-    Ok((status, contents))
+    Ok(capture_and_forward_output(p)?)
 }
 
 pub fn create_home(session: &impl Session) -> Result<(), Error> {
@@ -451,5 +517,19 @@ mod tests {
         let session = super::plain::PlainSession::new();
         let which = super::which(&session, "ls");
         assert!(which.unwrap().ends_with("/ls"));
+    }
+
+    #[test]
+    fn test_capture_and_forward_output() {
+        let p = std::process::Command::new("echo")
+            .arg("Hello, world!")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let (status, output) = super::capture_and_forward_output(p).unwrap();
+        assert!(status.success());
+        assert_eq!(output, vec!["Hello, world!"]);
     }
 }

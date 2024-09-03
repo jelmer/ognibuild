@@ -29,11 +29,11 @@ impl Session for PlainSession {
     }
 
     fn exists(&self, path: &std::path::Path) -> bool {
-        std::path::Path::new(path).exists()
+        self.0.join(path).exists()
     }
 
     fn mkdir(&self, path: &std::path::Path) -> Result<(), Error> {
-        std::fs::create_dir_all(path).map_err(Error::IoError)
+        std::fs::create_dir_all(self.0.join(path)).map_err(Error::IoError)
     }
 
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), Error> {
@@ -46,7 +46,7 @@ impl Session for PlainSession {
     }
 
     fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf {
-        std::path::PathBuf::from(path).canonicalize().unwrap()
+        self.0.join(path).canonicalize().unwrap()
     }
 
     fn check_output(
@@ -147,7 +147,8 @@ impl Session for PlainSession {
             .stdout(stdout.unwrap_or(std::process::Stdio::inherit()))
             .stderr(stderr.unwrap_or(std::process::Stdio::inherit()));
 
-        cmd = cmd.current_dir(cwd.unwrap_or(self.0.as_path()));
+        let cwd = cwd.map_or_else(|| self.0.clone(), |p| self.0.join(p));
+        cmd = cmd.current_dir(cwd);
 
         if let Some(env) = env {
             cmd = cmd.envs(env);
@@ -379,5 +380,17 @@ mod tests {
         assert_ne!(project.internal_path(), path);
 
         assert!(!project.external_path().join(".bzr").exists());
+    }
+
+    #[test]
+    fn test_output() {
+        let session = PlainSession::new();
+        let output = session
+            .command(vec!["echo", "hello"])
+            .stdout(std::process::Stdio::piped())
+            .output()
+            .unwrap()
+            .stdout;
+        assert_eq!(output, b"hello\n");
     }
 }

@@ -1,7 +1,7 @@
-use buildlog_consultant::Problem;
 use crate::dependency::Dependency;
 use buildlog_consultant::problems::common::*;
 use buildlog_consultant::problems::debian::UnsatisfiedAptDependencies;
+use buildlog_consultant::Problem;
 
 pub trait ToDependency: Problem {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>>;
@@ -9,7 +9,11 @@ pub trait ToDependency: Problem {
 
 macro_rules! try_problem_to_dependency {
     ($expr:expr, $type:ty) => {
-        if let Some(p) = $expr.as_any().downcast_ref::<$type>().and_then(|p| p.to_dependency()) {
+        if let Some(p) = $expr
+            .as_any()
+            .downcast_ref::<$type>()
+            .and_then(|p| p.to_dependency())
+        {
             return Some(p);
         }
     };
@@ -72,6 +76,7 @@ pub fn problem_to_dependency(problem: &dyn Problem) -> Option<Box<dyn Dependency
     try_problem_to_dependency!(problem, MissingRPackage);
     try_problem_to_dependency!(problem, MissingVagueDependency);
     try_problem_to_dependency!(problem, MissingXmlEntity);
+    try_problem_to_dependency!(problem, MissingMakeTarget);
 
     None
 }

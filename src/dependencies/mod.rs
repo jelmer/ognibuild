@@ -486,6 +486,12 @@ pub struct PathDependency {
     path: PathBuf,
 }
 
+impl From<PathBuf> for PathDependency {
+    fn from(path: PathBuf) -> Self {
+        Self { path }
+    }
+}
+
 impl PathDependency {
     pub fn new(path: &str) -> Self {
         Self {

@@ -21,6 +21,7 @@ pub struct Make {
     kind: Kind,
 }
 
+/// Check if a Makefile exists in the current directory.
 fn makefile_exists(session: &dyn Session) -> bool {
     session.exists(Path::new("Makefile"))
         || session.exists(Path::new("GNUmakefile"))
@@ -228,6 +229,21 @@ impl Make {
     }
 }
 
+impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingMakeTarget {
+    fn to_dependency(&self) -> Option<Box<dyn crate::dependency::Dependency>> {
+        if let Some(_local_path) = self.0.strip_prefix("/<<PKGBUILDDIR>>/") {
+            // Local file or target
+            None
+        } else if self.0.starts_with('/') {
+            Some(Box::new(crate::dependencies::PathDependency::from(
+                PathBuf::from(&self.0),
+            )))
+        } else {
+            None
+        }
+    }
+}
+
 impl BuildSystem for Make {
     fn name(&self) -> &str {
         "make"
@@ -377,7 +393,7 @@ impl BuildSystem for Make {
             ret.extend(
                 crate::buildsystems::perl::declared_deps_from_cpanfile(
                     session,
-                    fixers.unwrap_or(&vec![]),
+                    fixers.unwrap_or(&[]),
                 )
                 .into_iter()
                 .map(|d| (d.0, Box::new(d.1) as Box<dyn crate::dependency::Dependency>)),
@@ -540,5 +556,47 @@ impl crate::buildsystem::BuildSystem for CMake {
         _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
         Err(Error::Unimplemented)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_log::test;
+
+    #[test]
+    fn test_exists() {
+        let mut session = crate::session::plain::PlainSession::new();
+        let td = tempfile::tempdir().unwrap();
+        session.chdir(td.path()).unwrap();
+        assert!(!makefile_exists(&session));
+        std::fs::write(td.path().join("Makefile"), b"").unwrap();
+        assert!(makefile_exists(&session));
+    }
+
+    #[test]
+    fn test_simple() {
+        let mut session = crate::session::plain::PlainSession::new();
+        let td = tempfile::tempdir().unwrap();
+        session.chdir(td.path()).unwrap();
+        std::fs::write(
+            td.path().join("Makefile"),
+            r###"
+
+all:
+
+test:
+
+check:
+
+"###,
+        )
+        .unwrap();
+        let make = Make::probe(td.path()).expect("make");
+
+        make.build(&session, &crate::installer::NullInstaller)
+            .unwrap();
+
+        std::mem::drop(td);
     }
 }
