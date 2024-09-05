@@ -73,7 +73,7 @@ debian-analyzer = ["dep:debian-analyzer"]
 [workspace.dependencies]
 pyo3 = "0.22"
 breezyshim = "0.1"
-buildlog-consultant = { git = "https://github.com/jelmer/buildlog-consultant" }
+buildlog-consultant = ">=0.0.41"
 
 [workspace]
 members = ["ognibuild-py"]
