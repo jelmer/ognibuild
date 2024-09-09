@@ -276,7 +276,9 @@ pub fn native_installers<'a>(
     .collect()
 }
 
-fn apt_installer<'a>(session: &'a dyn crate::session::Session, dep_server_url: Option<&url::Url>) -> Box<dyn Installer + 'a> {
+fn apt_installer<'a>(session: &'a dyn crate::session::Session,
+    #[allow(unused_variables)]
+    dep_server_url: Option<&url::Url>) -> Box<dyn Installer + 'a> {
     #[cfg(feature = "dep-server")]
     if let Some(dep_server_url) = dep_server_url {
         Box::new(
