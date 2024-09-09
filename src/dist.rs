@@ -124,7 +124,7 @@ pub fn create_dist_schroot<T: crate::vcs::DupableTree>(
     tree: &T,
     target_dir: &Path,
     chroot: &str,
-    packaging_tree: Option<&dyn Tree>,
+    packaging_tree: Option<&dyn breezyshim::tree::Tree>,
     packaging_subpath: Option<&Path>,
     include_controldir: Option<bool>,
     subpath: &Path,
