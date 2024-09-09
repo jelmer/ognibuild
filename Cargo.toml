@@ -16,7 +16,7 @@ buildlog-consultant.workspace = true
 chrono = "0.4.38"
 clap = { version = "4", features = ["derive", "env"], optional = true }
 deb822-lossless = "0.1.23"
-debian-analyzer = { version = "0.158.11", optional = true }
+debian-analyzer = { version = "0.158.12", optional = true }
 #debian-analyzer = { path = "../lintian-brush/analyzer", optional = true }
 debian-changelog = { version = "0.1", optional = true }
 debian-control = { version = "0.1.25", optional = true }

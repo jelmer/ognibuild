@@ -3,7 +3,8 @@ use crate::dependencies::debian::DebianDependency;
 use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
-use debian_control::relations::{Relation, Relations, VersionConstraint};
+use debian_control::lossless::relations::{Relation, Relations};
+use debian_control::relations::VersionConstraint;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 

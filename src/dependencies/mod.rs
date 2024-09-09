@@ -157,7 +157,7 @@ impl crate::dependencies::debian::IntoDebianDependency for VcsControlDirectoryAc
             })
             .collect::<Vec<_>>();
 
-        let rels: Vec<debian_control::relations::Relations> =
+        let rels: Vec<debian_control::lossless::relations::Relations> =
             pkgs.iter().map(|p| p.parse().unwrap()).collect();
 
         Some(

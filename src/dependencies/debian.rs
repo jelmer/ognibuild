@@ -1,6 +1,7 @@
 use crate::dependency::Dependency;
 use crate::session::Session;
-use debian_control::relations::{Relation, Relations, VersionConstraint};
+use debian_control::lossless::relations::{Entry, Relation, Relations};
+use debian_control::relations::VersionConstraint;
 use debversion::Version;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashSet;
@@ -58,7 +59,7 @@ impl DebianDependency {
         )
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = debian_control::relations::Entry> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = Entry> + '_ {
         self.0.entries()
     }
 
