@@ -161,6 +161,7 @@ impl Session for PlainSession {
         false
     }
 
+    #[cfg(feature = "breezy")]
     fn project_from_vcs(
         &self,
         tree: &dyn crate::vcs::DupableTree,
@@ -215,7 +216,6 @@ impl Session for PlainSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use breezyshim::tree::MutableTree;
 
     #[test]
     fn test_prepend_user() {
@@ -347,8 +347,11 @@ mod tests {
         assert_eq!(output.stdout, b"hello\n");
     }
 
+    #[cfg(feature = "breezy")]
     #[test]
     fn test_project_from_vcs() {
+        use breezyshim::tree::MutableTree;
+        let env = breezyshim::testing::TestEnv::new();
         let session = PlainSession::new();
 
         let td = tempfile::tempdir().unwrap();
@@ -380,6 +383,7 @@ mod tests {
         assert_ne!(project.internal_path(), path);
 
         assert!(!project.external_path().join(".bzr").exists());
+        std::mem::drop(env);
     }
 
     #[test]

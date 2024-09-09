@@ -276,6 +276,30 @@ pub fn native_installers<'a>(
     .collect()
 }
 
+fn apt_installer<'a>(session: &'a dyn crate::session::Session, dep_server_url: Option<&url::Url>) -> Box<dyn Installer + 'a> {
+    #[cfg(feature = "dep-server")]
+    if let Some(dep_server_url) = dep_server_url {
+        Box::new(
+            crate::debian::dep_server::DepServerAptInstaller::from_session(
+                session,
+                dep_server_url,
+            ),
+        ) as Box<dyn Installer + 'a>
+    } else {
+        Box::new(crate::debian::apt::AptInstaller::from_session(
+            session,
+        ))
+    }
+
+    #[cfg(not(feature = "dep-server"))]
+    {
+        Box::new(crate::debian::apt::AptInstaller::from_session(
+            session,
+        ))
+    }
+
+}
+
 /// Select installers by name.
 pub fn select_installers<'a>(
     session: &'a dyn crate::session::Session,
@@ -285,18 +309,7 @@ pub fn select_installers<'a>(
     let mut installers = Vec::new();
     for name in names.iter() {
         if name == &"apt" {
-            if let Some(dep_server_url) = dep_server_url {
-                installers.push(Box::new(
-                    crate::debian::dep_server::DepServerAptInstaller::from_session(
-                        session,
-                        dep_server_url,
-                    ),
-                ) as Box<dyn Installer + 'a>);
-            } else {
-                installers.push(Box::new(crate::debian::apt::AptInstaller::from_session(
-                    session,
-                )));
-            }
+            installers.push(apt_installer(session, dep_server_url));
         } else if let Some(installer) = installer_by_name(session, &name) {
             installers.push(installer);
         } else {
@@ -326,18 +339,7 @@ pub fn auto_installer<'a>(
     let mut installers: Vec<Box<dyn Installer + 'a>> = Vec::new();
     let has_apt = crate::session::which(session, "apt-get").is_some();
     if scope == InstallationScope::Global && has_apt {
-        if let Some(dep_server_url) = dep_server_url {
-            installers.push(Box::new(
-                crate::debian::dep_server::DepServerAptInstaller::from_session(
-                    session,
-                    dep_server_url,
-                ),
-            ) as Box<dyn Installer + 'a>);
-        } else {
-            installers.push(Box::new(crate::debian::apt::AptInstaller::from_session(
-                session,
-            )));
-        }
+        installers.push(apt_installer(session, dep_server_url));
     }
     installers.extend(native_installers(session));
     Box::new(StackedInstaller::new(installers))

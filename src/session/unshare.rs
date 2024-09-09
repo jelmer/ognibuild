@@ -306,6 +306,7 @@ impl Session for UnshareSession {
         true
     }
 
+    #[cfg(feature = "breezy")]
     fn project_from_vcs(
         &self,
         tree: &dyn crate::vcs::DupableTree,

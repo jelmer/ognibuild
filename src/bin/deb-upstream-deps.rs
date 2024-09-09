@@ -54,8 +54,9 @@ fn main() -> Result<(), i8> {
     let mut test_deps = vec![];
 
     let mut session: Box<dyn Session> = Box::new(ognibuild::session::plain::PlainSession::new());
+    let project = session.project_from_vcs(&wt, None, None).unwrap();
     for (bs_subpath, bs) in ognibuild::buildsystem::scan_buildsystems(&wt.abspath(&subpath).unwrap()) {
-        let (bs_build_deps, bs_test_deps) = ognibuild::debian::upstream_deps::get_project_wide_deps(session.as_mut(), &wt, &subpath, bs.as_ref(), &bs_subpath
+        let (bs_build_deps, bs_test_deps) = ognibuild::debian::upstream_deps::get_project_wide_deps(session.as_mut(), &project, &subpath, bs.as_ref(), &bs_subpath
         );
         build_deps.extend(bs_build_deps);
         test_deps.extend(bs_test_deps);
