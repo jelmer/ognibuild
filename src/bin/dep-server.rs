@@ -38,9 +38,9 @@ async fn main() -> Result<(), i8> {
         )
         .init();
 
-    #[cfg(target_os = "linux")] 
+    #[cfg(target_os = "linux")]
     let session: Box<dyn Session> = if let Some(schroot) = args.schroot {
-        Box::new(SchrootSession::new(schroot).unwrap())
+        Box::new(SchrootSession::new(&schroot, None).unwrap())
     } else {
         Box::new(PlainSession::new())
     };
