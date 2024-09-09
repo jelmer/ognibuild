@@ -176,10 +176,10 @@ impl BuildSystem for R {
 
 fn read_description<R: std::io::Read>(
     mut r: R,
-) -> Result<r_description::RDescription, r_description::Error> {
+) -> Result<r_description::lossless::RDescription, r_description::lossless::Error> {
     // See https://r-pkgs.org/description.html
     let mut s = String::new();
     r.read_to_string(&mut s).unwrap();
-    let p: r_description::RDescription = s.parse().unwrap();
+    let p: r_description::lossless::RDescription = s.parse().unwrap();
     Ok(p)
 }

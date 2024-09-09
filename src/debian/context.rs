@@ -245,7 +245,7 @@ impl DebianPackagingContext {
 
             for rel in requirement.iter() {
                 let depends = para.get("Depends").unwrap_or_default();
-                let mut rels: debian_control::relations::Relations =
+                let mut rels: debian_control::lossless::relations::Relations =
                     depends.parse().map_err(|e| {
                         Error::InvalidField(format!("Test Depends for {}", testname), e)
                     })?;

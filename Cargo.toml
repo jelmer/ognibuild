@@ -12,12 +12,11 @@ default-run = "ogni"
 [dependencies]
 axum = { version = "0.7", optional = true, features = ["json", "http2", "tokio"] }
 breezyshim = { workspace = true }
-#buildlog-consultant = "0.0.39"
 buildlog-consultant.workspace = true
 chrono = "0.4.38"
 clap = { version = "4", features = ["derive", "env"], optional = true }
 deb822-lossless = "0.1.23"
-debian-analyzer = { version = "0.158.11", optional = true }
+debian-analyzer = { version = "0.158.12", optional = true }
 #debian-analyzer = { path = "../lintian-brush/analyzer", optional = true }
 debian-changelog = { version = "0.1", optional = true }
 debian-control = { version = "0.1.25", optional = true }
@@ -56,8 +55,8 @@ tempfile = "3.11.0"
 tokio = { version = "1", features = ["full"], optional = true }
 toml = "0.8.19"
 toml_edit = "0.22.20"
-upstream-ontologist = { git = "https://github.com/jelmer/upstream-ontologist", optional = true }
 url = "2.5.1"
+upstream-ontologist = { workspace = true, optional = true }
 whoami = { version = "1.5.1", default-features = false }
 xmltree = "0.11.0"
 
@@ -73,7 +72,8 @@ debian-analyzer = ["dep:debian-analyzer"]
 [workspace.dependencies]
 pyo3 = "0.22"
 breezyshim = "0.1"
-buildlog-consultant = ">=0.0.41"
+buildlog-consultant = { version = "0.0.42" }
+upstream-ontologist = { git = "https://github.com/jelmer/upstream-ontologist" }
 
 [workspace]
 members = ["ognibuild-py"]

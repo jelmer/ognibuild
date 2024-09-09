@@ -4,7 +4,7 @@ use breezyshim::workingtree;
 use ognibuild::session::Session;
 use ognibuild::session::plain::PlainSession;
 use breezyshim::error::Error as BrzError;
-use debian_control::relations::Relations;
+use debian_control::lossless::relations::Relations;
 use debian_analyzer::editor::{Editor,MutableTreeEdit};
 use std::io::Write;
 
