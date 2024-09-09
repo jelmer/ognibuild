@@ -88,7 +88,8 @@ impl UnshareSession {
     ) -> std::vec::Vec<&'a str> {
         let mut ret = vec![
             "unshare",
-            "--map-auto",
+            "--map-users=auto",
+            "--map-groups=auto",
             "--fork",
             "--pid",
             "--mount-proc",
