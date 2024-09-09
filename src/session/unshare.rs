@@ -22,7 +22,7 @@ impl UnshareSession {
             .arg("http://deb.debian.org/debian/")
             .status()
             .map_err(|e| {
-                crate::session::Error::SetupFailure("debootstrap failed".to_string(), e.to_string())
+                crate::session::Error::SetupFailure("mmdebstrap failed".to_string(), e.to_string())
             })?;
 
         let s = Self {
