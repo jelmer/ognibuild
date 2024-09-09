@@ -22,7 +22,7 @@ impl UnshareSession {
             .arg("http://deb.debian.org/debian/")
             .status()
             .map_err(|e| {
-                crate::session::Error::SetupFailure("debootstrap failed".to_string(), e.to_string())
+                crate::session::Error::SetupFailure("mmdebstrap failed".to_string(), e.to_string())
             })?;
 
         let s = Self {
@@ -88,7 +88,8 @@ impl UnshareSession {
     ) -> std::vec::Vec<&'a str> {
         let mut ret = vec![
             "unshare",
-            "--map-auto",
+            "--map-users=auto",
+            "--map-groups=auto",
             "--fork",
             "--pid",
             "--mount-proc",
@@ -305,6 +306,7 @@ impl Session for UnshareSession {
         true
     }
 
+    #[cfg(feature = "breezy")]
     fn project_from_vcs(
         &self,
         tree: &dyn crate::vcs::DupableTree,

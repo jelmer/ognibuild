@@ -385,6 +385,7 @@ fn main() -> Result<(), i32> {
     };
     let mut td = None;
     // TODO(jelmer): Get a list of supported schemes from breezy?
+    #[cfg(feature = "breezy")]
     let project = if ["git", "http", "https", "ssh"].contains(&url.scheme()) {
         let b = breezyshim::branch::open(&url).unwrap();
         log::info!("Cloning {}", args.directory);
@@ -410,6 +411,14 @@ fn main() -> Result<(), i32> {
         log::info!("Preparing directory {}", directory.display());
         session.project_from_directory(&directory, None).unwrap()
     };
+
+    #[cfg(not(feature = "breezy"))]
+    let project = {
+        let directory = PathBuf::from(args.directory.clone());
+        log::info!("Preparing directory {}", directory.display());
+        session.project_from_directory(&directory, None).unwrap()
+    };
+
     session.chdir(&project.internal_path()).unwrap();
     std::env::set_current_dir(&project.external_path()).unwrap();
 

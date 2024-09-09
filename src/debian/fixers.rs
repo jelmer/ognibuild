@@ -283,7 +283,7 @@ impl<'a, 'b, 'c, 'd> DebianBuildFixer for PgBuildExtOutOfDateControlFixer<'a, 'b
             .unwrap();
         let project = self
             .session
-            .project_from_vcs(&self.context.tree, None, None)
+            .project_from_directory(&self.context.tree.abspath(Path::new(".")).unwrap(), None)
             .unwrap();
         self.session
             .command(vec!["pg_buildext", "updatecontrol"])
@@ -442,6 +442,7 @@ where
             &packaging_context.subpath,
         )),
         Box::new(crate::debian::build_deps::BuildDependencyTieBreaker::from_session(apt.session())),
+        #[cfg(feature = "udd")]
         Box::new(crate::debian::udd::PopconTieBreaker),
     ];
     vec![

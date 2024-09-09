@@ -155,6 +155,7 @@ impl Dependency for GoDependency {
     }
 }
 
+#[cfg(feature = "upstream")]
 impl crate::upstream::FindUpstream for GoPackageDependency {
     fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
         upstream_ontologist::providers::go::remote_go_metadata(&self.package).ok()

@@ -100,6 +100,7 @@ pub trait Session {
     /// Check if the session is temporary.
     fn is_temporary(&self) -> bool;
 
+    #[cfg(feature = "breezy")]
     /// Setup a project from a VCS tree.
     ///
     /// # Arguments

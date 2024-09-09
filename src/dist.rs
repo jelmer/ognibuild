@@ -6,7 +6,6 @@ use crate::installer::{
 };
 use crate::logs::{wrap, LogManager};
 use crate::session::Session;
-use breezyshim::tree::Tree;
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -74,6 +73,7 @@ pub fn dist(
     Err(Error::NoBuildSystemDetected)
 }
 
+#[cfg(feature = "breezy")]
 // This is the function used by debianize()
 /// Create a dist tarball for a tree.
 ///
@@ -109,6 +109,7 @@ pub fn create_dist<T: crate::vcs::DupableTree>(
     )
 }
 
+#[cfg(feature = "breezy")]
 #[cfg(target_os = "linux")]
 /// Create a dist tarball for a tree.
 ///
@@ -123,7 +124,7 @@ pub fn create_dist_schroot<T: crate::vcs::DupableTree>(
     tree: &T,
     target_dir: &Path,
     chroot: &str,
-    packaging_tree: Option<&dyn Tree>,
+    packaging_tree: Option<&dyn breezyshim::tree::Tree>,
     packaging_subpath: Option<&Path>,
     include_controldir: Option<bool>,
     subpath: &Path,

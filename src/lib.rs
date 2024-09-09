@@ -18,4 +18,5 @@ pub mod session;
 pub mod shebang;
 #[cfg(feature = "upstream")]
 pub mod upstream;
+#[cfg(feature = "breezy")]
 pub mod vcs;

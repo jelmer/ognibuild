@@ -333,6 +333,7 @@ impl Session for SchrootSession {
         true
     }
 
+    #[cfg(feature = "breezy")]
     fn project_from_vcs(
         &self,
         tree: &dyn crate::vcs::DupableTree,

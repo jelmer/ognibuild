@@ -11,7 +11,7 @@ default-run = "ogni"
 
 [dependencies]
 axum = { version = "0.7", optional = true, features = ["json", "http2", "tokio"] }
-breezyshim = { workspace = true }
+breezyshim = { workspace = true, optional = true }
 buildlog-consultant.workspace = true
 chrono = "0.4.38"
 clap = { version = "4", features = ["derive", "env"], optional = true }
@@ -61,13 +61,14 @@ whoami = { version = "1.5.1", default-features = false }
 xmltree = "0.11.0"
 
 [features]
-default = ["debian", "cli", "udd", "upstream"]
+default = ["debian", "cli", "udd", "upstream", "breezy"]
 debian = ["dep:debian-changelog", "dep:debversion", "dep:debian-control", "dep:flate2", "dep:lzma-rs", "dep:lz4_flex", "dep:reqwest", "breezyshim/debian", "dep:debian-analyzer"]
 cli = ["dep:clap", "dep:env_logger"]
 udd = ["dep:sqlx", "dep:tokio", "debian"]
 dep-server = ["dep:axum", "dep:tokio"]
 upstream = ["dep:upstream-ontologist"]
 debian-analyzer = ["dep:debian-analyzer"]
+breezy = ["dep:breezyshim"]
 
 [workspace.dependencies]
 pyo3 = "0.22"
@@ -88,7 +89,7 @@ test-log = "0.2.16"
 [[bin]]
 name = "ognibuild-deb"
 path = "src/bin/ognibuild-deb.rs"
-required-features = ["cli", "debian"]
+required-features = ["cli", "debian", "breezy"]
 
 [[example]]
 name = "apt-file-search"
@@ -103,7 +104,7 @@ required-features = ["dep-server", "cli", "debian"]
 [[bin]]
 name = "ognibuild-dist"
 path = "src/bin/ognibuild-dist.rs"
-required-features = ["cli"]
+required-features = ["cli", "breezy"]
 
 [[bin]]
 name = "ogni"
@@ -113,9 +114,9 @@ required-features = ["cli"]
 [[bin]]
 name = "deb-fix-build"
 path = "src/bin/deb-fix-build.rs"
-required-features = ["debian", "cli"]
+required-features = ["debian", "cli", "breezy"]
 
 [[bin]]
 name = "deb-upstream-deps"
 path = "src/bin/deb-upstream-deps.rs"
-required-features = ["cli", "debian"]
+required-features = ["cli", "debian", "breezy"]

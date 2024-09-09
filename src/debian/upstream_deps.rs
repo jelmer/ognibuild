@@ -1,13 +1,12 @@
 use crate::buildsystem::{BuildSystem, DependencyCategory};
 use crate::dependencies::debian::DebianDependency;
 use crate::installer::{Error as InstallerError, InstallationScope};
-use crate::session::Session;
-use breezyshim::workingtree::WorkingTree;
+use crate::session::{Project,Session};
 use std::path::Path;
 
 pub fn get_project_wide_deps(
     session: &mut dyn Session,
-    wt: &WorkingTree,
+    project: &Project,
     subpath: &Path,
     buildsystem: &dyn BuildSystem,
     buildsystem_subpath: &Path,
@@ -15,7 +14,6 @@ pub fn get_project_wide_deps(
     let mut build_deps = vec![];
     let mut test_deps = vec![];
 
-    let project = session.project_from_vcs(wt, None, None).unwrap();
     session.chdir(&project.internal_path()).unwrap();
 
     let apt = crate::debian::apt::AptManager::new(session, None);
@@ -33,8 +31,9 @@ pub fn get_project_wide_deps(
     let tie_breakers = vec![
         Box::new(crate::debian::build_deps::BuildDependencyTieBreaker::from_session(session))
             as Box<dyn crate::dependencies::debian::TieBreaker>,
+        #[cfg(feature = "udd")] {
         Box::new(crate::debian::udd::PopconTieBreaker)
-            as Box<dyn crate::dependencies::debian::TieBreaker>,
+            as Box<dyn crate::dependencies::debian::TieBreaker>},
     ];
     match buildsystem.get_declared_dependencies(
         session,
