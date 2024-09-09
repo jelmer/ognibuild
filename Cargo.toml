@@ -61,7 +61,7 @@ whoami = { version = "1.5.1", default-features = false }
 xmltree = "0.11.0"
 
 [features]
-default = ["debian", "cli", "udd", "upstream", "breezy"]
+default = ["debian", "cli", "udd", "upstream", "breezy", "dep-server"]
 debian = ["dep:debian-changelog", "dep:debversion", "dep:debian-control", "dep:flate2", "dep:lzma-rs", "dep:lz4_flex", "dep:reqwest", "breezyshim/debian", "dep:debian-analyzer"]
 cli = ["dep:clap", "dep:env_logger"]
 udd = ["dep:sqlx", "dep:tokio", "debian"]
