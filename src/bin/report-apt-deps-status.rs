@@ -38,9 +38,11 @@ fn main() -> Result<(), i32> {
         )
         .init();
 
-    session.chdir(&args.directory).unwrap();
+    let directory = args.directory.canonicalize().unwrap();
 
-    let bss = detect_buildsystems(&args.directory);
+    session.chdir(&directory).unwrap();
+
+    let bss = detect_buildsystems(&directory);
 
     if bss.is_empty() {
         eprintln!("No build tools found");

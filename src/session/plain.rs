@@ -37,7 +37,7 @@ impl Session for PlainSession {
     }
 
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), Error> {
-        self.0 = self.0.join(path);
+        self.0 = self.0.join(path).canonicalize().unwrap();
         Ok(())
     }
 
