@@ -297,18 +297,29 @@ impl Dependency for CargoCrateDependency {
 impl crate::dependencies::debian::IntoDebianDependency for CargoCrateDependency {
     fn try_into_debian_dependency(
         &self,
-        _apt: &crate::debian::apt::AptManager,
+        apt: &crate::debian::apt::AptManager,
     ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         let path = format!(
             "/usr/share/cargo/registry/{}\\-[0-9]+.*/Cargo\\.toml",
             self.name
         );
-        Some(vec![
-            crate::dependencies::debian::DebianDependency::new_with_min_version(
-                &path,
-                &self.api_version.as_ref().unwrap().parse().unwrap(),
-            ),
-        ])
+
+        Some(
+            apt.get_packages_for_paths(vec![&path], true, false)
+                .unwrap()
+                .iter()
+                .map(|p| {
+                    if self.api_version.is_some() {
+                        crate::dependencies::debian::DebianDependency::new_with_min_version(
+                            p.as_str(),
+                            &self.api_version.as_ref().unwrap().parse().unwrap(),
+                        )
+                    } else {
+                        crate::dependencies::debian::DebianDependency::simple(p.as_str())
+                    }
+                })
+                .collect(),
+        )
     }
 }
 

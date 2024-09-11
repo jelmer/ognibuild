@@ -309,6 +309,14 @@ pub fn valid_debian_package_name(name: &str) -> bool {
     lazy_regex::regex_is_match!("[a-z0-9][a-z0-9+-\\.]+", name)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum DebianDependencyCategory {
+    Runtime,
+    Build,
+    Install,
+    Test(String),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

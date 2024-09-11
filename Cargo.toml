@@ -120,3 +120,8 @@ required-features = ["debian", "cli", "breezy"]
 name = "deb-upstream-deps"
 path = "src/bin/deb-upstream-deps.rs"
 required-features = ["cli", "debian", "breezy"]
+
+[[bin]]
+name = "report-apt-deps-status"
+path = "src/bin/report-apt-deps-status.rs"
+required-features = ["cli", "debian"]
