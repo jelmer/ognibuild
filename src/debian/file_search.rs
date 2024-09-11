@@ -313,7 +313,7 @@ impl<'a> AptFileFileSearcher<'a> {
         regex: bool,
         case_insensitive: bool,
     ) -> Result<impl Iterator<Item = String>, Error> {
-        let mut args = vec!["apt-file", "search"];
+        let mut args = vec!["apt-file", "search", "--stream-results"];
         if regex {
             args.push("-x");
         } else {
@@ -323,14 +323,18 @@ impl<'a> AptFileFileSearcher<'a> {
             args.push("-i");
         }
         args.push(path);
-        let output = self.session.command(args)
+        let output = self
+            .session
+            .command(args)
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped()).output().map_err(|e| {
-            Error::AptFileAccessError(format!(
-                "Unable to search for files matching {}: {}",
-                path, e
-            ))
-        })?;
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .map_err(|e| {
+                Error::AptFileAccessError(format!(
+                    "Unable to search for files matching {}: {}",
+                    path, e
+                ))
+            })?;
         match output.status.code() {
             Some(0) => {
                 // At least one search result
