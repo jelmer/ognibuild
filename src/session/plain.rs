@@ -291,6 +291,17 @@ mod tests {
     }
 
     #[test]
+    fn test_pwd() {
+        let mut session = PlainSession::new();
+        let pwd = session.pwd();
+        assert_eq!(pwd, std::path::Path::new("/"));
+        let td = tempfile::tempdir().unwrap();
+        session.chdir(td.path()).unwrap();
+        let pwd = session.pwd();
+        assert_eq!(pwd, td.path());
+    }
+
+    #[test]
     fn test_external_path() {
         let session = PlainSession::new();
         let td = tempfile::tempdir().unwrap();
