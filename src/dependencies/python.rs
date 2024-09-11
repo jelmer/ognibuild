@@ -451,10 +451,10 @@ fn get_possible_python3_paths_for_python_object(mut object_path: &str) -> Vec<Pa
     let mut cpython3_regexes = vec![];
     loop {
         cpython3_regexes.extend([
-            Path::new("/usr/lib/python3/dist-packages")
+            Path::new("/usr/lib/python3/dist\\-packages")
                 .join(regex::escape(&object_path.replace('.', "/")))
                 .join("__init__\\.py"),
-            Path::new("/usr/lib/python3/dist-packages").join(format!(
+            Path::new("/usr/lib/python3/dist\\-packages").join(format!(
                 "{}\\.py",
                 regex::escape(&object_path.replace('.', "/"))
             )),
@@ -728,7 +728,9 @@ mod tests {
             vec![
                 PathBuf::from("/usr/lib/python3/dist\\-packages/dulwich/__init__\\.py"),
                 PathBuf::from("/usr/lib/python3/dist\\-packages/dulwich\\.py"),
-                PathBuf::from("/usr/lib/python3\\.[0-9]+/lib\\-dynload/dulwich.cpython\\-.*\\.so"),
+                PathBuf::from(
+                    "/usr/lib/python3\\.[0-9]+/lib\\-dynload/dulwich\\.cpython\\-.*\\.so"
+                ),
                 PathBuf::from("/usr/lib/python3\\.[0-9]+/dulwich\\.py"),
                 PathBuf::from("/usr/lib/python3\\.[0-9]+/dulwich/__init__\\.py"),
             ],
@@ -738,12 +740,14 @@ mod tests {
             vec![
                 PathBuf::from("/usr/lib/python3/dist\\-packages/cleo/foo/__init__\\.py"),
                 PathBuf::from("/usr/lib/python3/dist\\-packages/cleo/foo\\.py"),
-                PathBuf::from("/usr/lib/python3\\.[0-9]+/lib\\-dynload/cleo/foo.cpython\\-.*\\.so"),
+                PathBuf::from(
+                    "/usr/lib/python3\\.[0-9]+/lib\\-dynload/cleo/foo\\.cpython\\-.*\\.so"
+                ),
                 PathBuf::from("/usr/lib/python3\\.[0-9]+/cleo/foo\\.py"),
                 PathBuf::from("/usr/lib/python3\\.[0-9]+/cleo/foo/__init__\\.py"),
                 PathBuf::from("/usr/lib/python3/dist\\-packages/cleo/__init__\\.py"),
                 PathBuf::from("/usr/lib/python3/dist\\-packages/cleo\\.py"),
-                PathBuf::from("/usr/lib/python3\\.[0-9]+/lib\\-dynload/cleo.cpython\\-.*\\.so"),
+                PathBuf::from("/usr/lib/python3\\.[0-9]+/lib\\-dynload/cleo\\.cpython\\-.*\\.so"),
                 PathBuf::from("/usr/lib/python3\\.[0-9]+/cleo\\.py"),
                 PathBuf::from("/usr/lib/python3\\.[0-9]+/cleo/__init__\\.py"),
             ],

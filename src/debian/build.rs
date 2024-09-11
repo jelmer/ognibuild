@@ -547,4 +547,42 @@ mod tests {
 
         assert!(control_files_in_root(&tree, subpath));
     }
+
+    mod test_version_add_suffix {
+        use super::*;
+
+        #[test]
+        fn test_native() {
+            assert_eq!(
+                "1.0~jan+lint4".parse::<Version>().unwrap(),
+                version_add_suffix(&"1.0~jan+lint3".parse().unwrap(), "~jan+lint"),
+            );
+            assert_eq!(
+                "1.0~jan+lint1".parse::<Version>().unwrap(),
+                version_add_suffix(&"1.0".parse().unwrap(), "~jan+lint"),
+            );
+        }
+
+        #[test]
+        fn test_normal() {
+            assert_eq!(
+                "1.0-1~jan+lint4".parse::<Version>().unwrap(),
+                version_add_suffix(&"1.0-1~jan+lint3".parse().unwrap(), "~jan+lint"),
+            );
+            assert_eq!(
+                "1.0-1~jan+lint1".parse::<Version>().unwrap(),
+                version_add_suffix(&"1.0-1".parse().unwrap(), "~jan+lint"),
+            );
+            assert_eq!(
+                "0.0.12-1~jan+lint1".parse::<Version>().unwrap(),
+                version_add_suffix(&"0.0.12-1".parse().unwrap(), "~jan+lint"),
+            );
+            assert_eq!(
+                "0.0.12-1~jan+unchanged1~jan+lint1"
+                    .parse::<Version>()
+                    .unwrap(),
+                version_add_suffix(&"0.0.12-1~jan+unchanged1".parse().unwrap(), "~jan+lint"),
+            );
+        }
+    }
 }
