@@ -298,7 +298,7 @@ mod tests {
         let td = tempfile::tempdir().unwrap();
         session.chdir(td.path()).unwrap();
         let pwd = session.pwd();
-        assert_eq!(pwd, td.path());
+        assert_eq!(pwd, td.path().canonicalize().unwrap());
     }
 
     #[test]
@@ -379,7 +379,7 @@ mod tests {
         tree.add(&[std::path::Path::new("test")]).unwrap();
         tree.build_commit().message("test").commit().unwrap();
         let project = session.project_from_vcs(&tree, None, None).unwrap();
-        assert_eq!(project.external_path(), path);
+        assert_eq!(project.external_path(), path.canonicalize().unwrap());
         assert_eq!(project.internal_path(), path);
         assert!(project.external_path().join(".bzr").exists());
 
