@@ -31,7 +31,7 @@ jobs:
         run: sudo apt-get install -y mmdebstrap
       - name: Install system breezy and libapt-pkg-dev
         if: matrix.os == 'ubuntu-24.04'
-        run: sudo apt-get install -y brz libapt-pkg-dev
+        run: sudo apt-get install -y brz libapt-pkg-dev libpcre3-dev
       - name: Install breezy
         run: pip install breezy
       - name: Install breezy and brz-debian
