@@ -1,6 +1,6 @@
 [package]
 name = "ognibuild"
-version = { workspace = true }
+version = "0.0.24"
 authors = [ "Jelmer Vernooij <jelmer@jelmer.uk>"]
 edition = "2021"
 license = "GPL-2.0+"
@@ -10,13 +10,15 @@ homepage = "https://github.com/jelmer/ognibuild"
 default-run = "ogni"
 
 [dependencies]
+pyo3 = "0.22"
+breezyshim = { version = "0.1", optional = true }
+buildlog-consultant = { version = "0.0.42" }
+upstream-ontologist = { git = "https://github.com/jelmer/upstream-ontologist", optional = true }
 axum = { version = "0.7", optional = true, features = ["json", "http2", "tokio"] }
-breezyshim = { workspace = true, optional = true }
-buildlog-consultant.workspace = true
 chrono = "0.4.38"
 clap = { version = "4", features = ["derive", "env"], optional = true }
 deb822-lossless = "0.1.23"
-debian-analyzer = { version = "0.158.12", optional = true }
+debian-analyzer = { version = "0.158.14", optional = true }
 #debian-analyzer = { path = "../lintian-brush/analyzer", optional = true }
 debian-changelog = { version = "0.1", optional = true }
 debian-control = { version = "0.1.25", optional = true }
@@ -38,7 +40,6 @@ nix = { version = "0.29.0", features = ["user"] }
 pep440_rs = "0.6.6"
 pep508_rs = "0.6.1"
 percent-encoding = "2.3.1"
-pyo3 = { workspace = true }
 pyproject-toml = "0.11.0"
 r-description = "0.1.0"
 rand = "0.8.5"
@@ -56,7 +57,6 @@ tokio = { version = "1", features = ["full"], optional = true }
 toml = "0.8.19"
 toml_edit = "0.22.20"
 url = "2.5.1"
-upstream-ontologist = { workspace = true, optional = true }
 whoami = { version = "1.5.1", default-features = false }
 xmltree = "0.11.0"
 
@@ -69,18 +69,6 @@ dep-server = ["dep:axum", "dep:tokio"]
 upstream = ["dep:upstream-ontologist"]
 debian-analyzer = ["dep:debian-analyzer"]
 breezy = ["dep:breezyshim"]
-
-[workspace.dependencies]
-pyo3 = "0.22"
-breezyshim = "0.1"
-buildlog-consultant = { version = "0.0.42" }
-upstream-ontologist = { git = "https://github.com/jelmer/upstream-ontologist" }
-
-[workspace]
-members = ["ognibuild-py"]
-
-[workspace.package]
-version = "0.0.24"
 
 [dev-dependencies]
 lazy_static = "1.5.0"

@@ -119,9 +119,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.87"
+version = "1.0.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10f00e1f6e58a40e807377c75c6a7f97bf9044fab57816f2414e6f5f4499d7b8"
+checksum = "4e1496f8fb1fbf272686b8d37f523dab3e4a7443300055e74cdaa449f3114356"
 
 [[package]]
 name = "arbitrary"
@@ -328,9 +328,9 @@ dependencies = [
 
 [[package]]
 name = "breezyshim"
-version = "0.1.189"
+version = "0.1.194"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9bb23956d9eefcf535b89b14f3fb99c92bc881d93cfd0dd07f367d09d7c2d0d8"
+checksum = "afc400ec61715b596b446d851b928ee8060fa486a576562709b04b13f7b184e3"
 dependencies = [
  "chrono",
  "ctor",
@@ -890,9 +890,9 @@ dependencies = [
 
 [[package]]
 name = "curl-sys"
-version = "0.4.74+curl-8.9.0"
+version = "0.4.75+curl-8.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8af10b986114528fcdc4b63b6f5f021b7057618411046a4de2ba0f0149a097bf"
+checksum = "2a4fd752d337342e4314717c0d9b6586b059a120c80029ebe4d49b11fec7875e"
 dependencies = [
  "cc",
  "libc",
@@ -923,9 +923,9 @@ dependencies = [
 
 [[package]]
 name = "deb822-lossless"
-version = "0.1.25"
+version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5de3431c14635e63bf91c93b0eeb6cb3d2a2e04381815ebb724323064dc57cdc"
+checksum = "34b71c4e186289d7e61ef9479fc225268bc6e1f23fecbc95a190fbe561ad3f7e"
 dependencies = [
  "deb822-derive",
  "pyo3",
@@ -981,9 +981,9 @@ dependencies = [
 
 [[package]]
 name = "debian-analyzer"
-version = "0.158.12"
+version = "0.158.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "551aa8853d68a43c7d3d25066e1aa72be7702d90e9c6517a12315f190da7421a"
+checksum = "3bb5dc8ee3e7379c5cb63c64e281dc9ab2a4d9c3e54cdd3624671a6fc8e41a84"
 dependencies = [
  "breezyshim",
  "chrono",
@@ -1016,9 +1016,9 @@ dependencies = [
 
 [[package]]
 name = "debian-changelog"
-version = "0.1.13"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80742dc11d7b49697b1e9e1f895c692bb157c9abcf1b1958e4183c1fc94e4402"
+checksum = "b616910c0602f11746ba04c1b7af7e7d54c7f05c2b84ce56ce7e33ca1b5627d7"
 dependencies = [
  "chrono",
  "debversion",
@@ -1031,9 +1031,9 @@ dependencies = [
 
 [[package]]
 name = "debian-control"
-version = "0.1.29"
+version = "0.1.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3886b0270f6162e1eed0f81debf79366ff43df2ee5066ab3e3a59bb0b307b89e"
+checksum = "2fdbea0903818eef501a0f2a5640a23003ceca0cee5265befdb3cef0734d4092"
 dependencies = [
  "chrono",
  "deb822-lossless",
@@ -2019,13 +2019,13 @@ dependencies = [
 
 [[package]]
 name = "html5ever"
-version = "0.28.0"
+version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ff6858c1f7e2a470c5403091866fa95b36fe0dbac5d771f932c15e5ff1ee501"
+checksum = "2e15626aaf9c351bc696217cbe29cb9b5e86c43f8a46b5e2f5c6c5cf7cb904ce"
 dependencies = [
  "log",
  "mac",
- "markup5ever 0.13.0",
+ "markup5ever 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.77",
@@ -2653,9 +2653,9 @@ dependencies = [
 
 [[package]]
 name = "markup5ever"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d581ff8be69d08a2efa23a959d81aa22b739073f749f067348bd4f4ba4b69195"
+checksum = "82c88c6129bd24319e62a0359cb6b958fa7e8be6e19bb1663bc396b90883aca5"
 dependencies = [
  "log",
  "phf 0.11.2",
@@ -3010,17 +3010,6 @@ dependencies = [
  "url",
  "whoami",
  "xmltree",
-]
-
-[[package]]
-name = "ognibuild-py"
-version = "0.0.24"
-dependencies = [
- "breezyshim",
- "buildlog-consultant",
- "ognibuild",
- "pyo3",
- "serde_json",
 ]
 
 [[package]]
@@ -3678,9 +3667,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a908a6e00f1fdd0dfd9c0eb08ce85126f6d8bbda50017e74bc4a4b7d4a926a4"
+checksum = "0884ad60e090bf1345b93da0a5de8923c93884cd03f40dfcfddd3b4bee661853"
 dependencies = [
  "bitflags 2.6.0",
 ]
@@ -3910,9 +3899,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.36"
+version = "0.38.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f55e80d50763938498dd5ebb18647174e0c76dc38c5505294bb224624f30f36"
+checksum = "8acb788b847c24f28525660c4d7758620a7210875711f79e7f663cc152726811"
 dependencies = [
  "bitflags 2.6.0",
  "errno",
@@ -3923,9 +3912,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.12"
+version = "0.23.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c58f8c84392efc0a126acce10fa59ff7b3d2ac06ab451a33f2741989b806b044"
+checksum = "f2dabaac7466917e566adb06783a81ca48944c6898a1b08b9374106dd671f4c8"
 dependencies = [
  "once_cell",
  "rustls-pki-types",
@@ -3952,9 +3941,9 @@ checksum = "fc0a2ce646f8655401bb81e7927b812614bd5d91dbc968696be50603510fcaf0"
 
 [[package]]
 name = "rustls-webpki"
-version = "0.102.7"
+version = "0.102.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84678086bd54edf2b415183ed7a94d0efb049f1b646a33e22a36f3794be6ae56"
+checksum = "64ca1bc8749bd4cf37b5ce386cc146580777b4e8572c7b97baf22c83f444bee9"
 dependencies = [
  "ring",
  "rustls-pki-types",
@@ -5105,9 +5094,9 @@ checksum = "7eec5d1121208364f6793f7d2e222bf75a915c19557537745b195b253dd64217"
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.12"
+version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
+checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
 
 [[package]]
 name = "unicode-linebreak"
@@ -5175,7 +5164,7 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 [[package]]
 name = "upstream-ontologist"
 version = "0.1.39"
-source = "git+https://github.com/jelmer/upstream-ontologist#b9584ea013ce97fa3787a0da075493aded27ff37"
+source = "git+https://github.com/jelmer/upstream-ontologist#040dee94035cc7054b34700d9e77f44242d8bd78"
 dependencies = [
  "breezyshim",
  "chrono",
@@ -5188,7 +5177,7 @@ dependencies = [
  "debian-watch",
  "distro-info",
  "gix-config",
- "html5ever 0.28.0",
+ "html5ever 0.29.0",
  "lazy-regex",
  "lazy_static",
  "log",
