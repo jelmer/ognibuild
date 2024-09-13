@@ -6,6 +6,7 @@ pub trait FindUpstream: Dependency {
 }
 
 pub fn find_upstream(dependency: &dyn Dependency) -> Option<UpstreamMetadata> {
+    #[cfg(feature = "debian")]
     if let Some(dep) = dependency
         .as_any()
         .downcast_ref::<crate::dependencies::debian::DebianDependency>()

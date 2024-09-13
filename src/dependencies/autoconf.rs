@@ -49,6 +49,7 @@ fn m4_macro_regex(r#macro: &str) -> String {
     .concat()
 }
 
+#[cfg(feature = "debian")]
 fn find_local_m4_macro(r#macro: &str) -> Option<String> {
     // TODO(jelmer): Query some external service that can search all binary packages?
     let p = regex::Regex::new(&m4_macro_regex(r#macro)).unwrap();

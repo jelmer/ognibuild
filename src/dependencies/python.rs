@@ -456,6 +456,7 @@ fn get_package_for_python_package(
         .collect()
 }
 
+#[cfg(feature = "debian")]
 fn get_possible_python3_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
     let mut cpython3_regexes = vec![];
     loop {
@@ -487,6 +488,7 @@ fn get_possible_python3_paths_for_python_object(mut object_path: &str) -> Vec<Pa
     cpython3_regexes
 }
 
+#[cfg(feature = "debian")]
 fn get_possible_pypy_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
     let mut pypy_regexes = vec![];
     loop {
@@ -511,6 +513,7 @@ fn get_possible_pypy_paths_for_python_object(mut object_path: &str) -> Vec<PathB
     pypy_regexes
 }
 
+#[cfg(feature = "debian")]
 fn get_possible_python2_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
     let mut cpython2_regexes = vec![];
     loop {

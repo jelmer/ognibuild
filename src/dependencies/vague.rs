@@ -97,6 +97,7 @@ impl Dependency for VagueDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 fn known_vague_dep_to_debian(name: &str) -> Option<&str> {
     match name {
         "the Gnu Scientific Library" => Some("libgsl-dev"),
