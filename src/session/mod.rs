@@ -538,7 +538,7 @@ mod tests {
             .spawn()
             .unwrap();
 
-        let (status, output) = super::capture_and_forward_output(p).unwrap();
+        let (status, output) = super::capture_output(p, false).unwrap();
         assert!(status.success());
         assert_eq!(output, vec!["Hello, world!"]);
     }
