@@ -380,18 +380,18 @@ mod tests {
         tree.build_commit().message("test").commit().unwrap();
         let project = session.project_from_vcs(&tree, None, None).unwrap();
         assert_eq!(project.external_path(), path.canonicalize().unwrap());
-        assert_eq!(project.internal_path(), path);
+        assert_eq!(project.internal_path(), path.canonicalize().unwrap());
         assert!(project.external_path().join(".bzr").exists());
 
         let project = session.project_from_vcs(&tree, Some(true), None).unwrap();
-        assert_eq!(project.external_path(), path);
-        assert_eq!(project.internal_path(), path);
+        assert_eq!(project.external_path(), path.canonicalize().unwrap());
+        assert_eq!(project.internal_path(), path.canonicalize().unwrap());
 
         assert!(project.external_path().join(".bzr").exists());
 
         let project = session.project_from_vcs(&tree, Some(false), None).unwrap();
-        assert_ne!(project.external_path(), path);
-        assert_ne!(project.internal_path(), path);
+        assert_ne!(project.external_path(), path.canonicalize().unwrap());
+        assert_ne!(project.internal_path(), path.canonicalize().unwrap());
 
         assert!(!project.external_path().join(".bzr").exists());
         std::mem::drop(env);
