@@ -1,10 +1,15 @@
+#[cfg(feature = "debian")]
 use crate::debian::apt::AptManager;
+#[cfg(feature = "debian")]
 use crate::dependencies::debian::DebianDependency;
 use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
-use debian_control::lossless::relations::{Relation, Relations};
-use debian_control::relations::VersionConstraint;
+#[cfg(feature = "debian")]
+use debian_control::{
+    lossless::relations::{Relation, Relations},
+    relations::VersionConstraint,
+};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -95,6 +100,7 @@ impl crate::buildlog::ToDependency
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependency {
     fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>> {
         let (name, min_version) =
@@ -324,6 +330,7 @@ impl<'a> Installer for PypiResolver<'a> {
     }
 }
 
+#[cfg(feature = "debian")]
 pub fn python_spec_to_apt_rels(pkg_name: &str, specs: Option<&[(String, String)]>) -> Relations {
     // TODO(jelmer): Dealing with epoch, etc?
     if specs.is_none() || specs.as_ref().unwrap().is_empty() {
@@ -397,6 +404,7 @@ pub fn python_spec_to_apt_rels(pkg_name: &str, specs: Option<&[(String, String)]
     Relations::from(rels.into_iter().map(|r| r.into()).collect::<Vec<_>>())
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PythonPackageDependency {
     fn try_into_debian_dependency(
         &self,
@@ -412,6 +420,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonPackageDependen
     }
 }
 
+#[cfg(feature = "debian")]
 fn get_package_for_python_package(
     apt_mgr: &AptManager,
     package: &str,
@@ -526,6 +535,7 @@ fn get_possible_python2_paths_for_python_object(mut object_path: &str) -> Vec<Pa
     cpython2_regexes
 }
 
+#[cfg(feature = "debian")]
 fn get_package_for_python_object_path(
     apt_mgr: &AptManager,
     object_path: &str,
@@ -558,6 +568,7 @@ fn get_package_for_python_object_path(
         .collect()
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PythonModuleDependency {
     fn try_into_debian_dependency(
         &self,
@@ -674,6 +685,7 @@ impl From<&pep440_rs::VersionSpecifiers> for PythonDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::FromDebianDependency for PythonDependency {
     fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>> {
         let (name, min_version) =
@@ -688,6 +700,7 @@ impl crate::dependencies::debian::FromDebianDependency for PythonDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PythonDependency {
     fn try_into_debian_dependency(
         &self,

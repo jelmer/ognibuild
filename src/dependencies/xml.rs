@@ -44,22 +44,19 @@ pub const XML_ENTITY_URL_MAP: &[(&str, &str)] = &[(
     "/usr/share/xml/docbook/schema/dtd/",
 )];
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for XmlEntityDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
     ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         let path = XML_ENTITY_URL_MAP.iter().find_map(|(url, path)| {
-            if let Some(rest) = self.url.strip_prefix(url) {
-                Some(format!("{}{}", path, rest))
-            } else {
-                None
-            }
+            self.url
+                .strip_prefix(url)
+                .map(|rest| format!("{}{}", path, rest))
         });
 
-        if path.is_none() {
-            return None;
-        }
+        path.as_ref()?;
 
         Some(
             apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false)

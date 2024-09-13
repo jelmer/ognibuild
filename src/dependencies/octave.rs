@@ -128,6 +128,7 @@ impl<'a> Installer for OctaveForgeResolver<'a> {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for OctavePackageDependency {
     fn try_into_debian_dependency(
         &self,

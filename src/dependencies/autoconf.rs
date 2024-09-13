@@ -68,6 +68,7 @@ fn find_local_m4_macro(r#macro: &str) -> Option<String> {
     None
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for AutoconfMacroDependency {
     fn try_into_debian_dependency(
         &self,

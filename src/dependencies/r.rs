@@ -53,6 +53,7 @@ impl Dependency for RPackageDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
     fn try_into_debian_dependency(
         &self,

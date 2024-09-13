@@ -221,6 +221,7 @@ pub fn installer_by_name<'a>(
 ) -> Option<Box<dyn Installer + 'a>> {
     // TODO: Use more dynamic way to load installers
     match name {
+        #[cfg(feature = "debian")]
         "apt" => Some(
             Box::new(crate::debian::apt::AptInstaller::from_session(session)) as Box<dyn Installer>,
         ),
@@ -276,6 +277,7 @@ pub fn native_installers<'a>(
     .collect()
 }
 
+#[cfg(feature = "debian")]
 fn apt_installer<'a>(
     session: &'a dyn crate::session::Session,
     #[allow(unused_variables)] dep_server_url: Option<&url::Url>,
@@ -304,7 +306,10 @@ pub fn select_installers<'a>(
     let mut installers = Vec::new();
     for name in names.iter() {
         if name == &"apt" {
+            #[cfg(feature = "debian")]
             installers.push(apt_installer(session, dep_server_url));
+            #[cfg(not(feature = "debian"))]
+            return Err("Apt installer not available".to_string());
         } else if let Some(installer) = installer_by_name(session, &name) {
             installers.push(installer);
         } else {
@@ -332,8 +337,8 @@ pub fn auto_installer<'a>(
 ) -> Box<dyn Installer + 'a> {
     // if session is SchrootSession or if we're root, use apt
     let mut installers: Vec<Box<dyn Installer + 'a>> = Vec::new();
-    let has_apt = crate::session::which(session, "apt-get").is_some();
-    if scope == InstallationScope::Global && has_apt {
+    #[cfg(feature = "debian")]
+    if scope == InstallationScope::Global && crate::session::which(session, "apt-get").is_some() {
         installers.push(apt_installer(session, dep_server_url));
     }
     installers.extend(native_installers(session));

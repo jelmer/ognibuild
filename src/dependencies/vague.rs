@@ -1,4 +1,6 @@
+#[cfg(feature = "debian")]
 use crate::dependencies::debian::DebianDependency;
+#[cfg(feature = "debian")]
 use crate::dependencies::python::PythonPackageDependency;
 use crate::dependencies::BinaryDependency;
 use crate::dependencies::Dependency;
@@ -46,6 +48,7 @@ impl VagueDependency {
                     self.minimum_version.clone().as_deref(),
                 )) as Box<dyn Dependency>);
             }
+            #[cfg(feature = "debian")]
             {
                 ret.push(Box::new(
                     if let Some(minimum_version) = &self.minimum_version {
@@ -114,6 +117,7 @@ fn known_vague_dep_to_debian(name: &str) -> Option<&str> {
     }
 }
 
+#[cfg(feature = "debian")]
 fn resolve_vague_dep_req(
     apt_mgr: &crate::debian::apt::AptManager,
     req: VagueDependency,
@@ -193,6 +197,7 @@ fn resolve_vague_dep_req(
     options
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for VagueDependency {
     fn try_into_debian_dependency(
         &self,

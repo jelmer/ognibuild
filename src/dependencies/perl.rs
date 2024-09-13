@@ -124,6 +124,7 @@ impl Dependency for PerlPreDeclaredDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PerlPreDeclaredDependency {
     fn try_into_debian_dependency(
         &self,
@@ -324,6 +325,7 @@ pub const DEFAULT_PERL_PATHS: &[&str] = &[
     "/usr/share/perl/[^/]+",
 ];
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PerlModuleDependency {
     fn try_into_debian_dependency(
         &self,
@@ -378,6 +380,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PerlModuleDependency 
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PerlFileDependency {
     fn try_into_debian_dependency(
         &self,

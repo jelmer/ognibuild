@@ -38,6 +38,7 @@ impl Dependency for PhpClassDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PhpClassDependency {
     fn try_into_debian_dependency(
         &self,
@@ -189,6 +190,7 @@ impl Dependency for PhpExtensionDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PhpExtensionDependency {
     fn try_into_debian_dependency(
         &self,

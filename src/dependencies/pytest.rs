@@ -99,6 +99,7 @@ impl Dependency for PytestPluginDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PytestPluginDependency {
     fn try_into_debian_dependency(
         &self,
