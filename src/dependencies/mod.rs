@@ -402,14 +402,17 @@ impl Dependency for PkgConfigDependency {
     }
 
     fn present(&self, session: &dyn Session) -> bool {
-        let mut cmd = vec![
+        log::debug!("Checking for pkg-config module {}", self.module);
+        let cmd = vec![
             "pkg-config".to_string(),
             "--exists".to_string(),
-            self.module.clone(),
+            if let Some(minimum_version) = &self.minimum_version {
+                format!("{} >= {}", self.module, minimum_version)
+            } else {
+                self.module.clone()
+            },
         ];
-        if let Some(minimum_version) = &self.minimum_version {
-            cmd.push(format!(">={}", minimum_version));
-        }
+        log::debug!("Running {:?}", cmd);
         session
             .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::null())

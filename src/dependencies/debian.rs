@@ -144,13 +144,23 @@ impl DebianDependency {
 ///
 /// Returns `None` if the package is not installed.
 fn get_package_version(session: &dyn Session, package: &str) -> Option<debversion::Version> {
-    let argv = vec!["dpkg-query", "-W", "-f='${Version}\n'", package];
-    let output = String::from_utf8(session.command(argv).check_output().unwrap()).unwrap();
-
-    if output.trim().is_empty() {
-        None
-    } else {
-        Some(output.trim().parse().unwrap())
+    let argv = vec!["dpkg-query", "-W", "-f=${Version}\n", package];
+    let output = session
+        .command(argv)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    match output.status.code() {
+        Some(0) => {
+            let output = String::from_utf8(output.stdout).unwrap();
+            if output.trim().is_empty() {
+                return None;
+            }
+            Some(output.trim().parse().unwrap())
+        }
+        Some(1) => None,
+        _ => panic!("Failed to run dpkg-query"),
     }
 }
 

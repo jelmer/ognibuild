@@ -310,7 +310,7 @@ pub fn select_installers<'a>(
             installers.push(apt_installer(session, dep_server_url));
             #[cfg(not(feature = "debian"))]
             return Err("Apt installer not available".to_string());
-        } else if let Some(installer) = installer_by_name(session, &name) {
+        } else if let Some(installer) = installer_by_name(session, name) {
             installers.push(installer);
         } else {
             return Err(format!("Unknown installer: {}", name));
@@ -323,9 +323,14 @@ pub fn auto_installation_scope(session: &dyn crate::session::Session) -> Install
     let user = crate::session::get_user(session);
     // TODO(jelmer): Check VIRTUAL_ENV, and prioritize PypiResolver if
     // present?
-    if user == "root" || session.is_temporary() {
+    if user == "root" {
+        log::info!("Running as root, so using global installation scope");
+        InstallationScope::Global
+    } else if session.is_temporary() {
+        log::info!("Running in a temporary session, so using global installation scope");
         InstallationScope::Global
     } else {
+        log::info!("Running as user, so using user installation scope");
         InstallationScope::User
     }
 }
@@ -339,6 +344,9 @@ pub fn auto_installer<'a>(
     let mut installers: Vec<Box<dyn Installer + 'a>> = Vec::new();
     #[cfg(feature = "debian")]
     if scope == InstallationScope::Global && crate::session::which(session, "apt-get").is_some() {
+        log::info!(
+            "Using global installation scope and apt-get is available, so using apt installer"
+        );
         installers.push(apt_installer(session, dep_server_url));
     }
     installers.extend(native_installers(session));
@@ -362,7 +370,7 @@ pub fn install_missing_deps(
         return Ok(());
     }
     let mut missing = vec![];
-    for dep in deps.into_iter() {
+    for dep in deps.iter() {
         if !dep.present(session) {
             missing.push(*dep)
         }
@@ -393,7 +401,7 @@ pub fn explain_missing_deps(
         return Ok(vec![]);
     }
     let mut missing = vec![];
-    for dep in deps.into_iter() {
+    for dep in deps.iter() {
         if !dep.present(session) {
             missing.push(*dep)
         }

@@ -118,7 +118,7 @@ impl<'a> Installer for OctaveForgeResolver<'a> {
         let dependency = dependency
             .as_any()
             .downcast_ref::<OctavePackageDependency>()
-            .unwrap();
+            .ok_or(Error::UnknownDependencyFamily)?;
         let cmd = self.cmd(dependency, scope)?;
         log::info!("Octave: installing {}", dependency.package);
         self.session

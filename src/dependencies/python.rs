@@ -42,9 +42,9 @@ impl PythonPackageDependency {
         let package = parts.next().unwrap();
         let specs = parts
             .map(|part| {
-                let mut parts = part.splitn(2, |c: char| c == '=' || c == '<' || c == '>');
-                let op = parts.next().unwrap();
-                let version = parts.next().unwrap();
+                let (op, version) = part
+                    .split_once(|c: char| c == '=' || c == '<' || c == '>')
+                    .unwrap();
                 (op.to_string(), version.to_string())
             })
             .collect();
@@ -456,7 +456,7 @@ fn get_package_for_python_package(
         .collect()
 }
 
-#[cfg(feature = "debian")]
+#[cfg(any(feature = "debian", test))]
 fn get_possible_python3_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
     let mut cpython3_regexes = vec![];
     loop {
@@ -675,13 +675,10 @@ impl Dependency for PythonDependency {
 impl From<&pep440_rs::VersionSpecifiers> for PythonDependency {
     fn from(specs: &pep440_rs::VersionSpecifiers) -> Self {
         for specifier in specs.iter() {
-            match specifier.operator() {
-                pep440_rs::Operator::GreaterThanEqual => {
-                    return Self {
-                        min_version: Some(specifier.version().to_string()),
-                    }
-                }
-                _ => {}
+            if specifier.operator() == &pep440_rs::Operator::GreaterThanEqual {
+                return Self {
+                    min_version: Some(specifier.version().to_string()),
+                };
             }
         }
         Self { min_version: None }

@@ -19,7 +19,7 @@ impl VagueDependency {
     pub fn new(name: &str, minimum_version: Option<&str>) -> Self {
         Self {
             name: name.to_string(),
-            minimum_version: minimum_version.map(|s| s.to_string()),
+            minimum_version: minimum_version.map(|s| s.trim().to_string()),
         }
     }
 

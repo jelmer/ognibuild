@@ -220,7 +220,7 @@ fn run_action(
                 ) {
                     Ok(_) => {}
                     Err(e) => {
-                        log::info!("Unable to install declared dependencies",);
+                        log::info!("Unable to install declared dependencies");
                         return Err(e);
                     }
                 }
