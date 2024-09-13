@@ -34,7 +34,6 @@ fn map_pytest_config_option_to_plugin(name: &str) -> Option<&'static str> {
     }
 }
 
-
 // TODO(jelmer): populate this using an automated process
 fn pytest_fixture_to_plugin(fixture: &str) -> Option<&str> {
     match fixture {
@@ -101,26 +100,38 @@ impl Dependency for PytestPluginDependency {
 }
 
 impl crate::dependencies::debian::IntoDebianDependency for PytestPluginDependency {
-    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::simple(&format!("python3-pytest-{}", self.plugin))])
+    fn try_into_debian_dependency(
+        &self,
+        _apt: &crate::debian::apt::AptManager,
+    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        Some(vec![crate::dependencies::debian::DebianDependency::simple(
+            &format!("python3-pytest-{}", self.plugin),
+        )])
     }
 }
 
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPytestFixture {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        pytest_fixture_to_plugin(&self.0).map(|plugin| Box::new(PytestPluginDependency::new(plugin)) as Box<dyn Dependency>)
+        pytest_fixture_to_plugin(&self.0)
+            .map(|plugin| Box::new(PytestPluginDependency::new(plugin)) as Box<dyn Dependency>)
     }
 }
 
-impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::UnsupportedPytestArguments {
+impl crate::buildlog::ToDependency
+    for buildlog_consultant::problems::common::UnsupportedPytestArguments
+{
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         let args = self.0.iter().map(|x| x.as_str()).collect::<Vec<_>>();
-        map_pytest_arguments_to_plugin(args.as_slice()).map(|plugin| Box::new(PytestPluginDependency::new(plugin)) as Box<dyn Dependency>)
+        map_pytest_arguments_to_plugin(args.as_slice())
+            .map(|plugin| Box::new(PytestPluginDependency::new(plugin)) as Box<dyn Dependency>)
     }
 }
 
-impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::UnsupportedPytestConfigOption {
+impl crate::buildlog::ToDependency
+    for buildlog_consultant::problems::common::UnsupportedPytestConfigOption
+{
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        map_pytest_config_option_to_plugin(&self.0).map(|plugin| Box::new(PytestPluginDependency::new(plugin)) as Box<dyn Dependency>)
+        map_pytest_config_option_to_plugin(&self.0)
+            .map(|plugin| Box::new(PytestPluginDependency::new(plugin)) as Box<dyn Dependency>)
     }
 }

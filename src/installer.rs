@@ -276,30 +276,23 @@ pub fn native_installers<'a>(
     .collect()
 }
 
-fn apt_installer<'a>(session: &'a dyn crate::session::Session,
-    #[allow(unused_variables)]
-    dep_server_url: Option<&url::Url>) -> Box<dyn Installer + 'a> {
+fn apt_installer<'a>(
+    session: &'a dyn crate::session::Session,
+    #[allow(unused_variables)] dep_server_url: Option<&url::Url>,
+) -> Box<dyn Installer + 'a> {
     #[cfg(feature = "dep-server")]
     if let Some(dep_server_url) = dep_server_url {
         Box::new(
-            crate::debian::dep_server::DepServerAptInstaller::from_session(
-                session,
-                dep_server_url,
-            ),
+            crate::debian::dep_server::DepServerAptInstaller::from_session(session, dep_server_url),
         ) as Box<dyn Installer + 'a>
     } else {
-        Box::new(crate::debian::apt::AptInstaller::from_session(
-            session,
-        ))
+        Box::new(crate::debian::apt::AptInstaller::from_session(session))
     }
 
     #[cfg(not(feature = "dep-server"))]
     {
-        Box::new(crate::debian::apt::AptInstaller::from_session(
-            session,
-        ))
+        Box::new(crate::debian::apt::AptInstaller::from_session(session))
     }
-
 }
 
 /// Select installers by name.

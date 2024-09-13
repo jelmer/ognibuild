@@ -137,8 +137,8 @@ pub fn build_incrementally(
                 return Err(IterateBuildError::Unidentified {
                     phase,
                     retcode,
-                    lines: todo!(),
-                    secondary: todo!(),
+                    lines: vec![],
+                    secondary: None,
                 });
             }
             Err(BuildOnceError::Detailed { phase, error, .. }) => {
@@ -269,8 +269,6 @@ Description: A python package
             let apt = AptManager::new(&session, None);
             apt.set_searchers(vec![Box::new(MemoryAptSearcher::new(apt_files))]);
 
-            let td = tempfile::tempdir().unwrap();
-
             let context = DebianPackagingContext::new(
                 tree.clone(),
                 Path::new(""),
@@ -342,6 +340,7 @@ Description: A python package
                 "Add missing build dependency on brz.\n",
                 rev.unwrap().message
             );
+            // Now that the dependency is added, we should not try to add it again.
             assert!(!resolve(
                 &tree,
                 &MissingCommand("brz".to_owned()),

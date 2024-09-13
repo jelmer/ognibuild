@@ -1,5 +1,5 @@
 use crate::debian::apt::AptManager;
-use crate::dependencies::debian::{DebianDependency};
+use crate::dependencies::debian::DebianDependency;
 use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;

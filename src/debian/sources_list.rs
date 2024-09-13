@@ -4,8 +4,16 @@ use std::path::Path;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum SourcesEntry {
-    Deb { uri: String, dist: String, comps: Vec<String> },
-    DebSrc { uri: String, dist: String, comps: Vec<String> },
+    Deb {
+        uri: String,
+        dist: String,
+        comps: Vec<String>,
+    },
+    DebSrc {
+        uri: String,
+        dist: String,
+        comps: Vec<String>,
+    },
 }
 
 pub fn parse_sources_list_entry(line: &str) -> Option<SourcesEntry> {
@@ -17,10 +25,18 @@ pub fn parse_sources_list_entry(line: &str) -> Option<SourcesEntry> {
     let dist = parts[2];
     let comps = parts[3..].iter().map(|x| x.to_string()).collect::<Vec<_>>();
     if parts[0] == "deb" {
-        return Some(SourcesEntry::Deb { uri: uri.to_string(), dist: dist.to_string(), comps });
+        return Some(SourcesEntry::Deb {
+            uri: uri.to_string(),
+            dist: dist.to_string(),
+            comps,
+        });
     }
     if parts[0] == "deb-src" {
-        return Some(SourcesEntry::DebSrc { uri: uri.to_string(), dist: dist.to_string(), comps });
+        return Some(SourcesEntry::DebSrc {
+            uri: uri.to_string(),
+            dist: dist.to_string(),
+            comps,
+        });
     }
     None
 }
@@ -74,18 +90,47 @@ mod tests {
     fn test_parse_sources_list_entry() {
         use super::parse_sources_list_entry;
         use super::SourcesEntry;
-        assert_eq!(parse_sources_list_entry("deb http://archive.ubuntu.com/ubuntu/ bionic main restricted"), Some(SourcesEntry::Deb { uri: "http://archive.ubuntu.com/ubuntu/".to_string(), dist: "bionic".to_string(), comps: vec!["main".to_string(), "restricted".to_string()] }));
-        assert_eq!(parse_sources_list_entry("deb-src http://archive.ubuntu.com/ubuntu/ bionic main restricted"), Some(SourcesEntry::DebSrc { uri: "http://archive.ubuntu.com/ubuntu/".to_string(), dist: "bionic".to_string(), comps: vec!["main".to_string(), "restricted".to_string()] }));
+        assert_eq!(
+            parse_sources_list_entry(
+                "deb http://archive.ubuntu.com/ubuntu/ bionic main restricted"
+            ),
+            Some(SourcesEntry::Deb {
+                uri: "http://archive.ubuntu.com/ubuntu/".to_string(),
+                dist: "bionic".to_string(),
+                comps: vec!["main".to_string(), "restricted".to_string()]
+            })
+        );
+        assert_eq!(
+            parse_sources_list_entry(
+                "deb-src http://archive.ubuntu.com/ubuntu/ bionic main restricted"
+            ),
+            Some(SourcesEntry::DebSrc {
+                uri: "http://archive.ubuntu.com/ubuntu/".to_string(),
+                dist: "bionic".to_string(),
+                comps: vec!["main".to_string(), "restricted".to_string()]
+            })
+        );
     }
 
     #[test]
     fn test_sources_list() {
         let td = tempfile::tempdir().unwrap();
         let path = td.path().join("sources.list");
-        std::fs::write(&path, "deb http://archive.ubuntu.com/ubuntu/ bionic main restricted\n").unwrap();
+        std::fs::write(
+            &path,
+            "deb http://archive.ubuntu.com/ubuntu/ bionic main restricted\n",
+        )
+        .unwrap();
         let mut sl = super::SourcesList::empty();
         sl.load(&path);
         assert_eq!(sl.list.len(), 1);
-        assert_eq!(sl.list[0], super::SourcesEntry::Deb { uri: "http://archive.ubuntu.com/ubuntu/".to_string(), dist: "bionic".to_string(), comps: vec!["main".to_string(), "restricted".to_string()] });
+        assert_eq!(
+            sl.list[0],
+            super::SourcesEntry::Deb {
+                uri: "http://archive.ubuntu.com/ubuntu/".to_string(),
+                dist: "bionic".to_string(),
+                comps: vec!["main".to_string(), "restricted".to_string()]
+            }
+        );
     }
 }

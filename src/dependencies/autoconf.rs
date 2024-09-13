@@ -37,7 +37,16 @@ fn m4_macro_regex(r#macro: &str) -> String {
     let defun_prefix = regex::escape(format!("AC_DEFUN([{}],", r#macro).as_str());
     let au_alias_prefix = regex::escape(format!("AU_ALIAS([{}],", r#macro).as_str());
     let m4_copy = format!(r"m4_copy\(.*,\s*\[{}\]\)", regex::escape(r#macro));
-    ["(", &defun_prefix, "|", &au_alias_prefix, "|", &m4_copy, ")"].concat()
+    [
+        "(",
+        &defun_prefix,
+        "|",
+        &au_alias_prefix,
+        "|",
+        &m4_copy,
+        ")",
+    ]
+    .concat()
 }
 
 fn find_local_m4_macro(r#macro: &str) -> Option<String> {
@@ -60,13 +69,22 @@ fn find_local_m4_macro(r#macro: &str) -> Option<String> {
 }
 
 impl crate::dependencies::debian::IntoDebianDependency for AutoconfMacroDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         let path = find_local_m4_macro(&self.macro_name);
         if path.is_none() {
             log::info!("No local m4 file found defining {}", self.macro_name);
             return None;
         }
-        Some(apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+        Some(
+            apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false)
+                .unwrap()
+                .iter()
+                .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
+                .collect(),
+        )
     }
 }
 

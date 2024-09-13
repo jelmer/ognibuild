@@ -1,6 +1,6 @@
-use crate::analyze::{AnalyzedError};
+use crate::analyze::AnalyzedError;
 use crate::dependency::Dependency;
-use crate::installer::{Error, Explanation, Installer, InstallationScope};
+use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -58,7 +58,11 @@ impl<'a> TlmgrResolver<'a> {
         }
     }
 
-    fn cmd(&self, reqs: &[&LatexPackageDependency], scope: InstallationScope) -> Result<Vec<String>, Error> {
+    fn cmd(
+        &self,
+        reqs: &[&LatexPackageDependency],
+        scope: InstallationScope,
+    ) -> Result<Vec<String>, Error> {
         let mut ret = vec![
             "tlmgr".to_string(),
             format!("--repository={}", self.repository),
@@ -68,7 +72,7 @@ impl<'a> TlmgrResolver<'a> {
             InstallationScope::User => {
                 ret.push("--usermode".to_string());
             }
-            InstallationScope::Global => {},
+            InstallationScope::Global => {}
             InstallationScope::Vendor => {
                 return Err(Error::UnsupportedScope(scope));
             }
@@ -79,8 +83,11 @@ impl<'a> TlmgrResolver<'a> {
 }
 
 impl<'a> Installer for TlmgrResolver<'a> {
-
-    fn explain(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
+    fn explain(
+        &self,
+        dep: &dyn Dependency,
+        scope: InstallationScope,
+    ) -> Result<Explanation, Error> {
         let dep = dep
             .as_any()
             .downcast_ref::<LatexPackageDependency>()
@@ -92,7 +99,7 @@ impl<'a> Installer for TlmgrResolver<'a> {
         })
     }
 
-    fn install(&self, dep: &dyn Dependency, scope :InstallationScope) -> Result<(), Error> {
+    fn install(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
         let dep = dep
             .as_any()
             .downcast_ref::<LatexPackageDependency>()
@@ -100,12 +107,23 @@ impl<'a> Installer for TlmgrResolver<'a> {
         let cmd = self.cmd(&[dep], scope)?;
         log::info!("tlmgr: running {:?}", cmd);
 
-        match self.session.command(
-            cmd.iter().map(|x| x.as_str()).collect()).run_detecting_problems() {
+        match self
+            .session
+            .command(cmd.iter().map(|x| x.as_str()).collect())
+            .run_detecting_problems()
+        {
             Ok(_) => Ok(()),
-            Err(AnalyzedError::Unidentified { lines, retcode, secondary }) => {
-                if lines.contains(&"tlmgr: user mode not initialized, please read the documentation!".to_string()) {
-                    self.session.command(vec!["tlmgr", "init-usertree"]).check_call()?;
+            Err(AnalyzedError::Unidentified {
+                lines,
+                retcode,
+                secondary,
+            }) => {
+                if lines.contains(
+                    &"tlmgr: user mode not initialized, please read the documentation!".to_string(),
+                ) {
+                    self.session
+                        .command(vec!["tlmgr", "init-usertree"])
+                        .check_call()?;
                     Ok(())
                 } else {
                     Err(Error::AnalyzedError(AnalyzedError::Unidentified {

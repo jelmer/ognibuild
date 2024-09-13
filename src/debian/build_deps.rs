@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use breezyshim::debian::apt::{Apt,LocalApt};
-use crate::session::Session;
 use crate::dependencies::debian::DebianDependency;
 use crate::dependencies::debian::TieBreaker;
+use crate::session::Session;
+use breezyshim::debian::apt::{Apt, LocalApt};
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 pub struct BuildDependencyTieBreaker {
     apt: LocalApt,
@@ -21,21 +21,26 @@ impl BuildDependencyTieBreaker {
     fn count(&self) -> HashMap<String, i32> {
         let mut counts = HashMap::new();
         for source in self.apt.iter_sources() {
-            source.build_depends().into_iter().chain(source.build_depends_indep().into_iter()).chain(source.build_depends_arch().into_iter()).for_each(|r| {
-                for e in r.entries() {
-                    e.relations().for_each(|r| {
-                        let count = counts.entry(r.name().clone()).or_insert(0);
-                        *count += 1;
-                    });
-                }
-            });
+            source
+                .build_depends()
+                .into_iter()
+                .chain(source.build_depends_indep().into_iter())
+                .chain(source.build_depends_arch().into_iter())
+                .for_each(|r| {
+                    for e in r.entries() {
+                        e.relations().for_each(|r| {
+                            let count = counts.entry(r.name().clone()).or_insert(0);
+                            *count += 1;
+                        });
+                    }
+                });
         }
         counts
     }
 }
 
 impl TieBreaker for BuildDependencyTieBreaker {
-    fn break_tie<'a>(&self, reqs: &[&'a DebianDependency]) -> Option<&'a DebianDependency>{
+    fn break_tie<'a>(&self, reqs: &[&'a DebianDependency]) -> Option<&'a DebianDependency> {
         if self.counts.borrow().is_none() {
             let counts = self.count();
             self.counts.replace(Some(counts));
