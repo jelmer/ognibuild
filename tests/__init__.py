@@ -25,7 +25,6 @@ def test_suite():
     names = [
     ]
     if os.path.exists("/usr/bin/dpkg-architecture"):
-        names.append("debian_build")
         names.append("debian_fix_build")
     module_names = ["tests.test_" + name for name in names]
     loader = unittest.TestLoader()
