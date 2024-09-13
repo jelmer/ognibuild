@@ -180,6 +180,7 @@ impl DebianPackagingContext {
     }
 
     fn add_build_dependency(&self, requirement: &DebianDependency) -> Result<bool, Error> {
+        assert!(!requirement.is_empty());
         let mut control = self.edit_control()?;
 
         for binary in control.binaries() {

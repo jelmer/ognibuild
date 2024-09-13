@@ -1,15 +1,15 @@
 check:: style
 
 style:
-	ruff check py tests
+	ruff check py
 
 check:: testsuite
 
 build-inplace:
 	python3 setup.py build_rust --inplace
 
-testsuite: build-inplace
-	PYTHONPATH=$(shell pwd)/py python3 -m unittest tests.test_suite
+testsuite:
+	cargo test
 
 check:: typing
 

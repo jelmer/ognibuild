@@ -443,7 +443,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
             )
             .unwrap();
 
-        if !names.is_empty() {
+        if names.is_empty() {
             names = apt
                 .get_packages_for_paths(
                     [format!(
@@ -738,7 +738,7 @@ impl crate::dependencies::debian::IntoDebianDependency for ValaPackageDependency
         Some(
             apt.get_packages_for_paths(
                 vec![&format!(
-                    "/usr/share/vala-[0-9]+/vapi/{}\\.vapi",
+                    "/usr/share/vala-[.0-9]+/vapi/{}\\.vapi",
                     regex::escape(&self.package)
                 )],
                 true,

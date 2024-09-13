@@ -162,13 +162,9 @@ pub fn build_incrementally(
                     ));
                 }
                 reset_tree(local_tree, None, Some(subpath))
-                    .map_err(|e| IterateBuildError::ResetTree(e))?;
+                    .map_err(IterateBuildError::ResetTree)?;
 
-                match resolve_error(
-                    error.as_ref(),
-                    &phase,
-                    fixers
-                ) {
+                match resolve_error(error.as_ref(), &phase, fixers) {
                     Ok(false) => {
                         log::warn!("Failed to resolve error {:?}. Giving up.", error);
                         return Err(IterateBuildError::Persistent(phase, error));
@@ -200,6 +196,362 @@ pub fn build_incrementally(
                 fixed_errors.push((error, phase));
                 crate::logs::rotate_logfile(&output_directory.join(BUILD_LOG_FILENAME)).unwrap();
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    mod test_resolve_error {
+        use super::*;
+        use crate::debian::apt::AptManager;
+        use crate::debian::context::DebianPackagingContext;
+        use crate::debian::file_search::MemoryAptSearcher;
+        use crate::session::plain::PlainSession;
+        use breezyshim::commit::NullCommitReporter;
+        use breezyshim::controldir::{create_standalone_workingtree, ControlDirFormat};
+        use breezyshim::tree::Tree;
+        use buildlog_consultant::problems::common::*;
+        use debian_control::lossless::Control;
+        use std::collections::HashMap;
+        use std::path::{Path, PathBuf};
+        use test_log::test;
+
+        fn setup(path: &Path) -> WorkingTree {
+            let tree = create_standalone_workingtree(&path, &ControlDirFormat::default()).unwrap();
+
+            std::fs::create_dir_all(path.join("debian")).unwrap();
+            std::fs::write(
+                path.join("debian/control"),
+                r#"Source: blah
+Build-Depends: libc6
+
+Package: python-blah
+Depends: ${python3:Depends}
+Description: A python package
+ Foo
+"#,
+            )
+            .unwrap();
+            std::fs::write(
+                path.join("debian/changelog"),
+                r#"blah (0.1) UNRELEASED; urgency=medium
+
+  * Initial release. (Closes: #XXXXXX)
+
+ -- ognibuild <ognibuild@jelmer.uk>  Sat, 04 Apr 2020 14:12:13 +0000
+"#,
+            )
+            .unwrap();
+            tree.add(&[
+                Path::new("debian"),
+                Path::new("debian/control"),
+                Path::new("debian/changelog"),
+            ])
+            .unwrap();
+            tree.build_commit()
+                .message("Initial commit")
+                .committer("ognibuild <ognibuild@jelmer.uk>")
+                .commit()
+                .unwrap();
+
+            tree
+        }
+
+        fn resolve(
+            tree: &WorkingTree,
+            error: &dyn Problem,
+            phase: &Phase,
+            apt_files: HashMap<PathBuf, String>,
+        ) -> bool {
+            let session = PlainSession::new();
+            let apt = AptManager::new(&session, None);
+            apt.set_searchers(vec![Box::new(MemoryAptSearcher::new(apt_files))]);
+
+            let td = tempfile::tempdir().unwrap();
+
+            let context = DebianPackagingContext::new(
+                tree.clone(),
+                Path::new(""),
+                Some(("ognibuild".to_owned(), "ognibuild@jelmer.uk".to_owned())),
+                true,
+                Box::new(NullCommitReporter::new()),
+            );
+
+            let mut fixers: Vec<Box<dyn DebianBuildFixer>> =
+                crate::debian::fixers::versioned_package_fixers(&session, &context, &apt);
+            fixers.extend(crate::debian::fixers::apt_fixers(&apt, &context));
+            resolve_error(
+                error,
+                phase,
+                &fixers.iter().map(|f| f.as_ref()).collect::<Vec<_>>(),
+            )
+            .unwrap()
+        }
+
+        fn get_build_deps(tree: &dyn Tree) -> String {
+            let content = tree.get_file_text(Path::new("debian/control")).unwrap();
+
+            let content = String::from_utf8(content).unwrap();
+
+            let control: Control = content.parse().unwrap();
+
+            control
+                .source()
+                .unwrap()
+                .build_depends()
+                .unwrap()
+                .to_string()
+        }
+
+        #[test]
+        fn test_missing_command_unknown() {
+            let td = tempfile::tempdir().unwrap();
+            let tree = setup(td.path());
+            assert!(!resolve(
+                &tree,
+                &MissingCommand("acommandthatdoesnotexist".to_string()),
+                &Phase::Build,
+                HashMap::new()
+            ));
+        }
+
+        #[test]
+        fn test_missing_command_brz() {
+            let env = breezyshim::testing::TestEnv::new();
+            let td = tempfile::tempdir().unwrap();
+            let tree = setup(td.path());
+            let apt_files = maplit::hashmap! {
+                PathBuf::from("/usr/bin/b") => "bash".to_string(),
+                PathBuf::from("/usr/bin/brz") => "brz".to_string(),
+                PathBuf::from("/usr/bin/brzier") => "bash".to_string(),
+            };
+            assert!(resolve(
+                &tree,
+                &MissingCommand("brz".to_string()),
+                &Phase::Build,
+                apt_files.clone()
+            ));
+            assert_eq!("libc6, brz", get_build_deps(&tree));
+            let rev = tree
+                .branch()
+                .repository()
+                .get_revision(&tree.branch().last_revision());
+            assert_eq!(
+                "Add missing build dependency on brz.\n",
+                rev.unwrap().message
+            );
+            assert!(!resolve(
+                &tree,
+                &MissingCommand("brz".to_owned()),
+                &Phase::Build,
+                apt_files
+            ));
+            assert_eq!("libc6, brz", get_build_deps(&tree));
+
+            std::mem::drop(env);
+        }
+
+        #[test]
+        fn test_missing_command_ps() {
+            let apt_files = maplit::hashmap! {
+                PathBuf::from("/bin/ps") => "procps".to_string(),
+                PathBuf::from("/usr/bin/pscal") => "xcal".to_string(),
+            };
+            let td = tempfile::tempdir().unwrap();
+            let tree = setup(td.path());
+            assert!(resolve(
+                &tree,
+                &MissingCommand("ps".to_owned()),
+                &Phase::Build,
+                apt_files
+            ));
+            assert_eq!("libc6, procps", get_build_deps(&tree));
+        }
+
+        #[test]
+        fn test_missing_ruby_file() {
+            let apt_files = maplit::hashmap! {
+                PathBuf::from("/usr/lib/ruby/vendor_ruby/rake/testtask.rb") => "rake".to_string(),
+            };
+            let td = tempfile::tempdir().unwrap();
+            let tree = setup(td.path());
+
+            assert!(resolve(
+                &tree,
+                &MissingRubyFile::new("rake/testtask".to_string()),
+                &Phase::Build,
+                apt_files
+            ));
+            assert_eq!("libc6, rake", get_build_deps(&tree));
+        }
+
+        #[test]
+        fn test_missing_ruby_file_from_gem() {
+            let apt_files = maplit::hashmap! {
+                PathBuf::from("/usr/share/rubygems-integration/all/gems/activesupport-5.2.3/lib/active_support/core_ext/string/strip.rb") => "ruby-activesupport".to_string(),
+            };
+            let td = tempfile::tempdir().unwrap();
+            let tree = setup(td.path());
+
+            assert!(resolve(
+                &tree,
+                &MissingRubyFile::new("active_support/core_ext/string/strip".to_string()),
+                &Phase::Build,
+                apt_files
+            ));
+            assert_eq!("libc6, ruby-activesupport", get_build_deps(&tree));
+        }
+
+        #[test]
+        fn test_missing_ruby_gem() {
+            let apt_files = maplit::hashmap! {
+                PathBuf::from("/usr/share/rubygems-integration/all/specifications/bio-1.5.2.gemspec") => "ruby-bio".to_string(),
+                PathBuf::from("/usr/share/rubygems-integration/all/specifications/bio-2.0.2.gemspec") => "ruby-bio".to_string(),
+            };
+            let td = tempfile::tempdir().unwrap();
+            let tree = setup(td.path());
+
+            assert!(resolve(
+                &tree,
+                &MissingRubyGem::simple("bio".to_string()),
+                &Phase::Build,
+                apt_files.clone()
+            ));
+            assert_eq!("libc6, ruby-bio", get_build_deps(&tree));
+            assert!(resolve(
+                &tree,
+                &MissingRubyGem::new("bio".to_string(), Some("2.0.3".to_string())),
+                &Phase::Build,
+                apt_files
+            ));
+            assert_eq!("libc6, ruby-bio (>= 2.0.3)", get_build_deps(&tree));
+        }
+
+        #[test]
+        fn test_missing_perl_module() {
+            let apt_files = maplit::hashmap! {
+                PathBuf::from("/usr/share/perl5/App/cpanminus/fatscript.pm") => "cpanminus".to_string(),
+            };
+            let td = tempfile::tempdir().unwrap();
+            let tree = setup(td.path());
+
+            assert!(resolve(
+                &tree,
+                &MissingPerlModule {
+                    filename: Some("App/cpanminus/fatscript.pm".to_string()),
+                    module: "App::cpanminus::fatscript".to_string(),
+                    minimum_version: None,
+                    inc: Some(vec![
+                        "/<<PKGBUILDDIR>>/blib/lib".to_string(),
+                        "/<<PKGBUILDDIR>>/blib/arch".to_string(),
+                        "/etc/perl".to_string(),
+                        "/usr/local/lib/x86_64-linux-gnu/perl/5.30.0".to_string(),
+                        "/usr/local/share/perl/5.30.0".to_string(),
+                        "/usr/lib/x86_64-linux-gnu/perl5/5.30".to_string(),
+                        "/usr/share/perl5".to_string(),
+                        "/usr/lib/x86_64-linux-gnu/perl/5.30".to_string(),
+                        "/usr/share/perl/5.30".to_string(),
+                        "/usr/local/lib/site_perl".to_string(),
+                        "/usr/lib/x86_64-linux-gnu/perl-base".to_string(),
+                        ".".to_string(),
+                    ]),
+                },
+                &Phase::Build,
+                apt_files
+            ));
+            assert_eq!("libc6, cpanminus", get_build_deps(&tree));
+        }
+
+        #[test]
+        fn test_missing_pkg_config() {
+            let apt_files = maplit::hashmap! {
+                PathBuf::from("/usr/lib/x86_64-linux-gnu/pkgconfig/xcb-xfixes.pc") => "libxcb-xfixes0-dev".to_string(),
+            };
+            let td = tempfile::tempdir().unwrap();
+            let tree = setup(td.path());
+
+            assert!(resolve(
+                &tree,
+                &MissingPkgConfig::simple("xcb-xfixes".to_string()),
+                &Phase::Build,
+                apt_files
+            ));
+            assert_eq!("libc6, libxcb-xfixes0-dev", get_build_deps(&tree));
+        }
+
+        #[test]
+        fn test_missing_pkg_config_versioned() {
+            let apt_files = maplit::hashmap! {
+                PathBuf::from("/usr/lib/x86_64-linux-gnu/pkgconfig/xcb-xfixes.pc") => "libxcb-xfixes0-dev".to_string(),
+            };
+            let td = tempfile::tempdir().unwrap();
+            let tree = setup(td.path());
+
+            assert!(resolve(
+                &tree,
+                &MissingPkgConfig::new("xcb-xfixes".to_string(), Some("1.0".to_string())),
+                &Phase::Build,
+                apt_files
+            ));
+            assert_eq!("libc6, libxcb-xfixes0-dev (>= 1.0)", get_build_deps(&tree));
+        }
+
+        #[test]
+        fn test_missing_python_module() {
+            let apt_files = maplit::hashmap! {
+                PathBuf::from("/usr/lib/python3/dist-packages/m2r.py") => "python3-m2r".to_string(),
+            };
+            let td = tempfile::tempdir().unwrap();
+            let tree = setup(td.path());
+
+            assert!(resolve(
+                &tree,
+                &MissingPythonModule::simple("m2r".to_string()),
+                &Phase::Build,
+                apt_files
+            ));
+            assert_eq!("libc6, python3-m2r", get_build_deps(&tree));
+        }
+
+        #[test]
+        fn test_missing_go_package() {
+            let apt_files = maplit::hashmap! {
+                PathBuf::from("/usr/share/gocode/src/github.com/chzyer/readline/utils_test.go") => "golang-github-chzyer-readline-dev".to_string(),
+            };
+            let td = tempfile::tempdir().unwrap();
+            let tree = setup(td.path());
+
+            assert!(resolve(
+                &tree,
+                &MissingGoPackage {
+                    package: "github.com/chzyer/readline".to_string()
+                },
+                &Phase::Build,
+                apt_files
+            ));
+            assert_eq!(
+                "libc6, golang-github-chzyer-readline-dev",
+                get_build_deps(&tree)
+            );
+        }
+
+        #[test]
+        fn test_missing_vala_package() {
+            let apt_files = maplit::hashmap! {
+                PathBuf::from("/usr/share/vala-0.48/vapi/posix.vapi") => "valac-0.48-vapi".to_string(),
+            };
+            let td = tempfile::tempdir().unwrap();
+            let tree = setup(td.path());
+
+            assert!(resolve(
+                &tree,
+                &MissingValaPackage("posix".to_string()),
+                &Phase::Build,
+                apt_files
+            ));
+            assert_eq!("libc6, valac-0.48-vapi", get_build_deps(&tree));
         }
     }
 }

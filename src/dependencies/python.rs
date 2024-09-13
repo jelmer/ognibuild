@@ -326,7 +326,7 @@ impl<'a> Installer for PypiResolver<'a> {
 
 pub fn python_spec_to_apt_rels(pkg_name: &str, specs: Option<&[(String, String)]>) -> Relations {
     // TODO(jelmer): Dealing with epoch, etc?
-    if specs.is_none() {
+    if specs.is_none() || specs.as_ref().unwrap().is_empty() {
         return pkg_name.parse().unwrap();
     }
 
@@ -551,6 +551,7 @@ fn get_package_for_python_object_path(
             false,
         )
         .unwrap();
+
     names
         .into_iter()
         .map(|name| DebianDependency::from(python_spec_to_apt_rels(&name, Some(specs))))

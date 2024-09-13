@@ -124,6 +124,13 @@ impl<'a> AptManager<'a> {
         }
     }
 
+    pub fn set_searchers(
+        &self,
+        searchers: Vec<Box<dyn crate::debian::file_search::FileSearcher<'a> + 'a>>,
+    ) {
+        *self.searchers.write().unwrap() = Some(searchers);
+    }
+
     pub fn from_session(session: &'a dyn Session) -> Self {
         let prefix = if get_user(session).as_str() != "root" {
             vec!["sudo".to_string()]
@@ -168,7 +175,11 @@ impl<'a> AptManager<'a> {
         regex: bool,
         case_insensitive: bool,
     ) -> Result<Vec<String>, Error> {
-        log::debug!("Searching for packages containing {:?}", paths);
+        if regex {
+            log::debug!("Searching for packages containing regexes {:?}", paths);
+        } else {
+            log::debug!("Searching for packages containing {:?}", paths);
+        }
         if self.searchers.read().unwrap().is_none() {
             *self.searchers.write().unwrap() = Some(vec![
                 crate::debian::file_search::get_apt_contents_file_searcher(self.session).unwrap(),
@@ -375,7 +386,11 @@ pub fn dependency_to_possible_deb_dependencies(
         dep,
         crate::dependencies::python::PythonModuleDependency
     );
-    try_into_debian_dependency!(apt, dep, crate::dependencies::python::PythonPackageDependency);
+    try_into_debian_dependency!(
+        apt,
+        dep,
+        crate::dependencies::python::PythonPackageDependency
+    );
     try_into_debian_dependency!(apt, dep, crate::dependencies::python::PythonDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::r::RPackageDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::vague::VagueDependency);
@@ -388,13 +403,22 @@ pub fn dependency_to_deb_dependency(
     dep: &dyn Dependency,
     tie_breakers: &[Box<dyn TieBreaker>],
 ) -> Result<Option<DebianDependency>, InstallerError> {
-    let candidates = dependency_to_possible_deb_dependencies(apt, dep);
+    let mut candidates = dependency_to_possible_deb_dependencies(apt, dep);
 
     if candidates.is_empty() {
-        return Ok(None);
+        log::debug!("No Debian dependency candidates for dependency {:?}", dep);
+        Ok(None)
+    } else if candidates.len() == 1 {
+        let deb_dep = candidates.remove(0);
+        log::debug!(
+            "Only one Debian dependency candidate for dependency {:?}: {:?}",
+            dep,
+            deb_dep
+        );
+        Ok(Some(deb_dep))
+    } else {
+        Ok(pick_best_deb_dependency(candidates, tie_breakers))
     }
-
-    Ok(pick_best_deb_dependency(candidates, tie_breakers))
 }
 
 pub struct AptInstaller<'a> {

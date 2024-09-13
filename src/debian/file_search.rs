@@ -37,13 +37,13 @@ impl std::error::Error for Error {}
 pub trait FileSearcher<'b> {
     fn search_files<'a>(
         &'a self,
-        path: &Path,
+        path: &'a Path,
         case_insensitive: bool,
     ) -> Box<dyn Iterator<Item = String> + 'a>;
 
     fn search_files_regex<'a>(
         &'a self,
-        path: &str,
+        path: &'a str,
         case_insensitive: bool,
     ) -> Box<dyn Iterator<Item = String> + 'a>;
 }
@@ -338,54 +338,49 @@ impl<'a> AptFileFileSearcher<'a> {
         match output.status.code() {
             Some(0) => {
                 // At least one search result
+                let output_str = std::str::from_utf8(&output.stdout).unwrap();
+                let entries = output_str
+                    .split('\n')
+                    .filter_map(|line| {
+                        if line.is_empty() {
+                            return None;
+                        }
+                        let (pkg, _path) = line.split_once(": ").unwrap();
+                        Some(pkg.to_string())
+                    })
+                    .collect::<Vec<String>>();
+                log::debug!("Found entries {:?} for {}", entries, path);
+                Ok(entries.into_iter())
             }
             Some(1) => {
                 // No search results
-                return Ok(vec![].into_iter());
+                Ok(vec![].into_iter())
             }
             Some(2) => {
                 // Error
-                return Err(Error::AptFileAccessError(format!(
+                Err(Error::AptFileAccessError(format!(
                     "Error searching for files matching {}: {}",
                     path,
                     std::str::from_utf8(&output.stderr).unwrap()
-                )));
+                )))
             }
-            Some(3) => {
-                return Err(Error::AptFileAccessError(
-                    "apt-file cache is empty".to_owned(),
-                ));
-            }
-            Some(4) => {
-                return Err(Error::AptFileAccessError(
-                    "apt-file has no entries matching restrictions".to_owned(),
-                ));
-            }
-            _ => {
-                return Err(Error::AptFileAccessError(
-                    "apt-file returned an unknown error".to_owned(),
-                ));
-            }
+            Some(3) => Err(Error::AptFileAccessError(
+                "apt-file cache is empty".to_owned(),
+            )),
+            Some(4) => Err(Error::AptFileAccessError(
+                "apt-file has no entries matching restrictions".to_owned(),
+            )),
+            _ => Err(Error::AptFileAccessError(
+                "apt-file returned an unknown error".to_owned(),
+            )),
         }
-        let output_str = std::str::from_utf8(&output.stdout).unwrap();
-        let entries = output_str
-            .split('\n')
-            .filter_map(|line| {
-                if line.is_empty() {
-                    return None;
-                }
-                let (pkg, _path) = line.split_once(": ").unwrap();
-                Some(pkg.to_string())
-            })
-            .collect::<Vec<String>>();
-        Ok(entries.into_iter())
     }
 }
 
 impl<'b> FileSearcher<'b> for AptFileFileSearcher<'b> {
     fn search_files<'a>(
         &'a self,
-        path: &Path,
+        path: &'a Path,
         case_insensitive: bool,
     ) -> Box<dyn Iterator<Item = String> + 'a> {
         return Box::new(
@@ -396,7 +391,7 @@ impl<'b> FileSearcher<'b> for AptFileFileSearcher<'b> {
 
     fn search_files_regex<'a>(
         &'a self,
-        path: &str,
+        path: &'a str,
         case_insensitive: bool,
     ) -> Box<dyn Iterator<Item = String> + 'a> {
         Box::new(self.search_files_ex(path, true, case_insensitive).unwrap())
@@ -494,7 +489,7 @@ impl RemoteContentsFileSearcher {
 impl FileSearcher<'_> for RemoteContentsFileSearcher {
     fn search_files<'a>(
         &'a self,
-        path: &Path,
+        path: &'a Path,
         case_insensitive: bool,
     ) -> Box<dyn Iterator<Item = String> + 'a> {
         let path = if case_insensitive {
@@ -513,7 +508,7 @@ impl FileSearcher<'_> for RemoteContentsFileSearcher {
 
     fn search_files_regex<'a>(
         &'a self,
-        path: &str,
+        path: &'a str,
         case_insensitive: bool,
     ) -> Box<dyn Iterator<Item = String> + 'a> {
         let re = regex::RegexBuilder::new(path)
@@ -587,7 +582,7 @@ impl GeneratedFileSearcher {
 impl FileSearcher<'_> for GeneratedFileSearcher {
     fn search_files<'a>(
         &'a self,
-        path: &Path,
+        path: &'a Path,
         case_insensitive: bool,
     ) -> Box<dyn Iterator<Item = String> + 'a> {
         let path = if case_insensitive {
@@ -606,7 +601,7 @@ impl FileSearcher<'_> for GeneratedFileSearcher {
 
     fn search_files_regex<'a>(
         &'a self,
-        path: &str,
+        path: &'a str,
         case_insensitive: bool,
     ) -> Box<dyn Iterator<Item = String> + 'a> {
         let re = regex::RegexBuilder::new(path)
@@ -663,6 +658,58 @@ pub fn get_packages_for_paths(
         }
     }
     candidates
+}
+
+pub struct MemoryAptSearcher(std::collections::HashMap<PathBuf, String>);
+
+impl MemoryAptSearcher {
+    pub fn new(db: std::collections::HashMap<PathBuf, String>) -> MemoryAptSearcher {
+        MemoryAptSearcher(db)
+    }
+}
+
+impl FileSearcher<'_> for MemoryAptSearcher {
+    fn search_files<'a>(
+        &'a self,
+        path: &'a Path,
+        case_insensitive: bool,
+    ) -> Box<dyn Iterator<Item = String> + 'a> {
+        if case_insensitive {
+            Box::new(
+                self.0
+                    .iter()
+                    .filter(move |(p, _)| {
+                        p.to_str().unwrap().to_lowercase() == path.to_str().unwrap()
+                    })
+                    .map(|(_, pkg)| pkg.to_string()),
+            )
+        } else {
+            let hit = self.0.get(path);
+            if let Some(hit) = hit {
+                Box::new(std::iter::once(hit.clone()))
+            } else {
+                Box::new(std::iter::empty())
+            }
+        }
+    }
+
+    fn search_files_regex<'a>(
+        &'a self,
+        path: &str,
+        case_insensitive: bool,
+    ) -> Box<dyn Iterator<Item = String> + 'a> {
+        log::debug!("Searching for {} in {:?}", path, self.0.keys());
+        let re = regex::RegexBuilder::new(path)
+            .case_insensitive(case_insensitive)
+            .build()
+            .unwrap();
+        Box::new(
+            self.0
+                .iter()
+                .filter(move |(p, _)| re.is_match(p.to_str().unwrap()))
+                .map(|(_, pkg)| pkg.to_string()),
+        )
+    }
 }
 
 #[cfg(test)]

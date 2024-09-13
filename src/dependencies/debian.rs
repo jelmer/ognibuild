@@ -7,8 +7,15 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashSet;
 use std::hash::Hash;
 
-#[derive(Debug)]
 pub struct DebianDependency(Relations);
+
+impl std::fmt::Debug for DebianDependency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("DebianDependency")
+            .field(&self.0.to_string())
+            .finish()
+    }
+}
 
 impl Clone for DebianDependency {
     fn clone(&self) -> Self {
@@ -69,6 +76,10 @@ impl DebianDependency {
 
     pub fn simple(name: &str) -> DebianDependency {
         Self::new(name)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     pub fn new_with_min_version(name: &str, min_version: &Version) -> DebianDependency {
