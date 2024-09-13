@@ -1,12 +1,12 @@
-use std::path::PathBuf;
 use clap::Parser;
-use ognibuild::session::{Session, plain::PlainSession};
+use ognibuild::debian::build::BuildOnceError;
+use ognibuild::debian::fix_build::{rescue_build_log, IterateBuildError};
 #[cfg(target_os = "linux")]
 use ognibuild::session::schroot::SchrootSession;
-use std::io::Write as _;
+use ognibuild::session::{plain::PlainSession, Session};
 use std::fmt::Write as _;
-use ognibuild::debian::fix_build::{IterateBuildError,rescue_build_log};
-use ognibuild::debian::build::BuildOnceError;
+use std::io::Write as _;
+use std::path::PathBuf;
 
 #[derive(Parser)]
 struct Args {
@@ -119,37 +119,42 @@ fn main() -> Result<(), i32> {
     };
 
     let packaging_context = ognibuild::debian::context::DebianPackagingContext::new(
-        tree.clone(), &subpath, committer, args.update_changelog, Box::new(breezyshim::commit::NullCommitReporter::new())
+        tree.clone(),
+        &subpath,
+        committer,
+        args.update_changelog,
+        Box::new(breezyshim::commit::NullCommitReporter::new()),
     );
 
-    let fixers = ognibuild::debian::fixers::default_fixers(
-        &packaging_context,
-        &apt,
-    );
+    let fixers = ognibuild::debian::fixers::default_fixers(&packaging_context, &apt);
 
     match ognibuild::debian::fix_build::build_incrementally(
-                &tree,
-                Some(&args.suffix),
-                Some(&args.suite),
-                &output_directory,
-                &args.build_command,
-                fixers.iter().map(|f |f.as_ref()).collect::<Vec<_>>().as_slice(),
-                None,
-                Some(args.max_iterations),
-                &subpath,
-                None,
-                None,
-                None,
-                None,
-                update_changelog == Some(false),
-            ) {
+        &tree,
+        Some(&args.suffix),
+        Some(&args.suite),
+        &output_directory,
+        &args.build_command,
+        fixers
+            .iter()
+            .map(|f| f.as_ref())
+            .collect::<Vec<_>>()
+            .as_slice(),
+        None,
+        Some(args.max_iterations),
+        &subpath,
+        None,
+        None,
+        None,
+        None,
+        update_changelog == Some(false),
+    ) {
         Ok(build_result) => {
             log::info!(
                 "Built {} - changes file at {:?}.",
                 build_result.version,
                 build_result.changes_names,
             );
-            return Ok(())
+            return Ok(());
         }
         Err(IterateBuildError::Persistent(phase, error)) => {
             log::error!("Error during {}: {}", phase, error);
@@ -159,7 +164,9 @@ fn main() -> Result<(), i32> {
             return Err(1);
         }
         Err(IterateBuildError::Unidentified {
-            phase, lines, secondary,
+            phase,
+            lines,
+            secondary,
             ..
         }) => {
             let mut header = if let Some(phase) = phase {
@@ -169,7 +176,13 @@ fn main() -> Result<(), i32> {
             };
             if let Some(m) = secondary {
                 let linenos = m.linenos();
-                write!(header, " on lines {}-{}", linenos[0], linenos[linenos.len() - 1]).unwrap();
+                write!(
+                    header,
+                    " on lines {}-{}",
+                    linenos[0],
+                    linenos[linenos.len() - 1]
+                )
+                .unwrap();
             }
             header.write_str(":").unwrap();
             log::error!("{}", header);
@@ -179,11 +192,11 @@ fn main() -> Result<(), i32> {
             if let Some(output_directory) = args.output_directory {
                 rescue_build_log(&output_directory, Some(&tree)).unwrap();
             }
-            return Err(1)
+            return Err(1);
         }
         Err(IterateBuildError::FixerLimitReached(n)) => {
             log::error!("Fixer limit reached - {} attempts.", n);
-            return Err(1)
+            return Err(1);
         }
         Err(IterateBuildError::Other(o)) => {
             log::error!("Error: {}", o);

@@ -31,7 +31,10 @@ pub struct PythonPackageOutput {
 
 impl PythonPackageOutput {
     pub fn new(name: &str, version: Option<&str>) -> Self {
-        PythonPackageOutput { name: name.to_string(), version: version.map(|s| s.to_string()) }
+        PythonPackageOutput {
+            name: name.to_string(),
+            version: version.map(|s| s.to_string()),
+        }
     }
 }
 
@@ -52,7 +55,9 @@ pub struct RPackageOutput {
 
 impl RPackageOutput {
     pub fn new(name: &str) -> Self {
-        RPackageOutput { name: name.to_string() }
+        RPackageOutput {
+            name: name.to_string(),
+        }
     }
 }
 

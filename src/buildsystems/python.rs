@@ -486,7 +486,7 @@ impl SetupPy {
         crate::installer::install_missing_deps(
             session,
             installer,
-            crate::installer::InstallationScope::Global,
+            &[crate::installer::InstallationScope::Global],
             setup_requires
                 .iter()
                 .map(|x| x.as_ref())

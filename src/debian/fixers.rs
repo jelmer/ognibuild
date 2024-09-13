@@ -62,7 +62,7 @@ impl TieBreaker for PythonTieBreaker {
             if pkg.starts_with(&format!("lib{}-", python_version)) {
                 return true;
             }
-            return pkg == format!("lib{}-dev", python_version);
+            pkg == format!("lib{}-dev", python_version)
         }
 
         for python_version in &self.targeted {
@@ -102,7 +102,7 @@ fn enable_dh_autoreconf(context: &DebianPackagingContext, phase: &Phase) -> Resu
             .unwrap();
 
     if !debhelper_compat_version
-        .and_then(|dcv| Some(dcv < 10))
+        .map(|dcv| dcv < 10)
         .unwrap_or(false)
     {
         return Ok(false);
@@ -230,9 +230,7 @@ impl<'a, 'b, 'c> DebianBuildFixer for PackageDependencyFixer<'a, 'b, 'c> {
             return Ok(false);
         };
 
-        self.context.add_dependency(phase, &deb_dep).unwrap();
-
-        Ok(true)
+        Ok(self.context.add_dependency(phase, &deb_dep).unwrap())
     }
 }
 
@@ -466,9 +464,9 @@ where
     let mut ret = Vec::new();
     ret.extend(versioned_package_fixers(
         apt.session(),
-        &packaging_context,
+        packaging_context,
         apt,
     ));
-    ret.extend(apt_fixers(apt, &packaging_context));
+    ret.extend(apt_fixers(apt, packaging_context));
     ret
 }

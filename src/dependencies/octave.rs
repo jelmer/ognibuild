@@ -1,7 +1,7 @@
-use crate::installer::{Installer, Error, Explanation, InstallationScope};
-use crate::session::Session;
 use crate::dependency::Dependency;
-use serde::{Serialize, Deserialize};
+use crate::installer::{Error, Explanation, InstallationScope, Installer};
+use crate::session::Session;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OctavePackageDependency {
@@ -23,7 +23,6 @@ impl OctavePackageDependency {
             minimum_version: None,
         }
     }
-
 }
 
 impl std::str::FromStr for OctavePackageDependency {
@@ -77,19 +76,33 @@ impl<'a> OctaveForgeResolver<'a> {
         Self { session }
     }
 
-    fn cmd(&self, dependency: &OctavePackageDependency, scope: InstallationScope) -> Result<Vec<String>, Error> {
+    fn cmd(
+        &self,
+        dependency: &OctavePackageDependency,
+        scope: InstallationScope,
+    ) -> Result<Vec<String>, Error> {
         match scope {
-            InstallationScope::Global => Ok(vec!["octave-cli".to_string(), "--eval".to_string(), format!("pkg install -forge -global {}", dependency.package)]),
-            InstallationScope::User => Ok(vec!["octave-cli".to_string(), "--eval".to_string(), format!("pkg install -forge -local {}", dependency.package)]),
-            InstallationScope::Vendor => {
-                Err(Error::UnsupportedScope(scope))
-            }
+            InstallationScope::Global => Ok(vec![
+                "octave-cli".to_string(),
+                "--eval".to_string(),
+                format!("pkg install -forge -global {}", dependency.package),
+            ]),
+            InstallationScope::User => Ok(vec![
+                "octave-cli".to_string(),
+                "--eval".to_string(),
+                format!("pkg install -forge -local {}", dependency.package),
+            ]),
+            InstallationScope::Vendor => Err(Error::UnsupportedScope(scope)),
         }
     }
 }
 
 impl<'a> Installer for OctaveForgeResolver<'a> {
-    fn explain(&self, dependency: &dyn Dependency, scope: InstallationScope) -> Result<Explanation, Error> {
+    fn explain(
+        &self,
+        dependency: &dyn Dependency,
+        scope: InstallationScope,
+    ) -> Result<Explanation, Error> {
         let dependency = dependency
             .as_any()
             .downcast_ref::<OctavePackageDependency>()
@@ -105,20 +118,33 @@ impl<'a> Installer for OctaveForgeResolver<'a> {
         let dependency = dependency
             .as_any()
             .downcast_ref::<OctavePackageDependency>()
-            .unwrap();
+            .ok_or(Error::UnknownDependencyFamily)?;
         let cmd = self.cmd(dependency, scope)?;
         log::info!("Octave: installing {}", dependency.package);
-        self.session.command(cmd.iter().map(|x| x.as_str()).collect()).run_detecting_problems()?;
+        self.session
+            .command(cmd.iter().map(|x| x.as_str()).collect())
+            .run_detecting_problems()?;
         Ok(())
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for OctavePackageDependency {
-    fn try_into_debian_dependency(&self, _apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    fn try_into_debian_dependency(
+        &self,
+        _apt: &crate::debian::apt::AptManager,
+    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         if let Some(minimum_version) = &self.minimum_version {
-            Some(vec![crate::dependencies::debian::DebianDependency::new_with_min_version(&format!("octave-{}", &self.package), &minimum_version.parse().unwrap())])
+            Some(vec![
+                crate::dependencies::debian::DebianDependency::new_with_min_version(
+                    &format!("octave-{}", &self.package),
+                    &minimum_version.parse().unwrap(),
+                ),
+            ])
         } else {
-            Some(vec![crate::dependencies::debian::DebianDependency::new(&format!("octave-{}", &self.package))])
+            Some(vec![crate::dependencies::debian::DebianDependency::new(
+                &format!("octave-{}", &self.package),
+            )])
         }
     }
 }

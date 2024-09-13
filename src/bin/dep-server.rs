@@ -1,9 +1,9 @@
+use axum::{response::Json, routing::get, Router};
 use clap::Parser;
-use axum::{response::Json, Router, routing::get};
 use ognibuild::debian::apt::AptManager;
-use ognibuild::session::{Session, plain::PlainSession};
 #[cfg(target_os = "linux")]
 use ognibuild::session::schroot::SchrootSession;
+use ognibuild::session::{plain::PlainSession, Session};
 use std::io::Write;
 
 #[derive(Parser)]
@@ -54,7 +54,6 @@ async fn main() -> Result<(), i8> {
         .route("/health", get(|| async { "ok" }))
         .route("/version", get(|| async { env!("CARGO_PKG_VERSION") }))
         .route("/ready", get(|| async { "ok" }));
-
 
     let listener = tokio::net::TcpListener::bind((args.listen_address.as_str(), args.port))
         .await

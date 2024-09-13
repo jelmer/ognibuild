@@ -39,25 +39,32 @@ impl Dependency for XmlEntityDependency {
     }
 }
 
-pub const XML_ENTITY_URL_MAP: &[(&str, &str)] = &[
-    ("http://www.oasis-open.org/docbook/xml/", "/usr/share/xml/docbook/schema/dtd/"),
-];
+pub const XML_ENTITY_URL_MAP: &[(&str, &str)] = &[(
+    "http://www.oasis-open.org/docbook/xml/",
+    "/usr/share/xml/docbook/schema/dtd/",
+)];
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for XmlEntityDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         let path = XML_ENTITY_URL_MAP.iter().find_map(|(url, path)| {
-            if let Some(rest) = self.url.strip_prefix(url) {
-                Some(format!("{}{}", path, rest))
-            } else {
-                None
-            }
+            self.url
+                .strip_prefix(url)
+                .map(|rest| format!("{}{}", path, rest))
         });
 
-        if path.is_none() {
-            return None;
-        }
+        path.as_ref()?;
 
-        Some(apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false).unwrap().iter().map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str())).collect())
+        Some(
+            apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false)
+                .unwrap()
+                .iter()
+                .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
+                .collect(),
+        )
     }
 }
 

@@ -98,7 +98,7 @@ impl DebianPackagingContext {
         allow_generated: bool,
     ) -> Result<TreeEditor<P>, EditorError> {
         let path = self.subpath.join(path);
-        self.tree.edit_file(&path, false, allow_generated)
+        self.tree.edit_file(&path, allow_generated, true)
     }
 
     pub fn commit(&self, summary: &str, update_changelog: Option<bool>) -> Result<bool, Error> {
@@ -136,9 +136,7 @@ impl DebianPackagingContext {
         match r {
             Ok(_) => Ok(true),
             Err(BrzError::PointlessCommit) => Ok(false),
-            Err(e) => {
-                return Err(e.into());
-            }
+            Err(e) => Err(e.into()),
         }
     }
 
@@ -148,16 +146,16 @@ impl DebianPackagingContext {
         requirement: &DebianDependency,
     ) -> Result<bool, Error> {
         match phase {
-            Phase::AutoPkgTest(n) => return self.add_test_dependency(n, requirement),
-            Phase::Build => return self.add_build_dependency(requirement),
+            Phase::AutoPkgTest(n) => self.add_test_dependency(n, requirement),
+            Phase::Build => self.add_build_dependency(requirement),
             Phase::BuildEnv => {
                 // TODO(jelmer): Actually, we probably just want to install it on the host system?
                 log::warn!("Unknown phase {:?}", phase);
-                return Ok(false);
+                Ok(false)
             }
             Phase::CreateSession => {
                 log::warn!("Unknown phase {:?}", phase);
-                return Ok(false);
+                Ok(false)
             }
         }
     }
@@ -173,15 +171,16 @@ impl DebianPackagingContext {
                 )?,
             ))
         } else {
-            let control_path = self.abspath(Path::new("debian/control"));
+            let control_path = Path::new("debian/control");
             Ok(
-                Box::new(self.edit_file::<debian_control::Control>(&control_path, false)?)
+                Box::new(self.edit_file::<debian_control::Control>(control_path, false)?)
                     as Box<dyn AbstractControlEditor>,
             )
         }
     }
 
     fn add_build_dependency(&self, requirement: &DebianDependency) -> Result<bool, Error> {
+        assert!(!requirement.is_empty());
         let mut control = self.edit_control()?;
 
         for binary in control.binaries() {
@@ -203,7 +202,7 @@ impl DebianPackagingContext {
 
         let desc = requirement.relation_string();
 
-        if control.commit() {
+        if !control.commit() {
             log::info!("Giving up; build dependency {} was already present.", desc);
             return Ok(false);
         }
@@ -271,5 +270,94 @@ impl DebianPackagingContext {
             None,
         )?;
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use breezyshim::controldir::{create_standalone_workingtree, ControlDirFormat};
+    fn setup(path: &Path) -> DebianPackagingContext {
+        let tree = create_standalone_workingtree(path, &ControlDirFormat::default()).unwrap();
+        std::fs::create_dir_all(path.join("debian")).unwrap();
+        std::fs::write(
+            path.join("debian/control"),
+            r###"Source: blah
+Build-Depends: libc6
+
+Package: python-blah
+Depends: ${python3:Depends}
+Description: A python package
+ Foo
+"###,
+        )
+        .unwrap();
+        std::fs::write(
+            path.join("debian/changelog"),
+            r###"blah (0.1) UNRELEASED; urgency=medium
+
+  * Initial release. (Closes: #XXXXXX)
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 04 Apr 2020 14:12:13 +0000
+"###,
+        )
+        .unwrap();
+        tree.add(&[
+            Path::new("debian"),
+            Path::new("debian/control"),
+            Path::new("debian/changelog"),
+        ])
+        .unwrap();
+        tree.build_commit()
+            .message("Initial commit")
+            .commit()
+            .unwrap();
+
+        DebianPackagingContext::new(
+            tree,
+            Path::new(""),
+            Some(("ognibuild".to_owned(), "<ognibuild@jelmer.uk>".to_owned())),
+            false,
+            Box::new(breezyshim::commit::NullCommitReporter::new()),
+        )
+    }
+
+    #[test]
+    fn test_already_present() {
+        let td = tempfile::tempdir().unwrap();
+        let context = setup(td.path());
+        let dep = DebianDependency::simple("libc6");
+        assert!(!context.add_build_dependency(&dep).unwrap());
+    }
+
+    #[test]
+    fn test_basic() {
+        let td = tempfile::tempdir().unwrap();
+        let context = setup(td.path());
+        let dep = DebianDependency::simple("foo");
+        assert!(context.add_build_dependency(&dep).unwrap());
+        let control = std::fs::read_to_string(td.path().join("debian/control")).unwrap();
+        assert_eq!(
+            control,
+            r###"Source: blah
+Build-Depends: libc6, foo
+
+Package: python-blah
+Depends: ${python3:Depends}
+Description: A python package
+ Foo
+"###
+        );
+    }
+
+    #[test]
+    fn test_circular() {
+        let td = tempfile::tempdir().unwrap();
+        let context = setup(td.path());
+        let dep = DebianDependency::simple("python-blah");
+        assert!(matches!(
+            context.add_build_dependency(&dep),
+            Err(Error::CircularDependency(_))
+        ));
     }
 }

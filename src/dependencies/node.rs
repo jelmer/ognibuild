@@ -41,6 +41,7 @@ impl Dependency for NodePackageDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency {
     fn try_into_debian_dependency(
         &self,
@@ -135,6 +136,7 @@ impl Dependency for NodeModuleDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency {
     fn try_into_debian_dependency(
         &self,

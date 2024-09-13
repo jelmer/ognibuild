@@ -56,6 +56,7 @@ impl Dependency for GoPackageDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for GoPackageDependency {
     fn try_into_debian_dependency(
         &self,
@@ -85,6 +86,7 @@ impl crate::dependencies::debian::IntoDebianDependency for GoPackageDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::FromDebianDependency for GoPackageDependency {
     fn from_debian_dependency(
         dependency: &super::debian::DebianDependency,
@@ -230,6 +232,7 @@ impl<'a> Installer for GoResolver<'a> {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for GoDependency {
     fn try_into_debian_dependency(
         &self,

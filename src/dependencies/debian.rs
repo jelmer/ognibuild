@@ -7,8 +7,15 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashSet;
 use std::hash::Hash;
 
-#[derive(Debug)]
 pub struct DebianDependency(Relations);
+
+impl std::fmt::Debug for DebianDependency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("DebianDependency")
+            .field(&self.0.to_string())
+            .finish()
+    }
+}
 
 impl Clone for DebianDependency {
     fn clone(&self) -> Self {
@@ -69,6 +76,10 @@ impl DebianDependency {
 
     pub fn simple(name: &str) -> DebianDependency {
         Self::new(name)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     pub fn new_with_min_version(name: &str, min_version: &Version) -> DebianDependency {
@@ -133,13 +144,23 @@ impl DebianDependency {
 ///
 /// Returns `None` if the package is not installed.
 fn get_package_version(session: &dyn Session, package: &str) -> Option<debversion::Version> {
-    let argv = vec!["dpkg-query", "-W", "-f='${Version}\n'", package];
-    let output = String::from_utf8(session.command(argv).check_output().unwrap()).unwrap();
-
-    if output.trim().is_empty() {
-        None
-    } else {
-        Some(output.trim().parse().unwrap())
+    let argv = vec!["dpkg-query", "-W", "-f=${Version}\n", package];
+    let output = session
+        .command(argv)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    match output.status.code() {
+        Some(0) => {
+            let output = String::from_utf8(output.stdout).unwrap();
+            if output.trim().is_empty() {
+                return None;
+            }
+            Some(output.trim().parse().unwrap())
+        }
+        Some(1) => None,
+        _ => panic!("Failed to run dpkg-query"),
     }
 }
 
@@ -160,7 +181,13 @@ impl Dependency for DebianDependency {
             }
         }
 
-        self.satisfied_by(&versions)
+        let result = self.satisfied_by(&versions);
+        if !result {
+            log::debug!("Dependency not satisfied: {:?}", self);
+        } else {
+            log::debug!("Dependency satisfied: {:?}", self);
+        }
+        result
     }
 
     fn project_present(&self, _session: &dyn Session) -> bool {

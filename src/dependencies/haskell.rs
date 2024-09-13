@@ -78,6 +78,7 @@ impl Dependency for HaskellPackageDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for HaskellPackageDependency {
     fn try_into_debian_dependency(
         &self,

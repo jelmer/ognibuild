@@ -215,13 +215,13 @@ impl BuildSystem for Cargo {
     fn install_declared_dependencies(
         &self,
         _categories: &[crate::buildsystem::DependencyCategory],
-        scope: crate::installer::InstallationScope,
+        scopes: &[crate::installer::InstallationScope],
         session: &dyn crate::session::Session,
         _installer: &dyn crate::installer::Installer,
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<(), Error> {
-        if scope != crate::installer::InstallationScope::Vendor {
-            return Err(crate::installer::Error::UnsupportedScope(scope).into());
+        if !scopes.contains(&crate::installer::InstallationScope::Vendor) {
+            return Err(crate::installer::Error::UnsupportedScopes(scopes.to_vec()).into());
         }
         if let Some(fixers) = fixers {
             session

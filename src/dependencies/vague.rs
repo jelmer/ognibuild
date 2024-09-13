@@ -1,9 +1,11 @@
-use crate::session::Session;
-use crate::dependencies::Dependency;
-use crate::dependencies::BinaryDependency;
-use crate::dependencies::PkgConfigDependency;
+#[cfg(feature = "debian")]
 use crate::dependencies::debian::DebianDependency;
+#[cfg(feature = "debian")]
 use crate::dependencies::python::PythonPackageDependency;
+use crate::dependencies::BinaryDependency;
+use crate::dependencies::Dependency;
+use crate::dependencies::PkgConfigDependency;
+use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -17,7 +19,7 @@ impl VagueDependency {
     pub fn new(name: &str, minimum_version: Option<&str>) -> Self {
         Self {
             name: name.to_string(),
-            minimum_version: minimum_version.map(|s| s.to_string()),
+            minimum_version: minimum_version.map(|s| s.trim().to_string()),
         }
     }
 
@@ -39,22 +41,24 @@ impl VagueDependency {
                 self.minimum_version.clone().as_deref(),
             )) as Box<dyn Dependency>);
             if lcname != self.name {
-                ret.push(Box::new(BinaryDependency::new(&lcname))
-                    as Box<dyn Dependency>);
-                ret.push(Box::new(BinaryDependency::new(&lcname))
-                    as Box<dyn Dependency>);
+                ret.push(Box::new(BinaryDependency::new(&lcname)) as Box<dyn Dependency>);
+                ret.push(Box::new(BinaryDependency::new(&lcname)) as Box<dyn Dependency>);
                 ret.push(Box::new(PkgConfigDependency::new(
                     &lcname,
                     self.minimum_version.clone().as_deref(),
                 )) as Box<dyn Dependency>);
             }
+            #[cfg(feature = "debian")]
             {
                 ret.push(Box::new(
-                        if let Some(minimum_version) = &self.minimum_version {
-                            DebianDependency::new_with_min_version(&self.name, &minimum_version.parse().unwrap())
-                        } else {
-                            DebianDependency::new(&self.name)
-                        }
+                    if let Some(minimum_version) = &self.minimum_version {
+                        DebianDependency::new_with_min_version(
+                            &self.name,
+                            &minimum_version.parse().unwrap(),
+                        )
+                    } else {
+                        DebianDependency::new(&self.name)
+                    },
                 ));
                 let devname = if lcname.starts_with("lib") {
                     format!("{}-dev", lcname)
@@ -62,7 +66,10 @@ impl VagueDependency {
                     format!("lib{}-dev", lcname)
                 };
                 ret.push(if let Some(minimum_version) = &self.minimum_version {
-                    Box::new(DebianDependency::new_with_min_version(&devname, &minimum_version.parse().unwrap()))
+                    Box::new(DebianDependency::new_with_min_version(
+                        &devname,
+                        &minimum_version.parse().unwrap(),
+                    ))
                 } else {
                     Box::new(DebianDependency::new(&devname))
                 });
@@ -90,6 +97,7 @@ impl Dependency for VagueDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 fn known_vague_dep_to_debian(name: &str) -> Option<&str> {
     match name {
         "the Gnu Scientific Library" => Some("libgsl-dev"),
@@ -110,17 +118,22 @@ fn known_vague_dep_to_debian(name: &str) -> Option<&str> {
     }
 }
 
-
-fn resolve_vague_dep_req(apt_mgr: &crate::debian::apt::AptManager, req: VagueDependency) -> Vec<DebianDependency> {
+#[cfg(feature = "debian")]
+fn resolve_vague_dep_req(
+    apt_mgr: &crate::debian::apt::AptManager,
+    req: VagueDependency,
+) -> Vec<DebianDependency> {
     let name = req.name.as_str();
     let mut options = vec![];
     if name.contains(" or ") {
         for entry in name.split(" or ") {
-            options.extend(
-                resolve_vague_dep_req(
-                    apt_mgr, VagueDependency{ name: entry.to_string(), minimum_version: req.minimum_version.clone() }
-                )
-            );
+            options.extend(resolve_vague_dep_req(
+                apt_mgr,
+                VagueDependency {
+                    name: entry.to_string(),
+                    minimum_version: req.minimum_version.clone(),
+                },
+            ));
         }
     }
 
@@ -130,18 +143,21 @@ fn resolve_vague_dep_req(apt_mgr: &crate::debian::apt::AptManager, req: VagueDep
                 DebianDependency::new_with_min_version(dep, &minimum_version.parse().unwrap())
             } else {
                 DebianDependency::new(dep)
-            }
+            },
         );
     }
     for x in req.expand() {
-        options.extend(crate::debian::apt::dependency_to_possible_deb_dependencies(apt_mgr, x.as_ref()));
+        options.extend(crate::debian::apt::dependency_to_possible_deb_dependencies(
+            apt_mgr,
+            x.as_ref(),
+        ));
     }
 
     if let Some(rest) = name.strip_prefix("GNU ") {
-        options.extend(
-            resolve_vague_dep_req(
-                apt_mgr, VagueDependency::simple(rest))
-        );
+        options.extend(resolve_vague_dep_req(
+            apt_mgr,
+            VagueDependency::simple(rest),
+        ));
     }
 
     if name.starts_with("py") || name.ends_with("py") {
@@ -151,38 +167,54 @@ fn resolve_vague_dep_req(apt_mgr: &crate::debian::apt::AptManager, req: VagueDep
         } else {
             PythonPackageDependency::simple(name)
         };
-        options.extend(
-            crate::debian::apt::dependency_to_possible_deb_dependencies(
-                apt_mgr, &dep
-            )
-        );
+        options.extend(crate::debian::apt::dependency_to_possible_deb_dependencies(
+            apt_mgr, &dep,
+        ));
     }
 
     // Try even harder
     if options.is_empty() {
-        let paths =                     [Path::new("/usr/lib").join(".*").join("pkgconfig").join(format!("{}-.*\\.pc", regex::escape(&req.name))),
-                    Path::new("/usr/lib/pkgconfig").join(format!("{}-.*\\.pc", regex::escape(&req.name)))];
+        let paths = [
+            Path::new("/usr/lib")
+                .join(".*")
+                .join("pkgconfig")
+                .join(format!("{}-.*\\.pc", regex::escape(&req.name))),
+            Path::new("/usr/lib/pkgconfig").join(format!("{}-.*\\.pc", regex::escape(&req.name))),
+        ];
 
         options.extend(
-                apt_mgr.get_packages_for_paths(
-                paths.iter().map(|x| x.to_str().unwrap()).collect(),
-                true,
-                true
-            ).unwrap().iter().map(|x| DebianDependency::new(x))
+            apt_mgr
+                .get_packages_for_paths(
+                    paths.iter().map(|x| x.to_str().unwrap()).collect(),
+                    true,
+                    true,
+                )
+                .unwrap()
+                .iter()
+                .map(|x| DebianDependency::new(x)),
         )
     }
 
     options
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for VagueDependency {
-    fn try_into_debian_dependency(&self, apt_mgr: &crate::debian::apt::AptManager) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    fn try_into_debian_dependency(
+        &self,
+        apt_mgr: &crate::debian::apt::AptManager,
+    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         Some(resolve_vague_dep_req(apt_mgr, self.clone()))
     }
 }
 
-impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingVagueDependency {
+impl crate::buildlog::ToDependency
+    for buildlog_consultant::problems::common::MissingVagueDependency
+{
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(VagueDependency::new(&self.name, self.minimum_version.as_deref())))
+        Some(Box::new(VagueDependency::new(
+            &self.name,
+            self.minimum_version.as_deref(),
+        )))
     }
 }

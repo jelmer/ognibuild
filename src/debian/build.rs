@@ -447,28 +447,18 @@ pub fn add_dummy_changelog_entry(
     let mut cl = ChangeLog::read_relaxed(tree.get_file(&path).unwrap()).unwrap();
 
     let prev_entry = cl.entries().next().unwrap();
-    let prev_package = prev_entry.package().unwrap();
     let prev_version = prev_entry.version().unwrap();
 
     let version = version_add_suffix(&prev_version, suffix);
     log::debug!("Adding dummy changelog entry {} for build", &version);
-    let mut builder = cl
-        .new_entry()
-        .package(prev_package)
-        .version(version)
-        .change_line(message.to_owned())
-        .urgency(Urgency::Low)
-        .distribution(suite.to_owned());
-
-    if let Some(maintainer) = maintainer {
-        builder = builder.maintainer(maintainer);
-    }
-
-    if let Some(timestamp) = timestamp {
-        builder = builder.datetime(timestamp.into());
-    }
-
-    let entry = builder.finish();
+    let mut entry = cl.auto_add_change(
+        &[&format!("* {}", message)],
+        maintainer.unwrap_or_else(|| debian_changelog::get_maintainer().unwrap()),
+        timestamp.map(|t| t.into()),
+        Some(Urgency::Low),
+    );
+    entry.set_version(&version);
+    entry.set_distributions(vec![suite.to_string()]);
 
     tree.put_file_bytes_non_atomic(&path, cl.to_string().as_bytes())
         .unwrap();
@@ -546,5 +536,190 @@ mod tests {
             .unwrap();
 
         assert!(control_files_in_root(&tree, subpath));
+    }
+
+    mod test_version_add_suffix {
+        use super::*;
+
+        #[test]
+        fn test_native() {
+            assert_eq!(
+                "1.0~jan+lint4".parse::<Version>().unwrap(),
+                version_add_suffix(&"1.0~jan+lint3".parse().unwrap(), "~jan+lint"),
+            );
+            assert_eq!(
+                "1.0~jan+lint1".parse::<Version>().unwrap(),
+                version_add_suffix(&"1.0".parse().unwrap(), "~jan+lint"),
+            );
+        }
+
+        #[test]
+        fn test_normal() {
+            assert_eq!(
+                "1.0-1~jan+lint4".parse::<Version>().unwrap(),
+                version_add_suffix(&"1.0-1~jan+lint3".parse().unwrap(), "~jan+lint"),
+            );
+            assert_eq!(
+                "1.0-1~jan+lint1".parse::<Version>().unwrap(),
+                version_add_suffix(&"1.0-1".parse().unwrap(), "~jan+lint"),
+            );
+            assert_eq!(
+                "0.0.12-1~jan+lint1".parse::<Version>().unwrap(),
+                version_add_suffix(&"0.0.12-1".parse().unwrap(), "~jan+lint"),
+            );
+            assert_eq!(
+                "0.0.12-1~jan+unchanged1~jan+lint1"
+                    .parse::<Version>()
+                    .unwrap(),
+                version_add_suffix(&"0.0.12-1~jan+unchanged1".parse().unwrap(), "~jan+lint"),
+            );
+        }
+    }
+
+    mod test_add_dummy_changelog {
+        use super::*;
+        use std::path::Path;
+        #[test]
+        fn test_simple() {
+            let td = tempfile::tempdir().unwrap();
+            let tree = breezyshim::controldir::create_standalone_workingtree(
+                td.path(),
+                &breezyshim::controldir::ControlDirFormat::default(),
+            )
+            .unwrap();
+            std::fs::create_dir(td.path().join("debian")).unwrap();
+            std::fs::write(
+                td.path().join("debian/changelog"),
+                r#"janitor (0.1-1) UNRELEASED; urgency=medium
+
+  * Initial release. (Closes: #XXXXXX)
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 05 Sep 2020 12:35:04 -0000
+"#,
+            )
+            .unwrap();
+            tree.add(&[Path::new("debian"), Path::new("debian/changelog")])
+                .unwrap();
+            add_dummy_changelog_entry(
+                &tree,
+                Path::new(""),
+                "jan+some",
+                "some-fixes",
+                "Dummy build.",
+                Some(
+                    chrono::DateTime::parse_from_rfc3339("2020-09-05T12:35:04Z")
+                        .unwrap()
+                        .to_utc(),
+                ),
+                Some(("Jelmer Vernooĳ".to_owned(), "jelmer@debian.org".to_owned())),
+            );
+
+            let contents = std::fs::read_to_string(td.path().join("debian/changelog")).unwrap();
+            assert_eq!(
+                r#"janitor (0.1-1jan+some1) some-fixes; urgency=medium
+
+  * Initial release. (Closes: #XXXXXX)
+  * Dummy build.
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 05 Sep 2020 12:35:04 -0000
+"#,
+                contents
+            );
+        }
+
+        #[test]
+        fn test_native() {
+            let td = tempfile::tempdir().unwrap();
+            let tree = breezyshim::controldir::create_standalone_workingtree(
+                td.path(),
+                &breezyshim::controldir::ControlDirFormat::default(),
+            )
+            .unwrap();
+            std::fs::create_dir(td.path().join("debian")).unwrap();
+            std::fs::write(
+                td.path().join("debian/changelog"),
+                r#"janitor (0.1) UNRELEASED; urgency=medium
+
+  * Initial release. (Closes: #XXXXXX)
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 05 Sep 2020 12:35:04 -0000
+"#,
+            )
+            .unwrap();
+            tree.add(&[Path::new("debian"), Path::new("debian/changelog")])
+                .unwrap();
+            add_dummy_changelog_entry(
+                &tree,
+                Path::new(""),
+                "jan+some",
+                "some-fixes",
+                "Dummy build.",
+                Some(
+                    chrono::DateTime::parse_from_rfc3339("2020-09-05T12:35:04Z")
+                        .unwrap()
+                        .to_utc(),
+                ),
+                Some(("Jelmer Vernooĳ".to_owned(), "jelmer@debian.org".to_owned())),
+            );
+
+            let contents = std::fs::read_to_string(td.path().join("debian/changelog")).unwrap();
+            assert_eq!(
+                r#"janitor (0.1jan+some1) some-fixes; urgency=medium
+
+  * Initial release. (Closes: #XXXXXX)
+  * Dummy build.
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 05 Sep 2020 12:35:04 -0000
+"#,
+                contents
+            );
+        }
+
+        #[test]
+        fn test_exists() {
+            let td = tempfile::tempdir().unwrap();
+            let tree = breezyshim::controldir::create_standalone_workingtree(
+                td.path(),
+                &breezyshim::controldir::ControlDirFormat::default(),
+            )
+            .unwrap();
+            std::fs::create_dir(td.path().join("debian")).unwrap();
+            std::fs::write(
+                td.path().join("debian/changelog"),
+                r#"janitor (0.1-1jan+some1) UNRELEASED; urgency=medium
+
+  * Initial release. (Closes: #XXXXXX)
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 05 Sep 2020 12:35:04 -0000
+"#,
+            )
+            .unwrap();
+            tree.add(&[Path::new("debian"), Path::new("debian/changelog")])
+                .unwrap();
+            add_dummy_changelog_entry(
+                &tree,
+                Path::new(""),
+                "jan+some",
+                "some-fixes",
+                "Dummy build.",
+                Some(
+                    chrono::DateTime::parse_from_rfc3339("2020-09-05T12:35:04Z")
+                        .unwrap()
+                        .to_utc(),
+                ),
+                Some(("Jelmer Vernooĳ".to_owned(), "jelmer@debian.org".to_owned())),
+            );
+            let contents = std::fs::read_to_string(td.path().join("debian/changelog")).unwrap();
+            assert_eq!(
+                r#"janitor (0.1-1jan+some2) some-fixes; urgency=medium
+
+  * Initial release. (Closes: #XXXXXX)
+  * Dummy build.
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Sat, 05 Sep 2020 12:35:04 -0000
+"#,
+                contents
+            );
+        }
     }
 }

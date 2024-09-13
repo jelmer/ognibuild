@@ -141,7 +141,7 @@ fn explain_necessary_declared_dependencies(
 fn install_necessary_declared_dependencies(
     session: &dyn Session,
     installer: &dyn Installer,
-    scope: InstallationScope,
+    scopes: &[InstallationScope],
     fixers: &[&dyn BuildFixer<InstallerError>],
     buildsystems: &[&dyn BuildSystem],
     categories: &[DependencyCategory],
@@ -149,7 +149,7 @@ fn install_necessary_declared_dependencies(
     for buildsystem in buildsystems {
         buildsystem.install_declared_dependencies(
             categories,
-            scope,
+            scopes,
             session,
             installer,
             Some(fixers),
@@ -210,7 +210,7 @@ fn run_action(
                 match install_necessary_declared_dependencies(
                     session,
                     installer,
-                    scope,
+                    &[scope, InstallationScope::Vendor],
                     fixers,
                     bss.iter()
                         .map(|bs| bs.as_ref())
@@ -220,7 +220,7 @@ fn run_action(
                 ) {
                     Ok(_) => {}
                     Err(e) => {
-                        log::info!("Unable to install declared dependencies",);
+                        log::info!("Unable to install declared dependencies: {}", e);
                         return Err(e);
                     }
                 }
@@ -437,6 +437,8 @@ fn main() -> Result<(), i32> {
     let scope = if let Some(scope) = args.installation_scope {
         scope
     } else if args.explain {
+        InstallationScope::Global
+    } else if args.installer.contains(&"apt".to_string()) {
         InstallationScope::Global
     } else {
         ognibuild::installer::auto_installation_scope(session.as_ref())

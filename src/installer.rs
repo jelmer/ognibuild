@@ -5,6 +5,7 @@ use crate::session::Session;
 pub enum Error {
     UnknownDependencyFamily,
     UnsupportedScope(InstallationScope),
+    UnsupportedScopes(Vec<InstallationScope>),
     AnalyzedError(crate::analyze::AnalyzedError),
     SessionError(crate::session::Error),
     Other(String),
@@ -15,6 +16,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::UnknownDependencyFamily => write!(f, "Unknown dependency family"),
             Error::UnsupportedScope(scope) => write!(f, "Unsupported scope: {:?}", scope),
+            Error::UnsupportedScopes(scopes) => write!(f, "Unsupported scopes: {:?}", scopes),
             Error::AnalyzedError(e) => write!(f, "{}", e),
             Error::SessionError(e) => write!(f, "{}", e),
             Error::Other(s) => write!(f, "{}", s),
@@ -221,6 +223,7 @@ pub fn installer_by_name<'a>(
 ) -> Option<Box<dyn Installer + 'a>> {
     // TODO: Use more dynamic way to load installers
     match name {
+        #[cfg(feature = "debian")]
         "apt" => Some(
             Box::new(crate::debian::apt::AptInstaller::from_session(session)) as Box<dyn Installer>,
         ),
@@ -276,30 +279,24 @@ pub fn native_installers<'a>(
     .collect()
 }
 
-fn apt_installer<'a>(session: &'a dyn crate::session::Session,
-    #[allow(unused_variables)]
-    dep_server_url: Option<&url::Url>) -> Box<dyn Installer + 'a> {
+#[cfg(feature = "debian")]
+fn apt_installer<'a>(
+    session: &'a dyn crate::session::Session,
+    #[allow(unused_variables)] dep_server_url: Option<&url::Url>,
+) -> Box<dyn Installer + 'a> {
     #[cfg(feature = "dep-server")]
     if let Some(dep_server_url) = dep_server_url {
         Box::new(
-            crate::debian::dep_server::DepServerAptInstaller::from_session(
-                session,
-                dep_server_url,
-            ),
+            crate::debian::dep_server::DepServerAptInstaller::from_session(session, dep_server_url),
         ) as Box<dyn Installer + 'a>
     } else {
-        Box::new(crate::debian::apt::AptInstaller::from_session(
-            session,
-        ))
+        Box::new(crate::debian::apt::AptInstaller::from_session(session))
     }
 
     #[cfg(not(feature = "dep-server"))]
     {
-        Box::new(crate::debian::apt::AptInstaller::from_session(
-            session,
-        ))
+        Box::new(crate::debian::apt::AptInstaller::from_session(session))
     }
-
 }
 
 /// Select installers by name.
@@ -311,8 +308,11 @@ pub fn select_installers<'a>(
     let mut installers = Vec::new();
     for name in names.iter() {
         if name == &"apt" {
+            #[cfg(feature = "debian")]
             installers.push(apt_installer(session, dep_server_url));
-        } else if let Some(installer) = installer_by_name(session, &name) {
+            #[cfg(not(feature = "debian"))]
+            return Err("Apt installer not available".to_string());
+        } else if let Some(installer) = installer_by_name(session, name) {
             installers.push(installer);
         } else {
             return Err(format!("Unknown installer: {}", name));
@@ -325,9 +325,14 @@ pub fn auto_installation_scope(session: &dyn crate::session::Session) -> Install
     let user = crate::session::get_user(session);
     // TODO(jelmer): Check VIRTUAL_ENV, and prioritize PypiResolver if
     // present?
-    if user == "root" || session.is_temporary() {
+    if user == "root" {
+        log::info!("Running as root, so using global installation scope");
+        InstallationScope::Global
+    } else if session.is_temporary() {
+        log::info!("Running in a temporary session, so using global installation scope");
         InstallationScope::Global
     } else {
+        log::info!("Running as user, so using user installation scope");
         InstallationScope::User
     }
 }
@@ -339,8 +344,11 @@ pub fn auto_installer<'a>(
 ) -> Box<dyn Installer + 'a> {
     // if session is SchrootSession or if we're root, use apt
     let mut installers: Vec<Box<dyn Installer + 'a>> = Vec::new();
-    let has_apt = crate::session::which(session, "apt-get").is_some();
-    if scope == InstallationScope::Global && has_apt {
+    #[cfg(feature = "debian")]
+    if scope == InstallationScope::Global && crate::session::which(session, "apt-get").is_some() {
+        log::info!(
+            "Using global installation scope and apt-get is available, so using apt installer"
+        );
         installers.push(apt_installer(session, dep_server_url));
     }
     installers.extend(native_installers(session));
@@ -357,22 +365,37 @@ pub fn auto_installer<'a>(
 pub fn install_missing_deps(
     session: &dyn Session,
     installer: &dyn Installer,
-    scope: InstallationScope,
+    scopes: &[InstallationScope],
     deps: &[&dyn Dependency],
 ) -> Result<(), Error> {
     if deps.is_empty() {
         return Ok(());
     }
-    let mut missing = vec![];
-    for dep in deps.into_iter() {
-        if !dep.present(session) {
-            missing.push(*dep)
-        }
-    }
+    let missing = deps
+        .iter()
+        .filter(|dep| !dep.present(session))
+        .collect::<Vec<_>>();
     if !missing.is_empty() {
+        log::info!("Missing dependencies: {:?}", missing);
         for dep in missing.into_iter() {
             log::info!("Installing {:?}", dep);
-            installer.install(dep, scope)?;
+            let mut installed = false;
+            for scope in scopes {
+                match installer.install(*dep, *scope) {
+                    Ok(()) => {
+                        log::info!("Installed {:?}", dep);
+                        installed = true;
+                        break;
+                    }
+                    Err(Error::UnsupportedScope(_)) => {}
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+            if !installed {
+                return Err(Error::UnsupportedScopes(scopes.to_vec()));
+            }
         }
     }
     Ok(())
@@ -395,7 +418,7 @@ pub fn explain_missing_deps(
         return Ok(vec![]);
     }
     let mut missing = vec![];
-    for dep in deps.into_iter() {
+    for dep in deps.iter() {
         if !dep.present(session) {
             missing.push(*dep)
         }

@@ -14,6 +14,24 @@ pub struct Meson {
     path: PathBuf,
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
+struct MesonDependency {
+    pub name: String,
+    pub version: Vec<String>,
+    pub required: bool,
+    pub has_fallback: bool,
+    pub conditional: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
+struct MesonTarget {
+    r#type: String,
+    installed: bool,
+    filename: Vec<PathBuf>,
+}
+
 impl Meson {
     pub fn new(path: &Path) -> Self {
         Self {
@@ -31,16 +49,17 @@ impl Meson {
         Ok(())
     }
 
-    fn introspect(
+    fn introspect<T: for<'a> serde::Deserialize<'a>>(
         &self,
         session: &dyn Session,
         fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
         args: &[&str],
-    ) -> Result<serde_json::Value, InstallerError> {
+    ) -> Result<T, InstallerError> {
         let args = [&["meson", "introspect"], args, &["./meson.build"]].concat();
         let ret = if let Some(fixers) = fixers {
             session
                 .command(args)
+                .quiet(true)
                 .run_fixing_problems::<_, Error>(fixers)
                 .unwrap()
         } else {
@@ -149,22 +168,22 @@ impl BuildSystem for Meson {
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<(crate::buildsystem::DependencyCategory, Box<dyn Dependency>)>, Error> {
         let mut ret: Vec<(DependencyCategory, Box<dyn Dependency>)> = Vec::new();
-        let resp = self.introspect(session, fixers, &["--scan-dependencies"])?;
-        for entry in resp.as_array().unwrap() {
-            let version = entry.get("version").and_then(|v| v.as_array()).unwrap();
+        let resp =
+            self.introspect::<Vec<MesonDependency>>(session, fixers, &["--scan-dependencies"])?;
+        for entry in resp {
             let mut minimum_version = None;
-            if version.len() == 1 {
-                if let Some(rest) = version[0].as_str().unwrap().strip_prefix(">=") {
-                    minimum_version = Some(rest.to_string());
+            if entry.version.len() == 1 {
+                if let Some(rest) = entry.version[0].strip_prefix(">=") {
+                    minimum_version = Some(rest.trim().to_string());
                 }
-            } else if version.len() > 1 {
-                log::warn!("Unable to parse version constraints: {:?}", version);
+            } else if entry.version.len() > 1 {
+                log::warn!("Unable to parse version constraints: {:?}", entry.version);
             }
             // TODO(jelmer): Include entry['required']
             ret.push((
                 DependencyCategory::Universal,
                 Box::new(VagueDependency {
-                    name: entry["name"].as_str().unwrap().to_string(),
+                    name: entry.name.to_string(),
                     minimum_version,
                 }),
             ));
@@ -178,15 +197,13 @@ impl BuildSystem for Meson {
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
         let mut ret: Vec<Box<dyn crate::output::Output>> = Vec::new();
-        let resp = self.introspect(session, fixers, &["--targets"])?;
-        for entry in resp.as_array().unwrap() {
-            let entry = entry.as_object().unwrap();
-            if !entry.get("installed").unwrap().as_bool().unwrap() {
+        let resp = self.introspect::<Vec<MesonTarget>>(session, fixers, &["--targets"])?;
+        for entry in resp {
+            if !entry.installed {
                 continue;
             }
-            if entry.get("type").unwrap().as_str() == Some("executable") {
-                for name in entry.get("filename").unwrap().as_array().unwrap() {
-                    let p = PathBuf::from(name.as_str().unwrap());
+            if entry.r#type == "executable" {
+                for p in entry.filename {
                     ret.push(Box::new(crate::output::BinaryOutput::new(
                         p.file_name().unwrap().to_str().unwrap(),
                     )));

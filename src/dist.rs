@@ -63,7 +63,7 @@ pub fn dist(
                 .as_slice(),
             || -> Result<_, InterimError<Error>> {
                 Ok(wrap(log_manager, || -> Result<_, Error> {
-                    Ok(buildsystem.dist(session, installer.as_ref(), target_dir, quiet)?)
+                    buildsystem.dist(session, installer.as_ref(), target_dir, quiet)
                 })?)
             },
             None,

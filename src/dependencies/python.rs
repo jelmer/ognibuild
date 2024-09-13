@@ -1,10 +1,15 @@
+#[cfg(feature = "debian")]
 use crate::debian::apt::AptManager;
+#[cfg(feature = "debian")]
 use crate::dependencies::debian::DebianDependency;
 use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
-use debian_control::lossless::relations::{Relation, Relations};
-use debian_control::relations::VersionConstraint;
+#[cfg(feature = "debian")]
+use debian_control::{
+    lossless::relations::{Relation, Relations},
+    relations::VersionConstraint,
+};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -37,9 +42,9 @@ impl PythonPackageDependency {
         let package = parts.next().unwrap();
         let specs = parts
             .map(|part| {
-                let mut parts = part.splitn(2, |c: char| c == '=' || c == '<' || c == '>');
-                let op = parts.next().unwrap();
-                let version = parts.next().unwrap();
+                let (op, version) = part
+                    .split_once(|c: char| c == '=' || c == '<' || c == '>')
+                    .unwrap();
                 (op.to_string(), version.to_string())
             })
             .collect();
@@ -95,6 +100,7 @@ impl crate::buildlog::ToDependency
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependency {
     fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>> {
         let (name, min_version) =
@@ -324,9 +330,10 @@ impl<'a> Installer for PypiResolver<'a> {
     }
 }
 
+#[cfg(feature = "debian")]
 pub fn python_spec_to_apt_rels(pkg_name: &str, specs: Option<&[(String, String)]>) -> Relations {
     // TODO(jelmer): Dealing with epoch, etc?
-    if specs.is_none() {
+    if specs.is_none() || specs.as_ref().unwrap().is_empty() {
         return pkg_name.parse().unwrap();
     }
 
@@ -397,6 +404,7 @@ pub fn python_spec_to_apt_rels(pkg_name: &str, specs: Option<&[(String, String)]
     Relations::from(rels.into_iter().map(|r| r.into()).collect::<Vec<_>>())
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PythonPackageDependency {
     fn try_into_debian_dependency(
         &self,
@@ -412,6 +420,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonPackageDependen
     }
 }
 
+#[cfg(feature = "debian")]
 fn get_package_for_python_package(
     apt_mgr: &AptManager,
     package: &str,
@@ -447,14 +456,15 @@ fn get_package_for_python_package(
         .collect()
 }
 
+#[cfg(any(feature = "debian", test))]
 fn get_possible_python3_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
     let mut cpython3_regexes = vec![];
     loop {
         cpython3_regexes.extend([
-            Path::new("/usr/lib/python3/dist-packages")
+            Path::new("/usr/lib/python3/dist\\-packages")
                 .join(regex::escape(&object_path.replace('.', "/")))
                 .join("__init__\\.py"),
-            Path::new("/usr/lib/python3/dist-packages").join(format!(
+            Path::new("/usr/lib/python3/dist\\-packages").join(format!(
                 "{}\\.py",
                 regex::escape(&object_path.replace('.', "/"))
             )),
@@ -478,6 +488,7 @@ fn get_possible_python3_paths_for_python_object(mut object_path: &str) -> Vec<Pa
     cpython3_regexes
 }
 
+#[cfg(feature = "debian")]
 fn get_possible_pypy_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
     let mut pypy_regexes = vec![];
     loop {
@@ -502,6 +513,7 @@ fn get_possible_pypy_paths_for_python_object(mut object_path: &str) -> Vec<PathB
     pypy_regexes
 }
 
+#[cfg(feature = "debian")]
 fn get_possible_python2_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
     let mut cpython2_regexes = vec![];
     loop {
@@ -526,6 +538,7 @@ fn get_possible_python2_paths_for_python_object(mut object_path: &str) -> Vec<Pa
     cpython2_regexes
 }
 
+#[cfg(feature = "debian")]
 fn get_package_for_python_object_path(
     apt_mgr: &AptManager,
     object_path: &str,
@@ -551,12 +564,14 @@ fn get_package_for_python_object_path(
             false,
         )
         .unwrap();
+
     names
         .into_iter()
         .map(|name| DebianDependency::from(python_spec_to_apt_rels(&name, Some(specs))))
         .collect()
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PythonModuleDependency {
     fn try_into_debian_dependency(
         &self,
@@ -660,19 +675,17 @@ impl Dependency for PythonDependency {
 impl From<&pep440_rs::VersionSpecifiers> for PythonDependency {
     fn from(specs: &pep440_rs::VersionSpecifiers) -> Self {
         for specifier in specs.iter() {
-            match specifier.operator() {
-                pep440_rs::Operator::GreaterThanEqual => {
-                    return Self {
-                        min_version: Some(specifier.version().to_string()),
-                    }
-                }
-                _ => {}
+            if specifier.operator() == &pep440_rs::Operator::GreaterThanEqual {
+                return Self {
+                    min_version: Some(specifier.version().to_string()),
+                };
             }
         }
         Self { min_version: None }
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::FromDebianDependency for PythonDependency {
     fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>> {
         let (name, min_version) =
@@ -687,6 +700,7 @@ impl crate::dependencies::debian::FromDebianDependency for PythonDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PythonDependency {
     fn try_into_debian_dependency(
         &self,
@@ -728,7 +742,9 @@ mod tests {
             vec![
                 PathBuf::from("/usr/lib/python3/dist\\-packages/dulwich/__init__\\.py"),
                 PathBuf::from("/usr/lib/python3/dist\\-packages/dulwich\\.py"),
-                PathBuf::from("/usr/lib/python3\\.[0-9]+/lib\\-dynload/dulwich.cpython\\-.*\\.so"),
+                PathBuf::from(
+                    "/usr/lib/python3\\.[0-9]+/lib\\-dynload/dulwich\\.cpython\\-.*\\.so"
+                ),
                 PathBuf::from("/usr/lib/python3\\.[0-9]+/dulwich\\.py"),
                 PathBuf::from("/usr/lib/python3\\.[0-9]+/dulwich/__init__\\.py"),
             ],
@@ -738,12 +754,14 @@ mod tests {
             vec![
                 PathBuf::from("/usr/lib/python3/dist\\-packages/cleo/foo/__init__\\.py"),
                 PathBuf::from("/usr/lib/python3/dist\\-packages/cleo/foo\\.py"),
-                PathBuf::from("/usr/lib/python3\\.[0-9]+/lib\\-dynload/cleo/foo.cpython\\-.*\\.so"),
+                PathBuf::from(
+                    "/usr/lib/python3\\.[0-9]+/lib\\-dynload/cleo/foo\\.cpython\\-.*\\.so"
+                ),
                 PathBuf::from("/usr/lib/python3\\.[0-9]+/cleo/foo\\.py"),
                 PathBuf::from("/usr/lib/python3\\.[0-9]+/cleo/foo/__init__\\.py"),
                 PathBuf::from("/usr/lib/python3/dist\\-packages/cleo/__init__\\.py"),
                 PathBuf::from("/usr/lib/python3/dist\\-packages/cleo\\.py"),
-                PathBuf::from("/usr/lib/python3\\.[0-9]+/lib\\-dynload/cleo.cpython\\-.*\\.so"),
+                PathBuf::from("/usr/lib/python3\\.[0-9]+/lib\\-dynload/cleo\\.cpython\\-.*\\.so"),
                 PathBuf::from("/usr/lib/python3\\.[0-9]+/cleo\\.py"),
                 PathBuf::from("/usr/lib/python3\\.[0-9]+/cleo/__init__\\.py"),
             ],

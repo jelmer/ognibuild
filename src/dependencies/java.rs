@@ -32,6 +32,7 @@ impl Dependency for JavaClassDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for JavaClassDependency {
     fn try_into_debian_dependency(
         &self,
@@ -101,6 +102,7 @@ impl Dependency for JDKDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for JDKDependency {
     fn try_into_debian_dependency(
         &self,
@@ -144,6 +146,7 @@ impl Dependency for JREDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for JREDependency {
     fn try_into_debian_dependency(
         &self,
@@ -197,6 +200,7 @@ impl Dependency for JDKFileDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for JDKFileDependency {
     fn try_into_debian_dependency(
         &self,

@@ -73,6 +73,7 @@ impl ToDependency for buildlog_consultant::problems::common::MissingCommandOrBui
 
 const BIN_PATHS: &[&str] = &["/usr/bin", "/bin"];
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for BinaryDependency {
     fn try_into_debian_dependency(
         &self,
@@ -137,6 +138,7 @@ impl Dependency for VcsControlDirectoryAccessDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for VcsControlDirectoryAccessDependency {
     fn try_into_debian_dependency(
         &self,
@@ -294,6 +296,7 @@ impl Dependency for CargoCrateDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for CargoCrateDependency {
     fn try_into_debian_dependency(
         &self,
@@ -333,6 +336,7 @@ impl ToDependency for buildlog_consultant::problems::common::MissingCargoCrate {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::FromDebianDependency for CargoCrateDependency {
     fn from_debian_dependency(
         dependency: &crate::dependencies::debian::DebianDependency,
@@ -398,21 +402,29 @@ impl Dependency for PkgConfigDependency {
     }
 
     fn present(&self, session: &dyn Session) -> bool {
-        let mut cmd = vec![
+        log::debug!("Checking for pkg-config module {}", self.module);
+        let cmd = [
             "pkg-config".to_string(),
             "--exists".to_string(),
-            self.module.clone(),
+            if let Some(minimum_version) = &self.minimum_version {
+                format!("{} >= {}", self.module, minimum_version)
+            } else {
+                self.module.clone()
+            },
         ];
-        if let Some(minimum_version) = &self.minimum_version {
-            cmd.push(format!(">={}", minimum_version));
-        }
-        session
+        let result = session
             .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .run()
             .unwrap()
-            .success()
+            .success();
+        if !result {
+            log::debug!("pkg-config module {} not found", self.module);
+        } else {
+            log::debug!("pkg-config module {} found", self.module);
+        }
+        result
     }
 
     fn project_present(&self, _session: &dyn Session) -> bool {
@@ -424,6 +436,7 @@ impl Dependency for PkgConfigDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
     fn try_into_debian_dependency(
         &self,
@@ -443,13 +456,13 @@ impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
             )
             .unwrap();
 
-        if !names.is_empty() {
+        if names.is_empty() {
             names = apt
                 .get_packages_for_paths(
-                    [format!(
-                        "/usr/lib/pkgconfig/{}\\.pc",
-                        regex::escape(&self.module)
-                    )]
+                    [
+                        format!("/usr/lib/pkgconfig/{}\\.pc", regex::escape(&self.module)),
+                        format!("/usr/share/pkgconfig/{}\\.pc", regex::escape(&self.module)),
+                    ]
                     .iter()
                     .map(|s| s.as_str())
                     .collect(),
@@ -533,6 +546,7 @@ impl Dependency for PathDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PathDependency {
     fn try_into_debian_dependency(
         &self,
@@ -597,6 +611,7 @@ impl Dependency for CHeaderDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for CHeaderDependency {
     fn try_into_debian_dependency(
         &self,
@@ -669,6 +684,7 @@ impl Dependency for JavaScriptRuntimeDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for JavaScriptRuntimeDependency {
     fn try_into_debian_dependency(
         &self,
@@ -730,6 +746,7 @@ impl Dependency for ValaPackageDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for ValaPackageDependency {
     fn try_into_debian_dependency(
         &self,
@@ -738,7 +755,7 @@ impl crate::dependencies::debian::IntoDebianDependency for ValaPackageDependency
         Some(
             apt.get_packages_for_paths(
                 vec![&format!(
-                    "/usr/share/vala-[0-9]+/vapi/{}\\.vapi",
+                    "/usr/share/vala-[.0-9]+/vapi/{}\\.vapi",
                     regex::escape(&self.package)
                 )],
                 true,
@@ -819,6 +836,7 @@ impl Dependency for RubyGemDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for RubyGemDependency {
     fn try_into_debian_dependency(
         &self,
@@ -857,6 +875,7 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyGemDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::FromDebianDependency for RubyGemDependency {
     fn from_debian_dependency(
         dependency: &crate::dependencies::debian::DebianDependency,
@@ -919,6 +938,7 @@ impl Dependency for DhAddonDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for DhAddonDependency {
     fn try_into_debian_dependency(
         &self,
@@ -984,6 +1004,7 @@ impl Dependency for LibraryDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for LibraryDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1044,6 +1065,7 @@ impl Dependency for StaticLibraryDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for StaticLibraryDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1108,6 +1130,7 @@ impl Dependency for RubyFileDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for RubyFileDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1188,6 +1211,7 @@ impl Dependency for SprocketsFileDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for SprocketsFileDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1258,6 +1282,7 @@ impl Dependency for CMakeFileDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for CMakeFileDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1397,6 +1422,7 @@ impl Dependency for MavenArtifactDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for MavenArtifactDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1501,6 +1527,7 @@ impl Dependency for GnomeCommonDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for GnomeCommonDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1548,6 +1575,7 @@ impl Dependency for QtModuleDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for QtModuleDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1603,6 +1631,7 @@ impl Dependency for QTDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for QTDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1652,6 +1681,7 @@ impl Dependency for X11Dependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for X11Dependency {
     fn try_into_debian_dependency(
         &self,
@@ -1699,6 +1729,7 @@ impl Dependency for CertificateAuthorityDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for CertificateAuthorityDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1742,6 +1773,7 @@ impl Dependency for LibtoolDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for LibtoolDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1789,6 +1821,7 @@ impl Dependency for BoostComponentDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for BoostComponentDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1848,6 +1881,7 @@ impl Dependency for KF5ComponentDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for KF5ComponentDependency {
     fn try_into_debian_dependency(
         &self,
@@ -1966,6 +2000,7 @@ impl ToDependency for buildlog_consultant::problems::common::MissingIntrospectio
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for IntrospectionTypelibDependency {
     fn try_into_debian_dependency(
         &self,

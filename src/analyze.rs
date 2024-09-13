@@ -96,21 +96,23 @@ pub fn run_detecting_problems(
 ) -> Result<Vec<String>, AnalyzedError> {
     let check_success = check_success.unwrap_or(&default_check_success);
 
-    let (retcode, contents) = match run_with_tee(session, args.clone(), cwd, user, env, stdin) {
-        Ok((retcode, contents)) => (retcode, contents),
-        Err(SessionError::SetupFailure(..)) => unreachable!(),
-        Err(SessionError::IoError(e)) if e.kind() == std::io::ErrorKind::NotFound => {
-            let command = args[0].to_string();
-            return Err(AnalyzedError::Detailed {
-                retcode: 127,
-                error: Box::new(MissingCommand(command)) as Box<dyn buildlog_consultant::Problem>,
-            });
-        }
-        Err(SessionError::IoError(e)) => {
-            return Err(AnalyzedError::IoError(e));
-        }
-        Err(SessionError::CalledProcessError(retcode)) => (retcode, vec![]),
-    };
+    let (retcode, contents) =
+        match run_with_tee(session, args.clone(), cwd, user, env, stdin, quiet) {
+            Ok((retcode, contents)) => (retcode, contents),
+            Err(SessionError::SetupFailure(..)) => unreachable!(),
+            Err(SessionError::IoError(e)) if e.kind() == std::io::ErrorKind::NotFound => {
+                let command = args[0].to_string();
+                return Err(AnalyzedError::Detailed {
+                    retcode: 127,
+                    error: Box::new(MissingCommand(command))
+                        as Box<dyn buildlog_consultant::Problem>,
+                });
+            }
+            Err(SessionError::IoError(e)) => {
+                return Err(AnalyzedError::IoError(e));
+            }
+            Err(SessionError::CalledProcessError(retcode)) => (retcode, vec![]),
+        };
 
     log::debug!(
         "Command returned code {}, with {} lines of output.",

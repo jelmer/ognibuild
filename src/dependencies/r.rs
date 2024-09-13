@@ -1,7 +1,7 @@
-use crate::session::Session;
 use crate::dependency::Dependency;
-use crate::installer::{Installer, Explanation, Error, InstallationScope};
-use serde::{Serialize, Deserialize};
+use crate::installer::{Error, Explanation, InstallationScope, Installer};
+use crate::session::Session;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RPackageDependency {
@@ -53,17 +53,34 @@ impl Dependency for RPackageDependency {
     }
 }
 
+#[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
-    fn try_into_debian_dependency(&self, apt: &crate::debian::apt::AptManager) -> Option<Vec<super::debian::DebianDependency>> {
-        let names = apt.get_packages_for_paths(vec![
-            std::path::Path::new("/usr/lib/R/site-library").join(&self.package).join("DESCRIPTION").to_str().unwrap()
-        ], false, false).unwrap();
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> Option<Vec<super::debian::DebianDependency>> {
+        let names = apt
+            .get_packages_for_paths(
+                vec![std::path::Path::new("/usr/lib/R/site-library")
+                    .join(&self.package)
+                    .join("DESCRIPTION")
+                    .to_str()
+                    .unwrap()],
+                false,
+                false,
+            )
+            .unwrap();
 
         if names.is_empty() {
             return None;
         }
 
-        Some(names.into_iter().map(|name| super::debian::DebianDependency::new(&name)).collect())
+        Some(
+            names
+                .into_iter()
+                .map(|name| super::debian::DebianDependency::new(&name))
+                .collect(),
+        )
     }
 }
 
@@ -87,7 +104,10 @@ impl<'a> RResolver<'a> {
         vec![
             "R".to_string(),
             "-e".to_string(),
-            format!("install.packages('{}', repos='{})'", req.package, self.repos),
+            format!(
+                "install.packages('{}', repos='{})'",
+                req.package, self.repos
+            ),
         ]
     }
 }
@@ -95,13 +115,20 @@ impl<'a> RResolver<'a> {
 impl<'a> Installer for RResolver<'a> {
     /// Install the dependency into the session.
     fn install(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
-        let req = dep.as_any().downcast_ref::<RPackageDependency>().ok_or(Error::UnknownDependencyFamily)?;
+        let req = dep
+            .as_any()
+            .downcast_ref::<RPackageDependency>()
+            .ok_or(Error::UnknownDependencyFamily)?;
         let args = self.cmd(req);
         log::info!("RResolver({:?}): running {:?}", self.repos, args);
-        let mut cmd = self.session.command(args.iter().map(|x| x.as_str()).collect());
+        let mut cmd = self
+            .session
+            .command(args.iter().map(|x| x.as_str()).collect());
         match scope {
-            InstallationScope::User => {},
-            InstallationScope::Global => { cmd = cmd.user("root"); }
+            InstallationScope::User => {}
+            InstallationScope::Global => {
+                cmd = cmd.user("root");
+            }
             InstallationScope::Vendor => {
                 return Err(Error::UnsupportedScope(scope));
             }
@@ -113,7 +140,11 @@ impl<'a> Installer for RResolver<'a> {
     }
 
     /// Explain how to install the dependency.
-    fn explain(&self, dep: &dyn Dependency, _scope: InstallationScope) -> Result<Explanation, Error> {
+    fn explain(
+        &self,
+        dep: &dyn Dependency,
+        _scope: InstallationScope,
+    ) -> Result<Explanation, Error> {
         if let Some(req) = dep.as_any().downcast_ref::<RPackageDependency>() {
             Ok(Explanation {
                 message: format!("Install R package {}", req.package),
