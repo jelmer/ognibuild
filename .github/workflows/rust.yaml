@@ -23,6 +23,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+      - name: Update apt cache
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update
       - name: Install Debian tools on Ubuntu
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get install -y mmdebstrap
