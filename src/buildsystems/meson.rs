@@ -59,6 +59,7 @@ impl Meson {
         let ret = if let Some(fixers) = fixers {
             session
                 .command(args)
+                .quiet(true)
                 .run_fixing_problems::<_, Error>(fixers)
                 .unwrap()
         } else {

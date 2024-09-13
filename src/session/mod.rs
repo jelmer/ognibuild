@@ -263,6 +263,7 @@ impl<'a> CommandBuilder<'a> {
             self.user,
             self.env.as_ref(),
             self.stdin,
+            self.quiet,
         )
     }
 
@@ -373,8 +374,9 @@ pub fn get_user(session: &dyn Session) -> String {
 }
 
 /// A function to capture and forward stdout and stderr of a child process.
-fn capture_and_forward_output(
+fn capture_output(
     mut child: std::process::Child,
+    forward: bool,
 ) -> Result<(std::process::ExitStatus, Vec<String>), std::io::Error> {
     use std::io::{BufRead, BufReader};
     use std::sync::mpsc::{channel, Receiver, Sender};
@@ -391,8 +393,10 @@ fn capture_and_forward_output(
         let reader = BufReader::new(stdout);
         for line in reader.lines() {
             let line = line?;
-            std::io::stdout().write_all(line.as_bytes())?;
-            std::io::stdout().write_all(b"\n")?;
+            if forward {
+                std::io::stdout().write_all(line.as_bytes())?;
+                std::io::stdout().write_all(b"\n")?;
+            }
             stdout_tx
                 .send(Some(line))
                 .expect("Failed to send stdout through channel");
@@ -411,8 +415,10 @@ fn capture_and_forward_output(
         let reader = BufReader::new(stderr);
         for line in reader.lines() {
             let line = line?;
-            std::io::stderr().write_all(line.as_bytes())?;
-            std::io::stderr().write_all(b"\n")?;
+            if forward {
+                std::io::stderr().write_all(line.as_bytes())?;
+                std::io::stderr().write_all(b"\n")?;
+            }
             stderr_tx
                 .send(Some(line))
                 .expect("Failed to send stderr through channel");
@@ -456,6 +462,7 @@ pub fn run_with_tee(
     user: Option<&str>,
     env: Option<&std::collections::HashMap<String, String>>,
     stdin: Option<std::process::Stdio>,
+    quiet: bool,
 ) -> Result<(ExitStatus, Vec<String>), Error> {
     if let (Some(cwd), Some(user)) = (cwd, user) {
         log::debug!("Running command: {:?} in {:?} as user {}", args, cwd, user);
@@ -477,7 +484,7 @@ pub fn run_with_tee(
     );
     // While the process is running, read its output and write it to stdout
     // *and* to the contents variable.
-    Ok(capture_and_forward_output(p)?)
+    Ok(capture_output(p, !quiet)?)
 }
 
 pub fn create_home(session: &impl Session) -> Result<(), Error> {
