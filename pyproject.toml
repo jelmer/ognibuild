@@ -77,9 +77,6 @@ testing = [
     "types-toml",
 ]
 
-[tool.setuptools]
-script-files = ["scripts/report-apt-deps-status"]
-
 [tool.setuptools.packages.find]
 where = ["py"]
 include = ["ognibuild*"]

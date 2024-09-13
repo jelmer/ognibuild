@@ -37,7 +37,7 @@ impl Session for PlainSession {
     }
 
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), Error> {
-        self.0 = self.0.join(path);
+        self.0 = self.0.join(path).canonicalize().unwrap();
         Ok(())
     }
 
@@ -288,6 +288,17 @@ mod tests {
         let reported =
             std::str::from_utf8(pwd_bytes.as_slice().strip_suffix(b"\n").unwrap()).unwrap();
         assert_eq!(reported, path.canonicalize().unwrap().to_str().unwrap());
+    }
+
+    #[test]
+    fn test_pwd() {
+        let mut session = PlainSession::new();
+        let pwd = session.pwd();
+        assert_eq!(pwd, std::path::Path::new("/"));
+        let td = tempfile::tempdir().unwrap();
+        session.chdir(td.path()).unwrap();
+        let pwd = session.pwd();
+        assert_eq!(pwd, td.path());
     }
 
     #[test]

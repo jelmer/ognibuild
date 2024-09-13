@@ -313,7 +313,7 @@ impl<'a> AptFileFileSearcher<'a> {
         regex: bool,
         case_insensitive: bool,
     ) -> Result<impl Iterator<Item = String>, Error> {
-        let mut args = vec!["apt-file", "search"];
+        let mut args = vec!["apt-file", "search", "--stream-results"];
         if regex {
             args.push("-x");
         } else {
@@ -323,13 +323,51 @@ impl<'a> AptFileFileSearcher<'a> {
             args.push("-i");
         }
         args.push(path);
-        let output = self.session.check_output(args, None, None, None).unwrap();
-        let output_str = std::str::from_utf8(&output).unwrap();
-        if output_str == "apt-file: cache is empty\n" {
-            return Err(Error::AptFileAccessError(
-                "apt-file cache is empty".to_owned(),
-            ));
+        let output = self
+            .session
+            .command(args)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .map_err(|e| {
+                Error::AptFileAccessError(format!(
+                    "Unable to search for files matching {}: {}",
+                    path, e
+                ))
+            })?;
+        match output.status.code() {
+            Some(0) => {
+                // At least one search result
+            }
+            Some(1) => {
+                // No search results
+                return Ok(vec![].into_iter());
+            }
+            Some(2) => {
+                // Error
+                return Err(Error::AptFileAccessError(format!(
+                    "Error searching for files matching {}: {}",
+                    path,
+                    std::str::from_utf8(&output.stderr).unwrap()
+                )));
+            }
+            Some(3) => {
+                return Err(Error::AptFileAccessError(
+                    "apt-file cache is empty".to_owned(),
+                ));
+            }
+            Some(4) => {
+                return Err(Error::AptFileAccessError(
+                    "apt-file has no entries matching restrictions".to_owned(),
+                ));
+            }
+            _ => {
+                return Err(Error::AptFileAccessError(
+                    "apt-file returned an unknown error".to_owned(),
+                ));
+            }
         }
+        let output_str = std::str::from_utf8(&output.stdout).unwrap();
         let entries = output_str
             .split('\n')
             .filter_map(|line| {

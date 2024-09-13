@@ -305,10 +305,30 @@ pub fn extract_simple_min_version(
     Some((name.to_string(), version))
 }
 
+pub fn valid_debian_package_name(name: &str) -> bool {
+    lazy_regex::regex_is_match!("[a-z0-9][a-z0-9+-\\.]+", name)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum DebianDependencyCategory {
+    Runtime,
+    Build,
+    Install,
+    Test(String),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use maplit::hashset;
+
+    #[test]
+    fn test_valid_debian_package_name() {
+        assert!(valid_debian_package_name("libssl-dev"));
+        assert!(valid_debian_package_name("libssl1.1"));
+        assert!(valid_debian_package_name("libssl1.1-dev"));
+        assert!(valid_debian_package_name("libssl1.1-dev~foo"));
+    }
 
     #[test]
     fn test_touches_package() {
