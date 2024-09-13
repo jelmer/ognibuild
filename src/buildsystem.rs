@@ -231,7 +231,7 @@ pub trait BuildSystem: std::fmt::Debug {
     fn install_declared_dependencies(
         &self,
         categories: &[DependencyCategory],
-        scope: InstallationScope,
+        scopes: &[InstallationScope],
         session: &dyn Session,
         installer: &dyn Installer,
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
@@ -242,10 +242,11 @@ pub trait BuildSystem: std::fmt::Debug {
             .filter(|(c, _d)| categories.contains(c))
             .map(|(_, d)| d)
             .collect::<Vec<_>>();
+        log::debug!("Declared dependencies: {:?}", relevant);
         install_missing_deps(
             session,
             installer,
-            scope,
+            scopes,
             relevant
                 .iter()
                 .map(|d| d.as_ref())

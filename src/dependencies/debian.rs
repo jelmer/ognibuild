@@ -181,7 +181,13 @@ impl Dependency for DebianDependency {
             }
         }
 
-        self.satisfied_by(&versions)
+        let result = self.satisfied_by(&versions);
+        if !result {
+            log::debug!("Dependency not satisfied: {:?}", self);
+        } else {
+            log::debug!("Dependency satisfied: {:?}", self);
+        }
+        result
     }
 
     fn project_present(&self, _session: &dyn Session) -> bool {

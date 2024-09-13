@@ -403,7 +403,7 @@ impl Dependency for PkgConfigDependency {
 
     fn present(&self, session: &dyn Session) -> bool {
         log::debug!("Checking for pkg-config module {}", self.module);
-        let cmd = vec![
+        let cmd = [
             "pkg-config".to_string(),
             "--exists".to_string(),
             if let Some(minimum_version) = &self.minimum_version {
@@ -412,14 +412,19 @@ impl Dependency for PkgConfigDependency {
                 self.module.clone()
             },
         ];
-        log::debug!("Running {:?}", cmd);
-        session
+        let result = session
             .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .run()
             .unwrap()
-            .success()
+            .success();
+        if !result {
+            log::debug!("pkg-config module {} not found", self.module);
+        } else {
+            log::debug!("pkg-config module {} found", self.module);
+        }
+        result
     }
 
     fn project_present(&self, _session: &dyn Session) -> bool {
@@ -454,10 +459,10 @@ impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
         if names.is_empty() {
             names = apt
                 .get_packages_for_paths(
-                    [format!(
-                        "/usr/lib/pkgconfig/{}\\.pc",
-                        regex::escape(&self.module)
-                    )]
+                    [
+                        format!("/usr/lib/pkgconfig/{}\\.pc", regex::escape(&self.module)),
+                        format!("/usr/share/pkgconfig/{}\\.pc", regex::escape(&self.module)),
+                    ]
                     .iter()
                     .map(|s| s.as_str())
                     .collect(),

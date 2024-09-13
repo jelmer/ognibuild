@@ -336,7 +336,7 @@ impl<'a> AptFileFileSearcher<'a> {
                 ))
             })?;
         match output.status.code() {
-            Some(0) => {
+            Some(0) | Some(1) => {
                 // At least one search result
                 let output_str = std::str::from_utf8(&output.stdout).unwrap();
                 let entries = output_str
@@ -351,10 +351,6 @@ impl<'a> AptFileFileSearcher<'a> {
                     .collect::<Vec<String>>();
                 log::debug!("Found entries {:?} for {}", entries, path);
                 Ok(entries.into_iter())
-            }
-            Some(1) => {
-                // No search results
-                Ok(vec![].into_iter())
             }
             Some(2) => {
                 // Error

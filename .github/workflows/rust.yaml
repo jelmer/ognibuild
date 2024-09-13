@@ -26,6 +26,9 @@ jobs:
       - name: Install Debian tools on Ubuntu
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get install -y mmdebstrap
+      - name: Install system breezy
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install -y brz 
       - name: Install breezy
         run: pip install breezy
       - name: Install breezy and brz-debian

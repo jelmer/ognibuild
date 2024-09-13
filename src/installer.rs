@@ -5,6 +5,7 @@ use crate::session::Session;
 pub enum Error {
     UnknownDependencyFamily,
     UnsupportedScope(InstallationScope),
+    UnsupportedScopes(Vec<InstallationScope>),
     AnalyzedError(crate::analyze::AnalyzedError),
     SessionError(crate::session::Error),
     Other(String),
@@ -15,6 +16,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::UnknownDependencyFamily => write!(f, "Unknown dependency family"),
             Error::UnsupportedScope(scope) => write!(f, "Unsupported scope: {:?}", scope),
+            Error::UnsupportedScopes(scopes) => write!(f, "Unsupported scopes: {:?}", scopes),
             Error::AnalyzedError(e) => write!(f, "{}", e),
             Error::SessionError(e) => write!(f, "{}", e),
             Error::Other(s) => write!(f, "{}", s),
@@ -363,22 +365,37 @@ pub fn auto_installer<'a>(
 pub fn install_missing_deps(
     session: &dyn Session,
     installer: &dyn Installer,
-    scope: InstallationScope,
+    scopes: &[InstallationScope],
     deps: &[&dyn Dependency],
 ) -> Result<(), Error> {
     if deps.is_empty() {
         return Ok(());
     }
-    let mut missing = vec![];
-    for dep in deps.iter() {
-        if !dep.present(session) {
-            missing.push(*dep)
-        }
-    }
+    let missing = deps
+        .iter()
+        .filter(|dep| !dep.present(session))
+        .collect::<Vec<_>>();
     if !missing.is_empty() {
+        log::info!("Missing dependencies: {:?}", missing);
         for dep in missing.into_iter() {
             log::info!("Installing {:?}", dep);
-            installer.install(dep, scope)?;
+            let mut installed = false;
+            for scope in scopes {
+                match installer.install(*dep, *scope) {
+                    Ok(()) => {
+                        log::info!("Installed {:?}", dep);
+                        installed = true;
+                        break;
+                    }
+                    Err(Error::UnsupportedScope(_)) => {}
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+            if !installed {
+                return Err(Error::UnsupportedScopes(scopes.to_vec()));
+            }
         }
     }
     Ok(())

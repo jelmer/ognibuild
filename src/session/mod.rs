@@ -392,6 +392,7 @@ fn capture_and_forward_output(
         for line in reader.lines() {
             let line = line?;
             std::io::stdout().write_all(line.as_bytes())?;
+            std::io::stdout().write_all(b"\n")?;
             stdout_tx
                 .send(Some(line))
                 .expect("Failed to send stdout through channel");
@@ -411,6 +412,7 @@ fn capture_and_forward_output(
         for line in reader.lines() {
             let line = line?;
             std::io::stderr().write_all(line.as_bytes())?;
+            std::io::stderr().write_all(b"\n")?;
             stderr_tx
                 .send(Some(line))
                 .expect("Failed to send stderr through channel");
