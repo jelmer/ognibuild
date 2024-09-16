@@ -832,4 +832,8 @@ impl BuildSystem for SetupPy {
     fn name(&self) -> &str {
         "setup.py"
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

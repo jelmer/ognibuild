@@ -113,4 +113,8 @@ impl BuildSystem for Gem {
     ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
         Err(Error::Unimplemented)
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

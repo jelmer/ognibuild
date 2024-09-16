@@ -214,4 +214,8 @@ impl BuildSystem for Meson {
 
         Ok(ret)
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

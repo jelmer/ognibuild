@@ -172,6 +172,10 @@ impl BuildSystem for R {
         }
         Ok(ret)
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 fn read_description<R: std::io::Read>(
