@@ -105,4 +105,8 @@ impl BuildSystem for Bazel {
     ) -> Result<Vec<Box<dyn crate::output::Output>>, crate::buildsystem::Error> {
         Err(Error::Unimplemented)
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

@@ -170,6 +170,10 @@ impl BuildSystem for Gradle {
     ) -> Result<Vec<Box<dyn crate::output::Output>>, crate::buildsystem::Error> {
         Err(crate::buildsystem::Error::Unimplemented)
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug)]
@@ -294,5 +298,9 @@ impl BuildSystem for Maven {
         _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
         Err(Error::Unimplemented)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

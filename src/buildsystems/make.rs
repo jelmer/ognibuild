@@ -409,6 +409,10 @@ impl BuildSystem for Make {
     ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
         Err(Error::Unimplemented)
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug)]
@@ -556,6 +560,10 @@ impl crate::buildsystem::BuildSystem for CMake {
         _fixers: Option<&[&dyn crate::fix_build::BuildFixer<crate::installer::Error>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, Error> {
         Err(Error::Unimplemented)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

@@ -280,6 +280,8 @@ pub trait BuildSystem: std::fmt::Debug {
         session: &dyn Session,
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<Box<dyn Output>>, Error>;
+
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 pub const PEAR_NAMESPACES: &[&str] = &[
@@ -481,6 +483,10 @@ impl BuildSystem for Pear {
     ) -> Result<Vec<Box<dyn Output>>, Error> {
         todo!()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 /// Detect build systems.
@@ -577,6 +583,10 @@ impl BuildSystem for Composer {
     ) -> Result<Vec<Box<dyn Output>>, Error> {
         todo!()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug)]
@@ -654,6 +664,10 @@ impl BuildSystem for RunTests {
         _fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<Box<dyn Output>>, Error> {
         todo!()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

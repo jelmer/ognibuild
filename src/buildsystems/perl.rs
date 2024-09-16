@@ -291,6 +291,10 @@ impl BuildSystem for DistZilla {
     ) -> Result<Vec<Box<dyn crate::output::Output>>, crate::buildsystem::Error> {
         Err(Error::Unimplemented)
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[derive(Debug)]
@@ -508,5 +512,9 @@ impl BuildSystem for PerlBuildTiny {
         _fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<Box<dyn crate::output::Output>>, crate::buildsystem::Error> {
         Err(Error::Unimplemented)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
