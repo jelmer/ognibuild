@@ -1,20 +1,23 @@
 use crate::buildsystem::{BuildSystem, DependencyCategory};
 use crate::dependencies::debian::DebianDependency;
 use crate::installer::Error as InstallerError;
-use crate::session::{Project, Session};
-use std::path::Path;
+use crate::session::Session;
 
+/// Get the project-wide dependencies for a project.
+///
+/// This function will return a tuple of two vectors of `DebianDependency` objects. The first
+/// vector will contain the build dependencies, and the second vector will contain the test
+/// dependencies.
+///
+/// # Arguments
+/// * `session` - The session to use for the operation.
+/// * `buildsystem` - The build system to use for the operation.
 pub fn get_project_wide_deps(
-    session: &mut dyn Session,
-    project: &Project,
-    subpath: &Path,
+    session: &dyn Session,
     buildsystem: &dyn BuildSystem,
-    buildsystem_subpath: &Path,
 ) -> (Vec<DebianDependency>, Vec<DebianDependency>) {
     let mut build_deps = vec![];
     let mut test_deps = vec![];
-
-    session.chdir(project.internal_path()).unwrap();
 
     let apt = crate::debian::apt::AptManager::new(session, None);
 
