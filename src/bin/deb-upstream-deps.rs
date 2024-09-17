@@ -58,13 +58,12 @@ fn main() -> Result<(), i8> {
     for (bs_subpath, bs) in
         ognibuild::buildsystem::scan_buildsystems(&wt.abspath(&subpath).unwrap())
     {
-        let (bs_build_deps, bs_test_deps) = ognibuild::debian::upstream_deps::get_project_wide_deps(
-            session.as_mut(),
-            &project,
-            &subpath,
-            bs.as_ref(),
-            &bs_subpath,
-        );
+        session
+            .chdir(&project.internal_path().join(&bs_subpath))
+            .unwrap();
+
+        let (bs_build_deps, bs_test_deps) =
+            ognibuild::debian::upstream_deps::get_project_wide_deps(session.as_ref(), bs.as_ref());
         build_deps.extend(bs_build_deps);
         test_deps.extend(bs_test_deps);
     }

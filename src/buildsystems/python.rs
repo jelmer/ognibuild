@@ -672,7 +672,7 @@ impl BuildSystem for SetupPy {
             if let Some(build_system) = pyproject.build_system.as_ref() {
                 for require in &build_system.requires {
                     ret.push((
-                        DependencyCategory::Universal,
+                        DependencyCategory::Build,
                         Box::new(PythonPackageDependency::from_requirement(require)),
                     ));
                 }
