@@ -130,7 +130,7 @@ pub fn build_incrementally(
                 stage: _,
                 phase,
                 retcode,
-                command,
+                command: _,
                 description: _,
             }) => {
                 log::warn!("Build failed with unidentified error. Giving up.");
