@@ -46,5 +46,5 @@ jobs:
         run: cargo test --verbose --no-default-features --features=breezy,dep-server,upstream
         if: matrix.os != 'ubuntu-24.04'
       - name: Run tests
-        run: cargo test --verbose 
+        run: cargo test --verbose
         if: matrix.os == 'ubuntu-24.04'

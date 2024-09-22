@@ -67,7 +67,6 @@ cli = ["dep:clap", "dep:env_logger"]
 udd = ["dep:sqlx", "dep:tokio", "debian"]
 dep-server = ["dep:axum", "dep:tokio"]
 upstream = ["dep:upstream-ontologist"]
-debian-analyzer = ["dep:debian-analyzer"]
 breezy = ["dep:breezyshim"]
 
 [dev-dependencies]
