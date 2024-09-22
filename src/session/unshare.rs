@@ -1,12 +1,110 @@
 use crate::session::{CommandBuilder, Error, Project, Session};
+use std::path::{Path, PathBuf};
 
 pub struct UnshareSession {
-    root: std::path::PathBuf,
+    root: PathBuf,
     _tempdir: Option<tempfile::TempDir>,
-    cwd: std::path::PathBuf,
+    cwd: PathBuf,
 }
 
 impl UnshareSession {
+    pub fn from_tarball(path: &Path) -> Result<Self, crate::session::Error> {
+        let td = tempfile::tempdir().map_err(|e| {
+            crate::session::Error::SetupFailure("tempdir failed".to_string(), e.to_string())
+        })?;
+
+        // Run tar within unshare to extract the tarball. This is necessary because
+        // the tarball may contain files that are owned by a different user.
+        //
+        // However, the tar executable is not available within the unshare environment.
+        // Therefore, we need to extract the tarball to a temporary directory and then
+        // move it to the final location.
+        let root = td.path();
+
+        let f = std::fs::File::open(path).map_err(|e| {
+            crate::session::Error::SetupFailure("open failed".to_string(), e.to_string())
+        })?;
+
+        let output = std::process::Command::new("unshare")
+            .arg("--map-users=auto")
+            .arg("--map-groups=auto")
+            .arg("--fork")
+            .arg("--pid")
+            .arg("--mount-proc")
+            .arg("--net")
+            .arg("--uts")
+            .arg("--ipc")
+            .arg("--wd")
+            .arg(root)
+            .arg("--")
+            .arg("tar")
+            .arg("x")
+            .stdin(std::process::Stdio::from(f))
+            .stderr(std::process::Stdio::piped())
+            .output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8(output.stderr).unwrap();
+            return Err(crate::session::Error::SetupFailure(
+                "tar failed".to_string(),
+                stderr,
+            ));
+        }
+
+        let s = Self {
+            root: root.to_path_buf(),
+            _tempdir: Some(td),
+            cwd: std::path::PathBuf::from("/"),
+        };
+
+        s.ensure_current_user();
+
+        Ok(s)
+    }
+
+    pub fn save_to_tarball(&self, path: &Path) -> Result<(), crate::session::Error> {
+        // Create the tarball from within the session, dumping it to stdout
+        let mut child = self.popen(
+            vec![
+                "tar",
+                "c",
+                "--absolute-names",
+                "--exclude",
+                "/dev/*",
+                "--exclude",
+                "/proc/*",
+                "--exclude",
+                "/sys/*",
+                "/",
+            ],
+            Some(std::path::Path::new("/")),
+            Some("root"),
+            Some(std::process::Stdio::piped()),
+            None,
+            None,
+            None,
+        );
+
+        let f = std::fs::File::create(path).map_err(|e| {
+            crate::session::Error::SetupFailure("create failed".to_string(), e.to_string())
+        })?;
+
+        let mut writer = std::io::BufWriter::new(f);
+
+        std::io::copy(child.stdout.as_mut().unwrap(), &mut writer).map_err(|e| {
+            crate::session::Error::SetupFailure("copy failed".to_string(), e.to_string())
+        })?;
+
+        if child.wait()?.success() {
+            Ok(())
+        } else {
+            Err(crate::session::Error::SetupFailure(
+                "tar failed".to_string(),
+                "tar failed".to_string(),
+            ))
+        }
+    }
+
     pub fn bootstrap() -> Result<Self, crate::session::Error> {
         let td = tempfile::tempdir().map_err(|e| {
             crate::session::Error::SetupFailure("tempdir failed".to_string(), e.to_string())
@@ -59,7 +157,7 @@ impl UnshareSession {
             Err(e) => panic!("Error: {:?}", e),
         }
 
-        match self.check_call(
+        let child = self.popen(
             vec![
                 "/usr/sbin/useradd",
                 "--uid",
@@ -71,11 +169,26 @@ impl UnshareSession {
             Some(std::path::Path::new("/")),
             Some("root"),
             None,
-        ) {
-            Ok(_) => {}
-            // Ignore if user already exists
-            Err(Error::CalledProcessError(status))
-                if status.code() == Some(9) || status.code() == Some(4) => {}
+            Some(std::process::Stdio::piped()),
+            None,
+            None,
+        );
+
+        match child.wait_with_output() {
+            Ok(output) => {
+                match output.status.code() {
+                    // User created
+                    Some(0) => {}
+                    // Ignore if user already exists
+                    Some(9) => {}
+                    Some(4) => {}
+                    _ => panic!(
+                        "Error: {:?}: {}",
+                        output.status,
+                        String::from_utf8(output.stdout).unwrap()
+                    ),
+                }
+            }
             Err(e) => panic!("Error: {:?}", e),
         }
     }
@@ -437,6 +550,29 @@ mod tests {
     fn test_create_home() {
         let session = test_session();
         session.create_home().unwrap();
+    }
+
+    #[test]
+    fn test_save_and_reuse() {
+        let session = test_session();
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path().join("test.tar");
+        session.save_to_tarball(&path).unwrap();
+        let session = UnshareSession::from_tarball(&path).unwrap();
+        assert!(session.exists(std::path::Path::new("/bin")));
+        // Verify that the session works
+        let output = String::from_utf8(
+            session
+                .check_output(vec!["ls"], Some(std::path::Path::new("/")), None, None)
+                .unwrap(),
+        )
+        .unwrap();
+        let dirs = output.split_whitespace().collect::<Vec<&str>>();
+        assert!(dirs.contains(&"bin"));
+        assert!(dirs.contains(&"dev"));
+        assert!(dirs.contains(&"etc"));
+        assert!(dirs.contains(&"home"));
+        assert!(dirs.contains(&"lib"));
     }
 
     #[test]
