@@ -7,6 +7,20 @@ pub struct UnshareSession {
     cwd: PathBuf,
 }
 
+fn compression_flag(path: &Path) -> Result<Option<&str>, crate::session::Error> {
+    match path.extension().unwrap().to_str().unwrap() {
+        "tar" => Ok(None),
+        "gz" => Ok(Some("-z")),
+        "bz2" => Ok(Some("-j")),
+        "xz" => Ok(Some("-J")),
+        "zst" => Ok(Some("--zstd")),
+        e => Err(crate::session::Error::SetupFailure(
+            "unknown extension".to_string(),
+            format!("unknown extension: {}", e),
+        )),
+    }
+}
+
 impl UnshareSession {
     pub fn from_tarball(path: &Path) -> Result<Self, crate::session::Error> {
         let td = tempfile::tempdir().map_err(|e| {
@@ -39,6 +53,7 @@ impl UnshareSession {
             .arg("--")
             .arg("tar")
             .arg("x")
+            .arg(compression_flag(path)?.unwrap_or("--"))
             .stdin(std::process::Stdio::from(f))
             .stderr(std::process::Stdio::piped())
             .output()?;
@@ -75,6 +90,7 @@ impl UnshareSession {
                 "/proc/*",
                 "--exclude",
                 "/sys/*",
+                compression_flag(path)?.unwrap_or("--"),
                 "/",
             ],
             Some(std::path::Path::new("/")),
@@ -552,12 +568,12 @@ mod tests {
         session.create_home().unwrap();
     }
 
-    #[test]
-    fn test_save_and_reuse() {
+    fn save_and_reuse(name: &str) {
         let session = test_session();
         let tempdir = tempfile::tempdir().unwrap();
-        let path = tempdir.path().join("test.tar");
+        let path = tempdir.path().join(name);
         session.save_to_tarball(&path).unwrap();
+        std::mem::drop(session);
         let session = UnshareSession::from_tarball(&path).unwrap();
         assert!(session.exists(std::path::Path::new("/bin")));
         // Verify that the session works
@@ -573,6 +589,16 @@ mod tests {
         assert!(dirs.contains(&"etc"));
         assert!(dirs.contains(&"home"));
         assert!(dirs.contains(&"lib"));
+    }
+
+    #[test]
+    fn test_save_and_reuse() {
+        save_and_reuse("test.tar");
+    }
+
+    #[test]
+    fn test_save_and_reuse_gz() {
+        save_and_reuse("test.tar.gz");
     }
 
     #[test]
