@@ -2,7 +2,7 @@ use crate::debian::build::BUILD_LOG_FILENAME;
 use crate::debian::build::{attempt_build, BuildOnceError, BuildOnceResult};
 use crate::debian::context::Error;
 use crate::debian::context::Phase;
-use crate::fix_build::InterimError;
+pub use crate::fix_build::InterimError;
 use breezyshim::error::Error as BrzError;
 use breezyshim::workingtree::WorkingTree;
 use breezyshim::workspace::reset_tree;
