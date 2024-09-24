@@ -1,4 +1,0 @@
-include AUTHORS LICENSE
-include Cargo.lock Cargo.toml
-recursive-include src *.rs
-recursive-include ognibuild-py/ Cargo.toml *.rs
