@@ -123,7 +123,7 @@ fn main() -> Result<(), i32> {
         &subpath,
         committer,
         args.update_changelog,
-        Box::new(breezyshim::commit::NullCommitReporter::new()),
+        Some(Box::new(breezyshim::commit::NullCommitReporter::new()))
     );
 
     let fixers = ognibuild::debian::fixers::default_fixers(&packaging_context, &apt);

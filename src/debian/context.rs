@@ -64,7 +64,7 @@ pub struct DebianPackagingContext {
     pub subpath: PathBuf,
     pub committer: (String, String),
     pub update_changelog: bool,
-    pub commit_reporter: Box<dyn CommitReporter>,
+    pub commit_reporter: Option<Box<dyn CommitReporter>>,
 }
 
 impl DebianPackagingContext {
@@ -73,7 +73,7 @@ impl DebianPackagingContext {
         subpath: &Path,
         committer: Option<(String, String)>,
         update_changelog: bool,
-        commit_reporter: Box<dyn CommitReporter>,
+        commit_reporter: Option<Box<dyn CommitReporter>>,
     ) -> Self {
         Self {
             tree,
@@ -118,17 +118,19 @@ impl DebianPackagingContext {
                 Some(&committer),
                 &self.subpath,
                 None,
-                Some(self.commit_reporter.as_ref()),
+                self.commit_reporter.as_deref(),
                 None,
             )
         } else {
-            self.tree
+            let mut builder = self.tree
                 .build_commit()
                 .message(summary)
                 .committer(&committer)
-                .specific_files(&[&self.subpath])
-                .reporter(self.commit_reporter.as_ref())
-                .commit()
+                .specific_files(&[&self.subpath]);
+            if let Some(commit_reporter) = self.commit_reporter.as_ref() {
+                builder = builder.reporter(commit_reporter.as_ref());
+            }
+            builder.commit()
         };
 
         std::mem::drop(lock_write);
@@ -318,7 +320,7 @@ Description: A python package
             Path::new(""),
             Some(("ognibuild".to_owned(), "<ognibuild@jelmer.uk>".to_owned())),
             false,
-            Box::new(breezyshim::commit::NullCommitReporter::new()),
+            Some(Box::new(breezyshim::commit::NullCommitReporter::new())),
         )
     }
 
