@@ -714,6 +714,33 @@ pub fn get_buildsystem(path: &Path) -> Option<(PathBuf, Box<dyn BuildSystem>)> {
     scan_buildsystems(path).into_iter().next()
 }
 
+pub fn buildsystem_by_name(name: &str, path: &Path) -> Option<Box<dyn BuildSystem>> {
+    match name {
+        "pear" => Pear::probe(path),
+        "composer" => Composer::probe(path),
+        "runtests" => RunTests::probe(path),
+        "setup.py" => crate::buildsystems::python::SetupPy::probe(path),
+        "node" => crate::buildsystems::node::Node::probe(path),
+        "waf" => crate::buildsystems::waf::Waf::probe(path),
+        "gem" => crate::buildsystems::ruby::Gem::probe(path),
+        "meson" => crate::buildsystems::meson::Meson::probe(path),
+        "cargo" => crate::buildsystems::rust::Cargo::probe(path),
+        "cabal" => crate::buildsystems::haskell::Cabal::probe(path),
+        "gradle" => crate::buildsystems::java::Gradle::probe(path),
+        "maven" => crate::buildsystems::java::Maven::probe(path),
+        "distzilla" => crate::buildsystems::perl::DistZilla::probe(path),
+        "perl-build-tiny" => crate::buildsystems::perl::PerlBuildTiny::probe(path),
+        "go" => crate::buildsystems::go::Golang::probe(path),
+        "bazel" => crate::buildsystems::bazel::Bazel::probe(path),
+        "r" => crate::buildsystems::r::R::probe(path),
+        "octave" => crate::buildsystems::octave::Octave::probe(path),
+        "cmake" => crate::buildsystems::make::CMake::probe(path),
+        "gnome-shell-extension" => crate::buildsystems::gnome::GnomeShellExtension::probe(path),
+        "make" => crate::buildsystems::make::Make::probe(path),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
