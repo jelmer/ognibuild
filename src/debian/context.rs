@@ -320,7 +320,7 @@ Description: A python package
             Path::new(""),
             Some(("ognibuild".to_owned(), "<ognibuild@jelmer.uk>".to_owned())),
             false,
-            Box::new(breezyshim::commit::NullCommitReporter::new()),
+            Some(Box::new(breezyshim::commit::NullCommitReporter::new())),
         )
     }
 

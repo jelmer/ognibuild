@@ -274,7 +274,7 @@ Description: A python package
                 Path::new(""),
                 Some(("ognibuild".to_owned(), "ognibuild@jelmer.uk".to_owned())),
                 true,
-                Box::new(NullCommitReporter::new()),
+                Some(Box::new(NullCommitReporter::new())),
             );
 
             let mut fixers: Vec<Box<dyn DebianBuildFixer>> =
