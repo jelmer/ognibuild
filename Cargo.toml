@@ -26,39 +26,38 @@ debversion = { version = "0.4", optional = true }
 env_logger = { version = "0.10.0", optional = true }
 flate2 = { version = "1", optional = true }
 fs_extra = "1.3.0"
-ini = "1.3.0"
-inventory = "0.3.15"
-lazy-regex = "3.3.0"
-lazy_static = "1.5.0"
+inventory = ">=0.3"
+lazy-regex = ">=2"
+lazy_static = ">=1.4"
 libc = "0.2.148"
 log = "0.4.20"
-lz4_flex = { version = "0.11.3", optional = true }
+lz4_flex = { version = ">=0.11", optional = true }
 lzma-rs = { version = "0.3.0", optional = true }
 makefile-lossless = "0.1.3"
 maplit = "1.0.2"
-nix = { version = "0.29.0", features = ["user"] }
-pep440_rs = "0.6.6"
-pep508_rs = "0.6.1"
+nix = { version = ">=0.27.0", features = ["user"] }
+pep440_rs = ">=0.3"
+pep508_rs = ">=0.2"
 percent-encoding = "2.3.1"
-pyproject-toml = "0.11.0"
+pyproject-toml = ">=0.7"
 r-description = "0.1.0"
 rand = "0.8.5"
 regex = "1.10.6"
-reqwest = { version = "0.12.7", optional = true, features = ["blocking", "json"] }
-semver = "1.0.23"
+reqwest = { version = ">=0.10", optional = true, features = ["blocking", "json"] }
+semver = ">=1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9.34"
 shlex = "1.3.0"
 sqlx = { version = "0.8.1", optional = true, features = ["postgres", "runtime-tokio-native-tls"] }
 stackdriver_logger = { version = "0.8.2", optional = true }
-tempfile = "3.11.0"
+tempfile = ">=3"
 tokio = { version = "1", features = ["full"], optional = true }
 toml = "0.8.19"
 toml_edit = "0.22.20"
-url = "2.5.1"
-whoami = { version = "1.5.1", default-features = false }
-xmltree = "0.11.0"
+url = ">=2"
+whoami = { version = ">=1.4", default-features = false }
+xmltree = ">=0.10"
 
 [features]
 default = ["debian", "cli", "udd", "upstream", "breezy", "dep-server"]
