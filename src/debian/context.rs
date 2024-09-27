@@ -122,7 +122,8 @@ impl DebianPackagingContext {
                 None,
             )
         } else {
-            let mut builder = self.tree
+            let mut builder = self
+                .tree
                 .build_commit()
                 .message(summary)
                 .committer(&committer)
@@ -279,6 +280,7 @@ impl DebianPackagingContext {
 mod tests {
     use super::*;
     use breezyshim::controldir::{create_standalone_workingtree, ControlDirFormat};
+    pub const COMMITTER: &str = "ognibuild <ognibuild@example.com>";
     fn setup(path: &Path) -> DebianPackagingContext {
         let tree = create_standalone_workingtree(path, &ControlDirFormat::default()).unwrap();
         std::fs::create_dir_all(path.join("debian")).unwrap();
@@ -312,6 +314,7 @@ Description: A python package
         .unwrap();
         tree.build_commit()
             .message("Initial commit")
+            .committer(COMMITTER)
             .commit()
             .unwrap();
 

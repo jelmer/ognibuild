@@ -304,9 +304,9 @@ dependencies = [
 
 [[package]]
 name = "breezyshim"
-version = "0.1.203"
+version = "0.1.204"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0698912f0aa79557d83350c0ab544e9e5056fda3ac22dd602758f76fc50146fa"
+checksum = "08d090d270f6790af4ffe946d05a5c0a4fb297d53f8531b7c95cbe2ec468bbcd"
 dependencies = [
  "chrono",
  "ctor",
@@ -672,9 +672,9 @@ dependencies = [
 
 [[package]]
 name = "deb822-lossless"
-version = "0.1.26"
+version = "0.1.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34b71c4e186289d7e61ef9479fc225268bc6e1f23fecbc95a190fbe561ad3f7e"
+checksum = "5a3282376f8ff540293a247cc4b875d00c95de27ac8049e8e388bc5752659af7"
 dependencies = [
  "deb822-derive",
  "pyo3",
@@ -701,9 +701,9 @@ dependencies = [
 
 [[package]]
 name = "debian-analyzer"
-version = "0.158.15"
+version = "0.158.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c70a1c6f34c312a484950fdeb86cf239f7fa18f474a7bf523e76bc392c450028"
+checksum = "717df57534cce59faed86bebdad4d825596984dfe71a42a4fe9eef23b191be58"
 dependencies = [
  "breezyshim",
  "chrono",
@@ -752,9 +752,9 @@ dependencies = [
 
 [[package]]
 name = "debian-control"
-version = "0.1.36"
+version = "0.1.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dabdd9751f6bc327c09269d58efcc1882791d44a264162ebac569bfba86661d"
+checksum = "c9597b6d2961a9dda53e20390f5f548fafb315399d059fe92722eae805dcf81a"
 dependencies = [
  "chrono",
  "deb822-lossless",
@@ -767,9 +767,9 @@ dependencies = [
 
 [[package]]
 name = "debian-copyright"
-version = "0.1.25"
+version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d86ef35777337105c390afbd4b9d130be764eecc06ffd16c38d4d7c3223d5df"
+checksum = "f70c67f0e99e0de82d1f48ee8123ef1b8759fb033502c596f11a13d6a7410662"
 dependencies = [
  "deb822-lossless",
  "debversion",
@@ -802,9 +802,9 @@ dependencies = [
 
 [[package]]
 name = "dep3"
-version = "0.1.26"
+version = "0.1.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f71ca10e836fa6a3cd2c642b40456ca75b033884838e8c57840fbf1bb8bb324e"
+checksum = "a70a2eea1431de0923428866df2e7f9e843d2587bfa580fa6ad538fb822921df"
 dependencies = [
  "chrono",
  "deb822-lossless",
@@ -1150,9 +1150,9 @@ checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
 
 [[package]]
 name = "flate2"
-version = "1.0.33"
+version = "1.0.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "324a1be68054ef05ad64b861cc9eaf1d623d2d8cb25b4bf2cb9cdd902b4bf253"
+checksum = "a1b589b4dc103969ad3cf85c950899926ec64300a1a46d76c03a6072957036f0"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
@@ -3068,9 +3068,9 @@ checksum = "640c9bd8497b02465aeef5375144c26062e0dcd5939dfcbb0f5db76cb8c17c73"
 
 [[package]]
 name = "r-description"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4888e49a665b862defabc553c5beb9658346b4c1c9fc2c95f1e1eae645fc066f"
+checksum = "c563814ace27b1f4c91e1f48ab86c395f2e07ac13e29491cd3a63b8b27b34d94"
 dependencies = [
  "deb822-lossless",
  "url",
@@ -3108,9 +3108,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.5.5"
+version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62871f2d65009c0256aed1b9cfeeb8ac272833c404e13d53d400cd0dad7a2ac0"
+checksum = "355ae415ccd3a04315d3f8246e86d67689ea74d88d915576e1589a351062a13b"
 dependencies = [
  "bitflags 2.6.0",
 ]
@@ -3498,9 +3498,9 @@ dependencies = [
 
 [[package]]
 name = "serde_spanned"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb5b1b31579f3811bf615c144393417496f152e12ac8b7663bf664f4a815306d"
+checksum = "87607cb1398ed59d48732e575a4c28a7a8ebf2454b964fe3f224f2afc07909e1"
 dependencies = [
  "serde",
 ]
@@ -4010,9 +4010,9 @@ dependencies = [
 
 [[package]]
 name = "tar"
-version = "0.4.41"
+version = "0.4.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb797dad5fb5b76fcf519e702f4a589483b5ef06567f160c392832c1f5e44909"
+checksum = "4ff6c40d3aedb5e06b57c6f669ad17ab063dd1e63d977c6a88e7f4dfa4f04020"
 dependencies = [
  "filetime",
  "libc",
@@ -4506,9 +4506,9 @@ dependencies = [
 
 [[package]]
 name = "upstream-ontologist"
-version = "0.1.42"
+version = "0.1.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87cd35854c01a87f966899b2494b52d89bba6a9b78e05807d7099511a76e9153"
+checksum = "90af94de821bf5e12e2bc7ccae590c96f535c577b612350f926adf047f9f5f8e"
 dependencies = [
  "breezyshim",
  "chrono",
@@ -4937,9 +4937,9 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "winnow"
-version = "0.6.19"
+version = "0.6.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c52ac009d615e79296318c1bcce2d422aaca15ad08515e344feeda07df67a587"
+checksum = "36c1fec1a2bb5866f07c25f68c26e565c4c200aebb96d7e55710c19d3e8ac49b"
 dependencies = [
  "memchr",
 ]
