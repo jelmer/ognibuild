@@ -134,9 +134,14 @@ pub fn create_dist_schroot<T: crate::vcs::DupableTree>(
 ) -> Result<OsString, Error> {
     // TODO(jelmer): pass in package name as part of session prefix
     let mut session = crate::session::schroot::SchrootSession::new(chroot, Some("ognibuild-dist"))?;
+    #[cfg(feature = "debian")]
     if let (Some(packaging_tree), Some(packaging_subpath)) = (packaging_tree, packaging_subpath) {
         crate::debian::satisfy_build_deps(&session, packaging_tree, packaging_subpath)
             .map_err(|e| Error::Other(format!("Failed to satisfy build dependencies: {:?}", e)))?;
+    }
+    #[cfg(not(feature = "debian"))]
+    if packaging_tree.is_some() || packaging_subpath.is_some() {
+        log::warn!("Ignoring packaging tree and subpath as debian feature is not enabled");
     }
     create_dist(
         &mut session,
