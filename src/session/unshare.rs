@@ -129,6 +129,7 @@ impl UnshareSession {
         let root = td.path();
         std::process::Command::new("mmdebstrap")
             .current_dir(root)
+            .arg("--mode=unshare")
             .arg("--variant=minbase")
             .arg("--quiet")
             .arg("sid")
