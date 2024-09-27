@@ -383,7 +383,7 @@ fn main() -> Result<(), i32> {
         let p = Path::new(&args.directory);
         url::Url::from_directory_path(&p.canonicalize().unwrap()).unwrap()
     };
-    let mut td = None;
+    let mut td: Option<tempfile::TempDir> = None;
     // TODO(jelmer): Get a list of supported schemes from breezy?
     #[cfg(feature = "breezy")]
     let project = if ["git", "http", "https", "ssh"].contains(&url.scheme()) {
