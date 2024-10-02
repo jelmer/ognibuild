@@ -454,7 +454,7 @@ impl SetupPy {
         {
             let requires = &build_system.requires;
             for require in requires {
-                ret.push(PythonPackageDependency::from_requirement(require));
+                ret.push(PythonPackageDependency::from(require.clone()));
             }
         }
 
@@ -464,7 +464,7 @@ impl SetupPy {
                 .and_then(|os| os.get::<Vec<String>>("setup_requires"))
                 .unwrap_or(vec![]);
             for require in &setup_requires {
-                ret.push(PythonPackageDependency::from_requirement_str(require));
+                ret.push(PythonPackageDependency::try_from(require.clone()).unwrap());
             }
         }
         ret
@@ -643,28 +643,28 @@ impl BuildSystem for SetupPy {
             for require in &distribution.requires {
                 ret.push((
                     DependencyCategory::Universal,
-                    Box::new(PythonPackageDependency::from_requirement_str(require)),
+                    Box::new(PythonPackageDependency::try_from(require.clone()).unwrap()),
                 ));
             }
             // Not present for distutils-only packages
             for require in &distribution.setup_requires {
                 ret.push((
                     DependencyCategory::Build,
-                    Box::new(PythonPackageDependency::from_requirement_str(require)),
+                    Box::new(PythonPackageDependency::try_from(require.clone()).unwrap()),
                 ));
             }
             // Not present for distutils-only packages
             for require in &distribution.install_requires {
                 ret.push((
                     DependencyCategory::Universal,
-                    Box::new(PythonPackageDependency::from_requirement_str(require)),
+                    Box::new(PythonPackageDependency::try_from(require.clone()).unwrap()),
                 ));
             }
             // Not present for distutils-only packages
             for require in &distribution.tests_require {
                 ret.push((
                     DependencyCategory::Test,
-                    Box::new(PythonPackageDependency::from_requirement_str(require)),
+                    Box::new(PythonPackageDependency::try_from(require.clone()).unwrap()),
                 ));
             }
         }
@@ -673,7 +673,7 @@ impl BuildSystem for SetupPy {
                 for require in &build_system.requires {
                     ret.push((
                         DependencyCategory::Build,
-                        Box::new(PythonPackageDependency::from_requirement(require)),
+                        Box::new(PythonPackageDependency::from(require.clone())),
                     ));
                 }
             }
@@ -685,7 +685,7 @@ impl BuildSystem for SetupPy {
             {
                 ret.push((
                     DependencyCategory::Build,
-                    Box::new(PythonPackageDependency::from_requirement_str(&require)),
+                    Box::new(PythonPackageDependency::try_from(require).unwrap()),
                 ));
             }
             for require in options
@@ -694,7 +694,7 @@ impl BuildSystem for SetupPy {
             {
                 ret.push((
                     DependencyCategory::Universal,
-                    Box::new(PythonPackageDependency::from_requirement_str(&require)),
+                    Box::new(PythonPackageDependency::try_from(require).unwrap()),
                 ));
             }
         }
@@ -704,7 +704,7 @@ impl BuildSystem for SetupPy {
                 for require in &build_system.requires {
                     ret.push((
                         DependencyCategory::Build,
-                        Box::new(PythonPackageDependency::from_requirement(require)),
+                        Box::new(PythonPackageDependency::from(require.clone())),
                     ));
                 }
             }
@@ -717,7 +717,7 @@ impl BuildSystem for SetupPy {
                 for dep in dependencies {
                     ret.push((
                         DependencyCategory::Universal,
-                        Box::new(PythonPackageDependency::from(dep)),
+                        Box::new(PythonPackageDependency::from(dep.clone())),
                     ));
                 }
             }
@@ -731,7 +731,7 @@ impl BuildSystem for SetupPy {
                     for dep in deps {
                         ret.push((
                             DependencyCategory::RuntimeExtra(name.clone()),
-                            Box::new(PythonPackageDependency::from(dep)),
+                            Box::new(PythonPackageDependency::from(dep.clone())),
                         ));
                     }
                 }
