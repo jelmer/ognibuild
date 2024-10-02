@@ -13,96 +13,119 @@ use debian_control::{
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-// TODO: use pep508_rs
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PythonPackageDependency {
-    package: String,
-    python_version: Option<String>,
-    specs: Vec<(String, String)>,
+pub struct PythonPackageDependency(pep508_rs::Requirement);
+
+impl From<pep508_rs::Requirement> for PythonPackageDependency {
+    fn from(requirement: pep508_rs::Requirement) -> Self {
+        Self(requirement)
+    }
 }
 
-impl From<&pep508_rs::Requirement> for PythonPackageDependency {
-    fn from(requirement: &pep508_rs::Requirement) -> Self {
-        Self::from_requirement(requirement)
+impl TryFrom<PythonPackageDependency> for pep508_rs::Requirement {
+    type Error = pep508_rs::Pep508Error;
+
+    fn try_from(value: PythonPackageDependency) -> Result<Self, Self::Error> {
+        Ok(value.0)
+    }
+}
+
+impl TryFrom<String> for PythonPackageDependency {
+    type Error = pep508_rs::Pep508Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str())
+    }
+}
+
+impl TryFrom<&str> for PythonPackageDependency {
+    type Error = pep508_rs::Pep508Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        use std::str::FromStr;
+        let req = pep508_rs::Requirement::from_str(value)?;
+
+        Ok(PythonPackageDependency(req))
     }
 }
 
 impl PythonPackageDependency {
-    pub fn from_requirement(requirement: &pep508_rs::Requirement) -> Self {
-        // TODO: properly parse the requirement
-        Self {
-            package: requirement.name.to_string(),
-            python_version: None,
-            specs: Vec::new(),
-        }
-    }
-
-    pub fn from_requirement_str(requirement: &str) -> Self {
-        let mut parts = requirement.split(' ');
-        let package = parts.next().unwrap();
-        let specs = parts
-            .map(|part| {
-                let (op, version) = part
-                    .split_once(|c: char| c == '=' || c == '<' || c == '>')
-                    .unwrap();
-                (op.to_string(), version.to_string())
-            })
-            .collect();
-        Self {
-            package: package.to_string(),
-            python_version: None,
-            specs,
-        }
-    }
-
-    pub fn new(package: &str, python_version: Option<&str>, specs: Vec<(String, String)>) -> Self {
-        Self {
-            package: package.to_string(),
-            python_version: python_version.map(|s| s.to_string()),
-            specs,
-        }
+    pub fn package(&self) -> String {
+        self.0.name.to_string()
     }
 
     pub fn new_with_min_version(package: &str, min_version: &str) -> Self {
-        Self {
-            package: package.to_string(),
-            python_version: None,
-            specs: vec![(">=".to_string(), min_version.to_string())],
-        }
+        Self(pep508_rs::Requirement {
+            name: pep508_rs::PackageName::new(package.to_string()).unwrap(),
+            version_or_url: Some(min_version_as_version_or_url(min_version)),
+            extras: vec![],
+            marker: None,
+            origin: None,
+        })
     }
 
     pub fn simple(package: &str) -> Self {
-        Self {
-            package: package.to_string(),
-            python_version: None,
-            specs: vec![],
-        }
+        Self(pep508_rs::Requirement {
+            name: pep508_rs::PackageName::new(package.to_string()).unwrap(),
+            version_or_url: None,
+            extras: vec![],
+            marker: None,
+            origin: None,
+        })
     }
+}
+
+fn min_version_as_version_or_url(min_version: &str) -> pep508_rs::VersionOrUrl {
+    use std::str::FromStr;
+    let version_specifiers = std::iter::once(
+        pep440_rs::VersionSpecifier::new(
+            pep440_rs::Operator::GreaterThanEqual,
+            pep440_rs::VersionPattern::verbatim(pep440_rs::Version::from_str(min_version).unwrap()),
+        )
+        .unwrap(),
+    )
+    .collect();
+    pep508_rs::VersionOrUrl::VersionSpecifier(version_specifiers)
+}
+
+fn major_python_version_as_marker(major_version: u32) -> pep508_rs::MarkerTree {
+    pep508_rs::MarkerTree::Expression(pep508_rs::MarkerExpression {
+        l_value: pep508_rs::MarkerValue::MarkerEnvVersion(
+            pep508_rs::MarkerValueVersion::PythonVersion,
+        ),
+        operator: pep508_rs::MarkerOperator::Equal,
+        r_value: pep508_rs::MarkerValue::QuotedString(format!("{}.*", major_version)),
+    })
 }
 
 impl crate::buildlog::ToDependency
     for buildlog_consultant::problems::common::MissingPythonDistribution
 {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(PythonPackageDependency::new(
-            &self.distribution,
-            match self.python_version {
-                Some(2) => Some("cpython2"),
-                Some(3) => Some("cpython3"),
-                None => None,
-                _ => unimplemented!(),
-            },
-            self.minimum_version
-                .as_ref()
-                .map(|x| vec![(">=".to_string(), x.to_string())])
-                .unwrap_or_default(),
-        )))
+        let version_or_url = self
+            .minimum_version
+            .as_ref()
+            .map(|min_version| min_version_as_version_or_url(min_version));
+        let marker = self.python_version.as_ref().map(|python_major_version| {
+            major_python_version_as_marker(*python_major_version as u32)
+        });
+
+        let requirement = pep508_rs::Requirement {
+            name: pep508_rs::PackageName::new(self.distribution.clone()).unwrap(),
+            version_or_url,
+            extras: vec![],
+            marker,
+            origin: None,
+        };
+
+        Some(Box::new(PythonPackageDependency::from(requirement)))
     }
 }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependency {
     fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>> {
+        // TODO: handle other things than min version
         let (name, min_version) =
             crate::dependencies::debian::extract_simple_min_version(dependency)?;
 
@@ -111,15 +134,18 @@ impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependen
         let python_version = if python_version.is_empty() {
             None
         } else {
-            Some(python_version.to_string())
+            Some(python_version.parse::<u32>().unwrap())
         };
 
-        Some(Box::new(PythonPackageDependency::new(
-            &name,
-            python_version.as_deref(),
-            min_version
-                .map(|x| vec![(">=".to_string(), x.upstream_version)])
-                .unwrap_or_default(),
+        Some(Box::new(PythonPackageDependency::from(
+            pep508_rs::Requirement {
+                name: pep508_rs::PackageName::new(name.to_owned()).unwrap(),
+                version_or_url: min_version
+                    .map(|x| min_version_as_version_or_url(&x.upstream_version)),
+                marker: python_version.map(major_python_version_as_marker),
+                extras: vec![],
+                origin: None,
+            },
         )))
     }
 }
@@ -130,7 +156,7 @@ impl Dependency for PythonPackageDependency {
     }
 
     fn present(&self, session: &dyn Session) -> bool {
-        let cmd = match self.python_version.as_deref() {
+        let cmd = match self.0.marker.as_ref().and_then(find_python_version) {
             Some("cpython3") => "python3",
             Some("cpython2") => "python2",
             Some("pypy") => "pypy",
@@ -138,22 +164,13 @@ impl Dependency for PythonPackageDependency {
             None => "python3",
             _ => unimplemented!(),
         };
-        let text = format!(
-            "{}{}",
-            self.package,
-            self.specs
-                .iter()
-                .map(|(op, version)| format!("{}{}", op, version))
-                .collect::<Vec<String>>()
-                .join(",")
-        );
         session
             .command(vec![
                 cmd,
                 "-c",
                 &format!(
                     r#"import pkg_resources; pkg_resources.require("""{}""")"#,
-                    text
+                    self.0
                 ),
             ])
             .stdout(std::process::Stdio::null())
@@ -175,7 +192,7 @@ impl Dependency for PythonPackageDependency {
 #[cfg(feature = "upstream")]
 impl crate::upstream::FindUpstream for PythonPackageDependency {
     fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
-        upstream_ontologist::providers::python::remote_pypi_metadata(&self.package).ok()
+        upstream_ontologist::providers::python::remote_pypi_metadata(&self.package()).ok()
     }
 }
 
@@ -219,7 +236,7 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(PythonModuleDependency::new(
             &self.module,
-            self.minimum_version.as_ref().map(|x| x.as_str()),
+            self.minimum_version.as_deref(),
             match self.python_version {
                 Some(2) => Some("cpython2"),
                 Some(3) => Some("cpython3"),
@@ -283,7 +300,7 @@ impl<'a> PypiResolver<'a> {
                 return Err(Error::UnsupportedScope(scope));
             }
         }
-        cmd.extend(reqs.iter().map(|req| req.package.clone()));
+        cmd.extend(reqs.iter().map(|req| req.package().to_string()));
         Ok(cmd)
     }
 }
@@ -324,84 +341,119 @@ impl<'a> Installer for PypiResolver<'a> {
             .ok_or_else(|| Error::UnknownDependencyFamily)?;
         let cmd = self.cmd(vec![req], scope)?;
         Ok(Explanation {
-            message: format!("Install pip {}", req.package),
+            message: format!("Install pip {}", req.0.name),
             command: Some(cmd),
         })
     }
 }
 
 #[cfg(feature = "debian")]
-pub fn python_spec_to_apt_rels(pkg_name: &str, specs: Option<&[(String, String)]>) -> Relations {
+pub fn python_version_specifiers_to_debian(
+    pkg_name: &str,
+    version_specifiers: Option<&pep440_rs::VersionSpecifiers>,
+) -> Relations {
     // TODO(jelmer): Dealing with epoch, etc?
-    if specs.is_none() || specs.as_ref().unwrap().is_empty() {
-        return pkg_name.parse().unwrap();
-    }
-
     let mut rels: Vec<Relation> = vec![];
-    for (o, v) in specs.unwrap() {
-        match o.as_str() {
-            "~=" => {
-                // PEP 440: For a given release identifier V.N , the compatible
-                // release clause is approximately equivalent to the pair of
-                // comparison clauses: >= V.N, == V.*
-                let mut parts = v.split('.').map(|s| s.to_string()).collect::<Vec<String>>();
-                parts.pop();
-                let last: isize = parts.pop().unwrap().parse().unwrap();
-                parts.push((last + 1).to_string());
-                let next_maj_deb_version: debversion::Version = parts.join(".").parse().unwrap();
-                let deb_version: debversion::Version = v.parse().unwrap();
-                rels.push(Relation::new(
-                    pkg_name,
-                    Some((VersionConstraint::GreaterThanEqual, deb_version)),
-                ));
-                rels.push(Relation::new(
-                    pkg_name,
-                    Some((VersionConstraint::LessThan, next_maj_deb_version)),
-                ));
-            }
-            "!=" => {
-                let deb_version: debversion::Version = v.parse().unwrap();
-                rels.push(Relation::new(
-                    pkg_name,
-                    Some((VersionConstraint::GreaterThan, deb_version.clone())),
-                ));
-                rels.push(Relation::new(
-                    pkg_name,
-                    Some((VersionConstraint::LessThan, deb_version)),
-                ));
-            }
-            "==" if v.ends_with(".*") => {
-                let mut parts = v.split('.').map(|s| s.to_string()).collect::<Vec<String>>();
-                parts.pop();
-                let last: isize = parts.pop().unwrap().parse().unwrap();
-                parts.push((last + 1).to_string());
-                let deb_version: debversion::Version = v.parse().unwrap();
-                let next_maj_deb_version: debversion::Version = parts.join(".").parse().unwrap();
-                rels.push(Relation::new(
-                    pkg_name,
-                    Some((VersionConstraint::GreaterThanEqual, deb_version)),
-                ));
-                rels.push(Relation::new(
-                    pkg_name,
-                    Some((VersionConstraint::LessThan, next_maj_deb_version)),
-                ));
-            }
-            o => {
-                let vc = match o {
-                    ">=" => VersionConstraint::GreaterThanEqual,
-                    "<=" => VersionConstraint::LessThanEqual,
-                    "<" => VersionConstraint::LessThan,
-                    ">" => VersionConstraint::GreaterThan,
-                    "==" => VersionConstraint::Equal,
-                    _ => unimplemented!(),
-                };
-                let v: debversion::Version = v.parse().unwrap();
-                rels.push(Relation::new(pkg_name, Some((vc, v))));
+    if let Some(version_specifiers) = version_specifiers {
+        for vs in version_specifiers.iter() {
+            let v = vs.version().to_string();
+            match vs.operator() {
+                pep440_rs::Operator::TildeEqual => {
+                    // PEP 440: For a given release identifier V.N , the compatible
+                    // release clause is approximately equivalent to the pair of
+                    // comparison clauses: >= V.N, == V.*
+                    let mut parts = v.split('.').map(|s| s.to_string()).collect::<Vec<String>>();
+                    parts.pop();
+                    let last: isize = parts.pop().unwrap().parse().unwrap();
+                    parts.push((last + 1).to_string());
+                    let next_maj_deb_version: debversion::Version =
+                        parts.join(".").parse().unwrap();
+                    let deb_version: debversion::Version = v.parse().unwrap();
+                    rels.push(Relation::new(
+                        pkg_name,
+                        Some((VersionConstraint::GreaterThanEqual, deb_version)),
+                    ));
+                    rels.push(Relation::new(
+                        pkg_name,
+                        Some((VersionConstraint::LessThan, next_maj_deb_version)),
+                    ));
+                }
+                pep440_rs::Operator::NotEqual => {
+                    let deb_version: debversion::Version = v.parse().unwrap();
+                    rels.push(Relation::new(
+                        pkg_name,
+                        Some((VersionConstraint::GreaterThan, deb_version.clone())),
+                    ));
+                    rels.push(Relation::new(
+                        pkg_name,
+                        Some((VersionConstraint::LessThan, deb_version)),
+                    ));
+                }
+                pep440_rs::Operator::Equal if v.ends_with(".*") => {
+                    let mut parts = v.split('.').map(|s| s.to_string()).collect::<Vec<String>>();
+                    parts.pop();
+                    let last: isize = parts.pop().unwrap().parse().unwrap();
+                    parts.push((last + 1).to_string());
+                    let deb_version: debversion::Version = v.parse().unwrap();
+                    let next_maj_deb_version: debversion::Version =
+                        parts.join(".").parse().unwrap();
+                    rels.push(Relation::new(
+                        pkg_name,
+                        Some((VersionConstraint::GreaterThanEqual, deb_version)),
+                    ));
+                    rels.push(Relation::new(
+                        pkg_name,
+                        Some((VersionConstraint::LessThan, next_maj_deb_version)),
+                    ));
+                }
+                o => {
+                    let vc = match o {
+                        pep440_rs::Operator::GreaterThanEqual => {
+                            VersionConstraint::GreaterThanEqual
+                        }
+                        pep440_rs::Operator::GreaterThan => VersionConstraint::GreaterThan,
+                        pep440_rs::Operator::LessThanEqual => VersionConstraint::LessThanEqual,
+                        pep440_rs::Operator::LessThan => VersionConstraint::LessThan,
+                        pep440_rs::Operator::Equal => VersionConstraint::Equal,
+                        _ => unimplemented!(),
+                    };
+                    let v: debversion::Version = v.parse().unwrap();
+                    rels.push(Relation::new(pkg_name, Some((vc, v))));
+                }
             }
         }
+        Relations::from(rels.into_iter().map(|r| r.into()).collect::<Vec<_>>())
+    } else {
+        Relations::from(vec![Relation::new(pkg_name, None).into()])
     }
+}
 
-    Relations::from(rels.into_iter().map(|r| r.into()).collect::<Vec<_>>())
+fn find_python_version(marker: &pep508_rs::MarkerTree) -> Option<&str> {
+    match marker {
+        pep508_rs::MarkerTree::Expression(pep508_rs::MarkerExpression {
+            l_value:
+                pep508_rs::MarkerValue::MarkerEnvVersion(pep508_rs::MarkerValueVersion::PythonVersion),
+            operator: pep508_rs::MarkerOperator::Equal,
+            r_value: pep508_rs::MarkerValue::QuotedString(version),
+        }) => Some(version),
+        pep508_rs::MarkerTree::Expression(pep508_rs::MarkerExpression {
+            l_value:
+                pep508_rs::MarkerValue::MarkerEnvVersion(
+                    pep508_rs::MarkerValueVersion::PythonFullVersion,
+                ),
+            operator: pep508_rs::MarkerOperator::NotEqual,
+            r_value: pep508_rs::MarkerValue::QuotedString(version),
+        }) => Some(version),
+        pep508_rs::MarkerTree::And(ors) | pep508_rs::MarkerTree::Or(ors) => {
+            for or in ors {
+                if let Some(version) = find_python_version(or) {
+                    return Some(version);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
 }
 
 #[cfg(feature = "debian")]
@@ -412,9 +464,15 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonPackageDependen
     ) -> Option<Vec<DebianDependency>> {
         let names = get_package_for_python_package(
             apt_mgr,
-            &self.package,
-            self.python_version.as_deref(),
-            Some(&self.specs),
+            &self.package(),
+            if let Some(v) = self.0.marker.as_ref().and_then(find_python_version) {
+                let pv = format!("cpython{}", v.split('.').next().unwrap());
+                Some(pv)
+            } else {
+                None
+            }
+            .as_deref(),
+            self.0.version_or_url.as_ref(),
         );
         Some(names)
     }
@@ -425,7 +483,7 @@ fn get_package_for_python_package(
     apt_mgr: &AptManager,
     package: &str,
     python_version: Option<&str>,
-    specs: Option<&[(String, String)]>,
+    version_or_url: Option<&pep508_rs::VersionOrUrl>,
 ) -> Vec<DebianDependency> {
     let pypy_regex = format!(
         "/usr/lib/pypy/dist\\-packages/{}-.*\\.(dist|egg)\\-info",
@@ -452,7 +510,16 @@ fn get_package_for_python_package(
 
     names
         .iter()
-        .map(|name| DebianDependency::from(python_spec_to_apt_rels(name, specs)))
+        .map(|name| {
+            DebianDependency::from(python_version_specifiers_to_debian(
+                name,
+                if let Some(pep508_rs::VersionOrUrl::VersionSpecifier(specs)) = version_or_url {
+                    Some(specs)
+                } else {
+                    None
+                },
+            ))
+        })
         .collect()
 }
 
@@ -543,7 +610,7 @@ fn get_package_for_python_object_path(
     apt_mgr: &AptManager,
     object_path: &str,
     python_version: Option<&str>,
-    specs: &[(String, String)],
+    version_specifiers: Option<&pep440_rs::VersionSpecifiers>,
 ) -> Vec<DebianDependency> {
     // Try to find the most specific file
     let paths = match python_version {
@@ -567,7 +634,12 @@ fn get_package_for_python_object_path(
 
     names
         .into_iter()
-        .map(|name| DebianDependency::from(python_spec_to_apt_rels(&name, Some(specs))))
+        .map(|name| {
+            DebianDependency::from(python_version_specifiers_to_debian(
+                &name,
+                version_specifiers,
+            ))
+        })
         .collect()
 }
 
@@ -577,16 +649,24 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonModuleDependenc
         &self,
         apt: &crate::debian::apt::AptManager,
     ) -> Option<Vec<DebianDependency>> {
-        let specs = if let Some(min_version) = &self.minimum_version {
-            vec![(">=".to_string(), min_version.to_string())]
-        } else {
-            vec![]
-        };
+        use std::str::FromStr;
+        let specs = self.minimum_version.as_ref().map(|min_version| {
+            std::iter::once(
+                pep440_rs::VersionSpecifier::new(
+                    pep440_rs::Operator::GreaterThanEqual,
+                    pep440_rs::VersionPattern::verbatim(
+                        pep440_rs::Version::from_str(min_version).unwrap(),
+                    ),
+                )
+                .unwrap(),
+            )
+            .collect()
+        });
         Some(get_package_for_python_object_path(
             apt,
             &self.module,
             self.python_version.as_deref(),
-            specs.as_slice(),
+            specs.as_ref(),
         ))
     }
 }
