@@ -40,7 +40,7 @@ pep440_rs = "0.6.5"
 pep508_rs = "0.6.1"
 percent-encoding = "2.3.1"
 pyproject-toml = ">=0.7"
-r-description = "0.1.0"
+r-description = { version = "0.2.0", features = ["serde"] }
 rand = "0.8.5"
 regex = "1.10.6"
 reqwest = { version = ">=0.10", optional = true, features = ["blocking", "json"] }
