@@ -132,19 +132,19 @@ impl BuildSystem for R {
         let mut ret: Vec<(DependencyCategory, Box<dyn Dependency>)> = vec![];
         let f = std::fs::File::open(self.path.join("DESCRIPTION")).unwrap();
         let description = read_description(f).unwrap();
-        for s in description.suggests().unwrap_or_default() {
+        for s in description.suggests().unwrap_or_default().iter() {
             ret.push((
                 DependencyCategory::Build, /* TODO */
-                Box::new(RPackageDependency::from_str(&s)),
+                Box::new(RPackageDependency::from(s)),
             ));
         }
-        for s in description.depends().unwrap_or_default() {
+        for s in description.depends().unwrap_or_default().iter() {
             ret.push((
                 DependencyCategory::Build,
-                Box::new(RPackageDependency::from_str(&s)),
+                Box::new(RPackageDependency::from(s)),
             ));
         }
-        for s in description.imports().unwrap_or_default() {
+        for s in description.imports().unwrap_or_default().iter() {
             ret.push((
                 DependencyCategory::Build,
                 Box::new(RPackageDependency::from_str(&s)),

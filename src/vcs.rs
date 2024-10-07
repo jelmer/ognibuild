@@ -1,3 +1,4 @@
+//! VCS-related functions
 use breezyshim::error::Error as BrzError;
 use breezyshim::tree::Tree;
 use std::path::{Path, PathBuf};
@@ -17,13 +18,18 @@ pub fn export_vcs_tree(
     breezyshim::export::export(tree, directory, subpath)
 }
 
+/// A Breezy tree that can be duplicated.
 pub trait DupableTree {
+    /// Get the basis tree of this tree.
     fn basis_tree(&self) -> breezyshim::tree::RevisionTree;
 
+    /// Get the parent location of this tree.
     fn get_parent(&self) -> Option<String>;
 
+    /// Get the base directory of this tree, if it has one.
     fn basedir(&self) -> Option<PathBuf>;
 
+    /// Get this tree as a Tree.
     fn as_tree(&self) -> &dyn Tree;
 }
 

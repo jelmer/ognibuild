@@ -2,26 +2,50 @@ use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
+use r_description::lossy::{Relation};
+use r_description::VersionConstraint;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RPackageDependency {
-    package: String,
-    minimum_version: Option<String>,
+pub struct RPackageDependency(Relation);
+
+impl From<RPackageDependency> for Relation {
+    fn from(dep: RPackageDependency) -> Self {
+        dep.0
+    }
+}
+
+impl From<Relation> for RPackageDependency {
+    fn from(rel: Relation) -> Self {
+        Self(rel)
+    }
+}
+
+impl From<r_description::lossless::Relation> for RPackageDependency {
+    fn from(rel: r_description::lossless::Relation) -> Self {
+        Self(rel.into())
+    }
 }
 
 impl RPackageDependency {
     pub fn new(package: &str, minimum_version: Option<&str>) -> Self {
-        Self {
-            package: package.to_string(),
-            minimum_version: minimum_version.map(|s| s.to_string()),
+        if let Some(minimum_version) = minimum_version {
+            Self(Relation {
+                name: package.to_string(),
+                version: Some((VersionConstraint::GreaterThanEqual, minimum_version.parse().unwrap()))
+            }.into())
+        } else {
+            Self(Relation {
+                name: package.to_string(),
+                version: None
+            }.into())
         }
     }
 
     pub fn simple(package: &str) -> Self {
-        Self {
-            package: package.to_string(),
-            minimum_version: None,
-        }
+        Self(Relation {
+            name: package.to_string(),
+            version: None
+        }.into())
     }
 
     pub fn from_str(s: &str) -> Self {
@@ -62,7 +86,7 @@ impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
         let names = apt
             .get_packages_for_paths(
                 vec![std::path::Path::new("/usr/lib/R/site-library")
-                    .join(&self.package)
+                    .join(&self.0.name)
                     .join("DESCRIPTION")
                     .to_str()
                     .unwrap()],
@@ -106,7 +130,7 @@ impl<'a> RResolver<'a> {
             "-e".to_string(),
             format!(
                 "install.packages('{}', repos='{})'",
-                req.package, self.repos
+                req.0.name, self.repos
             ),
         ]
     }
@@ -147,7 +171,7 @@ impl<'a> Installer for RResolver<'a> {
     ) -> Result<Explanation, Error> {
         if let Some(req) = dep.as_any().downcast_ref::<RPackageDependency>() {
             Ok(Explanation {
-                message: format!("Install R package {}", req.package),
+                message: format!("Install R package {}", req.0.name),
                 command: Some(self.cmd(req)),
             })
         } else {
