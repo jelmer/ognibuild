@@ -672,9 +672,9 @@ dependencies = [
 
 [[package]]
 name = "deb822-lossless"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "607abd8f5e3d131f03a1f351f5a5c8426ba4bf820ad10a2c59a1d4fd6d8eb1d9"
+checksum = "be3bfa84328d2dbae01ca2775f64250b228ff78eb06e3ba1bb53f67b1e533e24"
 dependencies = [
  "deb822-derive",
  "pyo3",
@@ -701,9 +701,9 @@ dependencies = [
 
 [[package]]
 name = "debian-analyzer"
-version = "0.158.20"
+version = "0.158.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74091c2d32cca6dbf7db549a4757c60b5f34b0b17c72b7ddcfb4de63f43081d0"
+checksum = "1e65f0f777187f4b58ea1e68803d3b338c5b8bfc84144e724c55a67c40067b37"
 dependencies = [
  "breezyshim",
  "chrono",
@@ -717,6 +717,7 @@ dependencies = [
  "difflib",
  "distro-info",
  "filetime",
+ "hex",
  "lazy-regex",
  "lazy_static",
  "log",
@@ -730,6 +731,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "sha1",
  "tempfile",
  "toml_edit",
  "url",
@@ -2491,7 +2493,7 @@ dependencies = [
 
 [[package]]
 name = "ognibuild"
-version = "0.0.28"
+version = "0.0.30"
 dependencies = [
  "axum",
  "breezyshim",
