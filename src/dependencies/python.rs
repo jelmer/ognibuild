@@ -78,7 +78,7 @@ impl PythonPackageDependency {
 fn min_version_as_version_or_url(min_version: &str) -> pep508_rs::VersionOrUrl {
     use std::str::FromStr;
     let version_specifiers = std::iter::once(
-        pep440_rs::VersionSpecifier::new(
+        pep440_rs::VersionSpecifier::from_pattern(
             pep440_rs::Operator::GreaterThanEqual,
             pep440_rs::VersionPattern::verbatim(pep440_rs::Version::from_str(min_version).unwrap()),
         )
@@ -652,7 +652,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonModuleDependenc
         use std::str::FromStr;
         let specs = self.minimum_version.as_ref().map(|min_version| {
             std::iter::once(
-                pep440_rs::VersionSpecifier::new(
+                pep440_rs::VersionSpecifier::from_pattern(
                     pep440_rs::Operator::GreaterThanEqual,
                     pep440_rs::VersionPattern::verbatim(
                         pep440_rs::Version::from_str(min_version).unwrap(),
