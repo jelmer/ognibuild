@@ -304,13 +304,13 @@ dependencies = [
 
 [[package]]
 name = "breezyshim"
-version = "0.1.212"
+version = "0.1.213"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "444a6b66ddb9428c396bbbb004193a8426ce27d51dc53d1810c8868464c35841"
+checksum = "6a0b670c2a2a927aeef6c6b96fdff0368992b462946f6922848b232a50891dd1"
 dependencies = [
  "chrono",
  "ctor",
- "debian-changelog 0.1.14",
+ "debian-changelog",
  "debian-control",
  "debversion",
  "difflib",
@@ -709,7 +709,7 @@ dependencies = [
  "chrono",
  "configparser",
  "deb822-lossless",
- "debian-changelog 0.2.0",
+ "debian-changelog",
  "debian-control",
  "debian-copyright",
  "debversion",
@@ -735,21 +735,6 @@ dependencies = [
  "tempfile",
  "toml_edit",
  "url",
-]
-
-[[package]]
-name = "debian-changelog"
-version = "0.1.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b616910c0602f11746ba04c1b7af7e7d54c7f05c2b84ce56ce7e33ca1b5627d7"
-dependencies = [
- "chrono",
- "debversion",
- "lazy-regex",
- "log",
- "rowan",
- "textwrap",
- "whoami",
 ]
 
 [[package]]
@@ -2502,7 +2487,7 @@ dependencies = [
  "clap",
  "deb822-lossless",
  "debian-analyzer",
- "debian-changelog 0.2.0",
+ "debian-changelog",
  "debian-control",
  "debversion",
  "env_logger 0.11.5",
@@ -4586,7 +4571,7 @@ dependencies = [
  "chrono",
  "configparser",
  "debbugs",
- "debian-changelog 0.2.0",
+ "debian-changelog",
  "debian-control",
  "debian-copyright",
  "debian-watch",
