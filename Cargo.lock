@@ -2522,7 +2522,7 @@ dependencies = [
  "pep508_rs 0.8.0",
  "percent-encoding",
  "pyo3",
- "pyproject-toml 0.13.2",
+ "pyproject-toml 0.13.3",
  "r-description",
  "rand",
  "regex",
@@ -3087,14 +3087,15 @@ dependencies = [
 
 [[package]]
 name = "pyproject-toml"
-version = "0.13.2"
+version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5d395dea9c0bd6cca9991e8e1ec5dd41ba57b7de65a70ff3a1231ceb0b87a4c"
+checksum = "488af1fb98332ba10d2e73f266e2adff1647f03944430e32dc2b1c12a5639e01"
 dependencies = [
  "indexmap",
  "pep440_rs 0.7.1",
  "pep508_rs 0.8.0",
  "serde",
+ "thiserror",
  "toml 0.8.19",
 ]
 
