@@ -2504,7 +2504,7 @@ dependencies = [
  "maplit",
  "nix",
  "pep440_rs 0.7.1",
- "pep508_rs 0.8.0",
+ "pep508_rs 0.8.1",
  "percent-encoding",
  "pyo3",
  "pyproject-toml 0.13.3",
@@ -2706,9 +2706,9 @@ dependencies = [
 
 [[package]]
 name = "pep508_rs"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffdf081596428a48e65d457c812a17ab46ec1bbf0d580b3a2bf05b6674a15206"
+checksum = "e30eadafcb06bf6c81392fa6fb2e8f7961e75a89856854d732604bce9313dc73"
 dependencies = [
  "once_cell",
  "pep440_rs 0.7.1",
@@ -3078,7 +3078,7 @@ checksum = "488af1fb98332ba10d2e73f266e2adff1647f03944430e32dc2b1c12a5639e01"
 dependencies = [
  "indexmap",
  "pep440_rs 0.7.1",
- "pep508_rs 0.8.0",
+ "pep508_rs 0.8.1",
  "serde",
  "thiserror",
  "toml 0.8.19",
