@@ -2503,7 +2503,7 @@ dependencies = [
  "makefile-lossless",
  "maplit",
  "nix",
- "pep440_rs 0.7.1",
+ "pep440_rs 0.7.2",
  "pep508_rs 0.8.0",
  "percent-encoding",
  "pyo3",
@@ -2678,9 +2678,9 @@ dependencies = [
 
 [[package]]
 name = "pep440_rs"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c8ee724d21f351f9d47276614ac9710975db827ba9fe2ca5a517ba648193307"
+checksum = "0922a442c78611fa8c5ed6065d2d898a820cf12fa90604217fdb2d01675efec7"
 dependencies = [
  "serde",
  "unicode-width 0.2.0",
@@ -2711,7 +2711,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffdf081596428a48e65d457c812a17ab46ec1bbf0d580b3a2bf05b6674a15206"
 dependencies = [
  "once_cell",
- "pep440_rs 0.7.1",
+ "pep440_rs 0.7.2",
  "regex",
  "serde",
  "thiserror",
@@ -3077,7 +3077,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488af1fb98332ba10d2e73f266e2adff1647f03944430e32dc2b1c12a5639e01"
 dependencies = [
  "indexmap",
- "pep440_rs 0.7.1",
+ "pep440_rs 0.7.2",
  "pep508_rs 0.8.0",
  "serde",
  "thiserror",
