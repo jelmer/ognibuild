@@ -65,7 +65,8 @@ impl Dependency for PerlModuleDependency {
 #[cfg(feature = "upstream")]
 impl crate::upstream::FindUpstream for PerlModuleDependency {
     fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
-        upstream_ontologist::providers::perl::remote_cpan_data(&self.module).ok()
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(upstream_ontologist::providers::perl::remote_cpan_data(&self.module)).ok()
     }
 }
 
