@@ -206,7 +206,8 @@ impl Dependency for PythonPackageDependency {
 #[cfg(feature = "upstream")]
 impl crate::upstream::FindUpstream for PythonPackageDependency {
     fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
-        upstream_ontologist::providers::python::remote_pypi_metadata(&self.package()).ok()
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(upstream_ontologist::providers::python::remote_pypi_metadata(&self.package())).ok()
     }
 }
 
