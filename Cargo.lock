@@ -355,8 +355,8 @@ dependencies = [
  "lazy_static",
  "log",
  "maplit",
- "pep440_rs 0.6.6",
- "pep508_rs 0.6.1",
+ "pep440_rs",
+ "pep508_rs",
  "regex",
  "serde",
  "serde_json",
@@ -1312,7 +1312,7 @@ version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14dbbfd5c71d70241ecf9e6f13737f7b5ce823821063188d7e46c41d371eebd5"
 dependencies = [
- "unicode-width 0.1.14",
+ "unicode-width",
 ]
 
 [[package]]
@@ -2638,11 +2638,11 @@ dependencies = [
  "makefile-lossless",
  "maplit",
  "nix",
- "pep440_rs 0.7.2",
- "pep508_rs 0.8.0",
+ "pep440_rs",
+ "pep508_rs",
  "percent-encoding",
  "pyo3",
- "pyproject-toml 0.13.3",
+ "pyproject-toml 0.11.0",
  "r-description",
  "rand",
  "regex",
@@ -2807,18 +2807,7 @@ checksum = "466eada3179c2e069ca897b99006cbb33f816290eaeec62464eea907e22ae385"
 dependencies = [
  "once_cell",
  "serde",
- "unicode-width 0.1.14",
- "unscanny",
-]
-
-[[package]]
-name = "pep440_rs"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0922a442c78611fa8c5ed6065d2d898a820cf12fa90604217fdb2d01675efec7"
-dependencies = [
- "serde",
- "unicode-width 0.2.0",
+ "unicode-width",
  "unscanny",
 ]
 
@@ -2830,27 +2819,11 @@ checksum = "3f8877489a99ccc80012333123e434f84e645fe1ede3b30e9d3b815887a12979"
 dependencies = [
  "derivative",
  "once_cell",
- "pep440_rs 0.6.6",
+ "pep440_rs",
  "regex",
  "serde",
  "thiserror",
- "unicode-width 0.1.14",
- "url",
- "urlencoding",
-]
-
-[[package]]
-name = "pep508_rs"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffdf081596428a48e65d457c812a17ab46ec1bbf0d580b3a2bf05b6674a15206"
-dependencies = [
- "once_cell",
- "pep440_rs 0.7.2",
- "regex",
- "serde",
- "thiserror",
- "unicode-width 0.2.0",
+ "unicode-width",
  "url",
  "urlencoding",
 ]
@@ -3194,28 +3167,27 @@ dependencies = [
 
 [[package]]
 name = "pyproject-toml"
-version = "0.12.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "133c274fef9a30e5bb60bcae118306db5f9bb5849c3ad58d8e863fcf4c1d5625"
+checksum = "ef7061023bcb58a0fc4a4bbe9819c13b0dca7c2abc14da14f5ecc1532ab3a36a"
 dependencies = [
  "indexmap",
- "pep440_rs 0.6.6",
- "pep508_rs 0.6.1",
+ "pep440_rs",
+ "pep508_rs",
  "serde",
  "toml 0.8.19",
 ]
 
 [[package]]
 name = "pyproject-toml"
-version = "0.13.3"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "488af1fb98332ba10d2e73f266e2adff1647f03944430e32dc2b1c12a5639e01"
+checksum = "133c274fef9a30e5bb60bcae118306db5f9bb5849c3ad58d8e863fcf4c1d5625"
 dependencies = [
  "indexmap",
- "pep440_rs 0.7.2",
- "pep508_rs 0.8.0",
+ "pep440_rs",
+ "pep508_rs",
  "serde",
- "thiserror",
  "toml 0.8.19",
 ]
 
@@ -4312,7 +4284,7 @@ checksum = "23d434d3f8967a09480fb04132ebe0a3e088c173e6d0ee7897abbdf4eab0f8b9"
 dependencies = [
  "smawk",
  "unicode-linebreak",
- "unicode-width 0.1.14",
+ "unicode-width",
 ]
 
 [[package]]
@@ -4669,12 +4641,6 @@ name = "unicode-width"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
-
-[[package]]
-name = "unicode-width"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fc81956842c57dac11422a97c3b8195a1ff727f06e85c84ed2e8aa277c9a0fd"
 
 [[package]]
 name = "unicode-xid"
