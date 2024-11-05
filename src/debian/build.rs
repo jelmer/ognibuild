@@ -276,7 +276,7 @@ fn get_last_changelog_entry(
 
     let cl = ChangeLog::read_relaxed(f).unwrap();
 
-    let e = cl.entries().next().unwrap();
+    let e = cl.iter().next().unwrap();
 
     (e.package().unwrap(), e.version().unwrap())
 }
@@ -446,7 +446,7 @@ pub fn add_dummy_changelog_entry(
     };
     let mut cl = ChangeLog::read_relaxed(tree.get_file(&path).unwrap()).unwrap();
 
-    let prev_entry = cl.entries().next().unwrap();
+    let prev_entry = cl.iter().next().unwrap();
     let prev_version = prev_entry.version().unwrap();
 
     let version = version_add_suffix(&prev_version, suffix);

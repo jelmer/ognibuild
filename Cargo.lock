@@ -303,6 +303,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "boxcar"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fba19c552ee63cb6646b75e1166d1bdb8a6d34a6d19e319dec88c8adadff2db3"
+
+[[package]]
 name = "breezyshim"
 version = "0.1.213"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2071,6 +2077,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2141,7 +2156,7 @@ dependencies = [
  "diff",
  "ena",
  "is-terminal",
- "itertools",
+ "itertools 0.10.5",
  "lalrpop-util",
  "petgraph",
  "regex",
@@ -2638,11 +2653,10 @@ dependencies = [
  "makefile-lossless",
  "maplit",
  "nix",
- "pep440_rs 0.7.2",
- "pep508_rs 0.8.0",
+ "pep508_rs 0.9.1",
  "percent-encoding",
  "pyo3",
- "pyproject-toml 0.13.3",
+ "pyproject-toml 0.13.4",
  "r-description",
  "rand",
  "regex",
@@ -2820,6 +2834,7 @@ dependencies = [
  "serde",
  "unicode-width 0.2.0",
  "unscanny",
+ "version-ranges",
 ]
 
 [[package]]
@@ -2841,18 +2856,24 @@ dependencies = [
 
 [[package]]
 name = "pep508_rs"
-version = "0.8.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffdf081596428a48e65d457c812a17ab46ec1bbf0d580b3a2bf05b6674a15206"
+checksum = "8c2feee999fa547bacab06a4881bacc74688858b92fa8ef1e206c748b0a76048"
 dependencies = [
+ "boxcar",
+ "indexmap",
+ "itertools 0.13.0",
  "once_cell",
  "pep440_rs 0.7.2",
  "regex",
+ "rustc-hash 2.0.0",
  "serde",
+ "smallvec",
  "thiserror",
  "unicode-width 0.2.0",
  "url",
  "urlencoding",
+ "version-ranges",
 ]
 
 [[package]]
@@ -3207,13 +3228,13 @@ dependencies = [
 
 [[package]]
 name = "pyproject-toml"
-version = "0.13.3"
+version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "488af1fb98332ba10d2e73f266e2adff1647f03944430e32dc2b1c12a5639e01"
+checksum = "643af57c3f36ba90a8b53e972727d8092f7408a9ebfbaf4c3d2c17b07c58d835"
 dependencies = [
  "indexmap",
  "pep440_rs 0.7.2",
- "pep508_rs 0.8.0",
+ "pep508_rs 0.9.1",
  "serde",
  "thiserror",
  "toml 0.8.19",
@@ -3442,7 +3463,7 @@ checksum = "0a542b0253fa46e632d27a1dc5cf7b930de4df8659dc6e720b647fc72147ae3d"
 dependencies = [
  "countme",
  "hashbrown 0.14.5",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "text-size",
 ]
 
@@ -3500,6 +3521,12 @@ name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
+
+[[package]]
+name = "rustc-hash"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "583034fd73374156e66797ed8e5b0d5690409c9226b22d87cb7f19821c05d152"
 
 [[package]]
 name = "rustix"
@@ -4824,6 +4851,15 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
+name = "version-ranges"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "284649eba55872c1253f3f6ec15f22303a784e60684babd01d01e4c6ebb85b91"
+dependencies = [
+ "smallvec",
+]
 
 [[package]]
 name = "version_check"

@@ -12,6 +12,7 @@ use debian_control::{
 };
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use pep508_rs::pep440_rs as pep440_rs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PythonPackageDependency(pep508_rs::Requirement);
@@ -59,7 +60,7 @@ impl PythonPackageDependency {
             name: pep508_rs::PackageName::new(package.to_string()).unwrap(),
             version_or_url: Some(min_version_as_version_or_url(min_version)),
             extras: vec![],
-            marker: None,
+            marker: pep508_rs::MarkerTree::TRUE,
             origin: None,
         })
     }
@@ -69,7 +70,7 @@ impl PythonPackageDependency {
             name: pep508_rs::PackageName::new(package.to_string()).unwrap(),
             version_or_url: None,
             extras: vec![],
-            marker: None,
+            marker: pep508_rs::MarkerTree::TRUE,
             origin: None,
         })
     }
@@ -89,12 +90,11 @@ fn min_version_as_version_or_url(min_version: &str) -> pep508_rs::VersionOrUrl {
 }
 
 fn major_python_version_as_marker(major_version: u32) -> pep508_rs::MarkerTree {
-    pep508_rs::MarkerTree::Expression(pep508_rs::MarkerExpression {
-        l_value: pep508_rs::MarkerValue::MarkerEnvVersion(
-            pep508_rs::MarkerValueVersion::PythonVersion,
-        ),
-        operator: pep508_rs::MarkerOperator::Equal,
-        r_value: pep508_rs::MarkerValue::QuotedString(format!("{}.*", major_version)),
+    pep508_rs::MarkerTree::expression(pep508_rs::MarkerExpression::Version {
+        key: pep508_rs::MarkerValueVersion::PythonVersion,
+        specifier: pep440_rs::VersionSpecifier::equals_star_version(pep440_rs::Version::new([
+            major_version as u64,
+        ])),
     })
 }
 
@@ -108,7 +108,7 @@ impl crate::buildlog::ToDependency
             .map(|min_version| min_version_as_version_or_url(min_version));
         let marker = self.python_version.as_ref().map(|python_major_version| {
             major_python_version_as_marker(*python_major_version as u32)
-        });
+        }).unwrap_or(pep508_rs::MarkerTree::TRUE);
 
         let requirement = pep508_rs::Requirement {
             name: pep508_rs::PackageName::new(self.distribution.clone()).unwrap(),
@@ -131,7 +131,7 @@ impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependen
 
         let (_, python_version, name) = lazy_regex::regex_captures!("python([0-9.]*)-(.*)", &name)?;
 
-        let python_version = if python_version.is_empty() {
+        let major_python_version = if python_version.is_empty() {
             None
         } else {
             Some(python_version.parse::<u32>().unwrap())
@@ -142,11 +142,31 @@ impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependen
                 name: pep508_rs::PackageName::new(name.to_owned()).unwrap(),
                 version_or_url: min_version
                     .map(|x| min_version_as_version_or_url(&x.upstream_version)),
-                marker: python_version.map(major_python_version_as_marker),
+                marker: major_python_version.map(major_python_version_as_marker).unwrap_or(pep508_rs::MarkerTree::TRUE),
                 extras: vec![],
                 origin: None,
             },
         )))
+    }
+}
+
+#[derive(Debug, Clone, Default, Copy, Serialize, Deserialize)]
+pub enum PythonVersion {
+    CPython2,
+    #[default]
+    CPython3,
+    PyPy,
+    PyPy3,
+}
+
+impl PythonVersion {
+    pub fn executable(&self) -> &'static str {
+        match self {
+            PythonVersion::CPython2 => "python2",
+            PythonVersion::CPython3 => "python3",
+            PythonVersion::PyPy => "pypy",
+            PythonVersion::PyPy3 => "pypy3",
+        }
     }
 }
 
@@ -156,14 +176,8 @@ impl Dependency for PythonPackageDependency {
     }
 
     fn present(&self, session: &dyn Session) -> bool {
-        let cmd = match self.0.marker.as_ref().and_then(find_python_version) {
-            Some("cpython3") => "python3",
-            Some("cpython2") => "python2",
-            Some("pypy") => "pypy",
-            Some("pypy3") => "pypy3",
-            None => "python3",
-            _ => unimplemented!(),
-        };
+        let python_version = find_python_version(self.0.marker.to_dnf()).unwrap_or_default();
+        let cmd = python_version.executable();
         session
             .command(vec![
                 cmd,
@@ -200,15 +214,15 @@ impl crate::upstream::FindUpstream for PythonPackageDependency {
 pub struct PythonModuleDependency {
     module: String,
     minimum_version: Option<String>,
-    python_version: Option<String>,
+    python_version: Option<PythonVersion>,
 }
 
 impl PythonModuleDependency {
-    pub fn new(module: &str, minimum_version: Option<&str>, python_version: Option<&str>) -> Self {
+    pub fn new(module: &str, minimum_version: Option<&str>, python_version: Option<PythonVersion>) -> Self {
         Self {
             module: module.to_string(),
             minimum_version: minimum_version.map(|s| s.to_string()),
-            python_version: python_version.map(|s| s.to_string()),
+            python_version
         }
     }
 
@@ -221,14 +235,7 @@ impl PythonModuleDependency {
     }
 
     fn python_executable(&self) -> &str {
-        match self.python_version.as_deref() {
-            Some("cpython3") => "python3",
-            Some("cpython2") => "python2",
-            Some("pypy") => "pypy",
-            Some("pypy3") => "pypy3",
-            None => "python3",
-            _ => unimplemented!(),
-        }
+        self.python_version.unwrap_or_default().executable()
     }
 }
 
@@ -238,8 +245,8 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
             &self.module,
             self.minimum_version.as_deref(),
             match self.python_version {
-                Some(2) => Some("cpython2"),
-                Some(3) => Some("cpython3"),
+                Some(2) => Some(PythonVersion::CPython2),
+                Some(3) => Some(PythonVersion::CPython3),
                 None => None,
                 _ => unimplemented!(),
             },
@@ -428,32 +435,37 @@ pub fn python_version_specifiers_to_debian(
     }
 }
 
-fn find_python_version(marker: &pep508_rs::MarkerTree) -> Option<&str> {
-    match marker {
-        pep508_rs::MarkerTree::Expression(pep508_rs::MarkerExpression {
-            l_value:
-                pep508_rs::MarkerValue::MarkerEnvVersion(pep508_rs::MarkerValueVersion::PythonVersion),
-            operator: pep508_rs::MarkerOperator::Equal,
-            r_value: pep508_rs::MarkerValue::QuotedString(version),
-        }) => Some(version),
-        pep508_rs::MarkerTree::Expression(pep508_rs::MarkerExpression {
-            l_value:
-                pep508_rs::MarkerValue::MarkerEnvVersion(
-                    pep508_rs::MarkerValueVersion::PythonFullVersion,
-                ),
-            operator: pep508_rs::MarkerOperator::NotEqual,
-            r_value: pep508_rs::MarkerValue::QuotedString(version),
-        }) => Some(version),
-        pep508_rs::MarkerTree::And(ors) | pep508_rs::MarkerTree::Or(ors) => {
-            for or in ors {
-                if let Some(version) = find_python_version(or) {
-                    return Some(version);
-                }
+fn find_python_version(marker: Vec<Vec<pep508_rs::MarkerExpression>>) -> Option<PythonVersion> {
+    let mut major_version = None;
+    let mut implementation = None;
+    for expr in marker.iter().flat_map(|x| x.iter()) {
+        match expr {
+            pep508_rs::MarkerExpression::Version {
+                key: pep508_rs::MarkerValueVersion::PythonVersion,
+                specifier,
+            } => {
+                let version = specifier.version();
+                major_version = Some(version.release()[0] as u32);
             }
+            pep508_rs::MarkerExpression::String { key: pep508_rs::MarkerValueString::PlatformPythonImplementation, operator: pep508_rs::MarkerOperator::Equal, value } => match value.as_str() {
+                "PyPy" => { implementation = Some("PyPy"); },
+                _ => {}
+            }
+            _ => {}
+        }
+    }
+
+    match (major_version, implementation) {
+        (Some(2), None) => Some(PythonVersion::CPython2),
+        (Some(3), None) | (None, None) => Some(PythonVersion::CPython3),
+        (Some(3), Some("PyPy")) | (None, Some("PyPy")) => Some(PythonVersion::PyPy3),
+        (Some(2), Some("PyPy")) => Some(PythonVersion::PyPy),
+        _ => {
+            log::warn!("Unknown python implementation / version: {:?} {:?}", major_version, implementation);
             None
         }
-        _ => None,
     }
+
 }
 
 #[cfg(feature = "debian")]
@@ -465,13 +477,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonPackageDependen
         let names = get_package_for_python_package(
             apt_mgr,
             &self.package(),
-            if let Some(v) = self.0.marker.as_ref().and_then(find_python_version) {
-                let pv = format!("cpython{}", v.split('.').next().unwrap());
-                Some(pv)
-            } else {
-                None
-            }
-            .as_deref(),
+            find_python_version(self.0.marker.to_dnf()),
             self.0.version_or_url.as_ref(),
         );
         Some(names)
@@ -482,7 +488,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonPackageDependen
 fn get_package_for_python_package(
     apt_mgr: &AptManager,
     package: &str,
-    python_version: Option<&str>,
+    python_version: Option<PythonVersion>,
     version_or_url: Option<&pep508_rs::VersionOrUrl>,
 ) -> Vec<DebianDependency> {
     let pypy_regex = format!(
@@ -498,9 +504,9 @@ fn get_package_for_python_package(
         regex::escape(&package.replace('-', "_"))
     );
     let paths = match python_version {
-        Some("pypy") => vec![pypy_regex],
-        Some("cpython2") => vec![cpython2_regex],
-        Some("cpython3") => vec![cpython3_regex],
+        Some(PythonVersion::PyPy) => vec![pypy_regex],
+        Some(PythonVersion::CPython2) => vec![cpython2_regex],
+        Some(PythonVersion::CPython3) => vec![cpython3_regex],
         None => vec![cpython3_regex, cpython2_regex, pypy_regex],
         _ => unimplemented!(),
     };
@@ -609,14 +615,14 @@ fn get_possible_python2_paths_for_python_object(mut object_path: &str) -> Vec<Pa
 fn get_package_for_python_object_path(
     apt_mgr: &AptManager,
     object_path: &str,
-    python_version: Option<&str>,
+    python_version: Option<PythonVersion>,
     version_specifiers: Option<&pep440_rs::VersionSpecifiers>,
 ) -> Vec<DebianDependency> {
     // Try to find the most specific file
     let paths = match python_version {
-        Some("cpython3") => get_possible_python3_paths_for_python_object(object_path),
-        Some("cpython2") => get_possible_python2_paths_for_python_object(object_path),
-        Some("pypy") => get_possible_pypy_paths_for_python_object(object_path),
+        Some(PythonVersion::CPython3) => get_possible_python3_paths_for_python_object(object_path),
+        Some(PythonVersion::CPython2) => get_possible_python2_paths_for_python_object(object_path),
+        Some(PythonVersion::PyPy) => get_possible_pypy_paths_for_python_object(object_path),
         None => get_possible_python3_paths_for_python_object(object_path)
             .into_iter()
             .chain(get_possible_python2_paths_for_python_object(object_path))
@@ -665,7 +671,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonModuleDependenc
         Some(get_package_for_python_object_path(
             apt,
             &self.module,
-            self.python_version.as_deref(),
+            self.python_version,
             specs.as_ref(),
         ))
     }
@@ -728,7 +734,7 @@ impl Dependency for PythonDependency {
                 ),
             ],
             None => vec![
-                "python3".to_string(),
+                PythonVersion::default().executable().to_string(),
                 "-c".to_string(),
                 "import sys; sys.exit(0 if sys.version_info >= (3, 0) else 1)".to_string(),
             ],
