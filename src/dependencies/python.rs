@@ -12,6 +12,7 @@ use debian_control::{
 };
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use pep508_rs::pep440_rs as pep440_rs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PythonPackageDependency(pep508_rs::Requirement);
@@ -59,7 +60,7 @@ impl PythonPackageDependency {
             name: pep508_rs::PackageName::new(package.to_string()).unwrap(),
             version_or_url: Some(min_version_as_version_or_url(min_version)),
             extras: vec![],
-            marker: None,
+            marker: pep508_rs::MarkerTree::TRUE,
             origin: None,
         })
     }
@@ -69,7 +70,7 @@ impl PythonPackageDependency {
             name: pep508_rs::PackageName::new(package.to_string()).unwrap(),
             version_or_url: None,
             extras: vec![],
-            marker: None,
+            marker: pep508_rs::MarkerTree::TRUE,
             origin: None,
         })
     }
@@ -78,7 +79,7 @@ impl PythonPackageDependency {
 fn min_version_as_version_or_url(min_version: &str) -> pep508_rs::VersionOrUrl {
     use std::str::FromStr;
     let version_specifiers = std::iter::once(
-        pep440_rs::VersionSpecifier::new(
+        pep440_rs::VersionSpecifier::from_pattern(
             pep440_rs::Operator::GreaterThanEqual,
             pep440_rs::VersionPattern::verbatim(pep440_rs::Version::from_str(min_version).unwrap()),
         )
@@ -89,12 +90,11 @@ fn min_version_as_version_or_url(min_version: &str) -> pep508_rs::VersionOrUrl {
 }
 
 fn major_python_version_as_marker(major_version: u32) -> pep508_rs::MarkerTree {
-    pep508_rs::MarkerTree::Expression(pep508_rs::MarkerExpression {
-        l_value: pep508_rs::MarkerValue::MarkerEnvVersion(
-            pep508_rs::MarkerValueVersion::PythonVersion,
-        ),
-        operator: pep508_rs::MarkerOperator::Equal,
-        r_value: pep508_rs::MarkerValue::QuotedString(format!("{}.*", major_version)),
+    pep508_rs::MarkerTree::expression(pep508_rs::MarkerExpression::Version {
+        key: pep508_rs::MarkerValueVersion::PythonVersion,
+        specifier: pep440_rs::VersionSpecifier::equals_star_version(pep440_rs::Version::new([
+            major_version as u64,
+        ])),
     })
 }
 
@@ -108,7 +108,7 @@ impl crate::buildlog::ToDependency
             .map(|min_version| min_version_as_version_or_url(min_version));
         let marker = self.python_version.as_ref().map(|python_major_version| {
             major_python_version_as_marker(*python_major_version as u32)
-        });
+        }).unwrap_or(pep508_rs::MarkerTree::TRUE);
 
         let requirement = pep508_rs::Requirement {
             name: pep508_rs::PackageName::new(self.distribution.clone()).unwrap(),
@@ -131,7 +131,7 @@ impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependen
 
         let (_, python_version, name) = lazy_regex::regex_captures!("python([0-9.]*)-(.*)", &name)?;
 
-        let python_version = if python_version.is_empty() {
+        let major_python_version = if python_version.is_empty() {
             None
         } else {
             Some(python_version.parse::<u32>().unwrap())
@@ -142,7 +142,7 @@ impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependen
                 name: pep508_rs::PackageName::new(name.to_owned()).unwrap(),
                 version_or_url: min_version
                     .map(|x| min_version_as_version_or_url(&x.upstream_version)),
-                marker: python_version.map(major_python_version_as_marker),
+                marker: major_python_version.map(major_python_version_as_marker).unwrap_or(pep508_rs::MarkerTree::TRUE),
                 extras: vec![],
                 origin: None,
             },
@@ -176,7 +176,8 @@ impl Dependency for PythonPackageDependency {
     }
 
     fn present(&self, session: &dyn Session) -> bool {
-        let cmd = self.0.marker.as_ref().and_then(find_python_version).unwrap_or_default().executable();
+        let python_version = find_python_version(self.0.marker.to_dnf()).unwrap_or_default();
+        let cmd = python_version.executable();
         session
             .command(vec![
                 cmd,
@@ -434,8 +435,37 @@ pub fn python_version_specifiers_to_debian(
     }
 }
 
-fn find_python_version(marker: &pep508_rs::MarkerTree) -> Option<PythonVersion> {
-    todo!()
+fn find_python_version(marker: Vec<Vec<pep508_rs::MarkerExpression>>) -> Option<PythonVersion> {
+    let mut major_version = None;
+    let mut implementation = None;
+    for expr in marker.iter().flat_map(|x| x.iter()) {
+        match expr {
+            pep508_rs::MarkerExpression::Version {
+                key: pep508_rs::MarkerValueVersion::PythonVersion,
+                specifier,
+            } => {
+                let version = specifier.version();
+                major_version = Some(version.release()[0] as u32);
+            }
+            pep508_rs::MarkerExpression::String { key: pep508_rs::MarkerValueString::PlatformPythonImplementation, operator: pep508_rs::MarkerOperator::Equal, value } => match value.as_str() {
+                "PyPy" => { implementation = Some("PyPy"); },
+                _ => {}
+            }
+            _ => {}
+        }
+    }
+
+    match (major_version, implementation) {
+        (Some(2), None) => Some(PythonVersion::CPython2),
+        (Some(3), None) | (None, None) => Some(PythonVersion::CPython3),
+        (Some(3), Some("PyPy")) | (None, Some("PyPy")) => Some(PythonVersion::PyPy3),
+        (Some(2), Some("PyPy")) => Some(PythonVersion::PyPy),
+        _ => {
+            log::warn!("Unknown python implementation / version: {:?} {:?}", major_version, implementation);
+            None
+        }
+    }
+
 }
 
 #[cfg(feature = "debian")]
@@ -447,7 +477,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonPackageDependen
         let names = get_package_for_python_package(
             apt_mgr,
             &self.package(),
-            self.0.marker.as_ref().and_then(find_python_version),
+            find_python_version(self.0.marker.to_dnf()),
             self.0.version_or_url.as_ref(),
         );
         Some(names)
@@ -628,7 +658,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonModuleDependenc
         use std::str::FromStr;
         let specs = self.minimum_version.as_ref().map(|min_version| {
             std::iter::once(
-                pep440_rs::VersionSpecifier::new(
+                pep440_rs::VersionSpecifier::from_pattern(
                     pep440_rs::Operator::GreaterThanEqual,
                     pep440_rs::VersionPattern::verbatim(
                         pep440_rs::Version::from_str(min_version).unwrap(),
