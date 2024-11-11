@@ -269,7 +269,16 @@ version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0700ddab506f33b20a03b13996eccd309a48e5ff77d0d95926aa0210fb4e95f1"
 dependencies = [
- "bit-vec",
+ "bit-vec 0.6.3",
+]
+
+[[package]]
+name = "bit-set"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08807e080ed7f9d5433fa9b275196cfc35414f66a0c79d864dc51a0d825231a3"
+dependencies = [
+ "bit-vec 0.8.0",
 ]
 
 [[package]]
@@ -277,6 +286,12 @@ name = "bit-vec"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
+
+[[package]]
+name = "bit-vec"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
 
 [[package]]
 name = "bitflags"
@@ -346,9 +361,9 @@ dependencies = [
 
 [[package]]
 name = "buildlog-consultant"
-version = "0.0.44"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "488ee699c8b6d02bde8ee3a7cb8eb9b1377f638fb34cfb6ea5a74f45d54748d9"
+checksum = "e18d1855ddb4376d5dc6e34c6e1ae818c46437092d56ea5c559358548d5be842"
 dependencies = [
  "chrono",
  "clap",
@@ -361,8 +376,7 @@ dependencies = [
  "lazy_static",
  "log",
  "maplit",
- "pep440_rs 0.6.6",
- "pep508_rs 0.6.1",
+ "pep508_rs",
  "regex",
  "serde",
  "serde_json",
@@ -831,17 +845,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "derivative"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "derive_arbitrary"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1104,12 +1107,13 @@ dependencies = [
 
 [[package]]
 name = "fancy-regex"
-version = "0.11.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b95f7c0680e4142284cf8b22c14a476e87d61b004a3a0861872b32ef7ead40a2"
+checksum = "6e24cb5a94bcae1e5408b0effca5cd7172ea3c5755049c5f3af4cd283a165298"
 dependencies = [
- "bit-set",
- "regex",
+ "bit-set 0.8.0",
+ "regex-automata 0.4.8",
+ "regex-syntax 0.8.5",
 ]
 
 [[package]]
@@ -2180,7 +2184,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a1cbf952127589f2851ab2046af368fd20645491bb4b376f04b7f94d7a9837b"
 dependencies = [
  "ascii-canvas",
- "bit-set",
+ "bit-set 0.5.3",
  "diff",
  "ena",
  "is-terminal",
@@ -2681,7 +2685,7 @@ dependencies = [
  "makefile-lossless",
  "maplit",
  "nix",
- "pep508_rs 0.9.1",
+ "pep508_rs",
  "percent-encoding",
  "pyo3",
  "pyproject-toml",
@@ -2843,17 +2847,6 @@ dependencies = [
 
 [[package]]
 name = "pep440_rs"
-version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "466eada3179c2e069ca897b99006cbb33f816290eaeec62464eea907e22ae385"
-dependencies = [
- "once_cell",
- "unicode-width 0.1.14",
- "unscanny",
-]
-
-[[package]]
-name = "pep440_rs"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0922a442c78611fa8c5ed6065d2d898a820cf12fa90604217fdb2d01675efec7"
@@ -2866,22 +2859,6 @@ dependencies = [
 
 [[package]]
 name = "pep508_rs"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f8877489a99ccc80012333123e434f84e645fe1ede3b30e9d3b815887a12979"
-dependencies = [
- "derivative",
- "once_cell",
- "pep440_rs 0.6.6",
- "regex",
- "thiserror",
- "unicode-width 0.1.14",
- "url",
- "urlencoding",
-]
-
-[[package]]
-name = "pep508_rs"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c2feee999fa547bacab06a4881bacc74688858b92fa8ef1e206c748b0a76048"
@@ -2890,7 +2867,7 @@ dependencies = [
  "indexmap",
  "itertools 0.13.0",
  "once_cell",
- "pep440_rs 0.7.2",
+ "pep440_rs",
  "regex",
  "rustc-hash 2.0.0",
  "serde",
@@ -3246,8 +3223,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "643af57c3f36ba90a8b53e972727d8092f7408a9ebfbaf4c3d2c17b07c58d835"
 dependencies = [
  "indexmap",
- "pep440_rs 0.7.2",
- "pep508_rs 0.9.1",
+ "pep440_rs",
+ "pep508_rs",
  "serde",
  "thiserror",
  "toml 0.8.19",
@@ -3658,7 +3635,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f9da09dc3f4dfdb6374cbffff7a2cffcec316874d4429899eefdc97b3b94dcd"
 dependencies = [
- "bit-set",
+ "bit-set 0.5.3",
  "html5ever 0.26.0",
  "markup5ever_rcdom",
 ]
