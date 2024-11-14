@@ -1,0 +1,3 @@
+tag-name = "v$VERSION"
+tarball-location = []
+release-timeout = 5
