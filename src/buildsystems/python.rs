@@ -528,7 +528,7 @@ impl BuildSystem for SetupPy {
             return Ok(());
         }
         if self.has_setup_py {
-            // Pre-emptively insall setuptools, since distutils doesn't provide
+            // Pre-emptively install setuptools, since distutils doesn't provide
             // a 'test' subcommand and some packages fall back to distutils
             // if setuptools is not available.
             let setuptools_dep = PythonPackageDependency::simple("setuptools");

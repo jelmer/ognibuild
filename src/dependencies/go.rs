@@ -97,7 +97,7 @@ impl crate::dependencies::debian::FromDebianDependency for GoPackageDependency {
 
         let mut parts = package.split('-').collect::<Vec<_>>();
 
-        if parts[0] == "gitub" {
+        if parts[0] == "github" {
             parts[1] = "github.com";
         }
         if parts[0] == "gopkg" {
