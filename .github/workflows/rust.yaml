@@ -1,4 +1,3 @@
----
 name: Rust
 
 on:
@@ -18,33 +17,31 @@ jobs:
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-      - name: Update apt cache
-        if: matrix.os == 'ubuntu-24.04'
-        run: sudo apt-get update
-      - name: Install Debian tools on Ubuntu
-        if: matrix.os == 'ubuntu-24.04'
-        run: sudo apt-get install -y mmdebstrap
-      - name: Install system breezy and libapt-pkg-dev
-        if: matrix.os == 'ubuntu-24.04'
-        run: sudo apt-get install -y brz libapt-pkg-dev libpcre3-dev
-      - name: Install breezy
-        run: pip install breezy
-      - name: Install breezy and brz-debian
-        run: pip install \
-            bzr+https://launchpad.net/brz-debian \
-            python_apt@git+https://salsa.debian.org/apt-team/python-apt.git@2.5.0
-        if: matrix.os == 'ubuntu-24.04'
-      - name: Build
-        run: cargo build --verbose
-      - name: Run tests
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+    - name: Update apt cache
+      if: matrix.os == 'ubuntu-24.04'
+      run: sudo apt-get update
+    - name: Install Debian tools on Ubuntu
+      if: matrix.os == 'ubuntu-24.04'
+      run: sudo apt-get install -y mmdebstrap
+    - name: Install system breezy and libapt-pkg-dev
+      if: matrix.os == 'ubuntu-24.04'
+      run: sudo apt-get install -y brz libapt-pkg-dev libpcre3-dev
+    - name: Install breezy
+      run: pip install breezy
+    - name: Install breezy and brz-debian
+      run: pip install \ bzr+https://launchpad.net/brz-debian \ python_apt@git+https://salsa.debian.org/apt-team/python-apt.git@2.5.0
+      if: matrix.os == 'ubuntu-24.04'
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
         # Exclude debian features:
-        run: cargo test --verbose --no-default-features --features=breezy,dep-server,upstream
-        if: matrix.os != 'ubuntu-24.04'
-      - name: Run tests
-        run: cargo test --verbose
-        if: matrix.os == 'ubuntu-24.04'
+      run: cargo test --verbose --no-default-features --features=breezy,dep-server,upstream
+      if: matrix.os != 'ubuntu-24.04'
+    - name: Run tests
+      run: cargo test --verbose
+      if: matrix.os == 'ubuntu-24.04'
