@@ -10,14 +10,21 @@ use buildlog_consultant::Match;
 use buildlog_consultant::Problem;
 use std::path::{Path, PathBuf};
 
+/// Rescue a build log and store it in the users' cache directory
 pub fn rescue_build_log(
     output_directory: &Path,
     tree: Option<&WorkingTree>,
 ) -> Result<(), std::io::Error> {
-    let xdg_cache_dir = std::env::var("XDG_CACHE_HOME").ok().map_or_else(
-        || std::env::home_dir().unwrap().join(".cache"),
-        PathBuf::from,
-    );
+    let xdg_cache_dir = match dirs::cache_dir() {
+        Some(dir) => dir,
+        None => {
+            log::warn!("Unable to determine cache directory, not saving build log.");
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Unable to find cache directory",
+            ));
+        }
+    };
     let buildlogs_dir = xdg_cache_dir.join("ognibuild/buildlogs");
     std::fs::create_dir_all(&buildlogs_dir)?;
 
