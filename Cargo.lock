@@ -2666,7 +2666,7 @@ dependencies = [
 
 [[package]]
 name = "ognibuild"
-version = "0.0.31"
+version = "0.0.32"
 dependencies = [
  "axum",
  "breezyshim",
