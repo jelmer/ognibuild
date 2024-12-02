@@ -18,7 +18,7 @@ axum = { version = "0.7", optional = true, features = ["json", "http2", "tokio"]
 chrono = ">=0.4"
 clap = { version = "4", features = ["derive", "env"], optional = true }
 deb822-lossless = ">=0.2"
-debian-analyzer = { version = "0.158.24", optional = true }
+debian-analyzer = { version = "0.158.25", optional = true }
 #debian-analyzer = { path = "../lintian-brush/analyzer", optional = true }
 debian-changelog = { version = ">=0.2", optional = true }
 debian-control = { version = ">=0.1.25", optional = true }
