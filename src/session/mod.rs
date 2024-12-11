@@ -95,7 +95,7 @@ pub trait Session {
         stderr: Option<std::process::Stdio>,
         stdin: Option<std::process::Stdio>,
         env: Option<&std::collections::HashMap<String, String>>,
-    ) -> std::process::Child;
+    ) -> Result<std::process::Child, Error>;
 
     /// Check if the session is temporary.
     fn is_temporary(&self) -> bool;
@@ -304,7 +304,7 @@ impl<'a> CommandBuilder<'a> {
         )
     }
 
-    pub fn child(self) -> std::process::Child {
+    pub fn child(self) -> Result<std::process::Child, Error> {
         self.session.popen(
             self.argv,
             self.cwd,
@@ -317,13 +317,13 @@ impl<'a> CommandBuilder<'a> {
     }
 
     pub fn run(self) -> Result<std::process::ExitStatus, Error> {
-        let mut p = self.child();
+        let mut p = self.child()?;
         let status = p.wait()?;
         Ok(status)
     }
 
     pub fn output(self) -> Result<std::process::Output, Error> {
-        let p = self.child();
+        let p = self.child()?;
         let output = p.wait_with_output()?;
         Ok(output)
     }
@@ -481,7 +481,7 @@ pub fn run_with_tee(
         Some(std::process::Stdio::piped()),
         Some(stdin.unwrap_or(std::process::Stdio::null())),
         env,
-    );
+    )?;
     // While the process is running, read its output and write it to stdout
     // *and* to the contents variable.
     Ok(capture_output(p, !quiet)?)

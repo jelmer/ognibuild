@@ -317,16 +317,15 @@ impl Session for SchrootSession {
         stderr: Option<std::process::Stdio>,
         stdin: Option<std::process::Stdio>,
         env: Option<&std::collections::HashMap<String, String>>,
-    ) -> std::process::Child {
+    ) -> Result<std::process::Child, Error> {
         let argv = self.run_argv(argv, cwd, user, env);
 
-        std::process::Command::new(&argv[0])
+        Ok(std::process::Command::new(&argv[0])
             .args(&argv[1..])
             .stdin(stdin.unwrap_or(std::process::Stdio::inherit()))
             .stdout(stdout.unwrap_or(std::process::Stdio::inherit()))
             .stderr(stderr.unwrap_or(std::process::Stdio::inherit()))
-            .spawn()
-            .unwrap()
+            .spawn()?)
     }
 
     fn is_temporary(&self) -> bool {

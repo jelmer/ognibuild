@@ -72,7 +72,7 @@ impl UnshareSession {
             cwd: std::path::PathBuf::from("/"),
         };
 
-        s.ensure_current_user();
+        s.ensure_current_user()?;
 
         Ok(s)
     }
@@ -99,7 +99,7 @@ impl UnshareSession {
             None,
             None,
             None,
-        );
+        )?;
 
         let f = std::fs::File::create(path).map_err(|e| {
             crate::session::Error::SetupFailure("create failed".to_string(), e.to_string())
@@ -146,12 +146,12 @@ impl UnshareSession {
             cwd: std::path::PathBuf::from("/"),
         };
 
-        s.ensure_current_user();
+        s.ensure_current_user()?;
 
         Ok(s)
     }
 
-    pub fn ensure_current_user(&self) {
+    pub fn ensure_current_user(&self) -> Result<(), crate::session::Error> {
         // Ensure that the current user has an entry in /etc/passwd
         let user = whoami::username();
         let uid = nix::unistd::getuid().to_string();
@@ -189,16 +189,16 @@ impl UnshareSession {
             Some(std::process::Stdio::piped()),
             None,
             None,
-        );
+        )?;
 
         match child.wait_with_output() {
             Ok(output) => {
                 match output.status.code() {
                     // User created
-                    Some(0) => {}
+                    Some(0) => Ok(()),
                     // Ignore if user already exists
-                    Some(9) => {}
-                    Some(4) => {}
+                    Some(9) => Ok(()),
+                    Some(4) => Ok(()),
                     _ => panic!(
                         "Error: {:?}: {}",
                         output.status,
@@ -407,7 +407,7 @@ impl Session for UnshareSession {
         stderr: Option<std::process::Stdio>,
         stdin: Option<std::process::Stdio>,
         env: Option<&std::collections::HashMap<String, String>>,
-    ) -> std::process::Child {
+    ) -> Result<std::process::Child, Error> {
         let argv = self.run_argv(argv, cwd, user);
 
         let mut binding = std::process::Command::new(argv[0]);
@@ -429,7 +429,7 @@ impl Session for UnshareSession {
             cmd = cmd.stderr(stderr);
         }
 
-        cmd.spawn().unwrap()
+        Ok(cmd.spawn()?)
     }
 
     fn is_temporary(&self) -> bool {
@@ -671,15 +671,17 @@ mod tests {
         } else {
             return;
         };
-        let child = session.popen(
-            vec!["ls"],
-            Some(std::path::Path::new("/")),
-            None,
-            Some(std::process::Stdio::piped()),
-            Some(std::process::Stdio::piped()),
-            Some(std::process::Stdio::piped()),
-            None,
-        );
+        let child = session
+            .popen(
+                vec!["ls"],
+                Some(std::path::Path::new("/")),
+                None,
+                Some(std::process::Stdio::piped()),
+                Some(std::process::Stdio::piped()),
+                Some(std::process::Stdio::piped()),
+                None,
+            )
+            .unwrap();
         let output = String::from_utf8(child.wait_with_output().unwrap().stdout).unwrap();
         let dirs = output.split_whitespace().collect::<Vec<&str>>();
         assert!(dirs.contains(&"etc"));
