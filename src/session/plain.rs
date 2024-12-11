@@ -136,7 +136,7 @@ impl Session for PlainSession {
         stderr: Option<std::process::Stdio>,
         stdin: Option<std::process::Stdio>,
         env: Option<&std::collections::HashMap<String, String>>,
-    ) -> std::process::Child {
+    ) -> Result<std::process::Child, Error> {
         let argv = self.prepend_user(user, argv);
 
         let mut binding = std::process::Command::new(argv[0]);
@@ -154,7 +154,7 @@ impl Session for PlainSession {
             cmd = cmd.envs(env);
         }
 
-        cmd.spawn().unwrap()
+        Ok(cmd.spawn()?)
     }
 
     fn is_temporary(&self) -> bool {
@@ -345,15 +345,17 @@ mod tests {
     #[test]
     fn test_popen() {
         let session = PlainSession::new();
-        let child = session.popen(
-            vec!["echo", "hello"],
-            None,
-            None,
-            Some(std::process::Stdio::piped()),
-            Some(std::process::Stdio::piped()),
-            Some(std::process::Stdio::piped()),
-            None,
-        );
+        let child = session
+            .popen(
+                vec!["echo", "hello"],
+                None,
+                None,
+                Some(std::process::Stdio::piped()),
+                Some(std::process::Stdio::piped()),
+                Some(std::process::Stdio::piped()),
+                None,
+            )
+            .unwrap();
         let output = child.wait_with_output().unwrap();
         assert_eq!(output.stdout, b"hello\n");
     }
