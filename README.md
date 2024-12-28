@@ -37,6 +37,10 @@ for Debian packages, called deb-fix-build.
 ogni -d https://gitlab.gnome.org/GNOME/fractal install
 ```
 
+### Debugging
+
+If you run into any issues, please see [Debugging](notes/debugging.md).
+
 ## Status
 
 Ognibuild is functional, but sometimes rough around the edges. If you run into
