@@ -12,7 +12,8 @@ default-run = "ogni"
 [dependencies]
 pyo3 = "0.22"
 breezyshim = { version = "0.1", optional = true }
-buildlog-consultant = { version = ">=0.0.43" }
+buildlog-consultant = { version = "0.1.1" }
+#buildlog-consultant = { path = "../buildlog-consultant" }
 upstream-ontologist = { version = "0.2", optional = true }
 axum = { version = "0.7", optional = true, features = ["json", "http2", "tokio"] }
 chrono = ">=0.4"
