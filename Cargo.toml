@@ -58,7 +58,7 @@ toml_edit = ">=0.22"
 url = ">=2"
 whoami = { version = ">=1.4", default-features = false }
 xmltree = ">=0.10"
-dirs = "5.0.1"
+dirs = "6.0.0"
 
 [features]
 default = ["debian", "cli", "udd", "upstream", "breezy", "dep-server"]
