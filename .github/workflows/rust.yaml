@@ -36,8 +36,8 @@ jobs:
         run: pip install breezy
       - name: Install breezy and brz-debian
         run: pip install \
-            bzr+https://launchpad.net/brz-debian \
-            python_apt@git+https://salsa.debian.org/apt-team/python-apt.git@2.5.0
+            git+https://github.com/breezy-team/breezy-debian \
+            python_apt@git+https://salsa.debian.org/apt-team/python-apt
         if: matrix.os == 'ubuntu-24.04'
       - name: Build
         run: cargo build --verbose
