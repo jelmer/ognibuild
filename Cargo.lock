@@ -2753,7 +2753,7 @@ dependencies = [
 
 [[package]]
 name = "ognibuild"
-version = "0.0.32"
+version = "0.0.34"
 dependencies = [
  "axum",
  "breezyshim",
