@@ -14,7 +14,7 @@ pub fn sanitize_session_name(name: &str) -> String {
 pub fn generate_session_id(prefix: &str) -> String {
     let suffix: String = String::from_utf8(
         iter::repeat(())
-            .map(|()| rand::thread_rng().sample(rand::distr::Alphanumeric))
+            .map(|()| rand::rng().sample(rand::distr::Alphanumeric))
             .take(8)
             .collect(),
     )
