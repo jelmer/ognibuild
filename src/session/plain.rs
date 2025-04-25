@@ -1,5 +1,9 @@
 use crate::session::{CommandBuilder, Error, Project, Session};
 
+/// A session implementation that runs commands on the local system.
+///
+/// This is the simplest session implementation, which just runs commands
+/// directly on the host system without any isolation.
 pub struct PlainSession(std::path::PathBuf);
 
 impl Default for PlainSession {
@@ -9,6 +13,13 @@ impl Default for PlainSession {
 }
 
 impl PlainSession {
+    /// Create a new PlainSession.
+    ///
+    /// This creates a new session with the root directory (/) as the
+    /// current working directory.
+    ///
+    /// # Returns
+    /// A new PlainSession instance
     pub fn new() -> Self {
         PlainSession(std::path::PathBuf::from("/"))
     }

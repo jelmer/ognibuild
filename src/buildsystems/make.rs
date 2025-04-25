@@ -16,6 +16,10 @@ enum Kind {
 }
 
 #[derive(Debug)]
+/// Make build system.
+///
+/// Supports different kinds of Make-based build systems, including regular Make,
+/// Automake, Autoconf, Makefile.PL, and Qmake.
 pub struct Make {
     path: PathBuf,
     kind: Kind,
@@ -29,6 +33,9 @@ fn makefile_exists(session: &dyn Session) -> bool {
 }
 
 impl Make {
+    /// Create a new Make build system with the specified path.
+    ///
+    /// Automatically detects the specific type of Make build system.
     pub fn new(path: &Path) -> Self {
         let kind = if path.join("Makefile.PL").exists() {
             Kind::MakefilePL
@@ -204,6 +211,9 @@ impl Make {
         .map(|_| ())
     }
 
+    /// Probe a directory for a Make build system.
+    ///
+    /// Returns a Make build system if a Makefile or related build files are found.
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if [
             "Makefile",
@@ -416,12 +426,16 @@ impl BuildSystem for Make {
 }
 
 #[derive(Debug)]
+/// CMake build system.
+///
+/// Handles projects built with CMake, using out-of-source builds.
 pub struct CMake {
     path: PathBuf,
     builddir: String,
 }
 
 impl CMake {
+    /// Create a new CMake build system with the specified path.
     pub fn new(path: &Path) -> Self {
         Self {
             path: path.to_path_buf(),
@@ -449,6 +463,9 @@ impl CMake {
         }
     }
 
+    /// Probe a directory for a CMake build system.
+    ///
+    /// Returns a CMake build system if a CMakeLists.txt file is found.
     pub fn probe(path: &Path) -> Option<Box<dyn crate::buildsystem::BuildSystem>> {
         if path.join("CMakeLists.txt").exists() {
             return Some(Box::new(Self::new(path)));

@@ -9,6 +9,9 @@ use crate::session::Session;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
+/// Meson build system.
+///
+/// Handles projects built with Meson and Ninja.
 pub struct Meson {
     #[allow(dead_code)]
     path: PathBuf,
@@ -33,6 +36,7 @@ struct MesonTarget {
 }
 
 impl Meson {
+    /// Create a new Meson build system with the specified path.
     pub fn new(path: &Path) -> Self {
         Self {
             path: path.to_path_buf(),
@@ -71,6 +75,9 @@ impl Meson {
         Ok(serde_json::from_str(&text).unwrap())
     }
 
+    /// Probe a directory for a Meson build system.
+    ///
+    /// Returns a Meson build system if a meson.build file is found.
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         let path = path.join("meson.build");
         if path.exists() {

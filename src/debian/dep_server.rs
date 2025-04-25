@@ -1,3 +1,9 @@
+//! Dependency server integration for Debian packages.
+//!
+//! This module provides functionality for resolving dependencies using
+//! a remote dependency server that can translate generic dependencies
+//! into Debian package dependencies.
+
 use crate::debian::apt::AptManager;
 use crate::dependencies::debian::DebianDependency;
 use crate::dependency::Dependency;
@@ -53,12 +59,27 @@ async fn resolve_apt_requirement_dep_server(
     }
 }
 
+/// Installer that uses a dependency server to resolve and install dependencies.
+///
+/// This installer connects to a remote dependency server that can translate
+/// generic dependencies into Debian package dependencies and then installs them
+/// using APT.
 pub struct DepServerAptInstaller<'a> {
+    /// APT manager for package operations
     apt: AptManager<'a>,
+    /// URL of the dependency server
     dep_server_url: Url,
 }
 
 impl<'a> DepServerAptInstaller<'a> {
+    /// Create a new DepServerAptInstaller with the given APT manager and server URL.
+    ///
+    /// # Arguments
+    /// * `apt` - APT manager to use for installing dependencies
+    /// * `dep_server_url` - URL of the dependency server
+    ///
+    /// # Returns
+    /// A new DepServerAptInstaller instance
     pub fn new(apt: AptManager<'a>, dep_server_url: &Url) -> Self {
         Self {
             apt,
@@ -66,11 +87,27 @@ impl<'a> DepServerAptInstaller<'a> {
         }
     }
 
+    /// Create a new DepServerAptInstaller from a session and server URL.
+    ///
+    /// # Arguments
+    /// * `session` - Session to use for running commands
+    /// * `dep_server_url` - URL of the dependency server
+    ///
+    /// # Returns
+    /// A new DepServerAptInstaller instance
     pub fn from_session(session: &'a dyn Session, dep_server_url: &'_ Url) -> Self {
         let apt = AptManager::from_session(session);
         Self::new(apt, dep_server_url)
     }
 
+    /// Resolve a dependency to a Debian package dependency using the dependency server.
+    ///
+    /// # Arguments
+    /// * `req` - Generic dependency to resolve
+    ///
+    /// # Returns
+    /// Some(DebianDependency) if the server could resolve it, None if not found,
+    /// or Error if there was a problem communicating with the server
     pub fn resolve(&self, req: &dyn Dependency) -> Result<Option<DebianDependency>, Error> {
         let rt = Runtime::new().unwrap();
         match rt.block_on(resolve_apt_requirement_dep_server(
@@ -86,6 +123,7 @@ impl<'a> DepServerAptInstaller<'a> {
     }
 }
 
+/// Implementation of the Installer trait for DepServerAptInstaller.
 impl<'a> Installer for DepServerAptInstaller<'a> {
     fn install(
         &self,

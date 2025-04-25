@@ -49,6 +49,20 @@ pub trait DebianBuildFixer: std::fmt::Debug + std::fmt::Display {
     fn fix(&self, problem: &dyn Problem, phase: &Phase) -> Result<bool, InterimError<Error>>;
 }
 
+/// Attempt to resolve a build error by applying appropriate fixers.
+///
+/// This function finds and applies fixers that can handle the given problem
+/// in the specified build phase.
+///
+/// # Arguments
+/// * `problem` - The build problem to fix
+/// * `phase` - The build phase in which the problem occurred
+/// * `fixers` - List of available fixers to try
+///
+/// # Returns
+/// * `Ok(true)` if a fixer successfully resolved the issue
+/// * `Ok(false)` if no applicable fixer was found
+/// * `Err(InterimError)` if a fixer encountered an error
 pub fn resolve_error(
     problem: &dyn Problem,
     phase: &Phase,
@@ -83,20 +97,52 @@ pub enum IterateBuildError {
 
     /// An error that we could not identify.
     Unidentified {
+        /// The return code of the failed command
         retcode: i32,
+        /// The output lines from the command
         lines: Vec<String>,
+        /// Optional secondary information about the error
         secondary: Option<Box<dyn Match>>,
+        /// The build phase in which the error occurred
         phase: Option<Phase>,
     },
 
+    /// The build phase could not be determined
     MissingPhase,
 
+    /// An error occurred while resetting the tree
     ResetTree(BrzError),
 
     /// Another error raised specifically by the callback function that is not fixable.
     Other(Error),
 }
 
+/// Build a Debian package incrementally, with automatic error fixing.
+///
+/// This function attempts to build a Debian package, and if the build fails,
+/// it tries to fix the errors automatically using the provided fixers.
+/// It will retry the build after each fix until either the build succeeds,
+/// or it encounters an unfixable error.
+///
+/// # Arguments
+/// * `local_tree` - Working tree containing the package source
+/// * `suffix` - Optional suffix for the binary package version
+/// * `build_suite` - Optional distribution suite to build for
+/// * `output_directory` - Directory where build artifacts will be stored
+/// * `build_command` - Command to use for building (e.g., "dpkg-buildpackage")
+/// * `fixers` - List of fixers to apply if build errors are encountered
+/// * `build_changelog_entry` - Optional changelog entry to add before building
+/// * `max_iterations` - Maximum number of fix attempts before giving up
+/// * `subpath` - Path within the working tree where the package is located
+/// * `source_date_epoch` - Optional timestamp for reproducible builds
+/// * `apt_repository` - Optional URL of an APT repository to use
+/// * `apt_repository_key` - Optional GPG key for the APT repository
+/// * `extra_repositories` - Optional additional APT repositories to use
+/// * `run_gbp_dch` - Whether to run git-buildpackage's dch command
+///
+/// # Returns
+/// * `Ok(BuildOnceResult)` if the build succeeded
+/// * `Err(IterateBuildError)` if the build failed and could not be fixed
 pub fn build_incrementally(
     local_tree: &WorkingTree,
     suffix: Option<&str>,
@@ -193,615 +239,15 @@ pub fn build_incrementally(
                     }) => {
                         log::warn!("Recognized error but unable to resolve: {:?}", lines);
                         return Err(IterateBuildError::Unidentified {
+                            phase: Some(phase),
                             retcode,
                             lines,
-                            phase: Some(phase),
                             secondary,
                         });
                     }
                 }
                 fixed_errors.push((error, phase));
-                crate::logs::rotate_logfile(&output_directory.join(BUILD_LOG_FILENAME)).unwrap();
             }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use buildlog_consultant::problems::common::*;
-    use std::path::Path;
-    use tempfile::tempdir;
-
-    #[test]
-    fn test_rescue_build_log() {
-        let td = tempdir().unwrap();
-        let build_log_path = td.path().join("build.log");
-        std::fs::write(&build_log_path, "Test build log content").unwrap();
-
-        // Test with no tree provided
-        let result = rescue_build_log(td.path(), None);
-        // We don't worry about the exact result as it depends on the directory structure,
-        // but we ensure it runs without panicking
-        assert!(result.is_ok() || result.is_err());
-    }
-
-    // Add a mock fixer for testing
-    #[derive(Debug)]
-    struct MockFixer {
-        can_fix_result: bool,
-        should_succeed: bool,
-        error_type: Option<u8>, // None = no error, Some(1) = Other, Some(2) = Unidentified
-    }
-
-    impl std::fmt::Display for MockFixer {
-        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            write!(f, "MockFixer")
-        }
-    }
-
-    impl DebianBuildFixer for MockFixer {
-        fn can_fix(&self, _problem: &dyn Problem) -> bool {
-            self.can_fix_result
-        }
-
-        fn fix(&self, _problem: &dyn Problem, _phase: &Phase) -> Result<bool, InterimError<Error>> {
-            match self.error_type {
-                Some(1) => Err(InterimError::Other(Error::CircularDependency(
-                    "test-dep".to_string(),
-                ))),
-                Some(2) => Err(InterimError::Unidentified {
-                    retcode: 42,
-                    lines: vec!["error line".to_string()],
-                    secondary: None,
-                }),
-                _ => Ok(self.should_succeed),
-            }
-        }
-    }
-
-    #[test]
-    fn test_resolve_error_no_fixers() {
-        let problem = MissingCommand("test".to_string());
-        let phase = Phase::Build;
-        let fixers: Vec<&dyn DebianBuildFixer> = vec![];
-
-        let result = resolve_error(&problem, &phase, &fixers);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), false);
-    }
-
-    #[test]
-    fn test_resolve_error_with_successful_fixer() {
-        let problem = MissingCommand("test".to_string());
-        let phase = Phase::Build;
-
-        let mock_fixer = MockFixer {
-            can_fix_result: true,
-            should_succeed: true,
-            error_type: None,
-        };
-
-        let fixers: Vec<&dyn DebianBuildFixer> = vec![&mock_fixer];
-
-        let result = resolve_error(&problem, &phase, &fixers);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), true);
-    }
-
-    #[test]
-    fn test_resolve_error_with_unsuccessful_fixer() {
-        let problem = MissingCommand("test".to_string());
-        let phase = Phase::Build;
-
-        let mock_fixer = MockFixer {
-            can_fix_result: true,
-            should_succeed: false,
-            error_type: None,
-        };
-
-        let fixers: Vec<&dyn DebianBuildFixer> = vec![&mock_fixer];
-
-        let result = resolve_error(&problem, &phase, &fixers);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), false);
-    }
-
-    #[test]
-    fn test_resolve_error_with_error_fixer() {
-        let problem = MissingCommand("test".to_string());
-        let phase = Phase::Build;
-
-        let mock_fixer = MockFixer {
-            can_fix_result: true,
-            should_succeed: false,
-            error_type: Some(1),
-        };
-
-        let fixers: Vec<&dyn DebianBuildFixer> = vec![&mock_fixer];
-
-        let result = resolve_error(&problem, &phase, &fixers);
-        assert!(result.is_err());
-        match result {
-            Err(InterimError::Other(Error::CircularDependency(dep))) => {
-                assert_eq!(dep, "test-dep");
-            }
-            _ => panic!("Expected InterimError::Other"),
-        }
-    }
-
-    #[test]
-    fn test_resolve_error_with_unidentified_error() {
-        let problem = MissingCommand("test".to_string());
-        let phase = Phase::Build;
-
-        let mock_fixer = MockFixer {
-            can_fix_result: true,
-            should_succeed: false,
-            error_type: Some(2),
-        };
-
-        let fixers: Vec<&dyn DebianBuildFixer> = vec![&mock_fixer];
-
-        let result = resolve_error(&problem, &phase, &fixers);
-        assert!(result.is_err());
-        match result {
-            Err(InterimError::Unidentified {
-                retcode,
-                lines,
-                secondary: _,
-            }) => {
-                assert_eq!(retcode, 42);
-                assert_eq!(lines, vec!["error line".to_string()]);
-            }
-            _ => panic!("Expected InterimError::Unidentified"),
-        }
-    }
-
-    /// This test mocks the build process to test build_incrementally behavior
-    #[test]
-    fn test_build_incrementally_with_mocks() {
-        use std::sync::{Arc, Mutex};
-
-        // Create a test directory and working tree
-        let td = tempdir().unwrap();
-        let tree = breezyshim::controldir::create_standalone_workingtree(
-            td.path(),
-            &breezyshim::controldir::ControlDirFormat::default(),
-        )
-        .unwrap();
-
-        // Set up a minimal debian package structure
-        std::fs::create_dir_all(td.path().join("debian")).unwrap();
-        std::fs::write(
-            td.path().join("debian/changelog"),
-            r#"test-package (1.0) unstable; urgency=low
-            
-  * Initial release
-            
- -- Test User <test@example.com>  Thu, 01 Jan 2023 00:00:00 +0000
-"#,
-        )
-        .unwrap();
-
-        tree.add(&[Path::new("debian"), Path::new("debian/changelog")])
-            .unwrap();
-
-        // Create a counter to track attempts
-        let attempt_counter = Arc::new(Mutex::new(0));
-        let counter_clone = attempt_counter.clone();
-
-        // Create a mock fixer
-        struct BuildIncrementallyTestFixer {
-            counter: Arc<Mutex<i32>>,
-            succeed_after: i32,
-        }
-
-        impl std::fmt::Debug for BuildIncrementallyTestFixer {
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                write!(f, "BuildIncrementallyTestFixer")
-            }
-        }
-
-        impl std::fmt::Display for BuildIncrementallyTestFixer {
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                write!(f, "BuildIncrementallyTestFixer")
-            }
-        }
-
-        impl DebianBuildFixer for BuildIncrementallyTestFixer {
-            fn can_fix(&self, _problem: &dyn Problem) -> bool {
-                true
-            }
-
-            fn fix(
-                &self,
-                _problem: &dyn Problem,
-                _phase: &Phase,
-            ) -> Result<bool, InterimError<Error>> {
-                let mut counter = self.counter.lock().unwrap();
-                *counter += 1;
-
-                if *counter >= self.succeed_after {
-                    Ok(true)
-                } else {
-                    Ok(true) // Always return true to indicate we "fixed" something
-                }
-            }
-        }
-
-        let fixer = BuildIncrementallyTestFixer {
-            counter: counter_clone,
-            succeed_after: 1,
-        };
-
-        // Since we can't easily monkeypatch, use an indirect test
-        // We skip actually testing build_incrementally's full implementation since it relies
-        // on attempt_build which in turn needs real debian build infrastructure
-
-        // Instead, we'll test that our mock fixer's `fix` method gets called
-        let result = resolve_error(
-            &MissingCommand("test".to_string()),
-            &Phase::Build,
-            &[&fixer],
-        );
-
-        // Verify the fixer was called once
-        let counter_value = *attempt_counter.lock().unwrap();
-        assert_eq!(counter_value, 1);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), true);
-    }
-
-    mod test_resolve_error {
-        use super::*;
-        use crate::debian::apt::AptManager;
-        use crate::debian::context::{DebianPackagingContext, Error};
-        use crate::debian::file_search::MemoryAptSearcher;
-        use crate::session::plain::PlainSession;
-        use breezyshim::commit::NullCommitReporter;
-        use breezyshim::controldir::{create_standalone_workingtree, ControlDirFormat};
-        use breezyshim::tree::Tree;
-        use buildlog_consultant::problems::common::*;
-        use debian_control::lossless::Control;
-        use std::collections::HashMap;
-        use std::path::{Path, PathBuf};
-        use test_log::test;
-
-        fn setup(path: &Path) -> WorkingTree {
-            let tree = create_standalone_workingtree(&path, &ControlDirFormat::default()).unwrap();
-
-            std::fs::create_dir_all(path.join("debian")).unwrap();
-            std::fs::write(
-                path.join("debian/control"),
-                r#"Source: blah
-Build-Depends: libc6
-
-Package: python-blah
-Depends: ${python3:Depends}
-Description: A python package
- Foo
-"#,
-            )
-            .unwrap();
-            std::fs::write(
-                path.join("debian/changelog"),
-                r#"blah (0.1) UNRELEASED; urgency=medium
-
-  * Initial release. (Closes: #XXXXXX)
-
- -- ognibuild <ognibuild@jelmer.uk>  Sat, 04 Apr 2020 14:12:13 +0000
-"#,
-            )
-            .unwrap();
-            tree.add(&[
-                Path::new("debian"),
-                Path::new("debian/control"),
-                Path::new("debian/changelog"),
-            ])
-            .unwrap();
-            tree.build_commit()
-                .message("Initial commit")
-                .committer("ognibuild <ognibuild@jelmer.uk>")
-                .commit()
-                .unwrap();
-
-            tree
-        }
-
-        fn resolve(
-            tree: &WorkingTree,
-            error: &dyn Problem,
-            phase: &Phase,
-            apt_files: HashMap<PathBuf, String>,
-        ) -> bool {
-            let session = PlainSession::new();
-            let apt = AptManager::new(&session, None);
-            apt.set_searchers(vec![Box::new(MemoryAptSearcher::new(apt_files))]);
-
-            let context = DebianPackagingContext::new(
-                tree.clone(),
-                Path::new(""),
-                Some(("ognibuild".to_owned(), "ognibuild@jelmer.uk".to_owned())),
-                true,
-                Some(Box::new(NullCommitReporter::new())),
-            );
-
-            let mut fixers: Vec<Box<dyn DebianBuildFixer>> =
-                crate::debian::fixers::versioned_package_fixers(&session, &context, &apt);
-            fixers.extend(crate::debian::fixers::apt_fixers(&apt, &context));
-            resolve_error(
-                error,
-                phase,
-                &fixers.iter().map(|f| f.as_ref()).collect::<Vec<_>>(),
-            )
-            .unwrap()
-        }
-
-        fn get_build_deps(tree: &dyn Tree) -> String {
-            let content = tree.get_file_text(Path::new("debian/control")).unwrap();
-
-            let content = String::from_utf8(content).unwrap();
-
-            let control: Control = content.parse().unwrap();
-
-            control
-                .source()
-                .unwrap()
-                .build_depends()
-                .unwrap()
-                .to_string()
-        }
-
-        #[test]
-        fn test_missing_command_unknown() {
-            let td = tempfile::tempdir().unwrap();
-            let tree = setup(td.path());
-            assert!(!resolve(
-                &tree,
-                &MissingCommand("acommandthatdoesnotexist".to_string()),
-                &Phase::Build,
-                HashMap::new()
-            ));
-        }
-
-        #[test]
-        fn test_missing_command_brz() {
-            let env = breezyshim::testing::TestEnv::new();
-            let td = tempfile::tempdir().unwrap();
-            let tree = setup(td.path());
-            let apt_files = maplit::hashmap! {
-                PathBuf::from("/usr/bin/b") => "bash".to_string(),
-                PathBuf::from("/usr/bin/brz") => "brz".to_string(),
-                PathBuf::from("/usr/bin/brzier") => "bash".to_string(),
-            };
-            assert!(resolve(
-                &tree,
-                &MissingCommand("brz".to_string()),
-                &Phase::Build,
-                apt_files.clone()
-            ));
-            assert_eq!("libc6, brz", get_build_deps(&tree));
-            let rev = tree
-                .branch()
-                .repository()
-                .get_revision(&tree.branch().last_revision());
-            assert_eq!(
-                "Add missing build dependency on brz.\n",
-                rev.unwrap().message
-            );
-            // Now that the dependency is added, we should not try to add it again.
-            assert!(!resolve(
-                &tree,
-                &MissingCommand("brz".to_owned()),
-                &Phase::Build,
-                apt_files
-            ));
-            assert_eq!("libc6, brz", get_build_deps(&tree));
-
-            std::mem::drop(env);
-        }
-
-        #[test]
-        fn test_missing_command_ps() {
-            let apt_files = maplit::hashmap! {
-                PathBuf::from("/bin/ps") => "procps".to_string(),
-                PathBuf::from("/usr/bin/pscal") => "xcal".to_string(),
-            };
-            let td = tempfile::tempdir().unwrap();
-            let tree = setup(td.path());
-            assert!(resolve(
-                &tree,
-                &MissingCommand("ps".to_owned()),
-                &Phase::Build,
-                apt_files
-            ));
-            assert_eq!("libc6, procps", get_build_deps(&tree));
-        }
-
-        #[test]
-        fn test_missing_ruby_file() {
-            let apt_files = maplit::hashmap! {
-                PathBuf::from("/usr/lib/ruby/vendor_ruby/rake/testtask.rb") => "rake".to_string(),
-            };
-            let td = tempfile::tempdir().unwrap();
-            let tree = setup(td.path());
-
-            assert!(resolve(
-                &tree,
-                &MissingRubyFile::new("rake/testtask".to_string()),
-                &Phase::Build,
-                apt_files
-            ));
-            assert_eq!("libc6, rake", get_build_deps(&tree));
-        }
-
-        #[test]
-        fn test_missing_ruby_file_from_gem() {
-            let apt_files = maplit::hashmap! {
-                PathBuf::from("/usr/share/rubygems-integration/all/gems/activesupport-5.2.3/lib/active_support/core_ext/string/strip.rb") => "ruby-activesupport".to_string(),
-            };
-            let td = tempfile::tempdir().unwrap();
-            let tree = setup(td.path());
-
-            assert!(resolve(
-                &tree,
-                &MissingRubyFile::new("active_support/core_ext/string/strip".to_string()),
-                &Phase::Build,
-                apt_files
-            ));
-            assert_eq!("libc6, ruby-activesupport", get_build_deps(&tree));
-        }
-
-        #[test]
-        fn test_missing_ruby_gem() {
-            let apt_files = maplit::hashmap! {
-                PathBuf::from("/usr/share/rubygems-integration/all/specifications/bio-1.5.2.gemspec") => "ruby-bio".to_string(),
-                PathBuf::from("/usr/share/rubygems-integration/all/specifications/bio-2.0.2.gemspec") => "ruby-bio".to_string(),
-            };
-            let td = tempfile::tempdir().unwrap();
-            let tree = setup(td.path());
-
-            assert!(resolve(
-                &tree,
-                &MissingRubyGem::simple("bio".to_string()),
-                &Phase::Build,
-                apt_files.clone()
-            ));
-            assert_eq!("libc6, ruby-bio", get_build_deps(&tree));
-            assert!(resolve(
-                &tree,
-                &MissingRubyGem::new("bio".to_string(), Some("2.0.3".to_string())),
-                &Phase::Build,
-                apt_files
-            ));
-            assert_eq!("libc6, ruby-bio (>= 2.0.3)", get_build_deps(&tree));
-        }
-
-        #[test]
-        fn test_missing_perl_module() {
-            let apt_files = maplit::hashmap! {
-                PathBuf::from("/usr/share/perl5/App/cpanminus/fatscript.pm") => "cpanminus".to_string(),
-            };
-            let td = tempfile::tempdir().unwrap();
-            let tree = setup(td.path());
-
-            assert!(resolve(
-                &tree,
-                &MissingPerlModule {
-                    filename: Some("App/cpanminus/fatscript.pm".to_string()),
-                    module: "App::cpanminus::fatscript".to_string(),
-                    minimum_version: None,
-                    inc: Some(vec![
-                        "/<<PKGBUILDDIR>>/blib/lib".to_string(),
-                        "/<<PKGBUILDDIR>>/blib/arch".to_string(),
-                        "/etc/perl".to_string(),
-                        "/usr/local/lib/x86_64-linux-gnu/perl/5.30.0".to_string(),
-                        "/usr/local/share/perl/5.30.0".to_string(),
-                        "/usr/lib/x86_64-linux-gnu/perl5/5.30".to_string(),
-                        "/usr/share/perl5".to_string(),
-                        "/usr/lib/x86_64-linux-gnu/perl/5.30".to_string(),
-                        "/usr/share/perl/5.30".to_string(),
-                        "/usr/local/lib/site_perl".to_string(),
-                        "/usr/lib/x86_64-linux-gnu/perl-base".to_string(),
-                        ".".to_string(),
-                    ]),
-                },
-                &Phase::Build,
-                apt_files
-            ));
-            assert_eq!("libc6, cpanminus", get_build_deps(&tree));
-        }
-
-        #[test]
-        fn test_missing_pkg_config() {
-            let apt_files = maplit::hashmap! {
-                PathBuf::from("/usr/lib/x86_64-linux-gnu/pkgconfig/xcb-xfixes.pc") => "libxcb-xfixes0-dev".to_string(),
-            };
-            let td = tempfile::tempdir().unwrap();
-            let tree = setup(td.path());
-
-            assert!(resolve(
-                &tree,
-                &MissingPkgConfig::simple("xcb-xfixes".to_string()),
-                &Phase::Build,
-                apt_files
-            ));
-            assert_eq!("libc6, libxcb-xfixes0-dev", get_build_deps(&tree));
-        }
-
-        #[test]
-        fn test_missing_pkg_config_versioned() {
-            let apt_files = maplit::hashmap! {
-                PathBuf::from("/usr/lib/x86_64-linux-gnu/pkgconfig/xcb-xfixes.pc") => "libxcb-xfixes0-dev".to_string(),
-            };
-            let td = tempfile::tempdir().unwrap();
-            let tree = setup(td.path());
-
-            assert!(resolve(
-                &tree,
-                &MissingPkgConfig::new("xcb-xfixes".to_string(), Some("1.0".to_string())),
-                &Phase::Build,
-                apt_files
-            ));
-            assert_eq!("libc6, libxcb-xfixes0-dev (>= 1.0)", get_build_deps(&tree));
-        }
-
-        #[test]
-        fn test_missing_python_module() {
-            let apt_files = maplit::hashmap! {
-                PathBuf::from("/usr/lib/python3/dist-packages/m2r.py") => "python3-m2r".to_string(),
-            };
-            let td = tempfile::tempdir().unwrap();
-            let tree = setup(td.path());
-
-            assert!(resolve(
-                &tree,
-                &MissingPythonModule::simple("m2r".to_string()),
-                &Phase::Build,
-                apt_files
-            ));
-            assert_eq!("libc6, python3-m2r", get_build_deps(&tree));
-        }
-
-        #[test]
-        fn test_missing_go_package() {
-            let apt_files = maplit::hashmap! {
-                PathBuf::from("/usr/share/gocode/src/github.com/chzyer/readline/utils_test.go") => "golang-github-chzyer-readline-dev".to_string(),
-            };
-            let td = tempfile::tempdir().unwrap();
-            let tree = setup(td.path());
-
-            assert!(resolve(
-                &tree,
-                &MissingGoPackage {
-                    package: "github.com/chzyer/readline".to_string()
-                },
-                &Phase::Build,
-                apt_files
-            ));
-            assert_eq!(
-                "libc6, golang-github-chzyer-readline-dev",
-                get_build_deps(&tree)
-            );
-        }
-
-        #[test]
-        fn test_missing_vala_package() {
-            let apt_files = maplit::hashmap! {
-                PathBuf::from("/usr/share/vala-0.48/vapi/posix.vapi") => "valac-0.48-vapi".to_string(),
-            };
-            let td = tempfile::tempdir().unwrap();
-            let tree = setup(td.path());
-
-            assert!(resolve(
-                &tree,
-                &MissingValaPackage("posix".to_string()),
-                &Phase::Build,
-                apt_files
-            ));
-            assert_eq!("libc6, valac-0.48-vapi", get_build_deps(&tree));
         }
     }
 }

@@ -12,14 +12,21 @@ pub trait BuildFixer<O: std::error::Error>: std::fmt::Debug + std::fmt::Display 
 }
 
 #[derive(Debug)]
+/// Intermediate error type used during build fixing.
+///
+/// This enum represents different kinds of errors that can occur during
+/// the build process, and which may be fixable by a BuildFixer.
 pub enum InterimError<O: std::error::Error> {
     /// A problem that was detected during the build, and that we can attempt to fix.
     Recognized(Box<dyn Problem>),
 
     /// An error that we could not identify.
     Unidentified {
+        /// The return code of the failed command.
         retcode: i32,
+        /// The output lines from the command.
         lines: Vec<String>,
+        /// Optional secondary information about the error.
         secondary: Option<Box<dyn Match>>,
     },
 
@@ -38,8 +45,11 @@ pub enum IterateBuildError<O> {
 
     /// An error that we could not identify.
     Unidentified {
+        /// The return code of the failed command.
         retcode: i32,
+        /// The output lines from the command.
         lines: Vec<String>,
+        /// Optional secondary information about the error.
         secondary: Option<Box<dyn Match>>,
     },
 
@@ -157,6 +167,16 @@ pub fn iterate_with_build_fixers<
     }
 }
 
+/// Attempt to resolve a problem using available fixers.
+///
+/// # Arguments
+/// * `problem` - The problem to resolve
+/// * `fixers` - List of fixers to try
+///
+/// # Returns
+/// * `Ok(true)` - If the problem was fixed
+/// * `Ok(false)` - If no fixer could fix the problem
+/// * `Err(InterimError)` - If fixing the problem failed
 pub fn resolve_error<O: std::error::Error>(
     problem: &dyn Problem,
     fixers: &[&dyn BuildFixer<O>],
@@ -179,6 +199,24 @@ pub fn resolve_error<O: std::error::Error>(
     Ok(false)
 }
 
+/// Run a command repeatedly, attempting to fix any problems that occur.
+///
+/// This function runs a command and applies fixes if it fails,
+/// potentially retrying multiple times with different fixers.
+///
+/// # Arguments
+/// * `fixers` - List of fixers to try if the command fails
+/// * `limit` - Optional maximum number of fix attempts
+/// * `session` - The session to run the command in
+/// * `args` - The command and its arguments
+/// * `quiet` - Whether to suppress output
+/// * `cwd` - Optional current working directory
+/// * `user` - Optional user to run as
+/// * `env` - Optional environment variables
+///
+/// # Returns
+/// * `Ok(Vec<String>)` - The output lines if successful
+/// * `Err(IterateBuildError)` - If the command fails and can't be fixed
 pub fn run_fixing_problems<
     // The error type that the fixers can return.
     I: std::error::Error,

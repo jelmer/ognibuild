@@ -5,11 +5,13 @@ use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a Node.js package.
 pub struct NodePackageDependency {
     package: String,
 }
 
 impl NodePackageDependency {
+    /// Creates a new NodePackageDependency instance.
     pub fn new(package: &str) -> Self {
         Self {
             package: package.to_string(),
@@ -97,11 +99,13 @@ impl crate::upstream::FindUpstream for NodePackageDependency {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a Node.js module.
 pub struct NodeModuleDependency {
     module: String,
 }
 
 impl NodeModuleDependency {
+    /// Creates a new NodeModuleDependency instance.
     pub fn new(module: &str) -> Self {
         Self {
             module: module.to_string(),
@@ -200,11 +204,13 @@ fn command_package(command: &str) -> Option<&str> {
     }
 }
 
+/// A resolver for Node.js packages using npm.
 pub struct NpmResolver<'a> {
     session: &'a dyn Session,
 }
 
 impl<'a> NpmResolver<'a> {
+    /// Creates a new NpmResolver instance.
     pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }

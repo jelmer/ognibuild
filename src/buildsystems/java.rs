@@ -6,16 +6,19 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
+/// Gradle build system for Java projects.
 pub struct Gradle {
     path: PathBuf,
     executable: String,
 }
 
 impl Gradle {
+    /// Create a new Gradle build system with a specified path and executable.
     pub fn new(path: PathBuf, executable: String) -> Self {
         Self { path, executable }
     }
 
+    /// Create a new Gradle build system with the default executable name.
     pub fn simple(path: PathBuf) -> Self {
         Self {
             path,
@@ -23,10 +26,12 @@ impl Gradle {
         }
     }
 
+    /// Check if a Gradle build system exists at the given path.
     pub fn exists(path: &Path) -> bool {
         path.join("build.gradle").exists() || path.join("build.gradle.kts").exists()
     }
 
+    /// Create a Gradle build system from a path, using wrapper if available.
     pub fn from_path(path: &Path) -> Self {
         if path.join("gradlew").exists() {
             Self::new(path.to_path_buf(), "./gradlew".to_string())
@@ -35,6 +40,7 @@ impl Gradle {
         }
     }
 
+    /// Probe a directory for a Gradle build system.
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if Self::exists(path) {
             log::debug!("Found build.gradle, assuming gradle package.");
@@ -177,11 +183,13 @@ impl BuildSystem for Gradle {
 }
 
 #[derive(Debug)]
+/// Maven build system for Java projects.
 pub struct Maven {
     path: PathBuf,
 }
 
 impl Maven {
+    /// Probe a directory for a Maven build system.
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if path.join("pom.xml").exists() {
             log::debug!("Found pom.xml, assuming maven package.");
@@ -191,6 +199,7 @@ impl Maven {
         }
     }
 
+    /// Create a new Maven build system.
     pub fn new(path: PathBuf) -> Self {
         Self { path }
     }

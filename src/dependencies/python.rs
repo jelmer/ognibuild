@@ -1,3 +1,9 @@
+//! Support for Python package dependencies.
+//!
+//! This module provides functionality for working with Python package dependencies,
+//! including parsing and resolving PEP 508 package requirements, and integrating
+//! with package managers.
+
 #[cfg(feature = "debian")]
 use crate::debian::apt::AptManager;
 #[cfg(feature = "debian")]
@@ -15,6 +21,10 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a Python package.
+///
+/// This represents a dependency on a Python package from PyPI or another package
+/// repository. It uses PEP 508 requirement syntax for expressing version constraints.
 pub struct PythonPackageDependency(pep508_rs::Requirement);
 
 impl From<pep508_rs::Requirement> for PythonPackageDependency {
@@ -51,10 +61,22 @@ impl TryFrom<&str> for PythonPackageDependency {
 }
 
 impl PythonPackageDependency {
+    /// Get the package name.
+    ///
+    /// # Returns
+    /// The name of the Python package
     pub fn package(&self) -> String {
         self.0.name.to_string()
     }
 
+    /// Create a new dependency with a minimum version requirement.
+    ///
+    /// # Arguments
+    /// * `package` - The name of the Python package
+    /// * `min_version` - The minimum version required
+    ///
+    /// # Returns
+    /// A new PythonPackageDependency
     pub fn new_with_min_version(package: &str, min_version: &str) -> Self {
         Self(pep508_rs::Requirement {
             name: pep508_rs::PackageName::new(package.to_string()).unwrap(),
@@ -65,6 +87,13 @@ impl PythonPackageDependency {
         })
     }
 
+    /// Create a simple dependency with no version constraints.
+    ///
+    /// # Arguments
+    /// * `package` - The name of the Python package
+    ///
+    /// # Returns
+    /// A new PythonPackageDependency
     pub fn simple(package: &str) -> Self {
         Self(pep508_rs::Requirement {
             name: pep508_rs::PackageName::new(package.to_string()).unwrap(),
@@ -76,6 +105,13 @@ impl PythonPackageDependency {
     }
 }
 
+/// Convert a minimum version string to a PEP 508 VersionOrUrl.
+///
+/// # Arguments
+/// * `min_version` - The minimum version string
+///
+/// # Returns
+/// A PEP 508 VersionOrUrl with a >= constraint
 fn min_version_as_version_or_url(min_version: &str) -> pep508_rs::VersionOrUrl {
     use std::str::FromStr;
     let version_specifiers = std::iter::once(
@@ -89,6 +125,13 @@ fn min_version_as_version_or_url(min_version: &str) -> pep508_rs::VersionOrUrl {
     pep508_rs::VersionOrUrl::VersionSpecifier(version_specifiers)
 }
 
+/// Create a PEP 508 marker for a specific Python major version.
+///
+/// # Arguments
+/// * `major_version` - The Python major version (e.g., 2 or 3)
+///
+/// # Returns
+/// A PEP 508 MarkerTree that requires the specified Python version
 fn major_python_version_as_marker(major_version: u32) -> pep508_rs::MarkerTree {
     pep508_rs::MarkerTree::expression(pep508_rs::MarkerExpression::Version {
         key: pep508_rs::MarkerValueVersion::PythonVersion,
@@ -157,15 +200,27 @@ impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependen
 }
 
 #[derive(Debug, Clone, Default, Copy, Serialize, Deserialize)]
+/// Supported Python implementations and versions.
+///
+/// This enum represents the different Python implementations and versions
+/// that can be used to satisfy Python package dependencies.
 pub enum PythonVersion {
+    /// CPython 2.x
     CPython2,
+    /// CPython 3.x (default)
     #[default]
     CPython3,
+    /// PyPy (Python 2 compatible)
     PyPy,
+    /// PyPy (Python 3 compatible)
     PyPy3,
 }
 
 impl PythonVersion {
+    /// Get the executable name for this Python version.
+    ///
+    /// # Returns
+    /// The name of the Python executable
     pub fn executable(&self) -> &'static str {
         match self {
             PythonVersion::CPython2 => "python2",
@@ -219,6 +274,10 @@ impl crate::upstream::FindUpstream for PythonPackageDependency {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a Python module.
+///
+/// This represents a dependency on a specific Python module (importable name)
+/// rather than a package. Used for checking if specific imports will work.
 pub struct PythonModuleDependency {
     module: String,
     minimum_version: Option<String>,
@@ -226,6 +285,15 @@ pub struct PythonModuleDependency {
 }
 
 impl PythonModuleDependency {
+    /// Create a new Python module dependency.
+    ///
+    /// # Arguments
+    /// * `module` - The name of the module to import
+    /// * `minimum_version` - Optional minimum version requirement
+    /// * `python_version` - Optional specific Python version to use
+    ///
+    /// # Returns
+    /// A new PythonModuleDependency
     pub fn new(
         module: &str,
         minimum_version: Option<&str>,
@@ -238,6 +306,13 @@ impl PythonModuleDependency {
         }
     }
 
+    /// Create a simple Python module dependency with no version constraints.
+    ///
+    /// # Arguments
+    /// * `module` - The name of the module to import
+    ///
+    /// # Returns
+    /// A new PythonModuleDependency with no version constraints
     pub fn simple(module: &str) -> Self {
         Self {
             module: module.to_string(),
@@ -246,6 +321,10 @@ impl PythonModuleDependency {
         }
     }
 
+    /// Get the Python executable to use for this dependency.
+    ///
+    /// # Returns
+    /// The name of the Python executable
     fn python_executable(&self) -> &str {
         self.python_version.unwrap_or_default().executable()
     }
@@ -297,15 +376,30 @@ impl Dependency for PythonModuleDependency {
     }
 }
 
+/// Resolver for Python packages using pip.
+///
+/// This resolver installs Python packages from PyPI using pip.
 pub struct PypiResolver<'a> {
     session: &'a dyn Session,
 }
 
 impl<'a> PypiResolver<'a> {
+    /// Create a new PypiResolver with the specified session.
+    ///
+    /// # Arguments
+    /// * `session` - The session to use for executing commands
     pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }
 
+    /// Generate the pip command for installing the specified requirements.
+    ///
+    /// # Arguments
+    /// * `reqs` - The Python package dependencies to install
+    /// * `scope` - The installation scope (user or global)
+    ///
+    /// # Returns
+    /// The pip command as a vector of strings
     pub fn cmd(
         &self,
         reqs: Vec<&PythonPackageDependency>,
@@ -367,6 +461,14 @@ impl<'a> Installer for PypiResolver<'a> {
 }
 
 #[cfg(feature = "debian")]
+/// Convert Python version specifiers to Debian package version constraints.
+///
+/// # Arguments
+/// * `pkg_name` - The name of the Debian package
+/// * `version_specifiers` - The Python version specifiers (PEP 440)
+///
+/// # Returns
+/// Debian package relations with appropriate version constraints
 pub fn python_version_specifiers_to_debian(
     pkg_name: &str,
     version_specifiers: Option<&pep440_rs::VersionSpecifiers>,
@@ -710,17 +812,32 @@ impl crate::buildlog::ToDependency
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on Python itself.
+///
+/// This represents a dependency on the Python interpreter or development files.
 pub struct PythonDependency {
+    /// The minimum Python version required, if any.
     pub min_version: Option<String>,
 }
 
 impl PythonDependency {
+    /// Create a new Python dependency with an optional minimum version.
+    ///
+    /// # Arguments
+    /// * `min_version` - The minimum Python version required (e.g., "3.8")
+    ///
+    /// # Returns
+    /// A new PythonDependency
     pub fn new(min_version: Option<&str>) -> Self {
         Self {
             min_version: min_version.map(|s| s.to_string()),
         }
     }
 
+    /// Create a simple Python dependency with no version constraints.
+    ///
+    /// # Returns
+    /// A new PythonDependency with no version constraints
     pub fn simple() -> Self {
         Self { min_version: None }
     }

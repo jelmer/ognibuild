@@ -1,3 +1,8 @@
+//! Context for working with Debian packages.
+//!
+//! This module provides a context for operations on Debian packages,
+//! including editing, committing changes, and managing dependencies.
+
 use crate::dependencies::debian::DebianDependency;
 use breezyshim::commit::CommitReporter;
 use breezyshim::debian::debcommit::debcommit;
@@ -9,14 +14,20 @@ use debian_analyzer::abstract_control::AbstractControlEditor;
 use debian_analyzer::editor::{Editor, EditorError, Marshallable, MutableTreeEdit, TreeEditor};
 use std::path::{Path, PathBuf};
 
+/// Errors that can occur when working with Debian packages.
 #[derive(Debug)]
 pub enum Error {
+    /// Circular dependency detected.
     CircularDependency(String),
-    /// No source stanza
+    /// No source stanza found in debian/control.
     MissingSource,
+    /// Error from breezyshim.
     BrzError(BrzError),
+    /// Error from debian_analyzer editor.
     EditorError(debian_analyzer::editor::EditorError),
+    /// I/O error when accessing files.
     IoError(std::io::Error),
+    /// Invalid field value in control file.
     InvalidField(String, String),
 }
 
@@ -59,15 +70,35 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// Context for working with Debian packages.
+///
+/// This structure provides methods for modifying Debian package files,
+/// committing changes, and managing dependencies.
 pub struct DebianPackagingContext {
+    /// Working tree containing the package source.
     pub tree: WorkingTree,
+    /// Path within the tree where the package is located.
     pub subpath: PathBuf,
+    /// Committer information (name, email).
     pub committer: (String, String),
+    /// Whether to update the changelog during commits.
     pub update_changelog: bool,
+    /// Optional reporter for commit operations.
     pub commit_reporter: Option<Box<dyn CommitReporter>>,
 }
 
 impl DebianPackagingContext {
+    /// Create a new Debian packaging context.
+    ///
+    /// # Arguments
+    /// * `tree` - Working tree containing the package source
+    /// * `subpath` - Path within the tree where the package is located
+    /// * `committer` - Optional committer information (name, email)
+    /// * `update_changelog` - Whether to update the changelog during commits
+    /// * `commit_reporter` - Optional reporter for commit operations
+    ///
+    /// # Returns
+    /// A new DebianPackagingContext instance
     pub fn new(
         tree: WorkingTree,
         subpath: &Path,
@@ -84,14 +115,36 @@ impl DebianPackagingContext {
         }
     }
 
+    /// Check if a file exists in the package tree.
+    ///
+    /// # Arguments
+    /// * `path` - Path to check
+    ///
+    /// # Returns
+    /// true if the file exists, false otherwise
     pub fn has_filename(&self, path: &Path) -> bool {
         self.tree.has_filename(&self.subpath.join(path))
     }
 
+    /// Get the absolute path of a file in the package tree.
+    ///
+    /// # Arguments
+    /// * `path` - Relative path within the package
+    ///
+    /// # Returns
+    /// Absolute path to the file
     pub fn abspath(&self, path: &Path) -> PathBuf {
         self.tree.abspath(&self.subpath.join(path)).unwrap()
     }
 
+    /// Create an editor for a file in the package tree.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the file to edit
+    /// * `allow_generated` - Whether to allow editing generated files
+    ///
+    /// # Returns
+    /// A TreeEditor for the specified file
     pub fn edit_file<P: Marshallable>(
         &self,
         path: &std::path::Path,
@@ -101,6 +154,14 @@ impl DebianPackagingContext {
         self.tree.edit_file(&path, allow_generated, true)
     }
 
+    /// Commit changes to the package tree.
+    ///
+    /// # Arguments
+    /// * `summary` - Commit message summary
+    /// * `update_changelog` - Whether to update the changelog (overrides context setting)
+    ///
+    /// # Returns
+    /// Ok(true) if changes were committed, Ok(false) if no changes to commit, Error otherwise
     pub fn commit(&self, summary: &str, update_changelog: Option<bool>) -> Result<bool, Error> {
         let update_changelog = update_changelog.unwrap_or(self.update_changelog);
 
@@ -143,6 +204,14 @@ impl DebianPackagingContext {
         }
     }
 
+    /// Add a dependency to the package.
+    ///
+    /// # Arguments
+    /// * `phase` - Build phase for the dependency
+    /// * `requirement` - Debian dependency to add
+    ///
+    /// # Returns
+    /// Ok(true) if dependency was added, Ok(false) if already present, Error otherwise
     pub fn add_dependency(
         &self,
         phase: &Phase,
@@ -163,6 +232,10 @@ impl DebianPackagingContext {
         }
     }
 
+    /// Create an editor for the debian/control file.
+    ///
+    /// # Returns
+    /// An editor for the control file, or Error if not found or cannot be edited
     pub fn edit_control<'a>(&'a self) -> Result<Box<dyn AbstractControlEditor + 'a>, Error> {
         if self
             .tree
@@ -215,10 +288,18 @@ impl DebianPackagingContext {
         Ok(true)
     }
 
+    /// Create an editor for the debian/tests/control file.
+    ///
+    /// # Returns
+    /// An editor for the tests control file, or Error if not found or cannot be edited
     pub fn edit_tests_control(&self) -> Result<TreeEditor<deb822_lossless::Deb822>, Error> {
         Ok(self.edit_file::<deb822_lossless::Deb822>(Path::new("debian/tests/control"), false)?)
     }
 
+    /// Create an editor for the debian/rules file.
+    ///
+    /// # Returns
+    /// An editor for the rules file, or Error if not found or cannot be edited
     pub fn edit_rules(&self) -> Result<TreeEditor<makefile_lossless::Makefile>, Error> {
         Ok(self.edit_file::<makefile_lossless::Makefile>(Path::new("debian/rules"), false)?)
     }

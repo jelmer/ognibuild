@@ -1,3 +1,10 @@
+//! Support for vague dependencies that are not tied to a specific system.
+//!
+//! This module provides functionality for representing and resolving dependencies
+//! that are specified in a vague manner (e.g., "zlib" without specifying whether
+//! it's a binary, library, etc.). These dependencies are expanded into more
+//! specific dependencies when resolved.
+
 #[cfg(feature = "debian")]
 use crate::dependencies::debian::DebianDependency;
 #[cfg(feature = "debian")]
@@ -10,12 +17,23 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency that is not tied to a specific system or package manager.
+///
+/// This represents a dependency that could be satisfied in multiple ways.
+/// When resolved, it expands into multiple specific dependency types.
 pub struct VagueDependency {
+    /// The name of the dependency.
     pub name: String,
+    /// The minimum version required, if any.
     pub minimum_version: Option<String>,
 }
 
 impl VagueDependency {
+    /// Create a new VagueDependency with the given name and optional minimum version.
+    ///
+    /// # Arguments
+    /// * `name` - The name of the dependency
+    /// * `minimum_version` - Optional minimum version requirement
     pub fn new(name: &str, minimum_version: Option<&str>) -> Self {
         Self {
             name: name.to_string(),
@@ -23,6 +41,10 @@ impl VagueDependency {
         }
     }
 
+    /// Create a simple VagueDependency with just a name and no version requirement.
+    ///
+    /// # Arguments
+    /// * `name` - The name of the dependency
     pub fn simple(name: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -30,6 +52,13 @@ impl VagueDependency {
         }
     }
 
+    /// Expand this vague dependency into more specific dependency types.
+    ///
+    /// This converts the vague dependency into specific dependency types such as
+    /// binary dependencies, pkg-config dependencies, and Debian dependencies.
+    ///
+    /// # Returns
+    /// A vector of specific dependency implementations
     pub fn expand(&self) -> Vec<Box<dyn Dependency>> {
         let mut ret: Vec<Box<dyn Dependency>> = vec![];
         let lcname = self.name.to_lowercase();

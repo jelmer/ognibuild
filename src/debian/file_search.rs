@@ -1,3 +1,8 @@
+//! File searching utilities for Debian packages.
+//!
+//! This module provides functionality for searching files in Debian
+//! packages, including using apt-file and other package contents databases.
+
 use crate::debian::sources_list::{SourcesEntry, SourcesList};
 use crate::session::{Error as SessionError, Session};
 use debian_control::apt::Release;
@@ -9,10 +14,14 @@ use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use url::Url;
 
+/// Errors that can occur when searching for files in Debian packages.
 #[derive(Debug)]
 pub enum Error {
+    /// Error accessing apt-file or its cache.
     AptFileAccessError(String),
+    /// File not found in the package contents database.
     FileNotFoundError(String),
+    /// I/O error accessing files or network resources.
     IoError(std::io::Error),
 }
 
@@ -34,13 +43,33 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// Trait for searching files in Debian packages.
+///
+/// Implementors of this trait provide methods for searching files
+/// by exact path or regular expression.
 pub trait FileSearcher<'b> {
+    /// Search for files by exact path.
+    ///
+    /// # Arguments
+    /// * `path` - Path to search for
+    /// * `case_insensitive` - Whether to ignore case when matching
+    ///
+    /// # Returns
+    /// Iterator of package names containing the file
     fn search_files<'a>(
         &'a self,
         path: &'a Path,
         case_insensitive: bool,
     ) -> Box<dyn Iterator<Item = String> + 'a>;
 
+    /// Search for files by regular expression.
+    ///
+    /// # Arguments
+    /// * `path` - Regular expression pattern to match against file paths
+    /// * `case_insensitive` - Whether to ignore case when matching
+    ///
+    /// # Returns
+    /// Iterator of package names containing matching files
     fn search_files_regex<'a>(
         &'a self,
         path: &'a str,
@@ -48,6 +77,15 @@ pub trait FileSearcher<'b> {
     ) -> Box<dyn Iterator<Item = String> + 'a>;
 }
 
+/// Read a Debian contents file.
+///
+/// Contents files map file paths to package names.
+///
+/// # Arguments
+/// * `f` - Reader for the contents file
+///
+/// # Returns
+/// Iterator of (file path, package name) pairs
 pub fn read_contents_file<R: Read>(f: R) -> impl Iterator<Item = (String, String)> {
     BufReader::new(f).lines().map(|line| {
         let line = line.unwrap();
@@ -56,6 +94,15 @@ pub fn read_contents_file<R: Read>(f: R) -> impl Iterator<Item = (String, String
     })
 }
 
+/// Get URLs for contents files from a sources entry.
+///
+/// # Arguments
+/// * `entry` - Sources entry to get contents URLs from
+/// * `arches` - List of architectures to include
+/// * `load_url` - Function to load a URL and get a reader
+///
+/// # Returns
+/// Iterator of URLs for contents files
 pub fn contents_urls_from_sources_entry<'a>(
     entry: &'a SourcesEntry,
     arches: Vec<&'a str>,
@@ -136,6 +183,15 @@ pub fn contents_urls_from_sources_entry<'a>(
     }
 }
 
+/// Get URLs for contents files from a sources.list file.
+///
+/// # Arguments
+/// * `sl` - Sources list to get contents URLs from
+/// * `arch` - Architecture to include
+/// * `load_url` - Function to load a URL and get a reader
+///
+/// # Returns
+/// Iterator of URLs for contents files
 pub fn contents_urls_from_sourceslist<'a>(
     sl: &'a SourcesList,
     arch: &'a str,
@@ -147,6 +203,14 @@ pub fn contents_urls_from_sourceslist<'a>(
         .flat_map(move |source| contents_urls_from_sources_entry(source, arches.clone(), load_url))
 }
 
+/// Unwrap a compressed file based on its extension.
+///
+/// # Arguments
+/// * `f` - Reader for the compressed file
+/// * `ext` - File extension (e.g., "gz", "xz")
+///
+/// # Returns
+/// Reader for the decompressed contents
 pub fn unwrap<'a, R: Read + 'a>(f: R, ext: &str) -> Box<dyn Read + 'a> {
     match ext {
         ".gz" => Box::new(GzDecoder::new(f)),
@@ -161,6 +225,13 @@ pub fn unwrap<'a, R: Read + 'a>(f: R, ext: &str) -> Box<dyn Read + 'a> {
     }
 }
 
+/// Load a URL directly without caching.
+///
+/// # Arguments
+/// * `url` - URL to load
+///
+/// # Returns
+/// Reader for the URL contents
 pub fn load_direct_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
     for ext in [".xz", ".gz", ""] {
         let response = match reqwest::blocking::get(url.to_string() + ext) {
@@ -180,6 +251,14 @@ pub fn load_direct_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
     Err(Error::FileNotFoundError(format!("{} not found", url)))
 }
 
+/// Load a URL with caching in the specified directories.
+///
+/// # Arguments
+/// * `url` - URL to load
+/// * `cache_dirs` - Directories to check for cached content
+///
+/// # Returns
+/// Reader for the URL contents
 pub fn load_url_with_cache(url: &url::Url, cache_dirs: &[&Path]) -> Result<Box<dyn Read>, Error> {
     for cache_dir in cache_dirs {
         match load_apt_cache_file(url, cache_dir) {
@@ -238,6 +317,14 @@ pub fn uri_to_filename(url: &url::Url) -> String {
     encoded_uri.replace('/', "_")
 }
 
+/// Load a file from the APT cache directory.
+///
+/// # Arguments
+/// * `url` - URL to load
+/// * `cache_dir` - APT cache directory
+///
+/// # Returns
+/// Reader for the cached file
 pub fn load_apt_cache_file(
     url: &url::Url,
     cache_dir: &Path,
@@ -260,14 +347,24 @@ pub fn load_apt_cache_file(
 }
 
 lazy_static::lazy_static! {
+    /// Path to the file that indicates the apt-file cache is empty.
     pub static ref CACHE_IS_EMPTY_PATH: &'static Path = Path::new("/usr/share/apt-file/is-cache-empty");
 }
 
+/// File searcher that uses apt-file to find files in Debian packages.
 pub struct AptFileFileSearcher<'a> {
+    /// Session for running commands
     session: &'a dyn Session,
 }
 
 impl<'a> AptFileFileSearcher<'a> {
+    /// Check if the apt-file cache exists and is not empty.
+    ///
+    /// # Arguments
+    /// * `session` - Session for running commands
+    ///
+    /// # Returns
+    /// `true` if the cache exists and is not empty, `false` otherwise
     pub fn has_cache(session: &dyn Session) -> Result<bool, SessionError> {
         if !session.exists(&CACHE_IS_EMPTY_PATH) {
             return Ok(false);
@@ -288,6 +385,15 @@ impl<'a> AptFileFileSearcher<'a> {
         }
     }
 
+    /// Create a new AptFileFileSearcher from a session.
+    ///
+    /// This ensures that apt-file is installed and the cache is updated.
+    ///
+    /// # Arguments
+    /// * `session` - Session for running commands
+    ///
+    /// # Returns
+    /// A new AptFileFileSearcher instance
     pub fn from_session(session: &dyn Session) -> AptFileFileSearcher {
         log::debug!("Using apt-file to search apt contents");
         if !session.exists(&CACHE_IS_EMPTY_PATH) {
@@ -307,6 +413,17 @@ impl<'a> AptFileFileSearcher<'a> {
         AptFileFileSearcher { session }
     }
 
+    /// Search for files in Debian packages.
+    ///
+    /// This is an internal implementation method used by the FileSearcher trait methods.
+    ///
+    /// # Arguments
+    /// * `path` - Path or pattern to search for
+    /// * `regex` - Whether to treat the path as a regular expression
+    /// * `case_insensitive` - Whether to ignore case when matching
+    ///
+    /// # Returns
+    /// Iterator of package names containing matching files
     fn search_files_ex(
         &self,
         path: &str,
@@ -374,6 +491,17 @@ impl<'a> AptFileFileSearcher<'a> {
 }
 
 impl<'b> FileSearcher<'b> for AptFileFileSearcher<'b> {
+    /// Search for files by exact path.
+    ///
+    /// This implementation uses apt-file to search for packages
+    /// containing the specified file path.
+    ///
+    /// # Arguments
+    /// * `path` - Path to search for
+    /// * `case_insensitive` - Whether to ignore case when matching
+    ///
+    /// # Returns
+    /// Iterator of package names containing the file
     fn search_files<'a>(
         &'a self,
         path: &'a Path,
@@ -385,6 +513,17 @@ impl<'b> FileSearcher<'b> for AptFileFileSearcher<'b> {
         );
     }
 
+    /// Search for files by regular expression.
+    ///
+    /// This implementation uses apt-file with the -x flag to search for packages
+    /// containing files matching the specified regex pattern.
+    ///
+    /// # Arguments
+    /// * `path` - Regular expression pattern to match against file paths
+    /// * `case_insensitive` - Whether to ignore case when matching
+    ///
+    /// # Returns
+    /// Iterator of package names containing matching files
     fn search_files_regex<'a>(
         &'a self,
         path: &'a str,
@@ -394,6 +533,17 @@ impl<'b> FileSearcher<'b> for AptFileFileSearcher<'b> {
     }
 }
 
+/// Get a file searcher that uses apt-file or remote contents.
+///
+/// This function returns the appropriate file searcher based on whether
+/// apt-file cache is available. If apt-file cache is available, it returns
+/// an AptFileFileSearcher; otherwise, it returns a RemoteContentsFileSearcher.
+///
+/// # Arguments
+/// * `session` - Session for running commands
+///
+/// # Returns
+/// A file searcher implementation
 pub fn get_apt_contents_file_searcher<'a>(
     session: &'a dyn Session,
 ) -> Result<Box<dyn FileSearcher<'a> + 'a>, Error> {
@@ -405,11 +555,26 @@ pub fn get_apt_contents_file_searcher<'a>(
     }
 }
 
+/// File searcher that uses remote Contents files from Debian repositories.
+///
+/// This searcher downloads and parses Contents files from Debian repositories
+/// to find packages containing specific files.
 pub struct RemoteContentsFileSearcher {
+    /// Database mapping file paths to package names
     db: HashMap<String, Vec<u8>>,
 }
 
 impl RemoteContentsFileSearcher {
+    /// Create a new RemoteContentsFileSearcher from a session.
+    ///
+    /// This loads contents information from the APT sources configured in
+    /// the session.
+    ///
+    /// # Arguments
+    /// * `session` - Session for running commands
+    ///
+    /// # Returns
+    /// A new RemoteContentsFileSearcher instance
     pub fn from_session(session: &dyn Session) -> Result<RemoteContentsFileSearcher, Error> {
         log::debug!("Loading apt contents information");
         let mut ret = RemoteContentsFileSearcher { db: HashMap::new() };
@@ -417,6 +582,10 @@ impl RemoteContentsFileSearcher {
         Ok(ret)
     }
 
+    /// Load contents information from local APT sources.
+    ///
+    /// # Returns
+    /// Ok(()) if successful, Error otherwise
     pub fn load_local(&mut self) -> Result<(), Error> {
         let sl = SourcesList::default();
         let arch = crate::debian::build::get_build_architecture();
@@ -426,6 +595,13 @@ impl RemoteContentsFileSearcher {
         self.load_urls(urls, load_url)
     }
 
+    /// Load contents information from APT sources configured in a session.
+    ///
+    /// # Arguments
+    /// * `session` - Session for running commands
+    ///
+    /// # Returns
+    /// Ok(()) if successful, Error otherwise
     pub fn load_from_session(&mut self, session: &dyn Session) -> Result<(), Error> {
         // TODO(jelmer): what about sources.list.d?
         let sl = SourcesList::from_apt_dir(&session.external_path(Path::new("/etc/apt")));
@@ -445,6 +621,14 @@ impl RemoteContentsFileSearcher {
         self.load_urls(urls, load_url)
     }
 
+    /// Load contents information from multiple URLs.
+    ///
+    /// # Arguments
+    /// * `urls` - Iterator of URLs to load
+    /// * `load_url` - Function to load a URL and get a reader
+    ///
+    /// # Returns
+    /// Ok(()) if successful, Error otherwise
     fn load_urls(
         &mut self,
         urls: impl Iterator<Item = url::Url>,
@@ -457,6 +641,15 @@ impl RemoteContentsFileSearcher {
         Ok(())
     }
 
+    /// Search for files in Debian packages using a matcher function.
+    ///
+    /// This is an internal implementation method used by the FileSearcher trait methods.
+    ///
+    /// # Arguments
+    /// * `matches` - Function that returns true for paths that match the search criteria
+    ///
+    /// # Returns
+    /// Iterator of package names containing matching files
     pub fn search_files_ex<'a>(
         &'a self,
         mut matches: impl FnMut(&Path) -> bool + 'a,
@@ -473,6 +666,11 @@ impl RemoteContentsFileSearcher {
         )
     }
 
+    /// Load contents information from a file.
+    ///
+    /// # Arguments
+    /// * `f` - Reader for the contents file
+    /// * `url` - URL of the contents file (for logging)
     fn load_file(&mut self, f: impl Read, url: url::Url) {
         let start_time = std::time::Instant::now();
         for (path, rest) in read_contents_file(f) {
@@ -483,6 +681,17 @@ impl RemoteContentsFileSearcher {
 }
 
 impl FileSearcher<'_> for RemoteContentsFileSearcher {
+    /// Search for files by exact path.
+    ///
+    /// This implementation uses the remote Contents database to find packages
+    /// containing the specified file path.
+    ///
+    /// # Arguments
+    /// * `path` - Path to search for
+    /// * `case_insensitive` - Whether to ignore case when matching
+    ///
+    /// # Returns
+    /// Iterator of package names containing the file
     fn search_files<'a>(
         &'a self,
         path: &'a Path,
@@ -502,6 +711,17 @@ impl FileSearcher<'_> for RemoteContentsFileSearcher {
         }));
     }
 
+    /// Search for files by regular expression.
+    ///
+    /// This implementation uses the remote Contents database to find packages
+    /// containing files matching the specified regex pattern.
+    ///
+    /// # Arguments
+    /// * `path` - Regular expression pattern to match against file paths
+    /// * `case_insensitive` - Whether to ignore case when matching
+    ///
+    /// # Returns
+    /// Iterator of package names containing matching files
     fn search_files_regex<'a>(
         &'a self,
         path: &'a str,
@@ -523,7 +743,12 @@ impl FileSearcher<'_> for RemoteContentsFileSearcher {
 }
 
 #[derive(Debug, Clone)]
+/// File searcher that uses a pre-generated list of file paths and package names.
+///
+/// This searcher is useful for static file path to package mappings that
+/// are known in advance.
 pub struct GeneratedFileSearcher {
+    /// Database of file path and package name pairs
     db: Vec<(PathBuf, String)>,
 }
 
@@ -576,6 +801,17 @@ impl GeneratedFileSearcher {
 }
 
 impl FileSearcher<'_> for GeneratedFileSearcher {
+    /// Search for files by exact path.
+    ///
+    /// This implementation uses the pre-generated database to find packages
+    /// containing the specified file path.
+    ///
+    /// # Arguments
+    /// * `path` - Path to search for
+    /// * `case_insensitive` - Whether to ignore case when matching
+    ///
+    /// # Returns
+    /// Iterator of package names containing the file
     fn search_files<'a>(
         &'a self,
         path: &'a Path,
@@ -595,6 +831,17 @@ impl FileSearcher<'_> for GeneratedFileSearcher {
         })
     }
 
+    /// Search for files by regular expression.
+    ///
+    /// This implementation uses the pre-generated database to find packages
+    /// containing files matching the specified regex pattern.
+    ///
+    /// # Arguments
+    /// * `path` - Regular expression pattern to match against file paths
+    /// * `case_insensitive` - Whether to ignore case when matching
+    ///
+    /// # Returns
+    /// Iterator of package names containing matching files
     fn search_files_regex<'a>(
         &'a self,
         path: &'a str,
@@ -610,6 +857,9 @@ impl FileSearcher<'_> for GeneratedFileSearcher {
 
 // TODO(jelmer): read from a file
 lazy_static::lazy_static! {
+    /// Pre-generated static file searcher with common Debian package files.
+    ///
+    /// This provides a mapping of common file paths to their providing packages.
     pub static ref GENERATED_FILE_SEARCHER: GeneratedFileSearcher = GeneratedFileSearcher::new(vec![
         (PathBuf::from("/etc/locale.gen"), "locales".to_string()),
         // Alternative
@@ -632,6 +882,16 @@ lazy_static::lazy_static! {
 ///
 /// # Returns
 /// A list of packages that provide the given paths.
+/// Get packages that contain the specified paths.
+///
+/// # Arguments
+/// * `paths` - Paths to search for
+/// * `searchers` - File searchers to use
+/// * `regex` - Whether to treat paths as regular expressions
+/// * `case_insensitive` - Whether to ignore case when matching
+///
+/// # Returns
+/// List of package names that contain the specified paths
 pub fn get_packages_for_paths(
     paths: Vec<&str>,
     searchers: &[&dyn FileSearcher],
@@ -656,15 +916,37 @@ pub fn get_packages_for_paths(
     candidates
 }
 
+/// File searcher that uses an in-memory map of file paths to package names.
+///
+/// This searcher is more efficient for small datasets that can fit entirely
+/// in memory.
 pub struct MemoryAptSearcher(std::collections::HashMap<PathBuf, String>);
 
 impl MemoryAptSearcher {
+    /// Create a new MemoryAptSearcher with the given database.
+    ///
+    /// # Arguments
+    /// * `db` - Map of file paths to package names
+    ///
+    /// # Returns
+    /// A new MemoryAptSearcher instance
     pub fn new(db: std::collections::HashMap<PathBuf, String>) -> MemoryAptSearcher {
         MemoryAptSearcher(db)
     }
 }
 
 impl FileSearcher<'_> for MemoryAptSearcher {
+    /// Search for files by exact path.
+    ///
+    /// This implementation uses the in-memory database to find packages
+    /// containing the specified file path.
+    ///
+    /// # Arguments
+    /// * `path` - Path to search for
+    /// * `case_insensitive` - Whether to ignore case when matching
+    ///
+    /// # Returns
+    /// Iterator of package names containing the file
     fn search_files<'a>(
         &'a self,
         path: &'a Path,
@@ -689,6 +971,17 @@ impl FileSearcher<'_> for MemoryAptSearcher {
         }
     }
 
+    /// Search for files by regular expression.
+    ///
+    /// This implementation uses the in-memory database to find packages
+    /// containing files matching the specified regex pattern.
+    ///
+    /// # Arguments
+    /// * `path` - Regular expression pattern to match against file paths
+    /// * `case_insensitive` - Whether to ignore case when matching
+    ///
+    /// # Returns
+    /// Iterator of package names containing matching files
     fn search_files_regex<'a>(
         &'a self,
         path: &str,

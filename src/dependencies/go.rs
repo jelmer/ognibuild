@@ -5,12 +5,17 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Represents a Go package dependency.
 pub struct GoPackageDependency {
+    /// The name of the Go package.
     pub package: String,
+
+    /// The version of the Go package, if specified.
     pub version: Option<String>,
 }
 
 impl GoPackageDependency {
+    /// Creates a new `GoPackageDependency` instance.
     pub fn new(package: &str, version: Option<&str>) -> Self {
         Self {
             package: package.to_string(),
@@ -18,6 +23,7 @@ impl GoPackageDependency {
         }
     }
 
+    /// Creates a simple `GoPackageDependency` instance without a version.
     pub fn simple(package: &str) -> Self {
         Self {
             package: package.to_string(),
@@ -177,11 +183,14 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Represents a Go dependency.
 pub struct GoDependency {
+    /// The version of the Go dependency, if specified.
     pub version: Option<String>,
 }
 
 impl GoDependency {
+    /// Creates a new `GoDependency` instance.
     pub fn new(version: Option<&str>) -> Self {
         Self {
             version: version.map(|s| s.to_string()),
@@ -223,11 +232,13 @@ impl crate::upstream::FindUpstream for GoPackageDependency {
     }
 }
 
+/// A resolver for Go package dependencies.
 pub struct GoResolver<'a> {
     session: &'a dyn Session,
 }
 
 impl<'a> GoResolver<'a> {
+    /// Creates a new `GoResolver` instance.
     pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }

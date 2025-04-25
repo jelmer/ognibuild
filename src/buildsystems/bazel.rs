@@ -2,18 +2,33 @@ use crate::buildsystem::{BuildSystem, Error};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
+/// Bazel build system representation.
 pub struct Bazel {
     #[allow(dead_code)]
     path: PathBuf,
 }
 
 impl Bazel {
+    /// Create a new Bazel build system instance.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the Bazel project directory
+    ///
+    /// # Returns
+    /// A new Bazel instance
     pub fn new(path: &Path) -> Self {
         Self {
             path: path.to_path_buf(),
         }
     }
 
+    /// Probe a directory to check if it contains a Bazel build system.
+    ///
+    /// # Arguments
+    /// * `path` - Path to check for Bazel build files
+    ///
+    /// # Returns
+    /// Some(BuildSystem) if a Bazel build is found, None otherwise
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if path.join("BUILD").exists() {
             Some(Box::new(Self::new(path)))
@@ -22,6 +37,13 @@ impl Bazel {
         }
     }
 
+    /// Check if a Bazel build system exists at the specified path.
+    ///
+    /// # Arguments
+    /// * `path` - Path to check for Bazel build files
+    ///
+    /// # Returns
+    /// true if a BUILD file exists, false otherwise
     pub fn exists(path: &Path) -> bool {
         path.join("BUILD").exists()
     }

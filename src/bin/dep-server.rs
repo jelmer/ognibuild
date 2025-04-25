@@ -1,4 +1,4 @@
-use axum::{response::Json, routing::get, Router};
+use axum::{routing::get, Router};
 use clap::Parser;
 use ognibuild::debian::apt::AptManager;
 #[cfg(target_os = "linux")]

@@ -3,17 +3,34 @@ use crate::dependencies::go::{GoDependency, GoPackageDependency};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
+/// Golang (Go) build system representation.
 pub struct Golang {
     path: PathBuf,
 }
 
 impl Golang {
+    /// Create a new Golang build system instance.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the Go project directory
+    ///
+    /// # Returns
+    /// A new Golang instance
     pub fn new(path: &Path) -> Self {
         Self {
             path: path.to_path_buf(),
         }
     }
 
+    /// Probe a directory to check if it contains a Go project.
+    ///
+    /// Checks for go.mod, go.sum, or .go files in subdirectories.
+    ///
+    /// # Arguments
+    /// * `path` - Path to check for Go project files
+    ///
+    /// # Returns
+    /// Some(BuildSystem) if a Go project is found, None otherwise
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if path.join("go.mod").exists() {
             return Some(Box::new(Self::new(path)));

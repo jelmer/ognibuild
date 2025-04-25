@@ -2,12 +2,19 @@ use crate::dependency::Dependency;
 use crate::session::Session;
 
 #[derive(Debug)]
+/// Errors that can occur during dependency installation.
 pub enum Error {
+    /// Error indicating that the dependency family is unknown.
     UnknownDependencyFamily,
+    /// Error indicating that the requested installation scope is not supported.
     UnsupportedScope(InstallationScope),
+    /// Error indicating that the requested installation scopes are not supported.
     UnsupportedScopes(Vec<InstallationScope>),
+    /// Error from analyzing a command execution.
     AnalyzedError(crate::analyze::AnalyzedError),
+    /// Error from the session.
     SessionError(crate::session::Error),
+    /// Other error with a message.
     Other(String),
 }
 
@@ -40,11 +47,21 @@ impl From<crate::session::Error> for Error {
 
 /// An explanation is a human-readable description of what to do to install a dependency.
 pub struct Explanation {
+    /// A human-readable message explaining how to install the dependency.
     pub message: String,
+    /// An optional command that can be run to install the dependency.
     pub command: Option<Vec<String>>,
 }
 
 impl Explanation {
+    /// Create a new explanation.
+    ///
+    /// # Arguments
+    /// * `message` - A human-readable message explaining how to install the dependency
+    /// * `command` - An optional command that can be run to install the dependency
+    ///
+    /// # Returns
+    /// A new Explanation instance
     pub fn new(message: String, command: Option<Vec<String>>) -> Self {
         Explanation { message, command }
     }
@@ -102,6 +119,15 @@ pub trait Installer {
     fn explain(&self, dep: &dyn Dependency, scope: InstallationScope)
         -> Result<Explanation, Error>;
 
+    /// Explain how to install multiple dependencies.
+    ///
+    /// # Arguments
+    /// * `deps` - List of dependencies to explain
+    /// * `scope` - Installation scope to use
+    ///
+    /// # Returns
+    /// * `Ok((Vec<Explanation>, Vec<Box<dyn Dependency>>))` - Explanations for known dependencies and list of unknown dependencies
+    /// * `Err(Error)` - If explaining any dependency fails with an error other than UnknownDependencyFamily
     fn explain_some(
         &self,
         deps: Vec<Box<dyn Dependency>>,
@@ -121,6 +147,15 @@ pub trait Installer {
         Ok((explanations, failed))
     }
 
+    /// Install multiple dependencies.
+    ///
+    /// # Arguments
+    /// * `deps` - List of dependencies to install
+    /// * `scope` - Installation scope to use
+    ///
+    /// # Returns
+    /// * `Ok((Vec<Box<dyn Dependency>>, Vec<Box<dyn Dependency>>))` - Successfully installed dependencies and unknown dependencies
+    /// * `Err(Error)` - If installing any dependency fails with an error other than UnknownDependencyFamily
     fn install_some(
         &self,
         deps: Vec<Box<dyn Dependency>>,
@@ -146,6 +181,10 @@ pub trait Installer {
 pub struct NullInstaller;
 
 impl NullInstaller {
+    /// Create a new NullInstaller.
+    ///
+    /// # Returns
+    /// A new NullInstaller instance
     pub fn new() -> Self {
         NullInstaller
     }
@@ -171,9 +210,19 @@ impl Installer for NullInstaller {
     }
 }
 
+/// An installer that tries multiple installers in sequence.
+///
+/// This installer tries each installer in order until one succeeds or all fail.
 pub struct StackedInstaller<'a>(pub Vec<Box<dyn Installer + 'a>>);
 
 impl<'a> StackedInstaller<'a> {
+    /// Create a new StackedInstaller.
+    ///
+    /// # Arguments
+    /// * `resolvers` - List of installers to try in sequence
+    ///
+    /// # Returns
+    /// A new StackedInstaller instance
     pub fn new(resolvers: Vec<Box<dyn Installer + 'a>>) -> Self {
         Self(resolvers)
     }
@@ -217,6 +266,14 @@ impl<'a> Installer for StackedInstaller<'a> {
     }
 }
 
+/// Create an installer by name.
+///
+/// # Arguments
+/// * `session` - The session to use for installation
+/// * `name` - The name of the installer to create
+///
+/// # Returns
+/// An installer that can install dependencies in the given session
 pub fn installer_by_name<'a>(
     session: &'a dyn crate::session::Session,
     name: &str,
@@ -260,6 +317,13 @@ pub fn installer_by_name<'a>(
     }
 }
 
+/// Create a list of all native installers for the current system.
+///
+/// # Arguments
+/// * `session` - The session to use for installation
+///
+/// # Returns
+/// A list of installers that can install dependencies on the current system
 pub fn native_installers<'a>(
     session: &'a dyn crate::session::Session,
 ) -> Vec<Box<dyn Installer + 'a>> {
@@ -321,6 +385,13 @@ pub fn select_installers<'a>(
     Ok(Box::new(StackedInstaller(installers)))
 }
 
+/// Determine the default installation scope based on the session.
+///
+/// # Arguments
+/// * `session` - The session to determine the scope for
+///
+/// # Returns
+/// The default installation scope for the session
 pub fn auto_installation_scope(session: &dyn crate::session::Session) -> InstallationScope {
     let user = crate::session::get_user(session);
     // TODO(jelmer): Check VIRTUAL_ENV, and prioritize PypiResolver if
@@ -337,6 +408,15 @@ pub fn auto_installation_scope(session: &dyn crate::session::Session) -> Install
     }
 }
 
+/// Create an automatic installer that can install dependencies in the given session.
+///
+/// # Arguments
+/// * `session` - The session to use for installation
+/// * `scope` - The installation scope to use
+/// * `dep_server_url` - Optional URL of a dependency server to use
+///
+/// # Returns
+/// An installer that can install dependencies in the given session
 pub fn auto_installer<'a>(
     session: &'a dyn crate::session::Session,
     scope: InstallationScope,

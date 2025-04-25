@@ -8,6 +8,9 @@ use buildlog_consultant::problems::common::{
 use buildlog_consultant::Problem;
 use std::io::{Seek, Write};
 
+/// Fixer for missing gnulib directory.
+///
+/// Runs the gnulib.sh script to fix the issue.
 pub struct GnulibDirectoryFixer<'a> {
     session: &'a dyn Session,
 }
@@ -25,6 +28,7 @@ impl std::fmt::Display for GnulibDirectoryFixer<'_> {
 }
 
 impl<'a> GnulibDirectoryFixer<'a> {
+    /// Create a new GnulibDirectoryFixer with the specified session.
     pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }
@@ -47,6 +51,9 @@ impl<'a> BuildFixer<InstallerError> for GnulibDirectoryFixer<'a> {
     }
 }
 
+/// Fixer for missing Git identity.
+///
+/// Sets up Git configuration with user.email and user.name.
 pub struct GitIdentityFixer<'a> {
     session: &'a dyn Session,
 }
@@ -64,6 +71,7 @@ impl std::fmt::Display for GitIdentityFixer<'_> {
 }
 
 impl<'a> GitIdentityFixer<'a> {
+    /// Create a new GitIdentityFixer with the specified session.
     pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }
@@ -95,6 +103,9 @@ impl<'a> BuildFixer<InstallerError> for GitIdentityFixer<'a> {
     }
 }
 
+/// Fixer for missing secret GPG key.
+///
+/// Generates a dummy GPG key for use in the build process.
 pub struct SecretGpgKeyFixer<'a> {
     session: &'a dyn Session,
 }
@@ -112,6 +123,7 @@ impl std::fmt::Display for SecretGpgKeyFixer<'_> {
 }
 
 impl<'a> SecretGpgKeyFixer<'a> {
+    /// Create a new SecretGpgKeyFixer with the specified session.
     pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }
@@ -147,6 +159,9 @@ Passphrase: ""
     }
 }
 
+/// Fixer for minimum Autoconf version requirements.
+///
+/// Updates the AC_PREREQ macro in configure.ac or configure.in.
 pub struct MinimumAutoconfFixer<'a> {
     session: &'a dyn Session,
 }
@@ -164,6 +179,7 @@ impl std::fmt::Display for MinimumAutoconfFixer<'_> {
 }
 
 impl<'a> MinimumAutoconfFixer<'a> {
+    /// Create a new MinimumAutoconfFixer with the specified session.
     pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }
@@ -211,6 +227,9 @@ impl<'a> BuildFixer<InstallerError> for MinimumAutoconfFixer<'a> {
     }
 }
 
+/// Fixer for missing Go module sum entries.
+///
+/// Downloads Go modules to update the go.sum file.
 pub struct MissingGoSumEntryFixer<'a> {
     session: &'a dyn Session,
 }
@@ -228,6 +247,7 @@ impl std::fmt::Display for MissingGoSumEntryFixer<'_> {
 }
 
 impl<'a> MissingGoSumEntryFixer<'a> {
+    /// Create a new MissingGoSumEntryFixer with the specified session.
     pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }
@@ -254,6 +274,9 @@ impl<'a> BuildFixer<InstallerError> for MissingGoSumEntryFixer<'a> {
     }
 }
 
+/// Fixer for unexpanded Autoconf macros.
+///
+/// Installs missing autoconf macros and reruns autoconf.
 pub struct UnexpandedAutoconfMacroFixer<'a> {
     session: &'a dyn Session,
     installer: &'a dyn Installer,
@@ -272,6 +295,7 @@ impl std::fmt::Display for UnexpandedAutoconfMacroFixer<'_> {
 }
 
 impl<'a> UnexpandedAutoconfMacroFixer<'a> {
+    /// Create a new UnexpandedAutoconfMacroFixer with the specified session and installer.
     pub fn new(session: &'a dyn Session, installer: &'a dyn Installer) -> Self {
         Self { session, installer }
     }
@@ -302,6 +326,9 @@ impl<'a> BuildFixer<InstallerError> for UnexpandedAutoconfMacroFixer<'a> {
     }
 }
 
+/// Generic fixer for installing missing build dependencies.
+///
+/// Detects and installs required dependencies from build logs.
 pub struct InstallFixer<'a> {
     installer: &'a dyn crate::installer::Installer,
     scope: crate::installer::InstallationScope,
@@ -320,6 +347,7 @@ impl std::fmt::Display for InstallFixer<'_> {
 }
 
 impl<'a> InstallFixer<'a> {
+    /// Create a new InstallFixer with the specified installer and installation scope.
     pub fn new(
         installer: &'a dyn crate::installer::Installer,
         scope: crate::installer::InstallationScope,

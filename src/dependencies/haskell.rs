@@ -4,12 +4,14 @@ use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a Haskell package
 pub struct HaskellPackageDependency {
     package: String,
     specs: Option<Vec<String>>,
 }
 
 impl HaskellPackageDependency {
+    /// Creates a new HaskellPackageDependency
     pub fn new(package: &str, specs: Option<Vec<&str>>) -> Self {
         Self {
             package: package.to_string(),
@@ -17,6 +19,7 @@ impl HaskellPackageDependency {
         }
     }
 
+    /// Creates a new HaskellPackageDependency with no specs
     pub fn simple(package: &str) -> Self {
         Self {
             package: package.to_string(),
@@ -105,11 +108,13 @@ impl crate::dependencies::debian::IntoDebianDependency for HaskellPackageDepende
     }
 }
 
+/// A resolver for Haskell packages using the `cabal` command
 pub struct HackageResolver<'a> {
     session: &'a dyn Session,
 }
 
 impl<'a> HackageResolver<'a> {
+    /// Creates a new HackageResolver
     pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }

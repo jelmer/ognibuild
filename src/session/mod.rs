@@ -2,16 +2,23 @@ use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::process::ExitStatus;
 
+/// Plain session implementation.
 pub mod plain;
+/// Schroot session implementation (Linux only).
 #[cfg(target_os = "linux")]
 pub mod schroot;
+/// Unshare session implementation (Linux only).
 #[cfg(target_os = "linux")]
 pub mod unshare;
 
 #[derive(Debug)]
+/// Errors that can occur in a session.
 pub enum Error {
+    /// Error caused by a command that exited with a non-zero status code.
     CalledProcessError(ExitStatus),
+    /// Error from an IO operation.
     IoError(std::io::Error),
+    /// Error from setting up the session, with a message and detailed description.
     SetupFailure(String, String),
 }
 
@@ -33,10 +40,18 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// Session interface for running commands in different environments.
+///
+/// This trait defines the interface for running commands in different environments,
+/// such as the local system, a chroot, or a container.
 pub trait Session {
     /// Change the current working directory in the session.
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), crate::session::Error>;
 
+    /// Get the current working directory in the session.
+    ///
+    /// # Returns
+    /// The current working directory
     fn pwd(&self) -> &std::path::Path;
 
     /// Return the external path for a path inside the session.
@@ -45,6 +60,20 @@ pub trait Session {
     /// Return the location of the session.
     fn location(&self) -> std::path::PathBuf;
 
+    /// Run a command and return its output.
+    ///
+    /// This method runs a command in the session and returns its output
+    /// if the command exits successfully.
+    ///
+    /// # Arguments
+    /// * `argv` - The command and its arguments
+    /// * `cwd` - Optional current working directory
+    /// * `user` - Optional user to run the command as
+    /// * `env` - Optional environment variables
+    ///
+    /// # Returns
+    /// * `Ok(Vec<u8>)` - The command output if successful
+    /// * `Err(Error)` - If the command fails
     fn check_output(
         &self,
         argv: Vec<&str>,
@@ -56,6 +85,20 @@ pub trait Session {
     /// Ensure that the current users' home directory exists.
     fn create_home(&self) -> Result<(), Error>;
 
+    /// Run a command and check that it exits successfully.
+    ///
+    /// This method runs a command in the session and returns success
+    /// if the command exits with a zero status code.
+    ///
+    /// # Arguments
+    /// * `argv` - The command and its arguments
+    /// * `cwd` - Optional current working directory
+    /// * `user` - Optional user to run the command as
+    /// * `env` - Optional environment variables
+    ///
+    /// # Returns
+    /// * `Ok(())` - If the command exited successfully
+    /// * `Err(Error)` - If the command fails
     fn check_call(
         &self,
         argv: Vec<&str>,
@@ -84,8 +127,29 @@ pub trait Session {
         subdir: Option<&str>,
     ) -> Result<Project, Error>;
 
+    /// Create a new command builder for the session.
+    ///
+    /// # Arguments
+    /// * `argv` - The command and its arguments
+    ///
+    /// # Returns
+    /// A new CommandBuilder instance
     fn command<'a>(&'a self, argv: Vec<&'a str>) -> CommandBuilder<'a>;
 
+    /// Start a process in the session.
+    ///
+    /// # Arguments
+    /// * `argv` - The command and its arguments
+    /// * `cwd` - Optional current working directory
+    /// * `user` - Optional user to run the command as
+    /// * `stdout` - Optional stdout configuration
+    /// * `stderr` - Optional stderr configuration
+    /// * `stdin` - Optional stdin configuration
+    /// * `env` - Optional environment variables
+    ///
+    /// # Returns
+    /// * `Ok(Child)` - A handle to the running process
+    /// * `Err(Error)` - If starting the process fails
     fn popen(
         &self,
         argv: Vec<&str>,
@@ -118,17 +182,30 @@ pub trait Session {
         subdir: Option<&str>,
     ) -> Result<Project, Error>;
 
+    /// Read the contents of a directory.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the directory to read
+    ///
+    /// # Returns
+    /// * `Ok(Vec<DirEntry>)` - The directory entries if successful
+    /// * `Err(Error)` - If reading the directory fails
     fn read_dir(&self, path: &std::path::Path) -> Result<Vec<std::fs::DirEntry>, Error>;
 }
 
+/// Represents a project in a session, either as a temporary copy or a direct reference.
 pub enum Project {
     /// A project that does not need to be cleaned up.
     Noop(std::path::PathBuf),
 
     /// A temporary project that needs to be cleaned up.
+    /// A temporary copy of a project, which exists only for the duration of the session.
     Temporary {
+        /// The path to the project from the external environment.
         external_path: std::path::PathBuf,
+        /// The path to the project inside the session.
         internal_path: std::path::PathBuf,
+        /// The path to the temporary directory.
         td: std::path::PathBuf,
     },
 }
@@ -150,6 +227,10 @@ impl Drop for Project {
 }
 
 impl Project {
+    /// Get the path to the project inside the session.
+    ///
+    /// # Returns
+    /// The path to the project inside the session
     pub fn internal_path(&self) -> &std::path::Path {
         match self {
             Project::Noop(path) => path,
@@ -157,6 +238,10 @@ impl Project {
         }
     }
 
+    /// Get the path to the project from the external environment.
+    ///
+    /// # Returns
+    /// The path to the project from the external environment
     pub fn external_path(&self) -> &std::path::Path {
         match self {
             Project::Noop(path) => path,
@@ -175,19 +260,41 @@ impl From<tempfile::TempDir> for Project {
     }
 }
 
+/// Builder for creating and running commands in a session.
+///
+/// This struct provides a fluent interface for configuring and executing
+/// commands within a session, handling options like working directory,
+/// environment variables, input/output redirection, and more.
 pub struct CommandBuilder<'a> {
+    /// The session to run the command in
     session: &'a dyn Session,
+    /// The command and its arguments
     argv: Vec<&'a str>,
+    /// Optional current working directory
     cwd: Option<&'a std::path::Path>,
+    /// Optional user to run the command as
     user: Option<&'a str>,
+    /// Optional environment variables
     env: Option<std::collections::HashMap<String, String>>,
+    /// Optional stdin configuration
     stdin: Option<std::process::Stdio>,
+    /// Optional stdout configuration
     stdout: Option<std::process::Stdio>,
+    /// Optional stderr configuration
     stderr: Option<std::process::Stdio>,
+    /// Whether to suppress output
     quiet: bool,
 }
 
 impl<'a> CommandBuilder<'a> {
+    /// Create a new CommandBuilder.
+    ///
+    /// # Arguments
+    /// * `session` - The session to run the command in
+    /// * `argv` - The command and its arguments
+    ///
+    /// # Returns
+    /// A new CommandBuilder instance
     pub fn new(session: &'a dyn Session, argv: Vec<&'a str>) -> Self {
         CommandBuilder {
             session,
@@ -202,6 +309,13 @@ impl<'a> CommandBuilder<'a> {
         }
     }
 
+    /// Set whether the command should run quietly.
+    ///
+    /// # Arguments
+    /// * `quiet` - Whether to suppress output
+    ///
+    /// # Returns
+    /// Self for method chaining
     pub fn quiet(mut self, quiet: bool) -> Self {
         self.quiet = quiet;
         self
@@ -238,21 +352,50 @@ impl<'a> CommandBuilder<'a> {
         self
     }
 
+    /// Set the stdin for the command.
+    ///
+    /// # Arguments
+    /// * `stdin` - The stdin configuration
+    ///
+    /// # Returns
+    /// Self for method chaining
     pub fn stdin(mut self, stdin: std::process::Stdio) -> Self {
         self.stdin = Some(stdin);
         self
     }
 
+    /// Set the stdout for the command.
+    ///
+    /// # Arguments
+    /// * `stdout` - The stdout configuration
+    ///
+    /// # Returns
+    /// Self for method chaining
     pub fn stdout(mut self, stdout: std::process::Stdio) -> Self {
         self.stdout = Some(stdout);
         self
     }
 
+    /// Set the stderr for the command.
+    ///
+    /// # Arguments
+    /// * `stderr` - The stderr configuration
+    ///
+    /// # Returns
+    /// Self for method chaining
     pub fn stderr(mut self, stderr: std::process::Stdio) -> Self {
         self.stderr = Some(stderr);
         self
     }
 
+    /// Run the command and capture its output, while also displaying it.
+    ///
+    /// This method executes the command and collects its output, while also
+    /// displaying it in real time.
+    ///
+    /// # Returns
+    /// * `Ok((ExitStatus, Vec<String>))` - The exit status and output lines if successful
+    /// * `Err(Error)` - If the command fails
     pub fn run_with_tee(self) -> Result<(ExitStatus, Vec<String>), Error> {
         assert!(self.stdout.is_none());
         assert!(self.stderr.is_none());
@@ -267,6 +410,14 @@ impl<'a> CommandBuilder<'a> {
         )
     }
 
+    /// Run the command and analyze the output for problems.
+    ///
+    /// This method executes the command and analyzes its output for common
+    /// build problems, returning a more detailed error when issues are detected.
+    ///
+    /// # Returns
+    /// * `Ok(Vec<String>)` - The output lines if successful
+    /// * `Err(AnalyzedError)` - A detailed error if the command fails
     pub fn run_detecting_problems(self) -> Result<Vec<String>, crate::analyze::AnalyzedError> {
         assert!(self.stdout.is_none());
         assert!(self.stderr.is_none());
@@ -282,6 +433,17 @@ impl<'a> CommandBuilder<'a> {
         )
     }
 
+    /// Run the command and attempt to fix any problems that occur.
+    ///
+    /// This method executes the command and applies fixes if it fails,
+    /// potentially retrying multiple times with different fixers.
+    ///
+    /// # Arguments
+    /// * `fixers` - List of fixers to try if the command fails
+    ///
+    /// # Returns
+    /// * `Ok(Vec<String>)` - The command output if successful
+    /// * `Err(IterateBuildError)` - If the command fails and can't be fixed
     pub fn run_fixing_problems<
         I: std::error::Error,
         E: From<I> + std::error::Error + From<std::io::Error>,
@@ -304,6 +466,11 @@ impl<'a> CommandBuilder<'a> {
         )
     }
 
+    /// Start the command and return a handle to the running process.
+    ///
+    /// # Returns
+    /// * `Ok(Child)` - A handle to the running process
+    /// * `Err(Error)` - If starting the process fails
     pub fn child(self) -> Result<std::process::Child, Error> {
         self.session.popen(
             self.argv,
@@ -316,29 +483,57 @@ impl<'a> CommandBuilder<'a> {
         )
     }
 
+    /// Run the command and return its exit status.
+    ///
+    /// # Returns
+    /// * `Ok(ExitStatus)` - The exit status if successful
+    /// * `Err(Error)` - If the command fails
     pub fn run(self) -> Result<std::process::ExitStatus, Error> {
         let mut p = self.child()?;
         let status = p.wait()?;
         Ok(status)
     }
 
+    /// Run the command and return its output.
+    ///
+    /// # Returns
+    /// * `Ok(Output)` - The command output if successful
+    /// * `Err(Error)` - If the command fails
     pub fn output(self) -> Result<std::process::Output, Error> {
         let p = self.child()?;
         let output = p.wait_with_output()?;
         Ok(output)
     }
 
+    /// Run the command and check that it exits successfully.
+    ///
+    /// # Returns
+    /// * `Ok(())` - If the command exited successfully
+    /// * `Err(Error)` - If the command fails
     pub fn check_call(self) -> Result<(), Error> {
         self.session
             .check_call(self.argv, self.cwd, self.user, self.env)
     }
 
+    /// Run the command and return its output.
+    ///
+    /// # Returns
+    /// * `Ok(Vec<u8>)` - The command output if successful
+    /// * `Err(Error)` - If the command fails
     pub fn check_output(self) -> Result<Vec<u8>, Error> {
         self.session
             .check_output(self.argv, self.cwd, self.user, self.env)
     }
 }
 
+/// Find the path to an executable in the session's PATH.
+///
+/// # Arguments
+/// * `session` - The session to search in
+/// * `name` - The name of the executable to find
+///
+/// # Returns
+/// The full path to the executable if found, or None if not found
 pub fn which(session: &dyn Session, name: &str) -> Option<String> {
     let ret = match session.check_output(
         vec!["which", name],
@@ -357,6 +552,13 @@ pub fn which(session: &dyn Session, name: &str) -> Option<String> {
     }
 }
 
+/// Get the current user in the session.
+///
+/// # Arguments
+/// * `session` - The session to get the user from
+///
+/// # Returns
+/// The username of the current user
 pub fn get_user(session: &dyn Session) -> String {
     String::from_utf8(
         session
@@ -455,6 +657,23 @@ fn capture_output(
     Ok((status, output_log))
 }
 
+/// Run a command and capture its output, while also displaying it.
+///
+/// This function executes a command in the given session and collects
+/// its output, while also displaying it in real time.
+///
+/// # Arguments
+/// * `session` - The session to run the command in
+/// * `args` - The command and its arguments
+/// * `cwd` - Optional current working directory
+/// * `user` - Optional user to run the command as
+/// * `env` - Optional environment variables
+/// * `stdin` - Optional stdin configuration
+/// * `quiet` - Whether to suppress output
+///
+/// # Returns
+/// * `Ok((ExitStatus, Vec<String>))` - The exit status and output lines if successful
+/// * `Err(Error)` - If the command fails
 pub fn run_with_tee(
     session: &dyn Session,
     args: Vec<&str>,
@@ -487,6 +706,17 @@ pub fn run_with_tee(
     Ok(capture_output(p, !quiet)?)
 }
 
+/// Create the user's home directory in the session.
+///
+/// This function creates the user's home directory in the session,
+/// which is needed for some commands that write to the home directory.
+///
+/// # Arguments
+/// * `session` - The session to create the home directory in
+///
+/// # Returns
+/// * `Ok(())` if the home directory was created successfully
+/// * `Err(Error)` if creating the home directory fails
 pub fn create_home(session: &impl Session) -> Result<(), Error> {
     let cwd = std::path::Path::new("/");
     let home = String::from_utf8(session.check_output(

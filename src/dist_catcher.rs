@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+/// List of supported distribution file extensions.
 pub const SUPPORTED_DIST_EXTENSIONS: &[&str] = &[
     ".tar.gz",
     ".tgz",
@@ -13,12 +14,17 @@ pub const SUPPORTED_DIST_EXTENSIONS: &[&str] = &[
     ".zip",
 ];
 
+/// Check if a file has a supported distribution extension.
 pub fn supported_dist_file(file: &Path) -> bool {
     SUPPORTED_DIST_EXTENSIONS
         .iter()
         .any(|&ext| file.ends_with(ext))
 }
 
+/// Utility to detect and collect distribution files created by build systems.
+///
+/// This monitors directories for new or updated distribution files that appear
+/// after a build process runs.
 pub struct DistCatcher {
     existing_files: Option<HashMap<PathBuf, HashMap<PathBuf, std::fs::DirEntry>>>,
     directories: Vec<PathBuf>,
@@ -27,6 +33,7 @@ pub struct DistCatcher {
 }
 
 impl DistCatcher {
+    /// Create a new DistCatcher to monitor the specified directories.
     pub fn new(directories: Vec<PathBuf>) -> Self {
         Self {
             directories: directories
@@ -39,6 +46,7 @@ impl DistCatcher {
         }
     }
 
+    /// Create a DistCatcher with default directory locations.
     pub fn default(directory: &Path) -> Self {
         Self::new(vec![
             directory.join("dist"),
@@ -47,6 +55,9 @@ impl DistCatcher {
         ])
     }
 
+    /// Initialize the file monitoring process.
+    ///
+    /// Takes a snapshot of existing files to later detect new or modified files.
     pub fn start(&mut self) {
         self.existing_files = Some(
             self.directories
@@ -63,6 +74,9 @@ impl DistCatcher {
         );
     }
 
+    /// Search for new or updated distribution files.
+    ///
+    /// Returns the path to a found file if any.
     pub fn find_files(&self) -> Option<PathBuf> {
         let existing_files = self.existing_files.as_ref().unwrap();
         let mut files = self.files.lock().unwrap();
@@ -113,6 +127,9 @@ impl DistCatcher {
         None
     }
 
+    /// Copy a single distribution file to the target directory.
+    ///
+    /// Returns the filename of the copied file if successful.
     pub fn copy_single(&self, target_dir: &Path) -> Result<Option<OsString>, std::io::Error> {
         for path in self.files.lock().unwrap().iter() {
             match std::fs::copy(path, target_dir.join(path.file_name().unwrap())) {

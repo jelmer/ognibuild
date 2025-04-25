@@ -5,11 +5,14 @@ use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a LaTeX package
 pub struct LatexPackageDependency {
+    /// The name of the LaTeX package
     pub package: String,
 }
 
 impl LatexPackageDependency {
+    /// Creates a new `LatexPackageDependency` instance
     pub fn new(package: &str) -> Self {
         Self {
             package: package.to_string(),
@@ -95,12 +98,14 @@ mod tests {
     }
 }
 
+/// A resolver for LaTeX package dependencies using tlmgr
 pub struct TlmgrResolver<'a> {
     session: &'a dyn Session,
     repository: String,
 }
 
 impl<'a> TlmgrResolver<'a> {
+    /// Creates a new `TlmgrResolver` instance
     pub fn new(session: &'a dyn Session, repository: &str) -> Self {
         Self {
             session,
@@ -188,6 +193,7 @@ impl<'a> Installer for TlmgrResolver<'a> {
     }
 }
 
+/// Creates a new `TlmgrResolver` instance for the CTAN repository
 pub fn ctan<'a>(session: &'a dyn Session) -> TlmgrResolver<'a> {
     TlmgrResolver::new(session, "ctan")
 }

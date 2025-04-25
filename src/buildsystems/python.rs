@@ -1,3 +1,8 @@
+//! Support for Python build systems.
+//!
+//! This module provides functionality for building, testing, and installing
+//! Python packages using various build systems such as setuptools, poetry, and pip.
+
 use crate::analyze::{run_detecting_problems, AnalyzedError};
 use crate::buildsystem::{BuildSystem, DependencyCategory, Error, InstallTarget};
 use crate::dependencies::python::{PythonDependency, PythonPackageDependency};
@@ -39,6 +44,10 @@ fn load_toml(path: &Path) -> Result<pyproject_toml::PyProjectToml, PyErr> {
 }
 
 #[derive(Debug)]
+/// A wrapper around a Python setup.cfg configuration file.
+///
+/// This provides access to the configuration in a setup.cfg file, which is used
+/// by setuptools to configure Python package builds.
 pub struct SetupCfg(PyObject);
 
 impl SetupCfg {
@@ -69,6 +78,10 @@ impl SetupCfg {
     }
 }
 
+/// A section in a Python setup.cfg configuration file.
+///
+/// This provides access to a specific section in a setup.cfg file, allowing
+/// access to configuration keys within that section.
 pub struct SetupCfgSection(PyObject);
 
 impl Default for SetupCfg {
@@ -88,6 +101,13 @@ impl SetupCfgSection {
         })
     }
 
+    /// Check if a key exists in this section.
+    ///
+    /// # Arguments
+    /// * `key` - The key to check for
+    ///
+    /// # Returns
+    /// `true` if the key exists, `false` otherwise
     pub fn has_key(&self, key: &str) -> bool {
         Python::with_gil(|py| {
             self.0
@@ -228,6 +248,10 @@ with open(%(output_path)s, 'w') as f:
 """#;
 
 #[derive(Debug)]
+/// A Python setuptools-based build system.
+///
+/// This build system handles Python packages that use setup.py for building,
+/// which is the traditional approach for Python packages.
 pub struct SetupPy {
     path: PathBuf,
     has_setup_py: bool,
@@ -238,6 +262,15 @@ pub struct SetupPy {
 }
 
 impl SetupPy {
+    /// Create a new SetupPy build system with the specified path.
+    ///
+    /// This will load and parse setup.cfg and pyproject.toml if they exist.
+    ///
+    /// # Arguments
+    /// * `path` - The path to the Python project directory
+    ///
+    /// # Returns
+    /// A new SetupPy build system instance
     pub fn new(path: &Path) -> Self {
         let has_setup_py = path.join("setup.py").exists();
 
@@ -278,6 +311,13 @@ impl SetupPy {
         })
     }
 
+    /// Probe a directory for a Python setuptools build system.
+    ///
+    /// # Arguments
+    /// * `path` - The path to check
+    ///
+    /// # Returns
+    /// A SetupPy build system if one exists at the path, `None` otherwise
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if path.join("setup.py").exists() {
             log::debug!("Found setup.py, assuming python project.");

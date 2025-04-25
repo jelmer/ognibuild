@@ -2,16 +2,34 @@ use crate::buildsystem::{BuildSystem, Error};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
+/// Haskell Cabal build system representation.
 pub struct Cabal {
     #[allow(dead_code)]
     path: PathBuf,
 }
 
 impl Cabal {
+    /// Create a new Cabal build system instance.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the Cabal project directory
+    ///
+    /// # Returns
+    /// A new Cabal instance
     pub fn new(path: PathBuf) -> Self {
         Self { path }
     }
 
+    /// Run a Cabal command with the given arguments.
+    ///
+    /// Handles common Cabal errors, such as needing to run configure first.
+    ///
+    /// # Arguments
+    /// * `session` - The session to run the command in
+    /// * `extra_args` - Additional arguments to pass to the Cabal command
+    ///
+    /// # Returns
+    /// Ok(()) if the command succeeded, otherwise an error
     fn run(
         &self,
         session: &dyn crate::session::Session,
@@ -34,6 +52,13 @@ impl Cabal {
         .map(|_| ())
     }
 
+    /// Probe a directory to check if it contains a Cabal project.
+    ///
+    /// # Arguments
+    /// * `path` - Path to check for Cabal project files
+    ///
+    /// # Returns
+    /// Some(BuildSystem) if a Cabal project is found, None otherwise
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if path.join("Setup.hs").exists() {
             Some(Box::new(Self::new(path.to_owned())))

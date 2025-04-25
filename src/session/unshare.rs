@@ -1,6 +1,7 @@
 use crate::session::{CommandBuilder, Error, Project, Session};
 use std::path::{Path, PathBuf};
 
+/// An unshare based session
 pub struct UnshareSession {
     root: PathBuf,
     _tempdir: Option<tempfile::TempDir>,
@@ -22,6 +23,7 @@ fn compression_flag(path: &Path) -> Result<Option<&str>, crate::session::Error> 
 }
 
 impl UnshareSession {
+    /// Create a session from a tarball
     pub fn from_tarball(path: &Path) -> Result<Self, crate::session::Error> {
         let td = tempfile::tempdir().map_err(|e| {
             crate::session::Error::SetupFailure("tempdir failed".to_string(), e.to_string())
@@ -77,6 +79,7 @@ impl UnshareSession {
         Ok(s)
     }
 
+    /// Save the session to a tarball
     pub fn save_to_tarball(&self, path: &Path) -> Result<(), crate::session::Error> {
         // Create the tarball from within the session, dumping it to stdout
         let mut child = self.popen(
@@ -121,6 +124,7 @@ impl UnshareSession {
         }
     }
 
+    /// Bootstrap the session environment
     pub fn bootstrap() -> Result<Self, crate::session::Error> {
         let td = tempfile::tempdir().map_err(|e| {
             crate::session::Error::SetupFailure("tempdir failed".to_string(), e.to_string())
@@ -151,6 +155,7 @@ impl UnshareSession {
         Ok(s)
     }
 
+    /// Verify that the current user has an account in the session
     pub fn ensure_current_user(&self) -> Result<(), crate::session::Error> {
         // Ensure that the current user has an entry in /etc/passwd
         let user = whoami::username();
@@ -210,6 +215,7 @@ impl UnshareSession {
         }
     }
 
+    /// Run a command in the session
     pub fn run_argv<'a>(
         &'a self,
         argv: Vec<&'a str>,

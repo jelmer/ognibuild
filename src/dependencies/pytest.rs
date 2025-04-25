@@ -1,13 +1,31 @@
+//! Support for pytest plugin dependencies.
+//!
+//! This module provides functionality for working with pytest plugin dependencies,
+//! including detecting and resolving plugins from fixture names, config options,
+//! and command-line arguments.
+
 use crate::dependencies::Dependency;
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a pytest plugin.
+///
+/// This represents a dependency on a pytest plugin that needs to be installed
+/// for tests to run correctly.
 pub struct PytestPluginDependency {
+    /// The name of the pytest plugin.
     pub plugin: String,
 }
 
 impl PytestPluginDependency {
+    /// Create a new pytest plugin dependency.
+    ///
+    /// # Arguments
+    /// * `plugin` - The name of the pytest plugin
+    ///
+    /// # Returns
+    /// A new PytestPluginDependency
     pub fn new(plugin: &str) -> Self {
         Self {
             plugin: plugin.to_string(),
@@ -15,6 +33,13 @@ impl PytestPluginDependency {
     }
 }
 
+/// Map pytest command-line arguments to a plugin name.
+///
+/// # Arguments
+/// * `args` - The command-line arguments to pytest
+///
+/// # Returns
+/// The name of the required plugin, if any
 fn map_pytest_arguments_to_plugin(args: &[&str]) -> Option<&'static str> {
     for arg in args {
         if arg.starts_with("--cov") {
@@ -24,6 +49,13 @@ fn map_pytest_arguments_to_plugin(args: &[&str]) -> Option<&'static str> {
     None
 }
 
+/// Map a pytest config option to a plugin name.
+///
+/// # Arguments
+/// * `name` - The name of the config option
+///
+/// # Returns
+/// The name of the required plugin, if any
 fn map_pytest_config_option_to_plugin(name: &str) -> Option<&'static str> {
     match name {
         "asyncio_mode" => Some("asyncio"),
@@ -35,6 +67,13 @@ fn map_pytest_config_option_to_plugin(name: &str) -> Option<&'static str> {
 }
 
 // TODO(jelmer): populate this using an automated process
+/// Map a pytest fixture name to the plugin that provides it.
+///
+/// # Arguments
+/// * `fixture` - The name of the pytest fixture
+///
+/// # Returns
+/// The name of the plugin that provides the fixture, if known
 fn pytest_fixture_to_plugin(fixture: &str) -> Option<&str> {
     match fixture {
         "aiohttp_client" => Some("aiohttp"),
@@ -52,6 +91,13 @@ fn pytest_fixture_to_plugin(fixture: &str) -> Option<&str> {
     }
 }
 
+/// Get a list of installed pytest plugins from the pytest command.
+///
+/// # Arguments
+/// * `session` - The session to run the command in
+///
+/// # Returns
+/// A list of (plugin_name, version) pairs if available
 fn pytest_plugins(session: &dyn Session) -> Option<Vec<(String, String)>> {
     let output = session
         .command(vec!["pytest", "--version"])

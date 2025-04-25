@@ -97,7 +97,7 @@ fn explain_missing_deps(
         return Ok(vec![]);
     }
     let missing = deps
-        .into_iter()
+        .iter()
         .filter(|dep| !dep.present(session))
         .collect::<Vec<_>>();
     if missing.is_empty() {
@@ -381,7 +381,7 @@ fn main() -> Result<(), i32> {
         url
     } else {
         let p = Path::new(&args.directory);
-        url::Url::from_directory_path(&p.canonicalize().unwrap()).unwrap()
+        url::Url::from_directory_path(p.canonicalize().unwrap()).unwrap()
     };
     let mut td: Option<tempfile::TempDir> = None;
     // TODO(jelmer): Get a list of supported schemes from breezy?
@@ -419,8 +419,8 @@ fn main() -> Result<(), i32> {
         session.project_from_directory(&directory, None).unwrap()
     };
 
-    session.chdir(&project.internal_path()).unwrap();
-    std::env::set_current_dir(&project.external_path()).unwrap();
+    session.chdir(project.internal_path()).unwrap();
+    std::env::set_current_dir(project.external_path()).unwrap();
 
     if !session.is_temporary() && matches!(args.command, Command::Info) {
         args.explain = true;

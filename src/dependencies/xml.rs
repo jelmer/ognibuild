@@ -1,13 +1,30 @@
+//! Support for XML entity dependencies.
+//!
+//! This module provides functionality for working with XML entity dependencies,
+//! including checking if entities are defined in the local XML catalog and
+//! mapping between URLs and filesystem paths.
+
 use crate::dependencies::Dependency;
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on an XML entity, such as a DocBook DTD.
+///
+/// This represents a dependency on an XML entity, which is typically resolved
+/// through an XML catalog.
 pub struct XmlEntityDependency {
     url: String,
 }
 
 impl XmlEntityDependency {
+    /// Create a new XML entity dependency with the specified URL.
+    ///
+    /// # Arguments
+    /// * `url` - The URL of the XML entity
+    ///
+    /// # Returns
+    /// A new XmlEntityDependency
     pub fn new(url: &str) -> Self {
         Self {
             url: url.to_string(),
@@ -39,6 +56,10 @@ impl Dependency for XmlEntityDependency {
     }
 }
 
+/// Mapping between XML entity URLs and their filesystem locations.
+///
+/// This constant maps from entity URLs to their corresponding filesystem paths,
+/// which is used to locate entities when resolving dependencies.
 pub const XML_ENTITY_URL_MAP: &[(&str, &str)] = &[(
     "http://www.oasis-open.org/docbook/xml/",
     "/usr/share/xml/docbook/schema/dtd/",
