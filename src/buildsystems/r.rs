@@ -1,3 +1,8 @@
+//! Support for R build systems.
+//!
+//! This module provides functionality for building, testing, and installing
+//! R packages using R CMD build and related commands.
+
 use crate::buildsystem::guaranteed_which;
 use crate::buildsystem::{BuildSystem, DependencyCategory};
 use crate::dependencies::r::RPackageDependency;
@@ -7,15 +12,34 @@ use crate::output::RPackageOutput;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
+/// R build system for R packages.
+///
+/// This build system handles R packages using R CMD commands for building,
+/// testing, and installation.
 pub struct R {
     path: PathBuf,
 }
 
 impl R {
+    /// Create a new R build system with the specified path.
+    ///
+    /// # Arguments
+    /// * `path` - The path to the R package directory
+    ///
+    /// # Returns
+    /// A new R build system instance
     pub fn new(path: PathBuf) -> Self {
         Self { path }
     }
 
+    /// Run R CMD check on the package to check for issues.
+    ///
+    /// # Arguments
+    /// * `session` - The session to run the command in
+    /// * `installer` - The installer to use for dependencies
+    ///
+    /// # Returns
+    /// Ok on success or an error
     pub fn lint(
         &self,
         session: &dyn crate::session::Session,
@@ -28,6 +52,13 @@ impl R {
         Ok(())
     }
 
+    /// Probe a directory for an R package.
+    ///
+    /// # Arguments
+    /// * `path` - The path to check
+    ///
+    /// # Returns
+    /// An R build system if an R package exists at the path, `None` otherwise
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if path.join("DESCRIPTION").exists() && path.join("NAMESPACE").exists() {
             Some(Box::new(Self::new(path.to_path_buf())))

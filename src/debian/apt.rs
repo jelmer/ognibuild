@@ -1,3 +1,9 @@
+//! APT package management functionality for Debian packages.
+//!
+//! This module provides interfaces for installing and managing packages
+//! using the APT package manager, as well as utilities for converting
+//! generic dependencies to Debian package dependencies.
+
 use crate::dependencies::debian::{
     default_tie_breakers, DebianDependency, IntoDebianDependency, TieBreaker,
 };
@@ -7,18 +13,29 @@ use crate::session::{get_user, Session};
 use debversion::Version;
 use std::sync::RwLock;
 
+/// Errors that can occur when using APT.
 pub enum Error {
+    /// An unidentified error occurred while running apt.
     Unidentified {
+        /// The return code from apt.
         retcode: i32,
+        /// The command-line arguments passed to apt.
         args: Vec<String>,
+        /// The output lines from apt.
         lines: Vec<String>,
+        /// Secondary match information from buildlog-consultant.
         secondary: Option<Box<dyn buildlog_consultant::Match>>,
     },
+    /// A detailed error occurred while running apt.
     Detailed {
+        /// The return code from apt.
         retcode: i32,
+        /// The command-line arguments passed to apt.
         args: Vec<String>,
+        /// The error from buildlog-consultant.
         error: Option<Box<dyn buildlog_consultant::Problem>>,
     },
+    /// An error occurred in the session.
     Session(crate::session::Error),
 }
 
@@ -100,22 +117,46 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// Manager for APT operations.
+///
+/// This struct provides methods for interacting with APT,
+/// including dependency resolution and package installation.
 pub struct AptManager<'a> {
+    /// The session to run APT commands in.
     session: &'a dyn Session,
+    /// Command prefix (e.g., "sudo") for APT commands.
     prefix: Vec<String>,
+    /// File searchers for finding packages containing files.
     searchers: RwLock<Option<Vec<Box<dyn crate::debian::file_search::FileSearcher<'a> + 'a>>>>,
 }
 
+/// Entry for APT satisfy command.
+///
+/// Represents either a required package or a package conflict.
 pub enum SatisfyEntry {
+    /// A required package dependency.
     Required(String),
+    /// A package that conflicts with installation.
     Conflict(String),
 }
 
 impl<'a> AptManager<'a> {
+    /// Get the session associated with this APT manager.
+    ///
+    /// # Returns
+    /// Reference to the session
     pub fn session(&self) -> &'a dyn Session {
         self.session
     }
 
+    /// Create a new APT manager.
+    ///
+    /// # Arguments
+    /// * `session` - Session to run APT commands in
+    /// * `prefix` - Optional command prefix (e.g., "sudo")
+    ///
+    /// # Returns
+    /// A new AptManager instance
     pub fn new(session: &'a dyn Session, prefix: Option<Vec<String>>) -> Self {
         Self {
             session,
@@ -124,6 +165,10 @@ impl<'a> AptManager<'a> {
         }
     }
 
+    /// Set file searchers for finding packages containing files.
+    ///
+    /// # Arguments
+    /// * `searchers` - List of file searchers to use
     pub fn set_searchers(
         &self,
         searchers: Vec<Box<dyn crate::debian::file_search::FileSearcher<'a> + 'a>>,
@@ -131,6 +176,15 @@ impl<'a> AptManager<'a> {
         *self.searchers.write().unwrap() = Some(searchers);
     }
 
+    /// Create a new APT manager from a session with appropriate sudo prefix.
+    ///
+    /// Automatically adds "sudo" to the command prefix if the session user is not root.
+    ///
+    /// # Arguments
+    /// * `session` - Session to run APT commands in
+    ///
+    /// # Returns
+    /// A new AptManager instance
     pub fn from_session(session: &'a dyn Session) -> Self {
         let prefix = if get_user(session).as_str() != "root" {
             vec!["sudo".to_string()]
@@ -140,6 +194,13 @@ impl<'a> AptManager<'a> {
         return Self::new(session, Some(prefix));
     }
 
+    /// Run an APT command with the configured prefix.
+    ///
+    /// # Arguments
+    /// * `args` - Arguments to pass to APT
+    ///
+    /// # Returns
+    /// Ok on success, Error otherwise
     fn run_apt(&self, args: Vec<&str>) -> Result<(), Error> {
         run_apt(
             self.session,
@@ -148,6 +209,13 @@ impl<'a> AptManager<'a> {
         )
     }
 
+    /// Satisfy package dependencies using APT.
+    ///
+    /// # Arguments
+    /// * `deps` - List of dependencies to satisfy (required or conflicts)
+    ///
+    /// # Returns
+    /// Ok on success, Error if dependencies cannot be satisfied
     pub fn satisfy(&self, deps: Vec<SatisfyEntry>) -> Result<(), Error> {
         let mut args = vec!["satisfy".to_string()];
         args.extend(deps.iter().map(|dep| match dep {
@@ -157,6 +225,13 @@ impl<'a> AptManager<'a> {
         self.run_apt(args.iter().map(|s| s.as_str()).collect())
     }
 
+    /// Generate a satisfy command for the given dependencies.
+    ///
+    /// # Arguments
+    /// * `deps` - List of dependency strings
+    ///
+    /// # Returns
+    /// Command-line arguments for satisfying the dependencies
     pub fn satisfy_command<'b>(&'b self, deps: Vec<&'b str>) -> Vec<&'b str> {
         let mut args = self
             .prefix
@@ -169,6 +244,15 @@ impl<'a> AptManager<'a> {
         args
     }
 
+    /// Find packages that contain the specified paths.
+    ///
+    /// # Arguments
+    /// * `paths` - List of file paths to search for
+    /// * `regex` - Whether to treat paths as regular expressions
+    /// * `case_insensitive` - Whether to ignore case in path matching
+    ///
+    /// # Returns
+    /// List of package names that contain the paths
     pub fn get_packages_for_paths(
         &self,
         paths: Vec<&str>,
@@ -204,6 +288,16 @@ impl<'a> AptManager<'a> {
     }
 }
 
+/// Find simple Debian dependencies for the given paths.
+///
+/// # Arguments
+/// * `apt_mgr` - APT manager to use
+/// * `paths` - List of file paths to search for
+/// * `regex` - Whether to treat paths as regular expressions
+/// * `case_insensitive` - Whether to ignore case in path matching
+///
+/// # Returns
+/// List of Debian dependencies for packages containing the paths
 pub fn find_deps_simple(
     apt_mgr: &AptManager,
     paths: Vec<&str>,
@@ -217,6 +311,17 @@ pub fn find_deps_simple(
         .collect())
 }
 
+/// Find Debian dependencies with minimum version for the given paths.
+///
+/// # Arguments
+/// * `apt_mgr` - APT manager to use
+/// * `paths` - List of file paths to search for
+/// * `regex` - Whether to treat paths as regular expressions
+/// * `minimum_version` - Minimum version requirement
+/// * `case_insensitive` - Whether to ignore case in path matching
+///
+/// # Returns
+/// List of versioned Debian dependencies for packages containing the paths
 pub fn find_deps_with_min_version(
     apt_mgr: &AptManager,
     paths: Vec<&str>,
@@ -231,6 +336,15 @@ pub fn find_deps_with_min_version(
         .collect())
 }
 
+/// Run an APT command with the given prefix.
+///
+/// # Arguments
+/// * `session` - Session to run the command in
+/// * `args` - Arguments to pass to APT
+/// * `prefix` - Command prefix (e.g., "sudo")
+///
+/// # Returns
+/// Ok on success, Error otherwise
 pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Result<(), Error> {
     let args = [prefix, vec!["apt", "-y"], args].concat();
     log::info!("apt: running {:?}", args);
@@ -262,6 +376,16 @@ pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Res
     });
 }
 
+/// Pick the best Debian dependency from a list of candidates.
+///
+/// Uses tie breakers to determine the best dependency when multiple candidates exist.
+///
+/// # Arguments
+/// * `dependencies` - List of Debian dependency candidates
+/// * `tie_breakers` - List of tie breakers to use
+///
+/// # Returns
+/// The best dependency, or None if no candidates are available
 fn pick_best_deb_dependency(
     mut dependencies: Vec<DebianDependency>,
     tie_breakers: &[Box<dyn TieBreaker>],
@@ -290,6 +414,17 @@ fn pick_best_deb_dependency(
     Some(dependencies.remove(0))
 }
 
+/// Convert a generic dependency to possible Debian dependencies.
+///
+/// Attempts to convert a dependency to Debian-specific dependencies using
+/// various conversion strategies for different dependency types.
+///
+/// # Arguments
+/// * `apt` - APT manager to use for lookups
+/// * `dep` - The generic dependency to convert
+///
+/// # Returns
+/// List of possible Debian dependencies
 pub fn dependency_to_possible_deb_dependencies(
     apt: &AptManager,
     dep: &dyn Dependency,
@@ -398,6 +533,18 @@ pub fn dependency_to_possible_deb_dependencies(
     candidates
 }
 
+/// Convert a generic dependency to the best Debian dependency.
+///
+/// First finds all possible Debian dependencies for the given generic dependency,
+/// then uses tie breakers to pick the best one if multiple candidates exist.
+///
+/// # Arguments
+/// * `apt` - APT manager to use for lookups
+/// * `dep` - The generic dependency to convert
+/// * `tie_breakers` - List of tie breakers to use
+///
+/// # Returns
+/// The best Debian dependency, or None if no candidates are available
 pub fn dependency_to_deb_dependency(
     apt: &AptManager,
     dep: &dyn Dependency,
@@ -421,17 +568,38 @@ pub fn dependency_to_deb_dependency(
     }
 }
 
+/// Installer that uses APT to install dependencies.
+///
+/// This installer converts generic dependencies to Debian package dependencies
+/// and installs them using APT.
 pub struct AptInstaller<'a> {
+    /// The APT manager to use for package operations
     apt: AptManager<'a>,
+    /// Tie breakers for selecting among multiple dependency candidates
     tie_breakers: Vec<Box<dyn TieBreaker>>,
 }
 
 impl<'a> AptInstaller<'a> {
+    /// Create a new APT installer with default tie breakers.
+    ///
+    /// # Arguments
+    /// * `apt` - APT manager to use
+    ///
+    /// # Returns
+    /// A new AptInstaller instance
     pub fn new(apt: AptManager<'a>) -> Self {
         let tie_breakers = default_tie_breakers(apt.session);
         Self { apt, tie_breakers }
     }
 
+    /// Create a new APT installer with custom tie breakers.
+    ///
+    /// # Arguments
+    /// * `apt` - APT manager to use
+    /// * `tie_breakers` - Custom tie breakers for selecting among dependencies
+    ///
+    /// # Returns
+    /// A new AptInstaller instance
     pub fn new_with_tie_breakers(
         apt: AptManager<'a>,
         tie_breakers: Vec<Box<dyn TieBreaker>>,
@@ -439,13 +607,32 @@ impl<'a> AptInstaller<'a> {
         Self { apt, tie_breakers }
     }
 
-    /// Create a new AptInstaller from a session
+    /// Create a new APT installer from a session.
+    ///
+    /// Creates an APT manager with appropriate sudo prefix if needed.
+    ///
+    /// # Arguments
+    /// * `session` - Session to run APT commands in
+    ///
+    /// # Returns
+    /// A new AptInstaller instance
     pub fn from_session(session: &'a dyn Session) -> Self {
         Self::new(AptManager::from_session(session))
     }
 }
 
+/// Implementation of the Installer trait for AptInstaller.
 impl<'a> Installer for AptInstaller<'a> {
+    /// Install a dependency using APT.
+    ///
+    /// Only supports the Global installation scope.
+    ///
+    /// # Arguments
+    /// * `dep` - Dependency to install
+    /// * `scope` - Installation scope
+    ///
+    /// # Returns
+    /// Ok on success, Error if installation fails
     fn install(
         &self,
         dep: &dyn Dependency,
@@ -481,6 +668,14 @@ impl<'a> Installer for AptInstaller<'a> {
         Ok(())
     }
 
+    /// Explain how to install a dependency using APT.
+    ///
+    /// # Arguments
+    /// * `dep` - Dependency to explain
+    /// * `_scope` - Installation scope (ignored)
+    ///
+    /// # Returns
+    /// An explanation with message and optional command
     fn explain(
         &self,
         dep: &dyn Dependency,

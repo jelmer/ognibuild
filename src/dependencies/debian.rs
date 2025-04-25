@@ -7,6 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashSet;
 use std::hash::Hash;
 
+/// Represents a Debian dependency.
 pub struct DebianDependency(Relations);
 
 impl std::fmt::Debug for DebianDependency {
@@ -66,22 +67,27 @@ impl DebianDependency {
         )
     }
 
+    /// Iterate over the entries in the dependency.
     pub fn iter(&self) -> impl Iterator<Item = Entry> + '_ {
         self.0.entries()
     }
 
+    /// Get the relations of the dependency.
     pub fn relation_string(&self) -> String {
         self.0.to_string()
     }
 
+    /// Create a new dependency from a package name with a specific version.
     pub fn simple(name: &str) -> DebianDependency {
         Self::new(name)
     }
 
+    /// Check if the dependency is empty.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
+    /// Create a new dependency with a minimum version.
     pub fn new_with_min_version(name: &str, min_version: &Version) -> DebianDependency {
         DebianDependency(
             format!("{} (>= {})", name, min_version)
@@ -92,6 +98,7 @@ impl DebianDependency {
         )
     }
 
+    /// Check if the dependency touches a specific package.
     pub fn touches_package(&self, package: &str) -> bool {
         for entry in self.0.entries() {
             for relation in entry.relations() {
@@ -103,6 +110,7 @@ impl DebianDependency {
         false
     }
 
+    /// Get the package names from the dependency.
     pub fn package_names(&self) -> HashSet<String> {
         let mut names = HashSet::new();
         for entry in self.0.entries() {
@@ -113,6 +121,7 @@ impl DebianDependency {
         names
     }
 
+    /// Check if the dependency is satisfied by the given versions.
     pub fn satisfied_by(
         &self,
         versions: &std::collections::HashMap<String, debversion::Version>,
@@ -211,10 +220,13 @@ impl From<Relations> for DebianDependency {
     }
 }
 
+/// Trait for breaking ties between multiple dependencies.
 pub trait TieBreaker {
+    /// Break ties between multiple dependencies.
     fn break_tie<'a>(&self, reqs: &[&'a DebianDependency]) -> Option<&'a DebianDependency>;
 }
 
+/// Default tie breakers for Debian dependencies.
 pub fn default_tie_breakers(session: &dyn Session) -> Vec<Box<dyn TieBreaker>> {
     let mut tie_breakers: Vec<Box<dyn TieBreaker>> = Vec::new();
     use crate::debian::build_deps::BuildDependencyTieBreaker;
@@ -229,7 +241,9 @@ pub fn default_tie_breakers(session: &dyn Session) -> Vec<Box<dyn TieBreaker>> {
     tie_breakers
 }
 
+/// Trait for converting a dependency into a DebianDependency.
 pub trait IntoDebianDependency: Dependency {
+    /// Convert a dependency into a DebianDependency.
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
@@ -245,10 +259,13 @@ impl IntoDebianDependency for DebianDependency {
     }
 }
 
+/// Trait for converting a DebianDependency into an upstream dependency.
 pub trait FromDebianDependency {
+    /// Convert a DebianDependency into an upstream dependency.
     fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>>;
 }
 
+/// Extract an upstream dependency from a DebianDependency.
 pub fn extract_upstream_dependency(dep: &DebianDependency) -> Option<Box<dyn Dependency>> {
     crate::dependencies::RubyGemDependency::from_debian_dependency(dep)
         .or_else(|| {
@@ -276,6 +293,7 @@ impl crate::buildlog::ToDependency
     }
 }
 
+/// Extract the package name and exact version from a dependency.
 pub fn extract_simple_exact_version(
     dep: &DebianDependency,
 ) -> Option<(String, Option<debversion::Version>)> {
@@ -304,6 +322,7 @@ pub fn extract_simple_exact_version(
     Some((name.to_string(), version))
 }
 
+/// Extract the package name and minimum version from a dependency.
 pub fn extract_simple_min_version(
     dep: &DebianDependency,
 ) -> Option<(String, Option<debversion::Version>)> {
@@ -332,15 +351,24 @@ pub fn extract_simple_min_version(
     Some((name.to_string(), version))
 }
 
+/// Check if a string is a valid Debian package name.
 pub fn valid_debian_package_name(name: &str) -> bool {
     lazy_regex::regex_is_match!("[a-z0-9][a-z0-9+-\\.]+", name)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+/// Represents the category of a Debian dependency.
 pub enum DebianDependencyCategory {
+    /// A runtime dependency.
     Runtime,
+
+    /// A build dependency.
     Build,
+
+    /// A runtime dependency that is also a build dependency.
     Install,
+
+    /// A test dependency.
     Test(String),
 }
 

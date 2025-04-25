@@ -4,6 +4,19 @@ use crate::installer::Error as InstallerError;
 use crate::session::Session;
 use std::collections::HashMap;
 
+/// Display information about detected build systems and their dependencies/outputs.
+///
+/// This function logs information about each detected build system, including its
+/// declared dependencies and outputs.
+///
+/// # Arguments
+/// * `session` - The session to run commands in
+/// * `buildsystems` - List of build systems to get information from
+/// * `fixers` - Optional list of fixers to use if getting information fails
+///
+/// # Returns
+/// * `Ok(())` if information was successfully retrieved and displayed
+/// * Errors are logged but not returned, so this function will generally succeed
 pub fn run_info(
     session: &dyn Session,
     buildsystems: &[&dyn BuildSystem],

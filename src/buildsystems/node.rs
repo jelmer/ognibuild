@@ -10,6 +10,9 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 #[allow(dead_code)]
+/// Node.js build system.
+///
+/// Handles Node.js projects with a package.json file.
 pub struct Node {
     path: PathBuf,
     package: NodePackage,
@@ -24,6 +27,7 @@ struct NodePackage {
 }
 
 impl Node {
+    /// Create a new Node build system with the specified path to package.json.
     pub fn new(path: PathBuf) -> Self {
         let package = path.join("package.json");
 
@@ -42,6 +46,9 @@ impl Node {
         Ok(())
     }
 
+    /// Probe a directory for a Node.js build system.
+    ///
+    /// Returns a Node build system if a package.json file is found.
     pub fn probe(path: &std::path::Path) -> Option<Box<dyn BuildSystem>> {
         let path = path.join("package.json");
         if path.exists() {

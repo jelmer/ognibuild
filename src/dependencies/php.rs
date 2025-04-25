@@ -1,13 +1,29 @@
+//! Support for PHP dependencies.
+//!
+//! This module provides functionality for working with PHP dependencies,
+//! including PHP classes, packages via Composer, and PHP extensions.
+
 use crate::dependency::Dependency;
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a PHP class.
+///
+/// This represents a dependency on a specific PHP class that needs to be available
+/// for the code to function properly.
 pub struct PhpClassDependency {
     php_class: String,
 }
 
 impl PhpClassDependency {
+    /// Create a new PHP class dependency.
+    ///
+    /// # Arguments
+    /// * `php_class` - The name of the PHP class
+    ///
+    /// # Returns
+    /// A new PhpClassDependency
     pub fn new(php_class: &str) -> Self {
         Self {
             php_class: php_class.to_string(),
@@ -159,14 +175,32 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a PHP package installed via Composer.
+///
+/// This represents a dependency on a PHP package that can be installed
+/// through Composer, with optional version constraints and channel specification.
 pub struct PhpPackageDependency {
+    /// The name of the PHP package.
     pub package: String,
+    /// The channel to install from (e.g., "pear").
     pub channel: Option<String>,
+    /// The minimum version required.
     pub min_version: Option<String>,
+    /// The maximum version allowed.
     pub max_version: Option<String>,
 }
 
 impl PhpPackageDependency {
+    /// Create a new PHP package dependency with version constraints.
+    ///
+    /// # Arguments
+    /// * `package` - The name of the PHP package
+    /// * `channel` - Optional channel to install from
+    /// * `min_version` - Optional minimum version constraint
+    /// * `max_version` - Optional maximum version constraint
+    ///
+    /// # Returns
+    /// A new PhpPackageDependency
     pub fn new(
         package: &str,
         channel: Option<&str>,
@@ -181,6 +215,13 @@ impl PhpPackageDependency {
         }
     }
 
+    /// Create a simple PHP package dependency with no version constraints.
+    ///
+    /// # Arguments
+    /// * `package` - The name of the PHP package
+    ///
+    /// # Returns
+    /// A new PhpPackageDependency with no version constraints
     pub fn simple(package: &str) -> Self {
         Self {
             package: package.to_string(),
@@ -245,11 +286,23 @@ impl Dependency for PhpPackageDependency {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a PHP extension.
+///
+/// This represents a dependency on a PHP extension that needs to be installed
+/// and enabled for the code to function properly.
 pub struct PhpExtensionDependency {
+    /// The name of the PHP extension.
     pub extension: String,
 }
 
 impl PhpExtensionDependency {
+    /// Create a new PHP extension dependency.
+    ///
+    /// # Arguments
+    /// * `extension` - The name of the PHP extension
+    ///
+    /// # Returns
+    /// A new PhpExtensionDependency
     pub fn new(extension: &str) -> Self {
         Self {
             extension: extension.to_string(),

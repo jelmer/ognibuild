@@ -4,12 +4,14 @@ use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// OctavePackageDependency represents a dependency on an Octave package.
 pub struct OctavePackageDependency {
     package: String,
     minimum_version: Option<String>,
 }
 
 impl OctavePackageDependency {
+    /// Creates a new OctavePackageDependency with a specified minimum version.
     pub fn new(package: &str, minimum_version: Option<&str>) -> Self {
         Self {
             package: package.to_string(),
@@ -17,6 +19,7 @@ impl OctavePackageDependency {
         }
     }
 
+    /// Creates a new OctavePackageDependency with no minimum version.
     pub fn simple(package: &str) -> Self {
         Self {
             package: package.to_string(),
@@ -120,11 +123,13 @@ mod tests {
     }
 }
 
+/// OctaveForgeResolver is an installer for Octave packages using the Octave Forge repository.
 pub struct OctaveForgeResolver<'a> {
     session: &'a dyn Session,
 }
 
 impl<'a> OctaveForgeResolver<'a> {
+    /// Creates a new OctaveForgeResolver.
     pub fn new(session: &'a dyn Session) -> Self {
         Self { session }
     }

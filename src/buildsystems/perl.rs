@@ -1,3 +1,9 @@
+//! Support for Perl build systems.
+//!
+//! This module provides functionality for building, testing, and installing
+//! Perl packages using various build systems such as DistZilla, Makefile.PL,
+//! and ExtUtils::MakeMaker.
+
 use crate::analyze::AnalyzedError;
 use crate::buildsystem::{guaranteed_which, BuildSystem, DependencyCategory, Error};
 use crate::dependencies::perl::PerlModuleDependency;
@@ -32,6 +38,14 @@ fn read_cpanfile(
         })
 }
 
+/// Extract declared dependencies from a cpanfile.
+///
+/// # Arguments
+/// * `session` - The session to use for executing commands
+/// * `fixers` - Fixers to apply if reading the cpanfile fails
+///
+/// # Returns
+/// A list of dependencies declared in the cpanfile
 pub fn declared_deps_from_cpanfile(
     session: &dyn Session,
     fixers: &[&dyn BuildFixer<InstallerError>],
@@ -52,6 +66,10 @@ pub fn declared_deps_from_cpanfile(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+/// Metadata from META.yml for a Perl package.
+///
+/// This contains the parsed metadata from a META.yml file, which describes
+/// the package and its dependencies.
 pub struct Meta {
     name: String,
     #[serde(rename = "abstract")]
@@ -70,6 +88,13 @@ pub struct Meta {
     configure_requires: HashMap<String, String>,
 }
 
+/// Extract declared dependencies from a META.yml file.
+///
+/// # Arguments
+/// * `f` - A reader for the META.yml file
+///
+/// # Returns
+/// A list of dependencies declared in the META.yml file
 pub fn declared_deps_from_meta_yml<R: Read>(
     f: R,
 ) -> Vec<(DependencyCategory, PerlModuleDependency)> {
@@ -102,12 +127,22 @@ pub fn declared_deps_from_meta_yml<R: Read>(
 }
 
 #[derive(Debug)]
+/// DistZilla build system for Perl packages.
+///
+/// This build system handles Perl packages that use DistZilla for building.
 pub struct DistZilla {
     path: PathBuf,
     dist_inkt_class: Option<String>,
 }
 
 impl DistZilla {
+    /// Create a new DistZilla build system with the specified path.
+    ///
+    /// # Arguments
+    /// * `path` - The path to the Perl package directory
+    ///
+    /// # Returns
+    /// A new DistZilla build system instance
     pub fn new(path: PathBuf) -> Self {
         let mut dist_inkt_class = None;
         let mut f = std::fs::File::open(&path).unwrap();
@@ -135,6 +170,13 @@ impl DistZilla {
         }
     }
 
+    /// Set up the DistZilla build environment.
+    ///
+    /// # Arguments
+    /// * `installer` - The installer to use for dependencies
+    ///
+    /// # Returns
+    /// Ok on success or an error
     pub fn setup(
         &self,
         installer: &dyn crate::installer::Installer,
@@ -144,6 +186,13 @@ impl DistZilla {
         Ok(())
     }
 
+    /// Probe a directory for a DistZilla build system.
+    ///
+    /// # Arguments
+    /// * `path` - The path to check
+    ///
+    /// # Returns
+    /// A DistZilla build system if one exists at the path, `None` otherwise
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         let dist_ini_path = path.join("dist.ini");
         if dist_ini_path.exists() && !path.join("Makefile.PL").exists() {
@@ -298,12 +347,23 @@ impl BuildSystem for DistZilla {
 }
 
 #[derive(Debug)]
+/// Module::Build::Tiny build system for Perl packages.
+///
+/// This build system handles Perl packages that use Module::Build::Tiny for building,
+/// including support for Minilla.
 pub struct PerlBuildTiny {
     path: PathBuf,
     minilla: bool,
 }
 
 impl PerlBuildTiny {
+    /// Create a new PerlBuildTiny build system with the specified path.
+    ///
+    /// # Arguments
+    /// * `path` - The path to the Perl package directory
+    ///
+    /// # Returns
+    /// A new PerlBuildTiny build system instance
     pub fn new(path: PathBuf) -> Self {
         let minilla = path.join("minil.toml").exists();
         Self { path, minilla }
@@ -322,6 +382,13 @@ impl PerlBuildTiny {
         Ok(())
     }
 
+    /// Probe a directory for a Module::Build::Tiny build system.
+    ///
+    /// # Arguments
+    /// * `path` - The path to check
+    ///
+    /// # Returns
+    /// A PerlBuildTiny build system if one exists at the path, `None` otherwise
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if path.join("Build.PL").exists() {
             log::debug!("Found Build.PL, assuming Module::Build::Tiny package.");

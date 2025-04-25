@@ -10,6 +10,17 @@ use buildlog_consultant::Problem;
 use debian_analyzer::editor::Editor;
 use std::path::Path;
 
+/// Extract targeted Python versions from a package's build dependencies.
+///
+/// This function parses the debian/control file to determine which Python
+/// versions (python3, pypy, etc.) are targeted by the package's build dependencies.
+///
+/// # Arguments
+/// * `tree` - The working tree containing the package
+/// * `subpath` - Path to the package within the tree
+///
+/// # Returns
+/// A list of Python version strings that the package targets
 fn targeted_python_versions(tree: &dyn Tree, subpath: &Path) -> Vec<String> {
     let f = tree.get_file(&subpath.join("debian/control")).unwrap();
     let control = debian_control::Control::read(f).unwrap();
@@ -38,7 +49,13 @@ fn targeted_python_versions(tree: &dyn Tree, subpath: &Path) -> Vec<String> {
     targeted
 }
 
+/// Tie-breaker for Python dependencies based on targeted Python versions.
+///
+/// This tie-breaker helps select appropriate Python dependencies based on
+/// the Python versions targeted by the package as specified in its build
+/// dependencies.
 pub struct PythonTieBreaker {
+    /// List of targeted Python versions (e.g., "python3", "pypy")
     targeted: Vec<String>,
 }
 
@@ -87,6 +104,18 @@ impl TieBreaker for PythonTieBreaker {
     }
 }
 
+/// Handle APT fetch failures by simply retrying.
+///
+/// This fixer deals with transient APT fetch failures by indicating that
+/// the build should be retried.
+///
+/// # Arguments
+/// * `_error` - The APT fetch failure problem
+/// * `_phase` - The build phase in which the error occurred
+/// * `_context` - The Debian packaging context
+///
+/// # Returns
+/// Always returns Ok(true) to indicate the build should be retried
 fn retry_apt_failure(
     _error: &dyn Problem,
     _phase: &Phase,
@@ -95,6 +124,17 @@ fn retry_apt_failure(
     Ok(true)
 }
 
+/// Enable dh-autoreconf in debian/rules.
+///
+/// This function adds dh-autoreconf to debian/rules to handle autoconf-related
+/// build issues.
+///
+/// # Arguments
+/// * `context` - The Debian packaging context
+/// * `phase` - The build phase in which autoreconf is needed
+///
+/// # Returns
+/// Ok(true) if successful, Error otherwise
 fn enable_dh_autoreconf(context: &DebianPackagingContext, phase: &Phase) -> Result<bool, Error> {
     // Debhelper >= 10 depends on dh-autoreconf and enables autoreconf by default.
     let debhelper_compat_version =
@@ -184,12 +224,19 @@ fn fix_missing_config_status_input(
     context.commit("Run autogen.sh during build.", None)
 }
 
+/// Fixer that resolves missing package dependencies.
+///
+/// This fixer identifies missing dependencies in build errors and adds them
+/// to the package's build dependencies in debian/control.
 pub struct PackageDependencyFixer<'a, 'b, 'c>
 where
     'c: 'a,
 {
+    /// APT package manager for dependency resolution
     apt: &'a AptManager<'c>,
+    /// Debian packaging context for making changes to the package
     context: &'b DebianPackagingContext,
+    /// List of tie-breakers for selecting between alternative dependencies
     tie_breakers: Vec<Box<dyn TieBreaker>>,
 }
 
@@ -234,12 +281,19 @@ impl<'a, 'b, 'c> DebianBuildFixer for PackageDependencyFixer<'a, 'b, 'c> {
     }
 }
 
+/// Fixer that updates PostgreSQL build extension control files.
+///
+/// This fixer handles the case where pg_buildext detects that control files
+/// are out of date and need to be updated.
 pub struct PgBuildExtOutOfDateControlFixer<'a, 'b, 'c, 'd>
 where
     'a: 'c,
 {
+    /// Session for executing commands
     session: &'a dyn Session,
+    /// Debian packaging context for making changes to the package
     context: &'b DebianPackagingContext,
+    /// APT package manager for dependency resolution
     apt: &'c AptManager<'d>,
 }
 
@@ -328,8 +382,17 @@ fn debcargo_coerce_unacceptable_prerelease(
     Ok(true)
 }
 
+/// Macro to generate simple build fixers.
+///
+/// This macro creates structs that implement the DebianBuildFixer trait
+/// for specific problem types, delegating the actual fixing to the provided
+/// function.
 macro_rules! simple_build_fixer {
     ($name:ident, $problem_cls:ty, $fn:expr) => {
+        #[doc = concat!("Fixer for ", stringify!($problem_cls), " problems.")]
+        ///
+        /// This fixer detects and attempts to resolve specific build problems
+        /// by delegating to an appropriate fixing function.
         pub struct $name<'a>(&'a DebianPackagingContext);
 
         impl<'a> std::fmt::Display for $name<'a> {
@@ -400,6 +463,18 @@ simple_build_fixer!(
     retry_apt_failure
 );
 
+/// Create a collection of all available Debian build fixers.
+///
+/// This function creates and returns all the build fixers available for
+/// fixing Debian package build problems.
+///
+/// # Arguments
+/// * `session` - Session for running commands
+/// * `packaging_context` - Packaging context for making changes to the package
+/// * `apt` - APT manager for package installation and queries
+///
+/// # Returns
+/// A vector of boxed build fixers
 pub fn versioned_package_fixers<'a, 'b, 'c, 'd, 'e>(
     session: &'c dyn Session,
     packaging_context: &'b DebianPackagingContext,
@@ -426,6 +501,16 @@ where
     ]
 }
 
+/// Create APT-specific Debian build fixers.
+///
+/// This function creates fixers that handle APT-related build issues.
+///
+/// # Arguments
+/// * `apt` - APT manager for package installation and queries
+/// * `packaging_context` - Packaging context for making changes to the package
+///
+/// # Returns
+/// A vector of boxed build fixers for APT-related issues
 pub fn apt_fixers<'a, 'b, 'c, 'd>(
     apt: &'a AptManager<'d>,
     packaging_context: &'b DebianPackagingContext,
@@ -453,6 +538,17 @@ where
     ]
 }
 
+/// Create a set of default Debian build fixers.
+///
+/// This function creates a standard set of build fixers that can handle
+/// common build problems.
+///
+/// # Arguments
+/// * `packaging_context` - Packaging context for making changes to the package
+/// * `apt` - APT manager for package installation and queries
+///
+/// # Returns
+/// A vector of boxed build fixers for common build issues
 pub fn default_fixers<'a, 'b, 'c, 'd>(
     packaging_context: &'a DebianPackagingContext,
     apt: &'b AptManager<'d>,

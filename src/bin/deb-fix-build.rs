@@ -1,9 +1,8 @@
 use clap::Parser;
-use ognibuild::debian::build::BuildOnceError;
 use ognibuild::debian::fix_build::{rescue_build_log, IterateBuildError};
 #[cfg(target_os = "linux")]
 use ognibuild::session::schroot::SchrootSession;
-use ognibuild::session::{plain::PlainSession, Session};
+use ognibuild::session::plain::PlainSession;
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::PathBuf;
@@ -112,11 +111,7 @@ fn main() -> Result<(), i32> {
 
     let apt = ognibuild::debian::apt::AptManager::new(session.as_ref(), None);
 
-    let committer = if let Some(committer) = &args.committer {
-        Some(breezyshim::config::parse_username(committer))
-    } else {
-        None
-    };
+    let committer = args.committer.as_ref().map(|committer| breezyshim::config::parse_username(committer));
 
     let packaging_context = ognibuild::debian::context::DebianPackagingContext::new(
         tree.clone(),
@@ -154,14 +149,14 @@ fn main() -> Result<(), i32> {
                 build_result.version,
                 build_result.changes_names,
             );
-            return Ok(());
+            Ok(())
         }
         Err(IterateBuildError::Persistent(phase, error)) => {
             log::error!("Error during {}: {}", phase, error);
             if let Some(output_directory) = args.output_directory {
                 rescue_build_log(&output_directory, Some(&tree)).unwrap();
             }
-            return Err(1);
+            Err(1)
         }
         Err(IterateBuildError::Unidentified {
             phase,
@@ -192,23 +187,23 @@ fn main() -> Result<(), i32> {
             if let Some(output_directory) = args.output_directory {
                 rescue_build_log(&output_directory, Some(&tree)).unwrap();
             }
-            return Err(1);
+            Err(1)
         }
         Err(IterateBuildError::FixerLimitReached(n)) => {
             log::error!("Fixer limit reached - {} attempts.", n);
-            return Err(1);
+            Err(1)
         }
         Err(IterateBuildError::Other(o)) => {
             log::error!("Error: {}", o);
-            return Err(1);
+            Err(1)
         }
         Err(IterateBuildError::MissingPhase) => {
             log::error!("Missing phase");
-            return Err(1);
+            Err(1)
         }
         Err(IterateBuildError::ResetTree(e)) => {
             log::error!("Error resetting tree: {}", e);
-            return Err(1);
+            Err(1)
         }
     }
 }

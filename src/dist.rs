@@ -9,6 +9,19 @@ use crate::session::Session;
 use std::ffi::OsString;
 use std::path::Path;
 
+/// Create a distribution package using the detected build system.
+///
+/// # Arguments
+/// * `session` - The session to run commands in
+/// * `export_directory` - Directory to search for build systems
+/// * `reldir` - Relative directory to change to before building
+/// * `target_dir` - Directory to write distribution package to
+/// * `log_manager` - Log manager for capturing output
+/// * `version` - Optional version to use for the package
+/// * `quiet` - Whether to suppress output
+///
+/// # Returns
+/// The filename of the created distribution package
 pub fn dist(
     session: &mut dyn Session,
     export_directory: &Path,

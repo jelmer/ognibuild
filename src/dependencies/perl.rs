@@ -1,3 +1,8 @@
+//! Support for Perl dependencies.
+//!
+//! This module provides functionality for working with Perl dependencies,
+//! including Perl modules, pre-declared dependencies, and file dependencies.
+
 use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
@@ -5,13 +10,29 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a Perl module.
+///
+/// This represents a dependency on a Perl module that needs to be installed
+/// for the code to function properly.
 pub struct PerlModuleDependency {
+    /// The name of the Perl module.
     pub module: String,
+    /// The optional filename that contains the module.
     pub filename: Option<String>,
+    /// Optional include paths for finding the module.
     pub inc: Option<Vec<String>>,
 }
 
 impl PerlModuleDependency {
+    /// Create a new Perl module dependency with filename and include paths.
+    ///
+    /// # Arguments
+    /// * `module` - The name of the Perl module
+    /// * `filename` - Optional filename that contains the module
+    /// * `inc` - Optional include paths for finding the module
+    ///
+    /// # Returns
+    /// A new PerlModuleDependency
     pub fn new(module: &str, filename: Option<&str>, inc: Option<Vec<&str>>) -> Self {
         Self {
             module: module.to_string(),
@@ -20,6 +41,13 @@ impl PerlModuleDependency {
         }
     }
 
+    /// Create a simple Perl module dependency with just a module name.
+    ///
+    /// # Arguments
+    /// * `module` - The name of the Perl module
+    ///
+    /// # Returns
+    /// A new PerlModuleDependency with no filename or include paths
     pub fn simple(module: &str) -> Self {
         Self {
             module: module.to_string(),
@@ -74,10 +102,21 @@ impl crate::upstream::FindUpstream for PerlModuleDependency {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a predeclared Perl module.
+///
+/// This represents a dependency on a Perl module that is known by name but
+/// may map to a different actual module name.
 pub struct PerlPreDeclaredDependency {
     name: String,
 }
 
+/// Map a predeclared module name to an actual module name.
+///
+/// # Arguments
+/// * `name` - The predeclared module name
+///
+/// # Returns
+/// The actual module name if known
 fn known_predeclared_module(name: &str) -> Option<&str> {
     // TODO(jelmer): Can we obtain this information elsewhere?
     match name {
@@ -100,6 +139,13 @@ fn known_predeclared_module(name: &str) -> Option<&str> {
 }
 
 impl PerlPreDeclaredDependency {
+    /// Create a new predeclared Perl module dependency.
+    ///
+    /// # Arguments
+    /// * `name` - The name of the predeclared module
+    ///
+    /// # Returns
+    /// A new PerlPreDeclaredDependency
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -157,11 +203,21 @@ impl crate::buildlog::ToDependency
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on a Perl file.
+///
+/// This represents a dependency on a specific Perl file rather than a module.
 pub struct PerlFileDependency {
     filename: String,
 }
 
 impl PerlFileDependency {
+    /// Create a new Perl file dependency.
+    ///
+    /// # Arguments
+    /// * `filename` - The path to the Perl file
+    ///
+    /// # Returns
+    /// A new PerlFileDependency
     pub fn new(filename: &str) -> Self {
         Self {
             filename: filename.to_string(),
@@ -200,12 +256,23 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
     }
 }
 
+/// A resolver for Perl module dependencies using CPAN.
+///
+/// This resolver installs Perl modules from CPAN using the cpan command.
 pub struct CPAN<'a> {
     session: &'a dyn Session,
     skip_tests: bool,
 }
 
 impl<'a> CPAN<'a> {
+    /// Create a new CPAN resolver.
+    ///
+    /// # Arguments
+    /// * `session` - The session to use for executing commands
+    /// * `skip_tests` - Whether to skip tests when installing modules
+    ///
+    /// # Returns
+    /// A new CPAN resolver
     pub fn new(session: &'a dyn Session, skip_tests: bool) -> Self {
         Self {
             session,
@@ -321,6 +388,7 @@ impl<'a> Installer for CPAN<'a> {
     }
 }
 
+/// Default paths where Perl modules can be installed.
 pub const DEFAULT_PERL_PATHS: &[&str] = &[
     "/usr/share/perl5",
     "/usr/lib/.*/perl5/.*",

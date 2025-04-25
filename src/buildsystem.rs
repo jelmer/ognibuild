@@ -41,18 +41,26 @@ impl std::fmt::Display for DependencyCategory {
 }
 
 #[derive(Debug)]
+/// Error types for build system operations.
+///
+/// These represent different kinds of errors that can occur when working with build systems.
 pub enum Error {
     /// The build system could not be detected.
     NoBuildSystemDetected,
 
+    /// Error occurred while installing dependencies.
     DependencyInstallError(InstallerError),
 
+    /// Error detected and analyzed from build output.
     Error(crate::analyze::AnalyzedError),
 
+    /// Error from an IO operation.
     IoError(std::io::Error),
 
+    /// The requested operation is not implemented by this build system.
     Unimplemented,
 
+    /// Generic error with a message.
     Other(String),
 }
 
@@ -174,13 +182,21 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {}
 
 #[derive(Debug, Clone)]
+/// Target configuration for installation.
+///
+/// Defines where and how packages should be installed.
 pub struct InstallTarget {
+    /// The scope of installation (e.g., global or user).
     pub scope: InstallationScope,
 
+    /// Optional installation prefix directory.
     pub prefix: Option<PathBuf>,
 }
 
 impl DependencyCategory {
+    /// Get all standard dependency categories.
+    ///
+    /// Returns an array containing all standard dependency categories.
     pub fn all() -> [DependencyCategory; 5] {
         [
             DependencyCategory::Universal,
@@ -193,10 +209,17 @@ impl DependencyCategory {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Standard build system actions.
+///
+/// These represent the common actions that can be performed by build systems.
 pub enum Action {
+    /// Clean the build environment.
     Clean,
+    /// Build the project.
     Build,
+    /// Run the project's tests.
     Test,
+    /// Install the project.
     Install,
 }
 
@@ -220,6 +243,17 @@ pub trait BuildSystem: std::fmt::Debug {
     /// The name of the buildsystem.
     fn name(&self) -> &str;
 
+    /// Create a distribution package for the project.
+    ///
+    /// # Arguments
+    /// * `session` - The session to run commands in
+    /// * `installer` - Installer to use for installing dependencies
+    /// * `target_directory` - Directory where the distribution package should be created
+    /// * `quiet` - Whether to suppress output
+    ///
+    /// # Returns
+    /// * The filename of the created distribution package on success
+    /// * Error if the distribution creation fails
     fn dist(
         &self,
         session: &dyn Session,
@@ -228,6 +262,18 @@ pub trait BuildSystem: std::fmt::Debug {
         quiet: bool,
     ) -> Result<std::ffi::OsString, Error>;
 
+    /// Install the dependencies declared by the build system.
+    ///
+    /// # Arguments
+    /// * `categories` - The categories of dependencies to install
+    /// * `scopes` - The scopes in which to install the dependencies
+    /// * `session` - The session to run commands in
+    /// * `installer` - Installer to use for installing dependencies
+    /// * `fixers` - Optional list of fixers to use if getting dependency information fails
+    ///
+    /// # Returns
+    /// * `Ok(())` if the dependencies were installed successfully
+    /// * Error if installation fails
     fn install_declared_dependencies(
         &self,
         categories: &[DependencyCategory],
@@ -256,12 +302,49 @@ pub trait BuildSystem: std::fmt::Debug {
         Ok(())
     }
 
+    /// Run tests for the project.
+    ///
+    /// # Arguments
+    /// * `session` - The session to run commands in
+    /// * `installer` - Installer to use for installing dependencies
+    ///
+    /// # Returns
+    /// * `Ok(())` if the tests pass
+    /// * Error if the tests fail
     fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error>;
 
+    /// Build the project.
+    ///
+    /// # Arguments
+    /// * `session` - The session to run commands in
+    /// * `installer` - Installer to use for installing dependencies
+    ///
+    /// # Returns
+    /// * `Ok(())` if the build succeeds
+    /// * Error if the build fails
     fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error>;
 
+    /// Clean the project's build artifacts.
+    ///
+    /// # Arguments
+    /// * `session` - The session to run commands in
+    /// * `installer` - Installer to use for installing dependencies
+    ///
+    /// # Returns
+    /// * `Ok(())` if the clean succeeds
+    /// * Error if the clean fails
     fn clean(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error>;
 
+    /// Install the project.
+    ///
+    /// # Arguments
+    /// * `session` - The session to run commands in
+    /// * `installer` - Installer to use for installing dependencies
+    /// * `install_target` - Target configuration for the installation
+    ///
+    /// # Returns
+    /// * `Ok(())` if the installation succeeds
+    /// * Error if the installation fails
     fn install(
         &self,
         session: &dyn Session,
@@ -269,34 +352,75 @@ pub trait BuildSystem: std::fmt::Debug {
         install_target: &InstallTarget,
     ) -> Result<(), Error>;
 
+    /// Get the dependencies declared by the build system.
+    ///
+    /// # Arguments
+    /// * `session` - The session to run commands in
+    /// * `fixers` - Optional list of fixers to use if getting dependency information fails
+    ///
+    /// # Returns
+    /// * List of dependencies with their categories
+    /// * Error if getting dependency information fails
     fn get_declared_dependencies(
         &self,
         session: &dyn Session,
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error>;
 
+    /// Get the outputs declared by the build system.
+    ///
+    /// # Arguments
+    /// * `session` - The session to run commands in
+    /// * `fixers` - Optional list of fixers to use if getting output information fails
+    ///
+    /// # Returns
+    /// * List of declared outputs
+    /// * Error if getting output information fails
     fn get_declared_outputs(
         &self,
         session: &dyn Session,
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<Vec<Box<dyn Output>>, Error>;
 
+    /// Convert this build system to Any for dynamic casting.
+    ///
+    /// This method allows for conversion of the build system to concrete types at runtime.
+    ///
+    /// # Returns
+    /// A reference to this build system as Any
     fn as_any(&self) -> &dyn std::any::Any;
 }
 
+/// XML namespaces used by PEAR package definitions.
 pub const PEAR_NAMESPACES: &[&str] = &[
     "http://pear.php.net/dtd/package-2.0",
     "http://pear.php.net/dtd/package-2.1",
 ];
 
 #[derive(Debug)]
+/// PEAR (PHP Extension and Application Repository) build system.
 pub struct Pear(pub PathBuf);
 
 impl Pear {
+    /// Create a new PEAR build system.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the PEAR package.xml file
+    ///
+    /// # Returns
+    /// A new PEAR build system instance
     pub fn new(path: PathBuf) -> Self {
         Self(path)
     }
 
+    /// Detect if a directory contains a PEAR project.
+    ///
+    /// # Arguments
+    /// * `path` - Directory to probe
+    ///
+    /// # Returns
+    /// * `Some(Box<dyn BuildSystem>)` if a PEAR project is detected
+    /// * `None` if no PEAR project is detected
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         let package_xml_path = path.join("package.xml");
         if !package_xml_path.exists() {
@@ -516,13 +640,29 @@ pub fn scan_buildsystems(path: &Path) -> Vec<(PathBuf, Box<dyn BuildSystem>)> {
 }
 
 #[derive(Debug)]
+/// PHP Composer build system.
 pub struct Composer(pub PathBuf);
 
 impl Composer {
+    /// Create a new Composer build system instance.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the project directory
+    ///
+    /// # Returns
+    /// A new Composer build system instance
     pub fn new(path: PathBuf) -> Self {
         Self(path)
     }
 
+    /// Detect if a directory contains a Composer project.
+    ///
+    /// # Arguments
+    /// * `path` - Directory to probe
+    ///
+    /// # Returns
+    /// * `Some(Box<dyn BuildSystem>)` if a Composer project is detected
+    /// * `None` if no Composer project is detected
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if path.join("composer.json").exists() {
             Some(Box::new(Self(path.into())))
@@ -590,13 +730,29 @@ impl BuildSystem for Composer {
 }
 
 #[derive(Debug)]
+/// Generic build system that just runs tests.
 pub struct RunTests(pub PathBuf);
 
 impl RunTests {
+    /// Create a new RunTests build system instance.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the project directory
+    ///
+    /// # Returns
+    /// A new RunTests build system instance
     pub fn new(path: PathBuf) -> Self {
         Self(path)
     }
 
+    /// Detect if a directory contains a project with tests that can be run.
+    ///
+    /// # Arguments
+    /// * `path` - Directory to probe
+    ///
+    /// # Returns
+    /// * `Some(Box<dyn BuildSystem>)` if runnable tests are detected
+    /// * `None` if no runnable tests are detected
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if path.join("runtests.sh").exists() {
             Some(Box::new(Self(path.into())))
@@ -671,6 +827,16 @@ impl BuildSystem for RunTests {
     }
 }
 
+/// Detect all applicable build systems for a given path.
+///
+/// This function attempts to detect any build systems that can be used with the
+/// provided project directory. Multiple build systems may be detected for a single project.
+///
+/// # Arguments
+/// * `path` - Path to the project directory
+///
+/// # Returns
+/// A vector of detected build systems, sorted in order of preference
 pub fn detect_buildsystems(path: &std::path::Path) -> Vec<Box<dyn BuildSystem>> {
     if !path.exists() {
         log::error!("Path does not exist: {:?}", path);
@@ -710,10 +876,31 @@ pub fn detect_buildsystems(path: &std::path::Path) -> Vec<Box<dyn BuildSystem>> 
     ret
 }
 
+/// Get the most appropriate build system for a given path.
+///
+/// This function returns the first (most preferred) build system that can be used
+/// with the provided project directory, along with its path.
+///
+/// # Arguments
+/// * `path` - Path to the project directory
+///
+/// # Returns
+/// An optional tuple containing the path to the build system file and the build system instance
 pub fn get_buildsystem(path: &Path) -> Option<(PathBuf, Box<dyn BuildSystem>)> {
     scan_buildsystems(path).into_iter().next()
 }
 
+/// Get a build system by name for a given path.
+///
+/// This function tries to create a specific build system by name for the provided
+/// project directory.
+///
+/// # Arguments
+/// * `name` - Name of the build system to use
+/// * `path` - Path to the project directory
+///
+/// # Returns
+/// An optional build system instance if the specified build system is applicable
 pub fn buildsystem_by_name(name: &str, path: &Path) -> Option<Box<dyn BuildSystem>> {
     match name {
         "pear" => Pear::probe(path),

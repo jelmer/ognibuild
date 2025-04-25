@@ -1,3 +1,9 @@
+//! Debian package building functionality.
+//!
+//! This module provides utilities for building Debian packages, including
+//! functions for managing changelog entries, running build commands,
+//! and handling build failures.
+
 use breezyshim::tree::{MutableTree, Tree, WorkingTree};
 use buildlog_consultant::Problem;
 use debian_changelog::{ChangeLog, Urgency};
@@ -5,6 +11,15 @@ use debversion::Version;
 use std::io::Seek;
 use std::path::{Path, PathBuf};
 
+/// Get the current Debian build architecture.
+///
+/// Uses dpkg-architecture to determine the build architecture.
+///
+/// # Returns
+/// The build architecture string (e.g., "amd64")
+///
+/// # Panics
+/// Panics if dpkg-architecture is not available or fails to run.
 pub fn get_build_architecture() -> String {
     std::process::Command::new("dpkg-architecture")
         .arg("-qDEB_BUILD_ARCH")
@@ -13,8 +28,17 @@ pub fn get_build_architecture() -> String {
         .unwrap()
 }
 
+/// Default build command for Debian packages.
+///
+/// Uses sbuild with the --no-clean-source option.
 pub const DEFAULT_BUILDER: &str = "sbuild --no-clean-source";
 
+/// Get the path to the current Python interpreter.
+///
+/// Uses PyO3 to get the path from sys.executable.
+///
+/// # Returns
+/// The path to the Python interpreter as a String.
 fn python_command() -> String {
     pyo3::Python::with_gil(|py| {
         use pyo3::types::PyAnyMethods;
@@ -27,6 +51,17 @@ fn python_command() -> String {
     })
 }
 
+/// Generate the command for building Debian packages with bzr-builddeb.
+///
+/// # Arguments
+/// * `build_command` - Custom build command to use (defaults to DEFAULT_BUILDER)
+/// * `result_dir` - Directory to store build results
+/// * `apt_repository` - APT repository to use
+/// * `apt_repository_key` - APT repository key to use
+/// * `extra_repositories` - Additional APT repositories
+///
+/// # Returns
+/// Vector of command line arguments for the build command
 pub fn builddeb_command(
     build_command: Option<&str>,
     result_dir: Option<&std::path::Path>,
@@ -67,6 +102,7 @@ pub fn builddeb_command(
     args
 }
 
+/// Error indicating a build failure with an exit code.
 #[derive(Debug)]
 pub struct BuildFailedError(pub i32);
 
@@ -78,6 +114,22 @@ impl std::fmt::Display for BuildFailedError {
 
 impl std::error::Error for BuildFailedError {}
 
+/// Build a Debian package from source.
+///
+/// # Arguments
+/// * `local_tree` - Working tree containing the package source
+/// * `outf` - File to write build output to
+/// * `build_command` - Command to use for building
+/// * `result_dir` - Directory to store build results
+/// * `distribution` - Debian distribution to target
+/// * `subpath` - Path within the tree where the package is located
+/// * `source_date_epoch` - Source date epoch to use for reproducible builds
+/// * `apt_repository` - APT repository to use
+/// * `apt_repository_key` - APT repository key to use
+/// * `extra_repositories` - Additional APT repositories
+///
+/// # Returns
+/// Ok on success, BuildFailedError with exit code on failure
 pub fn build(
     local_tree: &WorkingTree,
     outf: std::fs::File,
@@ -134,33 +186,76 @@ pub fn build(
     }
 }
 
+/// Default filename for build logs.
 pub const BUILD_LOG_FILENAME: &str = "build.log";
 
 #[derive(Debug)]
+/// Error that can occur during a build attempt.
+///
+/// Contains details about the build failure, including stage, phase,
+/// return code, command, and error information.
 pub enum BuildOnceError {
+    /// Detailed error with specific problem information.
     Detailed {
+        /// Build stage where failure occurred.
         stage: Option<String>,
+        /// Build phase where failure occurred.
         phase: Option<buildlog_consultant::sbuild::Phase>,
+        /// Process return code.
         retcode: i32,
+        /// Command that was run.
         command: Vec<String>,
+        /// Specific error that was detected.
         error: Box<dyn Problem>,
+        /// Human-readable description of the error.
         description: String,
     },
+    /// Unidentified error without specific problem information.
     Unidentified {
+        /// Build stage where failure occurred.
         stage: Option<String>,
+        /// Build phase where failure occurred.
         phase: Option<buildlog_consultant::sbuild::Phase>,
+        /// Process return code.
         retcode: i32,
+        /// Command that was run.
         command: Vec<String>,
+        /// Human-readable description of the error.
         description: String,
     },
 }
 
+/// Result of a successful build attempt.
+///
+/// Contains information about the built package, including source package name,
+/// version, and paths to changes files.
 pub struct BuildOnceResult {
+    /// Name of the source package.
     pub source_package: String,
+    /// Version of the built package.
     pub version: debversion::Version,
+    /// Paths to the generated .changes files.
     pub changes_names: Vec<PathBuf>,
 }
 
+/// Build a Debian package once and capture detailed error information.
+///
+/// This function builds a package and provides more detailed error information
+/// than the basic `build` function by parsing the build log.
+///
+/// # Arguments
+/// * `local_tree` - Working tree containing the package source
+/// * `build_suite` - Debian distribution to target
+/// * `output_directory` - Directory to store build results
+/// * `build_command` - Command to use for building
+/// * `subpath` - Path within the tree where the package is located
+/// * `source_date_epoch` - Source date epoch to use for reproducible builds
+/// * `apt_repository` - APT repository to use
+/// * `apt_repository_key` - APT repository key to use
+/// * `extra_repositories` - Additional APT repositories
+///
+/// # Returns
+/// BuildOnceResult on success, detailed BuildOnceError on failure
 pub fn build_once(
     local_tree: &WorkingTree,
     build_suite: Option<&str>,
@@ -247,6 +342,14 @@ pub fn build_once(
     })
 }
 
+/// Check if Debian control files are in the root of the project.
+///
+/// # Arguments
+/// * `tree` - Tree to check for control files
+/// * `subpath` - Path within the tree to check
+///
+/// # Returns
+/// true if control files are in root, false if they are in a debian/ directory
 fn control_files_in_root(tree: &dyn MutableTree, subpath: &std::path::Path) -> bool {
     let debian_path = subpath.join("debian");
     if tree.has_filename(&debian_path) {
@@ -262,6 +365,14 @@ fn control_files_in_root(tree: &dyn MutableTree, subpath: &std::path::Path) -> b
     )))
 }
 
+/// Get the last entry from the debian/changelog file.
+///
+/// # Arguments
+/// * `local_tree` - Working tree containing the package source
+/// * `subpath` - Path within the tree where the package is located
+///
+/// # Returns
+/// Tuple of (package name, version) from the last changelog entry
 fn get_last_changelog_entry(
     local_tree: &WorkingTree,
     subpath: &std::path::Path,
@@ -281,6 +392,13 @@ fn get_last_changelog_entry(
     (e.package().unwrap(), e.version().unwrap())
 }
 
+/// Run gbp-dch to update the changelog.
+///
+/// # Arguments
+/// * `path` - Path to the package directory
+///
+/// # Returns
+/// Ok on success, Error if gbp-dch fails
 pub fn gbp_dch(path: &std::path::Path) -> Result<(), std::io::Error> {
     let cmd = std::process::Command::new("gbp-dch")
         .arg("--ignore-branch")
@@ -295,6 +413,15 @@ pub fn gbp_dch(path: &std::path::Path) -> Result<(), std::io::Error> {
     Ok(())
 }
 
+/// Find changes files for a specific package and version.
+///
+/// # Arguments
+/// * `path` - Directory to search for changes files
+/// * `package` - Package name to match
+/// * `version` - Version to match
+///
+/// # Returns
+/// Iterator of (architecture, DirEntry) pairs for matching changes files
 pub fn find_changes_files(
     path: &std::path::Path,
     package: &str,
@@ -392,6 +519,16 @@ pub fn attempt_build(
     )
 }
 
+/// Add a suffix to a version string.
+///
+/// If the version already has the same suffix, increments the number at the end.
+///
+/// # Arguments
+/// * `version` - Version to modify
+/// * `suffix` - Suffix to add to the version
+///
+/// # Returns
+/// New version with the suffix added or incremented
 pub fn version_add_suffix(version: &Version, suffix: &str) -> Version {
     fn add_suffix(v: &str, suffix: &str) -> String {
         if let Some(m) = regex::Regex::new(&format!("(.*)({})([0-9]+)", regex::escape(suffix)))

@@ -6,18 +6,32 @@ fn default_check_success(status: std::process::ExitStatus, _lines: Vec<&str>) ->
 }
 
 #[derive(Debug)]
+/// Error type for analyzed command execution errors.
+///
+/// This enum represents different kinds of errors that can occur when running
+/// and analyzing commands, with details about the specific error.
 pub enum AnalyzedError {
+    /// Error indicating a command was not found.
     MissingCommandError {
+        /// The name of the command that was not found.
         command: String,
     },
+    /// Error from an IO operation.
     IoError(std::io::Error),
+    /// Detailed error with information from the buildlog consultant.
     Detailed {
+        /// The return code of the failed command.
         retcode: i32,
+        /// The specific build problem identified.
         error: Box<dyn buildlog_consultant::Problem>,
     },
+    /// Error that could not be specifically identified.
     Unidentified {
+        /// The return code of the failed command.
         retcode: i32,
+        /// The output lines from the command.
         lines: Vec<String>,
+        /// Optional secondary information about the error.
         secondary: Option<Box<dyn buildlog_consultant::Match>>,
     },
 }

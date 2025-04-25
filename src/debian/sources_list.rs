@@ -2,20 +2,40 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
+/// Entry in a Debian APT sources.list file.
+///
+/// This enum represents the two types of entries that can appear in a
+/// sources.list file: 'deb' for binary packages and 'deb-src' for source packages.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SourcesEntry {
+    /// Binary package repository entry (deb line).
     Deb {
+        /// Repository URI
         uri: String,
+        /// Distribution name (e.g., "stable", "bullseye")
         dist: String,
+        /// Component names (e.g., "main", "contrib", "non-free")
         comps: Vec<String>,
     },
+    /// Source package repository entry (deb-src line).
     DebSrc {
+        /// Repository URI
         uri: String,
+        /// Distribution name (e.g., "stable", "bullseye")
         dist: String,
+        /// Component names (e.g., "main", "contrib", "non-free")
         comps: Vec<String>,
     },
 }
 
+/// Parse a line from a sources.list file into a SourcesEntry.
+///
+/// # Arguments
+/// * `line` - Line from sources.list to parse
+///
+/// # Returns
+/// Some(SourcesEntry) if the line is a valid deb or deb-src line,
+/// None otherwise (e.g., comments, blank lines, invalid syntax)
 pub fn parse_sources_list_entry(line: &str) -> Option<SourcesEntry> {
     let parts = line.split_whitespace().collect::<Vec<_>>();
     if parts.len() < 3 {
@@ -41,19 +61,36 @@ pub fn parse_sources_list_entry(line: &str) -> Option<SourcesEntry> {
     None
 }
 
+/// Representation of a Debian APT sources.list file.
+///
+/// This struct holds a collection of SourcesEntry objects, representing
+/// the contents of one or more sources.list files.
 pub struct SourcesList {
+    /// List of sources entries
     list: Vec<SourcesEntry>,
 }
 
 impl SourcesList {
+    /// Create an empty sources list.
+    ///
+    /// # Returns
+    /// A new SourcesList with no entries
     pub fn empty() -> SourcesList {
         SourcesList { list: vec![] }
     }
 
+    /// Get an iterator over the entries in this sources list.
+    ///
+    /// # Returns
+    /// An iterator over references to SourcesEntry objects
     pub fn iter(&self) -> std::slice::Iter<SourcesEntry> {
         self.list.iter()
     }
 
+    /// Load sources entries from a file.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the sources.list file to load
     pub fn load(&mut self, path: &Path) {
         let f = File::open(path).unwrap();
         for line in BufReader::new(f).lines() {
@@ -64,6 +101,16 @@ impl SourcesList {
         }
     }
 
+    /// Create a SourcesList from an APT directory.
+    ///
+    /// This loads both the main sources.list file and any additional files
+    /// in the sources.list.d directory.
+    ///
+    /// # Arguments
+    /// * `apt_dir` - Path to the APT configuration directory (usually /etc/apt)
+    ///
+    /// # Returns
+    /// A new SourcesList containing entries from all sources files
     pub fn from_apt_dir(apt_dir: &Path) -> SourcesList {
         let mut sl = SourcesList::empty();
         sl.load(&apt_dir.join("sources.list"));

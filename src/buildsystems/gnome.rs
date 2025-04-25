@@ -3,6 +3,7 @@ use crate::dependencies::vague::VagueDependency;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
+/// Representation of a GNOME Shell extension.
 pub struct GnomeShellExtension {
     path: PathBuf,
 }
@@ -25,14 +26,35 @@ struct Metadata {
 }
 
 impl GnomeShellExtension {
+    /// Create a new GNOME Shell extension instance.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the GNOME Shell extension directory
+    ///
+    /// # Returns
+    /// A new GnomeShellExtension instance
     pub fn new(path: PathBuf) -> Self {
         Self { path }
     }
 
+    /// Check if a GNOME Shell extension exists at the specified path.
+    ///
+    /// # Arguments
+    /// * `path` - Path to check for GNOME Shell extension
+    ///
+    /// # Returns
+    /// true if metadata.json exists, false otherwise
     pub fn exists(path: &PathBuf) -> bool {
         path.join("metadata.json").exists()
     }
 
+    /// Probe a directory to check if it contains a GNOME Shell extension.
+    ///
+    /// # Arguments
+    /// * `path` - Path to check for GNOME Shell extension files
+    ///
+    /// # Returns
+    /// Some(BuildSystem) if a GNOME Shell extension is found, None otherwise
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if Self::exists(&path.to_path_buf()) {
             log::debug!("Found metadata.json , assuming gnome-shell extension.");

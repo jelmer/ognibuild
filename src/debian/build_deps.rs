@@ -1,3 +1,8 @@
+//! Debian build dependency handling.
+//!
+//! This module provides functionality for handling Debian build dependencies,
+//! including tie-breaking between multiple potential dependencies.
+
 use crate::dependencies::debian::DebianDependency;
 use crate::dependencies::debian::TieBreaker;
 use crate::session::Session;
@@ -5,12 +10,25 @@ use breezyshim::debian::apt::{Apt, LocalApt};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+/// Tie-breaker for Debian build dependencies.
+///
+/// This tie-breaker selects the most commonly used dependency based on
+/// analyzing build dependencies across all source packages in the APT cache.
 pub struct BuildDependencyTieBreaker {
+    /// Local APT instance for accessing package information
     apt: LocalApt,
+    /// Cached counts of build dependency usage
     counts: RefCell<Option<HashMap<String, i32>>>,
 }
 
 impl BuildDependencyTieBreaker {
+    /// Create a new BuildDependencyTieBreaker from a session.
+    ///
+    /// # Arguments
+    /// * `session` - Session to use for accessing the local APT cache
+    ///
+    /// # Returns
+    /// A new BuildDependencyTieBreaker instance
     pub fn from_session(session: &dyn Session) -> Self {
         Self {
             apt: LocalApt::new(Some(&session.location())).unwrap(),
@@ -18,6 +36,13 @@ impl BuildDependencyTieBreaker {
         }
     }
 
+    /// Count the occurrences of each build dependency across all source packages.
+    ///
+    /// This method scans all source packages in the APT cache and counts how many
+    /// times each package is used as a build dependency.
+    ///
+    /// # Returns
+    /// HashMap mapping package names to their usage count
     fn count(&self) -> HashMap<String, i32> {
         let mut counts = HashMap::new();
         for source in self.apt.iter_sources() {
@@ -39,7 +64,15 @@ impl BuildDependencyTieBreaker {
     }
 }
 
+/// Implementation of TieBreaker for BuildDependencyTieBreaker.
 impl TieBreaker for BuildDependencyTieBreaker {
+    /// Break a tie between multiple Debian dependencies by selecting the most commonly used one.
+    ///
+    /// # Arguments
+    /// * `reqs` - Slice of Debian dependency candidates to choose from
+    ///
+    /// # Returns
+    /// The most commonly used dependency, or None if no candidates are available
     fn break_tie<'a>(&self, reqs: &[&'a DebianDependency]) -> Option<&'a DebianDependency> {
         if self.counts.borrow().is_none() {
             let counts = self.count();

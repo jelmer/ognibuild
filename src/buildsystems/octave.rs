@@ -1,3 +1,8 @@
+//! Support for GNU Octave build systems.
+//!
+//! This module provides functionality for building, testing, and installing
+//! GNU Octave packages.
+
 use crate::buildsystem::{BuildSystem, Error};
 use crate::dependencies::octave::OctavePackageDependency;
 use crate::dependency::Dependency;
@@ -5,11 +10,17 @@ use crate::session::Session;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
+/// GNU Octave build system.
+///
+/// This build system handles GNU Octave package builds and installations.
 pub struct Octave {
     path: PathBuf,
 }
 
 #[allow(dead_code)]
+/// Version information for an Octave package.
+///
+/// Represents a semantic version with major, minor, and patch components.
 pub struct Version {
     major: u32,
     minor: u32,
@@ -33,6 +44,10 @@ impl std::str::FromStr for Version {
 }
 
 #[derive(Default)]
+/// Metadata for an Octave package.
+///
+/// Contains the package information from the DESCRIPTION file, including
+/// name, version, dependencies, and other metadata.
 pub struct Description {
     name: Option<String>,
     version: Option<Version>,
@@ -80,6 +95,15 @@ fn read_description_fields<R: std::io::BufRead>(
     Ok(fields)
 }
 
+/// Read an Octave package description from a reader.
+///
+/// Parses the DESCRIPTION file format used by Octave packages.
+///
+/// # Arguments
+/// * `r` - A BufRead implementation containing the DESCRIPTION file contents
+///
+/// # Returns
+/// The parsed Description struct or an IO error
 pub fn read_description<R: std::io::BufRead>(r: R) -> Result<Description, std::io::Error> {
     let mut description = Description::default();
     for (key, value) in read_description_fields(r)?.into_iter() {
@@ -127,10 +151,24 @@ pub fn read_description<R: std::io::BufRead>(r: R) -> Result<Description, std::i
 }
 
 impl Octave {
+    /// Create a new Octave build system with the specified path.
+    ///
+    /// # Arguments
+    /// * `path` - The path to the Octave package directory
+    ///
+    /// # Returns
+    /// A new Octave build system instance
     pub fn new(path: PathBuf) -> Self {
         Self { path }
     }
 
+    /// Check if an Octave package exists at the given path.
+    ///
+    /// # Arguments
+    /// * `path` - The path to check
+    ///
+    /// # Returns
+    /// `true` if an Octave package exists at the path, `false` otherwise
     pub fn exists(path: &Path) -> bool {
         if path.join("DESCRIPTION").exists() {
             return false;
@@ -167,6 +205,13 @@ impl Octave {
         false
     }
 
+    /// Probe a directory for an Octave build system.
+    ///
+    /// # Arguments
+    /// * `path` - The path to check
+    ///
+    /// # Returns
+    /// An Octave build system if one exists at the path, `None` otherwise
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
         if Self::exists(path) {
             log::debug!("Found DESCRIPTION, assuming octave package.");

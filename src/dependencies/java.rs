@@ -3,11 +3,13 @@ use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency representing a Java class.
 pub struct JavaClassDependency {
     classname: String,
 }
 
 impl JavaClassDependency {
+    /// Creates a new JavaClassDependency with the given class name.
     pub fn new(classname: &str) -> Self {
         Self {
             classname: classname.to_string(),
@@ -77,6 +79,7 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency representing the Java Development Kit (JDK).
 pub struct JDKDependency;
 
 impl Dependency for JDKDependency {
@@ -121,6 +124,7 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency representing the Java Runtime Environment (JRE).
 pub struct JREDependency;
 
 impl Dependency for JREDependency {
@@ -165,12 +169,14 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency representing a specific file in the JDK.
 pub struct JDKFileDependency {
     jdk_path: std::path::PathBuf,
     filename: String,
 }
 
 impl JDKFileDependency {
+    /// Creates a new JDKFileDependency with the given JDK path and filename.
     pub fn new(jdk_path: &str, filename: &str) -> Self {
         Self {
             jdk_path: std::path::PathBuf::from(jdk_path.to_string()),
@@ -178,6 +184,7 @@ impl JDKFileDependency {
         }
     }
 
+    /// Returns the full path to the JDK file.
     pub fn path(&self) -> std::path::PathBuf {
         self.jdk_path.join(&self.filename)
     }

@@ -107,6 +107,14 @@ impl Drop for CopyOutput {
     }
 }
 
+/// Rotate a log file, moving it to a new file with a timestamp.
+///
+/// # Arguments
+/// * `source_path` - Path to the log file to rotate
+///
+/// # Returns
+/// * `Ok(())` - If the log file was rotated successfully
+/// * `Err(Error)` - If rotating the log file failed
 pub fn rotate_logfile(source_path: &std::path::Path) -> std::io::Result<()> {
     if source_path.exists() {
         let directory_path = source_path.parent().unwrap_or_else(|| Path::new(""));
@@ -125,14 +133,24 @@ pub fn rotate_logfile(source_path: &std::path::Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Mode for logging.
 pub enum LogMode {
+    /// Copy output to the log file.
     Copy,
+    /// Redirect output to the log file.
     Redirect,
 }
 
+/// Trait for managing log files for build operations.
 pub trait LogManager {
+    /// Start logging to the log file.
+    ///
+    /// # Returns
+    /// * `Ok(())` - If logging was started successfully
+    /// * `Err(Error)` - If starting logging failed
     fn start(&mut self) -> std::io::Result<()>;
 
+    /// Stop logging to the log file.
     fn stop(&mut self) {}
 }
 
@@ -146,6 +164,7 @@ pub fn wrap<R>(logs: &mut dyn LogManager, f: impl FnOnce() -> R) -> R {
     result
 }
 
+/// Log manager that logs to a file in a directory.
 pub struct DirectoryLogManager {
     path: PathBuf,
     mode: LogMode,
@@ -154,6 +173,14 @@ pub struct DirectoryLogManager {
 }
 
 impl DirectoryLogManager {
+    /// Create a new DirectoryLogManager.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the log file
+    /// * `mode` - Mode for logging
+    ///
+    /// # Returns
+    /// A new DirectoryLogManager instance
     pub fn new(path: PathBuf, mode: LogMode) -> Self {
         Self {
             path,
@@ -184,9 +211,14 @@ impl LogManager for DirectoryLogManager {
     }
 }
 
+/// Log manager that does nothing.
 pub struct NoLogManager;
 
 impl NoLogManager {
+    /// Create a new NoLogManager.
+    ///
+    /// # Returns
+    /// A new NoLogManager instance
     pub fn new() -> Self {
         Self {}
     }

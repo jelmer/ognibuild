@@ -4,8 +4,6 @@ use breezyshim::workingtree::{self, WorkingTree};
 use clap::Parser;
 #[cfg(feature = "debian")]
 use debian_control::Control;
-use ognibuild::analyze::AnalyzedError;
-use ognibuild::buildsystem::Error;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Default, PartialEq, Eq)]

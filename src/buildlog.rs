@@ -3,7 +3,15 @@ use buildlog_consultant::problems::common::*;
 use buildlog_consultant::problems::debian::UnsatisfiedAptDependencies;
 use buildlog_consultant::Problem;
 
+/// Trait for converting build problems to dependencies.
+///
+/// This trait allows build problems to report what dependencies would be needed to fix them.
 pub trait ToDependency: Problem {
+    /// Convert this problem to a dependency that might fix it.
+    ///
+    /// # Returns
+    /// * `Some(Box<dyn Dependency>)` if the problem can be fixed by installing a dependency
+    /// * `None` if the problem cannot be fixed by installing a dependency
     fn to_dependency(&self) -> Option<Box<dyn Dependency>>;
 }
 
@@ -19,6 +27,17 @@ macro_rules! try_problem_to_dependency {
     };
 }
 
+/// Convert a build problem to a dependency that might fix it.
+///
+/// This function tries to convert various known problem types to dependencies
+/// that might fix them.
+///
+/// # Arguments
+/// * `problem` - The build problem to convert
+///
+/// # Returns
+/// * `Some(Box<dyn Dependency>)` if the problem can be fixed by installing a dependency
+/// * `None` if the problem cannot be fixed by installing a dependency or isn't recognized
 pub fn problem_to_dependency(problem: &dyn Problem) -> Option<Box<dyn Dependency>> {
     // TODO(jelmer): Find a more idiomatic way to do this.
     try_problem_to_dependency!(problem, MissingAutoconfMacro);

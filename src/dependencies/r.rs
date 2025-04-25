@@ -1,3 +1,8 @@
+//! Support for R package dependencies.
+//!
+//! This module provides functionality for working with R package dependencies,
+//! including parsing and resolving package requirements from CRAN and Bioconductor.
+
 use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
@@ -6,6 +11,9 @@ use r_description::VersionConstraint;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A dependency on an R package.
+///
+/// This represents a dependency on an R package from CRAN, Bioconductor, or another repository.
 pub struct RPackageDependency(Relation);
 
 impl From<RPackageDependency> for Relation {
@@ -27,6 +35,14 @@ impl From<r_description::lossless::Relation> for RPackageDependency {
 }
 
 impl RPackageDependency {
+    /// Create a new R package dependency with an optional minimum version.
+    ///
+    /// # Arguments
+    /// * `package` - The name of the R package
+    /// * `minimum_version` - Optional minimum version requirement
+    ///
+    /// # Returns
+    /// A new RPackageDependency
     pub fn new(package: &str, minimum_version: Option<&str>) -> Self {
         if let Some(minimum_version) = minimum_version {
             Self(
@@ -50,6 +66,13 @@ impl RPackageDependency {
         }
     }
 
+    /// Create a simple R package dependency with no version constraints.
+    ///
+    /// # Arguments
+    /// * `package` - The name of the R package
+    ///
+    /// # Returns
+    /// A new RPackageDependency with no version constraints
     pub fn simple(package: &str) -> Self {
         Self(
             Relation {
@@ -60,6 +83,13 @@ impl RPackageDependency {
         )
     }
 
+    /// Create an R package dependency from a string representation.
+    ///
+    /// # Arguments
+    /// * `s` - String representation of the dependency (e.g., "dplyr (>= 1.0.0)")
+    ///
+    /// # Returns
+    /// A new RPackageDependency parsed from the string
     pub fn from_str(s: &str) -> Self {
         if let Some((_, name, min_version)) = lazy_regex::regex_captures!("(.*) \\(>= (.*)\\)", s) {
             Self::new(name, Some(min_version))
@@ -120,12 +150,23 @@ impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
     }
 }
 
+/// A resolver for R package dependencies.
+///
+/// This resolver installs R packages from repositories like CRAN and Bioconductor.
 pub struct RResolver<'a> {
     session: &'a dyn Session,
     repos: String,
 }
 
 impl<'a> RResolver<'a> {
+    /// Create a new RResolver with the specified session and repository.
+    ///
+    /// # Arguments
+    /// * `session` - The session to use for executing commands
+    /// * `repos` - The R repository URL
+    ///
+    /// # Returns
+    /// A new RResolver
     pub fn new(session: &'a dyn Session, repos: &str) -> Self {
         Self {
             session,
@@ -189,10 +230,24 @@ impl<'a> Installer for RResolver<'a> {
     }
 }
 
+/// Create an RResolver for Bioconductor packages.
+///
+/// # Arguments
+/// * `session` - The session to use for executing commands
+///
+/// # Returns
+/// An RResolver configured for Bioconductor
 pub fn bioconductor(session: &dyn Session) -> RResolver {
     RResolver::new(session, "https://hedgehog.fhcrc.org/bioconductor")
 }
 
+/// Create an RResolver for CRAN packages.
+///
+/// # Arguments
+/// * `session` - The session to use for executing commands
+///
+/// # Returns
+/// An RResolver configured for CRAN
 pub fn cran(session: &dyn Session) -> RResolver {
     RResolver::new(session, "https://cran.r-project.org")
 }
