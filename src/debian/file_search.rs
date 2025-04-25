@@ -346,7 +346,6 @@ pub fn load_apt_cache_file(
     ))
 }
 
-#[allow(missing_docs)]
 lazy_static::lazy_static! {
     /// Path to the file that indicates the apt-file cache is empty.
     pub static ref CACHE_IS_EMPTY_PATH: &'static Path = Path::new("/usr/share/apt-file/is-cache-empty");
@@ -857,7 +856,6 @@ impl FileSearcher<'_> for GeneratedFileSearcher {
 }
 
 // TODO(jelmer): read from a file
-#[allow(missing_docs)]
 lazy_static::lazy_static! {
     /// Pre-generated static file searcher with common Debian package files.
     ///

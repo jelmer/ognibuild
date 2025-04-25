@@ -3,6 +3,7 @@ use ognibuild::debian::fix_build::{rescue_build_log, IterateBuildError};
 #[cfg(target_os = "linux")]
 use ognibuild::session::schroot::SchrootSession;
 use ognibuild::session::plain::PlainSession;
+use ognibuild::session::Session;
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::PathBuf;

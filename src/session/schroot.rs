@@ -5,16 +5,18 @@ extern crate rand;
 use rand::Rng;
 use std::iter;
 
+/// Sanitize the session name
 pub fn sanitize_session_name(name: &str) -> String {
     name.chars()
         .filter(|&c| c.is_alphanumeric() || "_-.".contains(c))
         .collect()
 }
 
+/// Generate a session
 pub fn generate_session_id(prefix: &str) -> String {
     let suffix: String = String::from_utf8(
         iter::repeat(())
-            .map(|()| rand::thread_rng().sample(rand::distr::Alphanumeric))
+            .map(|()| rand::rng().sample(rand::distr::Alphanumeric))
             .take(8)
             .collect(),
     )
@@ -22,6 +24,7 @@ pub fn generate_session_id(prefix: &str) -> String {
     format!("{}-{}", sanitize_session_name(prefix), suffix)
 }
 
+/// A schroot-based session
 pub struct SchrootSession {
     cwd: std::path::PathBuf,
     session_id: String,
@@ -29,6 +32,7 @@ pub struct SchrootSession {
 }
 
 impl SchrootSession {
+    /// Create a schroot session
     pub fn new(chroot: &str, session_prefix: Option<&str>) -> Result<Self, Error> {
         let mut stderr = tempfile::tempfile().unwrap();
         let mut extra_args = vec![];
