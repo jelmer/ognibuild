@@ -4,7 +4,6 @@ pub use upstream_ontologist::UpstreamMetadata;
 
 /// A trait for dependencies that can find their upstream metadata.
 pub trait FindUpstream: Dependency {
-
     /// Find the upstream metadata for this dependency.
     fn find_upstream(&self) -> Option<UpstreamMetadata>;
 }

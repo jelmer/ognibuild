@@ -1,9 +1,9 @@
 use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
-use serde::{Deserialize, Serialize};
-use r_description::lossy::{Relation};
+use r_description::lossy::Relation;
 use r_description::VersionConstraint;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RPackageDependency(Relation);
@@ -29,23 +29,35 @@ impl From<r_description::lossless::Relation> for RPackageDependency {
 impl RPackageDependency {
     pub fn new(package: &str, minimum_version: Option<&str>) -> Self {
         if let Some(minimum_version) = minimum_version {
-            Self(Relation {
-                name: package.to_string(),
-                version: Some((VersionConstraint::GreaterThanEqual, minimum_version.parse().unwrap()))
-            }.into())
+            Self(
+                Relation {
+                    name: package.to_string(),
+                    version: Some((
+                        VersionConstraint::GreaterThanEqual,
+                        minimum_version.parse().unwrap(),
+                    )),
+                }
+                .into(),
+            )
         } else {
-            Self(Relation {
-                name: package.to_string(),
-                version: None
-            }.into())
+            Self(
+                Relation {
+                    name: package.to_string(),
+                    version: None,
+                }
+                .into(),
+            )
         }
     }
 
     pub fn simple(package: &str) -> Self {
-        Self(Relation {
-            name: package.to_string(),
-            version: None
-        }.into())
+        Self(
+            Relation {
+                name: package.to_string(),
+                version: None,
+            }
+            .into(),
+        )
     }
 
     pub fn from_str(s: &str) -> Self {
@@ -128,10 +140,7 @@ impl<'a> RResolver<'a> {
         vec![
             "R".to_string(),
             "-e".to_string(),
-            format!(
-                "install.packages('{}', repos='{})'",
-                req.0.name, self.repos
-            ),
+            format!("install.packages('{}', repos='{})'", req.0.name, self.repos),
         ]
     }
 }
