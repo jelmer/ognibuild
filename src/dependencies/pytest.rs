@@ -136,3 +136,130 @@ impl crate::buildlog::ToDependency
             .map(|plugin| Box::new(PytestPluginDependency::new(plugin)) as Box<dyn Dependency>)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buildlog::ToDependency;
+
+    #[test]
+    fn test_pytest_plugin_dependency_new() {
+        let dependency = PytestPluginDependency::new("cov");
+        assert_eq!(dependency.plugin, "cov");
+    }
+
+    #[test]
+    fn test_pytest_plugin_dependency_family() {
+        let dependency = PytestPluginDependency::new("cov");
+        assert_eq!(dependency.family(), "pytest-plugin");
+    }
+
+    #[test]
+    fn test_pytest_plugin_dependency_as_any() {
+        let dependency = PytestPluginDependency::new("cov");
+        let any_dep = dependency.as_any();
+        assert!(any_dep.downcast_ref::<PytestPluginDependency>().is_some());
+    }
+
+    #[test]
+    fn test_map_pytest_arguments_to_plugin() {
+        assert_eq!(map_pytest_arguments_to_plugin(&["--cov"]), Some("cov"));
+        assert_eq!(
+            map_pytest_arguments_to_plugin(&["--cov-report=html"]),
+            Some("cov")
+        );
+        assert_eq!(map_pytest_arguments_to_plugin(&["--xvs"]), None);
+    }
+
+    #[test]
+    fn test_map_pytest_config_option_to_plugin() {
+        assert_eq!(
+            map_pytest_config_option_to_plugin("asyncio_mode"),
+            Some("asyncio")
+        );
+        assert_eq!(map_pytest_config_option_to_plugin("unknown_option"), None);
+    }
+
+    #[test]
+    fn test_pytest_fixture_to_plugin() {
+        assert_eq!(pytest_fixture_to_plugin("aiohttp_client"), Some("aiohttp"));
+        assert_eq!(pytest_fixture_to_plugin("benchmark"), Some("benchmark"));
+        assert_eq!(pytest_fixture_to_plugin("event_loop"), Some("asyncio"));
+        assert_eq!(pytest_fixture_to_plugin("unknown_fixture"), None);
+    }
+
+    #[test]
+    fn test_missing_pytest_fixture_to_dependency() {
+        let problem =
+            buildlog_consultant::problems::common::MissingPytestFixture("event_loop".to_string());
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "pytest-plugin");
+        let pytest_dep = dep
+            .as_any()
+            .downcast_ref::<PytestPluginDependency>()
+            .unwrap();
+        assert_eq!(pytest_dep.plugin, "asyncio");
+    }
+
+    #[test]
+    fn test_missing_pytest_fixture_to_dependency_unknown() {
+        let problem = buildlog_consultant::problems::common::MissingPytestFixture(
+            "unknown_fixture".to_string(),
+        );
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_none());
+    }
+
+    #[test]
+    fn test_unsupported_pytest_arguments_to_dependency() {
+        let problem = buildlog_consultant::problems::common::UnsupportedPytestArguments(vec![
+            "--cov".to_string(),
+            "--cov-report=html".to_string(),
+        ]);
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "pytest-plugin");
+        let pytest_dep = dep
+            .as_any()
+            .downcast_ref::<PytestPluginDependency>()
+            .unwrap();
+        assert_eq!(pytest_dep.plugin, "cov");
+    }
+
+    #[test]
+    fn test_unsupported_pytest_arguments_to_dependency_unknown() {
+        let problem = buildlog_consultant::problems::common::UnsupportedPytestArguments(vec![
+            "--unknown".to_string(),
+        ]);
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_none());
+    }
+
+    #[test]
+    fn test_unsupported_pytest_config_option_to_dependency() {
+        let problem = buildlog_consultant::problems::common::UnsupportedPytestConfigOption(
+            "asyncio_mode".to_string(),
+        );
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "pytest-plugin");
+        let pytest_dep = dep
+            .as_any()
+            .downcast_ref::<PytestPluginDependency>()
+            .unwrap();
+        assert_eq!(pytest_dep.plugin, "asyncio");
+    }
+
+    #[test]
+    fn test_unsupported_pytest_config_option_to_dependency_unknown() {
+        let problem = buildlog_consultant::problems::common::UnsupportedPytestConfigOption(
+            "unknown_option".to_string(),
+        );
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_none());
+    }
+}

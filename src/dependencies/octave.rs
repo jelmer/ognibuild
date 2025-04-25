@@ -67,6 +67,59 @@ impl Dependency for OctavePackageDependency {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::any::Any;
+
+    #[test]
+    fn test_octave_package_dependency_new() {
+        let dependency = OctavePackageDependency::new("signal", Some("1.0.0"));
+        assert_eq!(dependency.package, "signal");
+        assert_eq!(dependency.minimum_version, Some("1.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_octave_package_dependency_simple() {
+        let dependency = OctavePackageDependency::simple("signal");
+        assert_eq!(dependency.package, "signal");
+        assert_eq!(dependency.minimum_version, None);
+    }
+
+    #[test]
+    fn test_octave_package_dependency_family() {
+        let dependency = OctavePackageDependency::simple("signal");
+        assert_eq!(dependency.family(), "octave-package");
+    }
+
+    #[test]
+    fn test_octave_package_dependency_as_any() {
+        let dependency = OctavePackageDependency::simple("signal");
+        let any_dep: &dyn Any = dependency.as_any();
+        assert!(any_dep.downcast_ref::<OctavePackageDependency>().is_some());
+    }
+
+    #[test]
+    fn test_octave_package_dependency_from_str_simple() {
+        let dependency: OctavePackageDependency = "signal".parse().unwrap();
+        assert_eq!(dependency.package, "signal");
+        assert_eq!(dependency.minimum_version, None);
+    }
+
+    #[test]
+    fn test_octave_package_dependency_from_str_with_version() {
+        let dependency: OctavePackageDependency = "signal (>= 1.0.0)".parse().unwrap();
+        assert_eq!(dependency.package, "signal");
+        assert_eq!(dependency.minimum_version, Some("1.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_octave_package_dependency_from_str_invalid() {
+        let result: Result<OctavePackageDependency, _> = "signal with bad format".parse();
+        assert!(result.is_err());
+    }
+}
+
 pub struct OctaveForgeResolver<'a> {
     session: &'a dyn Session,
 }

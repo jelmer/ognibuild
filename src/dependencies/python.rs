@@ -739,6 +739,65 @@ impl PythonDependency {
     }
 }
 
+#[cfg(test)]
+mod python_dep_tests {
+    use super::*;
+
+    #[test]
+    fn test_python_dependency_new() {
+        let dependency = PythonDependency::new(Some("3.6"));
+        assert_eq!(dependency.min_version, Some("3.6".to_string()));
+    }
+
+    #[test]
+    fn test_python_dependency_simple() {
+        let dependency = PythonDependency::simple();
+        assert_eq!(dependency.min_version, None);
+    }
+
+    #[test]
+    fn test_python_dependency_family() {
+        let dependency = PythonDependency::simple();
+        assert_eq!(dependency.family(), "python");
+    }
+
+    #[test]
+    fn test_python_dependency_executable_python3() {
+        let dependency = PythonDependency::new(Some("3.6"));
+        assert_eq!(dependency.executable(), "python3");
+    }
+
+    #[test]
+    fn test_python_dependency_executable_python2() {
+        let dependency = PythonDependency::new(Some("2.7"));
+        assert_eq!(dependency.executable(), "python");
+    }
+
+    #[test]
+    fn test_python_dependency_executable_default() {
+        let dependency = PythonDependency::simple();
+        assert_eq!(dependency.executable(), "python3");
+    }
+
+    #[test]
+    fn test_python_dependency_from_specs() {
+        use std::str::FromStr;
+        let specs = pep440_rs::VersionSpecifiers::from_str(">=3.6").unwrap();
+        let dependency = PythonDependency::from(&specs);
+        // The actual version might be "3.6" or "3.6.0" depending on the pep440_rs version, so we just check that it contains "3.6"
+        assert!(dependency.min_version.is_some());
+        assert!(dependency.min_version.as_ref().unwrap().contains("3.6"));
+    }
+
+    #[test]
+    fn test_python_dependency_from_specs_no_version() {
+        use std::str::FromStr;
+        let specs = pep440_rs::VersionSpecifiers::from_str("==3.6").unwrap();
+        let dependency = PythonDependency::from(&specs);
+        assert_eq!(dependency.min_version, None);
+    }
+}
+
 impl Dependency for PythonDependency {
     fn family(&self) -> &'static str {
         "python"

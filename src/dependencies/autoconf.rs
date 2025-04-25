@@ -49,6 +49,48 @@ fn m4_macro_regex(r#macro: &str) -> String {
     .concat()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_autoconf_macro_dependency_new() {
+        let dependency = AutoconfMacroDependency::new("PKG_CHECK_MODULES");
+        assert_eq!(dependency.macro_name, "PKG_CHECK_MODULES");
+    }
+
+    #[test]
+    fn test_autoconf_macro_dependency_family() {
+        let dependency = AutoconfMacroDependency::new("PKG_CHECK_MODULES");
+        assert_eq!(dependency.family(), "autoconf-macro");
+    }
+
+    #[test]
+    fn test_m4_macro_regex() {
+        let regex = m4_macro_regex("PKG_CHECK_MODULES");
+
+        // Test AC_DEFUN matching
+        assert!(regex::Regex::new(&regex)
+            .unwrap()
+            .is_match("AC_DEFUN([PKG_CHECK_MODULES],"));
+
+        // Test AU_ALIAS matching
+        assert!(regex::Regex::new(&regex)
+            .unwrap()
+            .is_match("AU_ALIAS([PKG_CHECK_MODULES],"));
+
+        // Test m4_copy matching
+        assert!(regex::Regex::new(&regex)
+            .unwrap()
+            .is_match("m4_copy([SOME_MACRO], [PKG_CHECK_MODULES])"));
+
+        // Test negative case
+        assert!(!regex::Regex::new(&regex)
+            .unwrap()
+            .is_match("PKG_CHECK_MODULES"));
+    }
+}
+
 #[cfg(feature = "debian")]
 fn find_local_m4_macro(r#macro: &str) -> Option<String> {
     // TODO(jelmer): Query some external service that can search all binary packages?

@@ -234,3 +234,139 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
         )))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buildlog::ToDependency;
+
+    #[test]
+    fn test_java_class_dependency_new() {
+        let dependency = JavaClassDependency::new("org.apache.commons.lang3.StringUtils");
+        assert_eq!(dependency.classname, "org.apache.commons.lang3.StringUtils");
+    }
+
+    #[test]
+    fn test_java_class_dependency_family() {
+        let dependency = JavaClassDependency::new("org.apache.commons.lang3.StringUtils");
+        assert_eq!(dependency.family(), "java-class");
+    }
+
+    #[test]
+    fn test_java_class_dependency_as_any() {
+        let dependency = JavaClassDependency::new("org.apache.commons.lang3.StringUtils");
+        let any_dep = dependency.as_any();
+        assert!(any_dep.downcast_ref::<JavaClassDependency>().is_some());
+    }
+
+    #[test]
+    fn test_missing_java_class_to_dependency() {
+        let problem = buildlog_consultant::problems::common::MissingJavaClass {
+            classname: "org.apache.commons.lang3.StringUtils".to_string(),
+        };
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "java-class");
+        let java_dep = dep.as_any().downcast_ref::<JavaClassDependency>().unwrap();
+        assert_eq!(java_dep.classname, "org.apache.commons.lang3.StringUtils");
+    }
+
+    #[test]
+    fn test_jdk_dependency_family() {
+        let dependency = JDKDependency;
+        assert_eq!(dependency.family(), "jdk");
+    }
+
+    #[test]
+    fn test_jdk_dependency_as_any() {
+        let dependency = JDKDependency;
+        let any_dep = dependency.as_any();
+        assert!(any_dep.downcast_ref::<JDKDependency>().is_some());
+    }
+
+    #[test]
+    fn test_missing_jdk_to_dependency() {
+        let problem = buildlog_consultant::problems::common::MissingJDK {
+            jdk_path: "/usr/lib/jvm/default-java".to_string(),
+        };
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "jdk");
+        assert!(dep.as_any().downcast_ref::<JDKDependency>().is_some());
+    }
+
+    #[test]
+    fn test_jre_dependency_family() {
+        let dependency = JREDependency;
+        assert_eq!(dependency.family(), "jre");
+    }
+
+    #[test]
+    fn test_jre_dependency_as_any() {
+        let dependency = JREDependency;
+        let any_dep = dependency.as_any();
+        assert!(any_dep.downcast_ref::<JREDependency>().is_some());
+    }
+
+    #[test]
+    fn test_missing_jre_to_dependency() {
+        let problem = buildlog_consultant::problems::common::MissingJRE;
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "jre");
+        assert!(dep.as_any().downcast_ref::<JREDependency>().is_some());
+    }
+
+    #[test]
+    fn test_jdk_file_dependency_new() {
+        let dependency = JDKFileDependency::new("/usr/lib/jvm/default-java", "javac");
+        assert_eq!(
+            dependency.jdk_path,
+            std::path::PathBuf::from("/usr/lib/jvm/default-java")
+        );
+        assert_eq!(dependency.filename, "javac");
+    }
+
+    #[test]
+    fn test_jdk_file_dependency_path() {
+        let dependency = JDKFileDependency::new("/usr/lib/jvm/default-java", "javac");
+        assert_eq!(
+            dependency.path(),
+            std::path::PathBuf::from("/usr/lib/jvm/default-java/javac")
+        );
+    }
+
+    #[test]
+    fn test_jdk_file_dependency_family() {
+        let dependency = JDKFileDependency::new("/usr/lib/jvm/default-java", "javac");
+        assert_eq!(dependency.family(), "jdk-file");
+    }
+
+    #[test]
+    fn test_jdk_file_dependency_as_any() {
+        let dependency = JDKFileDependency::new("/usr/lib/jvm/default-java", "javac");
+        let any_dep = dependency.as_any();
+        assert!(any_dep.downcast_ref::<JDKFileDependency>().is_some());
+    }
+
+    #[test]
+    fn test_missing_jdk_file_to_dependency() {
+        let problem = buildlog_consultant::problems::common::MissingJDKFile {
+            jdk_path: "/usr/lib/jvm/default-java".to_string(),
+            filename: "javac".to_string(),
+        };
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "jdk-file");
+        let jdk_file_dep = dep.as_any().downcast_ref::<JDKFileDependency>().unwrap();
+        assert_eq!(
+            jdk_file_dep.jdk_path,
+            std::path::PathBuf::from("/usr/lib/jvm/default-java")
+        );
+        assert_eq!(jdk_file_dep.filename, "javac");
+    }
+}

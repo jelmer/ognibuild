@@ -44,6 +44,51 @@ pub const XML_ENTITY_URL_MAP: &[(&str, &str)] = &[(
     "/usr/share/xml/docbook/schema/dtd/",
 )];
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::any::Any;
+
+    #[test]
+    fn test_xml_entity_dependency_new() {
+        let url = "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd";
+        let dependency = XmlEntityDependency::new(url);
+        assert_eq!(dependency.url, url);
+    }
+
+    #[test]
+    fn test_xml_entity_dependency_family() {
+        let dependency = XmlEntityDependency::new("http://www.example.com/entity");
+        assert_eq!(dependency.family(), "xml-entity");
+    }
+
+    #[test]
+    fn test_xml_entity_dependency_as_any() {
+        let dependency = XmlEntityDependency::new("http://www.example.com/entity");
+        let any_dep: &dyn Any = dependency.as_any();
+        assert!(any_dep.downcast_ref::<XmlEntityDependency>().is_some());
+    }
+
+    #[test]
+    fn test_xml_entity_url_map() {
+        assert!(XML_ENTITY_URL_MAP
+            .iter()
+            .any(|(url, _)| *url == "http://www.oasis-open.org/docbook/xml/"));
+
+        // Test that the URL map can be used to transform URLs
+        let input_url = "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd";
+        let expected_path = "/usr/share/xml/docbook/schema/dtd/4.5/docbookx.dtd";
+
+        let transformed = XML_ENTITY_URL_MAP.iter().find_map(|(url, path)| {
+            input_url
+                .strip_prefix(url)
+                .map(|rest| format!("{}{}", path, rest))
+        });
+
+        assert_eq!(transformed, Some(expected_path.to_string()));
+    }
+}
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for XmlEntityDependency {
     fn try_into_debian_dependency(

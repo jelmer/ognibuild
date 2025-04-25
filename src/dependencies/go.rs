@@ -26,6 +26,65 @@ impl GoPackageDependency {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buildlog::ToDependency;
+    use std::any::Any;
+
+    #[test]
+    fn test_go_package_dependency_new() {
+        let dependency = GoPackageDependency::new("github.com/pkg/errors", Some("v0.9.1"));
+        assert_eq!(dependency.package, "github.com/pkg/errors");
+        assert_eq!(dependency.version, Some("v0.9.1".to_string()));
+    }
+
+    #[test]
+    fn test_go_package_dependency_simple() {
+        let dependency = GoPackageDependency::simple("github.com/pkg/errors");
+        assert_eq!(dependency.package, "github.com/pkg/errors");
+        assert_eq!(dependency.version, None);
+    }
+
+    #[test]
+    fn test_go_package_dependency_family() {
+        let dependency = GoPackageDependency::simple("github.com/pkg/errors");
+        assert_eq!(dependency.family(), "go-package");
+    }
+
+    #[test]
+    fn test_go_package_dependency_as_any() {
+        let dependency = GoPackageDependency::simple("github.com/pkg/errors");
+        let any_dep: &dyn Any = dependency.as_any();
+        assert!(any_dep.downcast_ref::<GoPackageDependency>().is_some());
+    }
+
+    #[test]
+    fn test_missing_go_package_to_dependency() {
+        let problem = buildlog_consultant::problems::common::MissingGoPackage {
+            package: "github.com/pkg/errors".to_string(),
+        };
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "go-package");
+        let go_dep = dep.as_any().downcast_ref::<GoPackageDependency>().unwrap();
+        assert_eq!(go_dep.package, "github.com/pkg/errors");
+    }
+
+    #[test]
+    fn test_go_dependency_new() {
+        let dependency = GoDependency::new(Some("1.16"));
+        assert_eq!(dependency.version, Some("1.16".to_string()));
+    }
+
+    #[test]
+    fn test_go_dependency_family() {
+        let dependency = GoDependency::new(None);
+        assert_eq!(dependency.family(), "go");
+    }
+}
+
 impl Dependency for GoPackageDependency {
     fn family(&self) -> &'static str {
         "go-package"

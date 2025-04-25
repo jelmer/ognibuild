@@ -38,6 +38,101 @@ impl Dependency for PhpClassDependency {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buildlog::ToDependency;
+    use std::any::Any;
+
+    #[test]
+    fn test_php_class_dependency_new() {
+        let dependency = PhpClassDependency::new("SimplePie");
+        assert_eq!(dependency.php_class, "SimplePie");
+    }
+
+    #[test]
+    fn test_php_class_dependency_family() {
+        let dependency = PhpClassDependency::new("SimplePie");
+        assert_eq!(dependency.family(), "php-class");
+    }
+
+    #[test]
+    fn test_php_class_dependency_as_any() {
+        let dependency = PhpClassDependency::new("SimplePie");
+        let any_dep: &dyn Any = dependency.as_any();
+        assert!(any_dep.downcast_ref::<PhpClassDependency>().is_some());
+    }
+
+    #[test]
+    fn test_missing_php_class_to_dependency() {
+        let problem = buildlog_consultant::problems::common::MissingPhpClass {
+            php_class: "SimplePie".to_string(),
+        };
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "php-class");
+        let php_dep = dep.as_any().downcast_ref::<PhpClassDependency>().unwrap();
+        assert_eq!(php_dep.php_class, "SimplePie");
+    }
+
+    #[test]
+    fn test_php_package_dependency_simple() {
+        let dependency = PhpPackageDependency::simple("symfony/console");
+        assert_eq!(dependency.package, "symfony/console");
+        assert_eq!(dependency.channel, None);
+        assert_eq!(dependency.min_version, None);
+        assert_eq!(dependency.max_version, None);
+    }
+
+    #[test]
+    fn test_php_package_dependency_new() {
+        let dependency = PhpPackageDependency::new(
+            "symfony/console",
+            Some("packagist"),
+            Some("4.0.0"),
+            Some("5.0.0"),
+        );
+        assert_eq!(dependency.package, "symfony/console");
+        assert_eq!(dependency.channel, Some("packagist".to_string()));
+        assert_eq!(dependency.min_version, Some("4.0.0".to_string()));
+        assert_eq!(dependency.max_version, Some("5.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_php_package_dependency_family() {
+        let dependency = PhpPackageDependency::simple("symfony/console");
+        assert_eq!(dependency.family(), "php-package");
+    }
+
+    #[test]
+    fn test_php_extension_dependency_new() {
+        let dependency = PhpExtensionDependency::new("curl");
+        assert_eq!(dependency.extension, "curl");
+    }
+
+    #[test]
+    fn test_php_extension_dependency_family() {
+        let dependency = PhpExtensionDependency::new("curl");
+        assert_eq!(dependency.family(), "php-extension");
+    }
+
+    #[test]
+    fn test_missing_php_extension_to_dependency() {
+        let problem =
+            buildlog_consultant::problems::common::MissingPHPExtension("curl".to_string());
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "php-extension");
+        let php_dep = dep
+            .as_any()
+            .downcast_ref::<PhpExtensionDependency>()
+            .unwrap();
+        assert_eq!(php_dep.extension, "curl");
+    }
+}
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PhpClassDependency {
     fn try_into_debian_dependency(
