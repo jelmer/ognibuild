@@ -191,6 +191,7 @@ impl crate::buildlog::ToDependency
 impl crate::upstream::FindUpstream for HaskellPackageDependency {
     fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(upstream_ontologist::providers::haskell::remote_hackage_data(&self.package)).ok()
+        rt.block_on(upstream_ontologist::providers::haskell::remote_hackage_data(&self.package))
+            .ok()
     }
 }

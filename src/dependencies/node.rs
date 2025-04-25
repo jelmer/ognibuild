@@ -89,7 +89,10 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
 impl crate::upstream::FindUpstream for NodePackageDependency {
     fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(upstream_ontologist::providers::node::remote_npm_metadata(&self.package)).ok()
+        rt.block_on(upstream_ontologist::providers::node::remote_npm_metadata(
+            &self.package,
+        ))
+        .ok()
     }
 }
 

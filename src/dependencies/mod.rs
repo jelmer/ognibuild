@@ -371,7 +371,10 @@ impl ToDependency for buildlog_consultant::problems::common::MissingRustCompiler
 impl crate::upstream::FindUpstream for CargoCrateDependency {
     fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(upstream_ontologist::providers::rust::remote_crate_data(&self.name)).ok()
+        rt.block_on(upstream_ontologist::providers::rust::remote_crate_data(
+            &self.name,
+        ))
+        .ok()
     }
 }
 
@@ -905,7 +908,8 @@ impl ToDependency for buildlog_consultant::problems::common::MissingRubyGem {
 impl crate::upstream::FindUpstream for RubyGemDependency {
     fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(upstream_ontologist::providers::ruby::remote_rubygem_metadata(&self.gem)).ok()
+        rt.block_on(upstream_ontologist::providers::ruby::remote_rubygem_metadata(&self.gem))
+            .ok()
     }
 }
 

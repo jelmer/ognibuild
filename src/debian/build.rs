@@ -470,11 +470,111 @@ pub fn add_dummy_changelog_entry(
 mod tests {
     use super::*;
     use breezyshim::tree::MutableTree;
+    use std::fs::File;
+    use tempfile::tempdir;
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn test_get_build_architecture() {
         let arch = get_build_architecture();
         assert!(!arch.is_empty() && arch.len() < 10);
+    }
+
+    #[test]
+    #[cfg(not(target_os = "linux"))]
+    #[should_panic(expected = "No such file or directory")]
+    fn test_get_build_architecture_panics_on_non_linux() {
+        // This test verifies that the function panics when dpkg-architecture isn't available
+        let _ = get_build_architecture();
+    }
+
+    #[test]
+    fn test_build_fails_with_invalid_command() {
+        // Set up a test environment
+        let td = tempdir().unwrap();
+        let tree = breezyshim::controldir::create_standalone_workingtree(
+            td.path(),
+            &breezyshim::controldir::ControlDirFormat::default(),
+        )
+        .unwrap();
+
+        // Create a file to capture output
+        let log_file = File::create(td.path().join("build.log")).unwrap();
+
+        // Test with a command that will definitely fail
+        let result = build(
+            &tree,
+            log_file,
+            "command_that_does_not_exist",
+            None,
+            None,
+            Path::new(""),
+            None,
+            None,
+            None,
+            None,
+        );
+
+        // Verify the build fails
+        assert!(result.is_err());
+        if let Err(BuildFailedError(code)) = result {
+            // The code can be 1 on Linux or other values on different platforms
+            assert!(code > 0);
+        } else {
+            panic!("Expected BuildFailedError");
+        }
+    }
+
+    #[test]
+    fn test_build_once_error_conversion() {
+        // Test conversion between BuildFailedError and BuildOnceError
+        // Set up a test environment
+        let td = tempdir().unwrap();
+        let tree = breezyshim::controldir::create_standalone_workingtree(
+            td.path(),
+            &breezyshim::controldir::ControlDirFormat::default(),
+        )
+        .unwrap();
+
+        // Create a stub debian directory structure
+        std::fs::create_dir_all(td.path().join("debian")).unwrap();
+
+        // Create minimal changelog file
+        std::fs::write(
+            td.path().join("debian/changelog"),
+            r#"test-package (1.0) unstable; urgency=low
+            
+  * Initial release
+            
+ -- Test User <test@example.com>  Thu, 01 Jan 2023 00:00:00 +0000
+"#,
+        )
+        .unwrap();
+
+        tree.add(&[Path::new("debian"), Path::new("debian/changelog")])
+            .unwrap();
+
+        // Build will fail but we're testing error conversion
+        let output_dir = tempdir().unwrap();
+        let result = build_once(
+            &tree,
+            None,
+            output_dir.path(),
+            "command_that_does_not_exist",
+            Path::new(""),
+            None,
+            None,
+            None,
+            None,
+        );
+
+        assert!(result.is_err());
+        match result {
+            Err(BuildOnceError::Unidentified { .. }) | Err(BuildOnceError::Detailed { .. }) => {
+                // Success - proper error conversion happened
+            }
+            _ => panic!("Expected Unidentified or Detailed BuildOnceError"),
+        }
     }
 
     #[test]

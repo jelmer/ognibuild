@@ -10,9 +10,9 @@ use debian_control::{
     lossless::relations::{Relation, Relations},
     relations::VersionConstraint,
 };
+use pep508_rs::pep440_rs;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use pep508_rs::pep440_rs as pep440_rs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PythonPackageDependency(pep508_rs::Requirement);
@@ -106,9 +106,13 @@ impl crate::buildlog::ToDependency
             .minimum_version
             .as_ref()
             .map(|min_version| min_version_as_version_or_url(min_version));
-        let marker = self.python_version.as_ref().map(|python_major_version| {
-            major_python_version_as_marker(*python_major_version as u32)
-        }).unwrap_or(pep508_rs::MarkerTree::TRUE);
+        let marker = self
+            .python_version
+            .as_ref()
+            .map(|python_major_version| {
+                major_python_version_as_marker(*python_major_version as u32)
+            })
+            .unwrap_or(pep508_rs::MarkerTree::TRUE);
 
         let requirement = pep508_rs::Requirement {
             name: pep508_rs::PackageName::new(self.distribution.clone()).unwrap(),
@@ -142,7 +146,9 @@ impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependen
                 name: pep508_rs::PackageName::new(name.to_owned()).unwrap(),
                 version_or_url: min_version
                     .map(|x| min_version_as_version_or_url(&x.upstream_version)),
-                marker: major_python_version.map(major_python_version_as_marker).unwrap_or(pep508_rs::MarkerTree::TRUE),
+                marker: major_python_version
+                    .map(major_python_version_as_marker)
+                    .unwrap_or(pep508_rs::MarkerTree::TRUE),
                 extras: vec![],
                 origin: None,
             },
@@ -207,7 +213,8 @@ impl Dependency for PythonPackageDependency {
 impl crate::upstream::FindUpstream for PythonPackageDependency {
     fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(upstream_ontologist::providers::python::remote_pypi_metadata(&self.package())).ok()
+        rt.block_on(upstream_ontologist::providers::python::remote_pypi_metadata(&self.package()))
+            .ok()
     }
 }
 
@@ -219,11 +226,15 @@ pub struct PythonModuleDependency {
 }
 
 impl PythonModuleDependency {
-    pub fn new(module: &str, minimum_version: Option<&str>, python_version: Option<PythonVersion>) -> Self {
+    pub fn new(
+        module: &str,
+        minimum_version: Option<&str>,
+        python_version: Option<PythonVersion>,
+    ) -> Self {
         Self {
             module: module.to_string(),
             minimum_version: minimum_version.map(|s| s.to_string()),
-            python_version
+            python_version,
         }
     }
 
@@ -448,10 +459,16 @@ fn find_python_version(marker: Vec<Vec<pep508_rs::MarkerExpression>>) -> Option<
                 let version = specifier.version();
                 major_version = Some(version.release()[0] as u32);
             }
-            pep508_rs::MarkerExpression::String { key: pep508_rs::MarkerValueString::PlatformPythonImplementation, operator: pep508_rs::MarkerOperator::Equal, value } => match value.as_str() {
-                "PyPy" => { implementation = Some("PyPy"); },
+            pep508_rs::MarkerExpression::String {
+                key: pep508_rs::MarkerValueString::PlatformPythonImplementation,
+                operator: pep508_rs::MarkerOperator::Equal,
+                value,
+            } => match value.as_str() {
+                "PyPy" => {
+                    implementation = Some("PyPy");
+                }
                 _ => {}
-            }
+            },
             _ => {}
         }
     }
@@ -462,11 +479,14 @@ fn find_python_version(marker: Vec<Vec<pep508_rs::MarkerExpression>>) -> Option<
         (Some(3), Some("PyPy")) | (None, Some("PyPy")) => Some(PythonVersion::PyPy3),
         (Some(2), Some("PyPy")) => Some(PythonVersion::PyPy),
         _ => {
-            log::warn!("Unknown python implementation / version: {:?} {:?}", major_version, implementation);
+            log::warn!(
+                "Unknown python implementation / version: {:?} {:?}",
+                major_version,
+                implementation
+            );
             None
         }
     }
-
 }
 
 #[cfg(feature = "debian")]
