@@ -412,3 +412,142 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buildlog::ToDependency;
+
+    #[test]
+    fn test_perl_module_dependency_new() {
+        let dependency = PerlModuleDependency::new(
+            "Test::More",
+            Some("Test/More.pm"),
+            Some(vec!["/usr/share/perl5"]),
+        );
+        assert_eq!(dependency.module, "Test::More");
+        assert_eq!(dependency.filename, Some("Test/More.pm".to_string()));
+        assert_eq!(dependency.inc, Some(vec!["/usr/share/perl5".to_string()]));
+    }
+
+    #[test]
+    fn test_perl_module_dependency_simple() {
+        let dependency = PerlModuleDependency::simple("Test::More");
+        assert_eq!(dependency.module, "Test::More");
+        assert_eq!(dependency.filename, None);
+        assert_eq!(dependency.inc, None);
+    }
+
+    #[test]
+    fn test_perl_module_dependency_family() {
+        let dependency = PerlModuleDependency::simple("Test::More");
+        assert_eq!(dependency.family(), "perl-module");
+    }
+
+    #[test]
+    fn test_perl_module_dependency_as_any() {
+        let dependency = PerlModuleDependency::simple("Test::More");
+        let any_dep = dependency.as_any();
+        assert!(any_dep.downcast_ref::<PerlModuleDependency>().is_some());
+    }
+
+    #[test]
+    fn test_missing_perl_module_to_dependency() {
+        let problem = buildlog_consultant::problems::common::MissingPerlModule {
+            module: "Test::More".to_string(),
+            filename: Some("Test/More.pm".to_string()),
+            inc: None,
+            minimum_version: None,
+        };
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "perl-module");
+        let perl_dep = dep.as_any().downcast_ref::<PerlModuleDependency>().unwrap();
+        assert_eq!(perl_dep.module, "Test::More");
+        assert_eq!(perl_dep.filename, Some("Test/More.pm".to_string()));
+    }
+
+    #[test]
+    fn test_perl_predeclared_dependency_new() {
+        let dependency = PerlPreDeclaredDependency::new("auto_set_repository");
+        assert_eq!(dependency.name, "auto_set_repository");
+    }
+
+    #[test]
+    fn test_perl_predeclared_dependency_family() {
+        let dependency = PerlPreDeclaredDependency::new("auto_set_repository");
+        assert_eq!(dependency.family(), "perl-predeclared");
+    }
+
+    #[test]
+    fn test_perl_predeclared_dependency_as_any() {
+        let dependency = PerlPreDeclaredDependency::new("auto_set_repository");
+        let any_dep = dependency.as_any();
+        assert!(any_dep
+            .downcast_ref::<PerlPreDeclaredDependency>()
+            .is_some());
+    }
+
+    #[test]
+    fn test_known_predeclared_module() {
+        assert_eq!(
+            known_predeclared_module("auto_set_repository"),
+            Some("Module::Install::Repository")
+        );
+        assert_eq!(
+            known_predeclared_module("author_tests"),
+            Some("Module::Install::AuthorTests")
+        );
+        assert_eq!(known_predeclared_module("unknown_function"), None);
+    }
+
+    #[test]
+    fn test_perl_file_dependency_new() {
+        let dependency = PerlFileDependency::new("Test/More.pm");
+        assert_eq!(dependency.filename, "Test/More.pm");
+    }
+
+    #[test]
+    fn test_perl_file_dependency_family() {
+        let dependency = PerlFileDependency::new("Test/More.pm");
+        assert_eq!(dependency.family(), "perl-file");
+    }
+
+    #[test]
+    fn test_perl_file_dependency_as_any() {
+        let dependency = PerlFileDependency::new("Test/More.pm");
+        let any_dep = dependency.as_any();
+        assert!(any_dep.downcast_ref::<PerlFileDependency>().is_some());
+    }
+
+    #[test]
+    fn test_missing_perl_file_to_dependency() {
+        let problem = buildlog_consultant::problems::common::MissingPerlFile {
+            filename: "Test/More.pm".to_string(),
+            inc: None,
+        };
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "perl-file");
+        let perl_file_dep = dep.as_any().downcast_ref::<PerlFileDependency>().unwrap();
+        assert_eq!(perl_file_dep.filename, "Test/More.pm");
+    }
+
+    #[test]
+    fn test_cpan_new() {
+        let session = crate::session::plain::PlainSession::new();
+        let cpan = CPAN::new(&session, true);
+        assert!(cpan.skip_tests);
+    }
+
+    #[test]
+    fn test_cpan_cmd() {
+        let session = crate::session::plain::PlainSession::new();
+        let cpan = CPAN::new(&session, true);
+        let dependency = PerlModuleDependency::simple("Test::More");
+        let cmd = cpan.cmd(&[&dependency], InstallationScope::User).unwrap();
+        assert_eq!(cmd, vec!["cpan", "-i", "-T", "Test::More"]);
+    }
+}

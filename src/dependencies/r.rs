@@ -202,3 +202,104 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
         Some(Box::new(RPackageDependency::simple(&self.package)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buildlog::ToDependency;
+
+    #[test]
+    fn test_r_package_dependency_new() {
+        let dependency = RPackageDependency::new("dplyr", Some("1.0.0"));
+        assert_eq!(dependency.0.name, "dplyr");
+        assert!(dependency.0.version.is_some());
+        let (constraint, version) = dependency.0.version.unwrap();
+        assert_eq!(constraint, VersionConstraint::GreaterThanEqual);
+        assert_eq!(format!("{}", version), "1.0.0");
+    }
+
+    #[test]
+    fn test_r_package_dependency_simple() {
+        let dependency = RPackageDependency::simple("dplyr");
+        assert_eq!(dependency.0.name, "dplyr");
+        assert!(dependency.0.version.is_none());
+    }
+
+    #[test]
+    fn test_r_package_dependency_from_str() {
+        let dependency = RPackageDependency::from_str("dplyr (>= 1.0.0)");
+        assert_eq!(dependency.0.name, "dplyr");
+        assert!(dependency.0.version.is_some());
+        let (constraint, version) = dependency.0.version.unwrap();
+        assert_eq!(constraint, VersionConstraint::GreaterThanEqual);
+        assert_eq!(format!("{}", version), "1.0.0");
+
+        let dependency = RPackageDependency::from_str("dplyr");
+        assert_eq!(dependency.0.name, "dplyr");
+        assert!(dependency.0.version.is_none());
+    }
+
+    #[test]
+    fn test_r_package_dependency_family() {
+        let dependency = RPackageDependency::simple("dplyr");
+        assert_eq!(dependency.family(), "r-package");
+    }
+
+    #[test]
+    fn test_r_package_dependency_as_any() {
+        let dependency = RPackageDependency::simple("dplyr");
+        let any_dep = dependency.as_any();
+        assert!(any_dep.downcast_ref::<RPackageDependency>().is_some());
+    }
+
+    #[test]
+    fn test_missing_r_package_to_dependency() {
+        let problem = buildlog_consultant::problems::common::MissingRPackage {
+            package: "dplyr".to_string(),
+            minimum_version: None,
+        };
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "r-package");
+        let r_dep = dep.as_any().downcast_ref::<RPackageDependency>().unwrap();
+        assert_eq!(r_dep.0.name, "dplyr");
+    }
+
+    #[test]
+    fn test_r_resolver_new() {
+        let session = crate::session::plain::PlainSession::new();
+        let resolver = RResolver::new(&session, "https://cran.r-project.org");
+        assert_eq!(resolver.repos, "https://cran.r-project.org");
+    }
+
+    #[test]
+    fn test_r_resolver_cmd() {
+        let session = crate::session::plain::PlainSession::new();
+        let resolver = RResolver::new(&session, "https://cran.r-project.org");
+        let dependency = RPackageDependency::simple("dplyr");
+        let cmd = resolver.cmd(&dependency);
+        assert_eq!(
+            cmd,
+            vec![
+                "R",
+                "-e",
+                "install.packages('dplyr', repos='https://cran.r-project.org)'",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_bioconductor() {
+        let session = crate::session::plain::PlainSession::new();
+        let resolver = bioconductor(&session);
+        assert_eq!(resolver.repos, "https://hedgehog.fhcrc.org/bioconductor");
+    }
+
+    #[test]
+    fn test_cran() {
+        let session = crate::session::plain::PlainSession::new();
+        let resolver = cran(&session);
+        assert_eq!(resolver.repos, "https://cran.r-project.org");
+    }
+}

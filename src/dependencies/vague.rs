@@ -97,6 +97,81 @@ impl Dependency for VagueDependency {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::any::Any;
+
+    #[test]
+    fn test_vague_dependency_new() {
+        let dep = VagueDependency::new("zlib", Some("1.2.11"));
+        assert_eq!(dep.name, "zlib");
+        assert_eq!(dep.minimum_version, Some("1.2.11".to_string()));
+    }
+
+    #[test]
+    fn test_vague_dependency_new_trims_version() {
+        let dep = VagueDependency::new("zlib", Some(" 1.2.11 "));
+        assert_eq!(dep.minimum_version, Some("1.2.11".to_string()));
+    }
+
+    #[test]
+    fn test_vague_dependency_simple() {
+        let dep = VagueDependency::simple("zlib");
+        assert_eq!(dep.name, "zlib");
+        assert_eq!(dep.minimum_version, None);
+    }
+
+    #[test]
+    fn test_vague_dependency_family() {
+        let dep = VagueDependency::simple("zlib");
+        assert_eq!(dep.family(), "vague");
+    }
+
+    #[test]
+    fn test_vague_dependency_as_any() {
+        let dep = VagueDependency::simple("zlib");
+        let any_dep: &dyn Any = dep.as_any();
+        assert!(any_dep.downcast_ref::<VagueDependency>().is_some());
+    }
+
+    #[test]
+    fn test_vague_dependency_expand() {
+        let dep = VagueDependency::simple("zlib");
+        let expanded = dep.expand();
+
+        // Should generate binary dependencies
+        assert!(expanded.iter().any(|d| d.family() == "binary"
+            && d.as_any()
+                .downcast_ref::<BinaryDependency>()
+                .map(|bd| bd.binary_name == "zlib")
+                .unwrap_or(false)));
+
+        // Should generate pkg-config dependencies
+        assert!(expanded.iter().any(|d| d.family() == "pkg-config"
+            && d.as_any()
+                .downcast_ref::<PkgConfigDependency>()
+                .map(|pd| pd.module == "zlib")
+                .unwrap_or(false)));
+
+        // Should also include lowercase versions
+        assert!(expanded.iter().any(|d| d.family() == "binary"
+            && d.as_any()
+                .downcast_ref::<BinaryDependency>()
+                .map(|bd| bd.binary_name == "zlib")
+                .unwrap_or(false)));
+    }
+
+    #[test]
+    fn test_vague_dependency_expand_with_spaces() {
+        let dep = VagueDependency::simple("zlib library");
+        let expanded = dep.expand();
+
+        // Should not expand dependencies with spaces
+        assert!(expanded.is_empty());
+    }
+}
+
 #[cfg(feature = "debian")]
 fn known_vague_dep_to_debian(name: &str) -> Option<&str> {
     match name {

@@ -187,6 +187,63 @@ impl crate::buildlog::ToDependency
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buildlog::ToDependency;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_haskell_package_dependency_new() {
+        let dependency = HaskellPackageDependency::new("parsec", Some(vec![">=3.1.11"]));
+        assert_eq!(dependency.package, "parsec");
+        assert_eq!(dependency.specs, Some(vec![">=3.1.11".to_string()]));
+    }
+
+    #[test]
+    fn test_haskell_package_dependency_simple() {
+        let dependency = HaskellPackageDependency::simple("parsec");
+        assert_eq!(dependency.package, "parsec");
+        assert_eq!(dependency.specs, None);
+    }
+
+    #[test]
+    fn test_haskell_package_dependency_family() {
+        let dependency = HaskellPackageDependency::simple("parsec");
+        assert_eq!(dependency.family(), "haskell-package");
+    }
+
+    #[test]
+    fn test_haskell_package_dependency_as_any() {
+        let dependency = HaskellPackageDependency::simple("parsec");
+        let any_dep = dependency.as_any();
+        assert!(any_dep.downcast_ref::<HaskellPackageDependency>().is_some());
+    }
+
+    #[test]
+    fn test_haskell_package_dependency_from_str() {
+        let dependency = HaskellPackageDependency::from_str("parsec >=3.1.11").unwrap();
+        assert_eq!(dependency.package, "parsec");
+        assert_eq!(dependency.specs, Some(vec![">=3.1.11".to_string()]));
+    }
+
+    #[test]
+    fn test_missing_haskell_dependencies_to_dependency() {
+        let problem = buildlog_consultant::problems::common::MissingHaskellDependencies(vec![
+            "parsec".to_string(),
+        ]);
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "haskell-package");
+        let haskell_dep = dep
+            .as_any()
+            .downcast_ref::<HaskellPackageDependency>()
+            .unwrap();
+        assert_eq!(haskell_dep.package, "parsec");
+    }
+}
+
 #[cfg(feature = "upstream")]
 impl crate::upstream::FindUpstream for HaskellPackageDependency {
     fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
