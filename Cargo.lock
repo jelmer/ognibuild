@@ -2771,7 +2771,7 @@ dependencies = [
  "tempfile",
  "test-log",
  "tokio",
- "toml 0.8.20",
+ "toml 0.8.21",
  "toml_edit",
  "upstream-ontologist",
  "url",
@@ -3296,7 +3296,7 @@ dependencies = [
  "pep508_rs",
  "serde",
  "thiserror 1.0.69",
- "toml 0.8.20",
+ "toml 0.8.21",
 ]
 
 [[package]]
@@ -4627,9 +4627,9 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.8.20"
+version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd87a5cdd6ffab733b2f74bc4fd7ee5fff6634124999ac278c35fc78c6120148"
+checksum = "900f6c86a685850b1bc9f6223b20125115ee3f31e01207d81655bbcc0aea9231"
 dependencies = [
  "serde",
  "serde_spanned",
@@ -4934,7 +4934,7 @@ dependencies = [
  "shlex",
  "textwrap",
  "tokio",
- "toml 0.8.20",
+ "toml 0.8.21",
  "uo_rst_parser",
  "url",
  "xmltree",
