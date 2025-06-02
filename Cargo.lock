@@ -684,13 +684,22 @@ checksum = "2a2330da5de22e8a3cb63252ce2abb30116bf5265e89c0e01bc17015ce30a476"
 
 [[package]]
 name = "deb822-derive"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b6e5cafe61e77421a090e2a33b8a2e4e2ff1b106fd906ebade111307064d981"
+checksum = "c066b0ac5a5781e328e48b61d041ac68ba2bbad5f46d13db275292d9aced266c"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.101",
+]
+
+[[package]]
+name = "deb822-fast"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3a661cb496c6f7b8f7208d16561954ba1bafcb946ad93ff8bedeb110ec5ac70"
+dependencies = [
+ "deb822-derive",
 ]
 
 [[package]]
@@ -3359,10 +3368,12 @@ checksum = "640c9bd8497b02465aeef5375144c26062e0dcd5939dfcbb0f5db76cb8c17c73"
 
 [[package]]
 name = "r-description"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94278584d73149797c58a3b0ae102343348e755515bad64a75709eea96930952"
+checksum = "176c6ad71dc5790c358698ce36bec82a85039a7eda753ca85aea557ec509866d"
 dependencies = [
+ "deb822-derive",
+ "deb822-fast",
  "deb822-lossless",
  "rowan 0.16.1",
  "serde",
