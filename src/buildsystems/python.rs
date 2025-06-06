@@ -70,7 +70,7 @@ impl SetupCfg {
                     .unwrap()
                     .extract(py)
                     .ok();
-                Some(SetupCfgSection(section.to_object(py)))
+                Some(SetupCfgSection(section.unwrap()))
             } else {
                 None
             }
@@ -121,14 +121,14 @@ impl SetupCfgSection {
 
 fn load_setup_cfg(path: &Path) -> Result<Option<SetupCfg>, PyErr> {
     Python::with_gil(|py| {
-        let m = py.import_bound("setuptools.config.setupcfg")?;
+        let m = py.import("setuptools.config.setupcfg")?;
         let read_configuration = m.getattr("read_configuration")?;
 
         let p = path.join("setup.cfg");
 
         if p.exists() {
             let config = read_configuration.call1((p,))?;
-            Ok(Some(SetupCfg(config.to_object(py))))
+            Ok(Some(SetupCfg(config.unbind())))
         } else {
             Ok(None)
         }
@@ -146,13 +146,13 @@ fn run_setup(py: Python, script_name: &Path, stop_after: &str) -> PyResult<PyObj
             || stop_after == "run"
     );
     // Import setuptools, just in case it decides to replace distutils
-    let _ = py.import_bound("setuptools");
+    let _ = py.import("setuptools");
 
-    let core = match py.import_bound("distutils.core") {
+    let core = match py.import("distutils.core") {
         Ok(m) => m,
         Err(e) if e.is_instance_of::<PyImportError>(py) => {
             // Importing distutils failed, but that's fine.
-            match py.import_bound("setuptools._distutils.core") {
+            match py.import("setuptools._distutils.core") {
                 Ok(m) => m,
                 Err(e) => return Err(e),
             }
@@ -162,12 +162,12 @@ fn run_setup(py: Python, script_name: &Path, stop_after: &str) -> PyResult<PyObj
 
     core.setattr("_setup_stop_after", stop_after)?;
 
-    let sys = py.import_bound("sys")?;
-    let os = py.import_bound("os")?;
+    let sys = py.import("sys")?;
+    let os = py.import("os")?;
 
     let save_argv = sys.getattr("argv")?;
 
-    let g = PyDict::new_bound(py);
+    let g = PyDict::new(py);
     g.set_item("__file__", script_name)?;
     g.set_item("__name__", "__main")?;
 
@@ -182,16 +182,17 @@ fn run_setup(py: Python, script_name: &Path, stop_after: &str) -> PyResult<PyObj
 
     let text = std::fs::read_to_string(script_name)?;
 
-    let r = py.eval_bound(text.as_str(), Some(&g), None);
+    let code = std::ffi::CString::new(text).unwrap();
+    let r = py.eval(&code, Some(&g), None);
 
     os.call_method1("chdir", (old_cwd,))?;
     sys.setattr("argv", save_argv)?;
     core.setattr("_setup_stop_after", py.None())?;
 
     match r {
-        Ok(_) => Ok(core.getattr("_setup_distribution")?.to_object(py)),
+        Ok(_) => Ok(core.getattr("_setup_distribution")?.unbind()),
         Err(e) if e.is_instance_of::<PySystemExit>(py) => {
-            Ok(core.getattr("_setup_distribution")?.to_object(py))
+            Ok(core.getattr("_setup_distribution")?.unbind())
         }
         Err(e) => Err(e),
     }

@@ -84,7 +84,7 @@ pub fn main() -> Result<(), i32> {
 
     #[cfg(feature = "debian")]
     let (packaging_tree, packaging_subdir, package_name): (
-        Option<WorkingTree>,
+        Option<Box<dyn WorkingTree>>,
         Option<PathBuf>,
         Option<String>,
     ) = if let Some(packaging_directory) = &args.packaging_directory {
@@ -96,7 +96,7 @@ pub fn main() -> Result<(), i32> {
         let control: Control = Control::read(text).unwrap();
         let package_name = control.source().unwrap().name().unwrap();
         (
-            Some(packaging_tree),
+            Some(Box::new(packaging_tree)),
             Some(packaging_subpath),
             Some(package_name),
         )
@@ -106,7 +106,7 @@ pub fn main() -> Result<(), i32> {
 
     #[cfg(not(feature = "debian"))]
     let (packaging_tree, packaging_subdir): (
-        Option<WorkingTree>,
+        Option<Box<dyn WorkingTree>>,
         Option<PathBuf>,
         Option<String>,
     ) = (None, None, None);
@@ -127,7 +127,7 @@ pub fn main() -> Result<(), i32> {
                 &tree,
                 &args.target_directory.canonicalize().unwrap(),
                 &args.chroot,
-                packaging_tree.as_ref().map(|t| t as &dyn Tree),
+                packaging_tree.as_ref().map(|t| &**t as &dyn Tree),
                 packaging_subdir.as_deref(),
                 Some(args.include_controldir),
                 &subpath,

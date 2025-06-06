@@ -4,11 +4,11 @@
 //! including editing, committing changes, and managing dependencies.
 
 use crate::dependencies::debian::DebianDependency;
-use breezyshim::commit::CommitReporter;
+use breezyshim::commit::PyCommitReporter;
 use breezyshim::debian::debcommit::debcommit;
 use breezyshim::error::Error as BrzError;
 use breezyshim::tree::{MutableTree, Tree};
-use breezyshim::workingtree::WorkingTree;
+use breezyshim::workingtree::{GenericWorkingTree, WorkingTree};
 pub use buildlog_consultant::sbuild::Phase;
 use debian_analyzer::abstract_control::AbstractControlEditor;
 use debian_analyzer::editor::{Editor, EditorError, Marshallable, MutableTreeEdit, TreeEditor};
@@ -76,7 +76,7 @@ impl std::error::Error for Error {}
 /// committing changes, and managing dependencies.
 pub struct DebianPackagingContext {
     /// Working tree containing the package source.
-    pub tree: WorkingTree,
+    pub tree: GenericWorkingTree,
     /// Path within the tree where the package is located.
     pub subpath: PathBuf,
     /// Committer information (name, email).
@@ -84,7 +84,7 @@ pub struct DebianPackagingContext {
     /// Whether to update the changelog during commits.
     pub update_changelog: bool,
     /// Optional reporter for commit operations.
-    pub commit_reporter: Option<Box<dyn CommitReporter>>,
+    pub commit_reporter: Option<Box<dyn PyCommitReporter>>,
 }
 
 impl DebianPackagingContext {
@@ -100,11 +100,11 @@ impl DebianPackagingContext {
     /// # Returns
     /// A new DebianPackagingContext instance
     pub fn new(
-        tree: WorkingTree,
+        tree: GenericWorkingTree,
         subpath: &Path,
         committer: Option<(String, String)>,
         update_changelog: bool,
-        commit_reporter: Option<Box<dyn CommitReporter>>,
+        commit_reporter: Option<Box<dyn PyCommitReporter>>,
     ) -> Self {
         Self {
             tree,
@@ -187,8 +187,11 @@ impl DebianPackagingContext {
                 .tree
                 .build_commit()
                 .message(summary)
-                .committer(&committer)
-                .specific_files(&[&self.subpath]);
+                .committer(&committer);
+            
+            if !self.subpath.as_os_str().is_empty() {
+                builder = builder.specific_files(&[&self.subpath]);
+            }
             if let Some(commit_reporter) = self.commit_reporter.as_ref() {
                 builder = builder.reporter(commit_reporter.as_ref());
             }

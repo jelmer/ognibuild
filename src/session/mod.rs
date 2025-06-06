@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{BufRead, Write};
+use std::io::Write;
 use std::process::ExitStatus;
 
 /// Plain session implementation.
