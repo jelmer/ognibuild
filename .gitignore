@@ -11,3 +11,4 @@ __pycache__
 .mypy_cache
 target
 *.so
+.claude/settings.local.json
