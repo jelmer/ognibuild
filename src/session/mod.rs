@@ -255,7 +255,7 @@ impl From<tempfile::TempDir> for Project {
         Project::Temporary {
             external_path: tempdir.path().to_path_buf(),
             internal_path: tempdir.path().to_path_buf(),
-            td: tempdir.into_path(),
+            td: tempdir.keep(),
         }
     }
 }

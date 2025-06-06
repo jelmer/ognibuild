@@ -60,7 +60,7 @@ fn main() -> Result<(), i32> {
                     deps.entry(stage).or_default().push(req);
                 }
             }
-            Err(e) => {
+            Err(_e) => {
                 log::warn!(
                     "Unable to get dependencies from buildsystem {:?}, skipping",
                     buildsystem
@@ -127,7 +127,7 @@ fn main() -> Result<(), i32> {
                                 .or_default()
                                 .push(deb_dep);
                         }
-                        DependencyCategory::BuildExtra(name) => {
+                        DependencyCategory::BuildExtra(_name) => {
                             // TODO: handle build extra: build profile?
                         }
                         DependencyCategory::Test => {
@@ -137,7 +137,7 @@ fn main() -> Result<(), i32> {
                                 .push(deb_dep);
                         }
                         DependencyCategory::Dev => {}
-                        DependencyCategory::RuntimeExtra(name) => {
+                        DependencyCategory::RuntimeExtra(_name) => {
                             // TODO: handle runtime extra
                         }
                     }

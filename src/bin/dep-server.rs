@@ -48,7 +48,7 @@ async fn main() -> Result<(), i8> {
     #[cfg(not(target_os = "linux"))]
     let session: Box<dyn Session> = Box::new(PlainSession::new());
 
-    let apt_mgr = AptManager::from_session(session.as_ref());
+    let _apt_mgr = AptManager::from_session(session.as_ref());
 
     let app = Router::new()
         .route("/health", get(|| async { "ok" }))

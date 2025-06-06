@@ -477,7 +477,9 @@ pub fn attempt_build(
 ) -> Result<BuildOnceResult, BuildOnceError> {
     if run_gbp_dch
         && subpath == std::path::Path::new("")
-        && local_tree.abspath(std::path::Path::new(".git")).map_or(false, |p| std::path::Path::new(&p).exists())
+        && local_tree
+            .abspath(std::path::Path::new(".git"))
+            .map_or(false, |p| std::path::Path::new(&p).exists())
     {
         gbp_dch(&local_tree.abspath(subpath).unwrap()).unwrap();
     }

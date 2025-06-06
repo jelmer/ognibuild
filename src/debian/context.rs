@@ -188,7 +188,7 @@ impl DebianPackagingContext {
                 .build_commit()
                 .message(summary)
                 .committer(&committer);
-            
+
             if !self.subpath.as_os_str().is_empty() {
                 builder = builder.specific_files(&[&self.subpath]);
             }

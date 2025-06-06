@@ -194,7 +194,7 @@ impl Session for PlainSession {
             Ok(Project::Temporary {
                 internal_path: p.clone(),
                 external_path: p,
-                td: td.into_path(),
+                td: td.keep(),
             })
         } else {
             let td = tempfile::tempdir().unwrap();
@@ -207,7 +207,7 @@ impl Session for PlainSession {
             Ok(Project::Temporary {
                 internal_path: p.clone(),
                 external_path: p,
-                td: td.into_path(),
+                td: td.keep(),
             })
         }
     }
@@ -392,18 +392,24 @@ mod tests {
             .unwrap();
         tree.add(&[std::path::Path::new("test")]).unwrap();
         tree.build_commit().message("test").commit().unwrap();
-        let project = session.project_from_vcs(&tree as &dyn crate::vcs::DupableTree, None, None).unwrap();
+        let project = session
+            .project_from_vcs(&tree as &dyn crate::vcs::DupableTree, None, None)
+            .unwrap();
         assert_eq!(project.external_path(), path.canonicalize().unwrap());
         assert_eq!(project.internal_path(), path.canonicalize().unwrap());
         assert!(project.external_path().join(".bzr").exists());
 
-        let project = session.project_from_vcs(&tree as &dyn crate::vcs::DupableTree, Some(true), None).unwrap();
+        let project = session
+            .project_from_vcs(&tree as &dyn crate::vcs::DupableTree, Some(true), None)
+            .unwrap();
         assert_eq!(project.external_path(), path.canonicalize().unwrap());
         assert_eq!(project.internal_path(), path.canonicalize().unwrap());
 
         assert!(project.external_path().join(".bzr").exists());
 
-        let project = session.project_from_vcs(&tree as &dyn crate::vcs::DupableTree, Some(false), None).unwrap();
+        let project = session
+            .project_from_vcs(&tree as &dyn crate::vcs::DupableTree, Some(false), None)
+            .unwrap();
         assert_ne!(project.external_path(), path.canonicalize().unwrap());
         assert_ne!(project.internal_path(), path.canonicalize().unwrap());
 

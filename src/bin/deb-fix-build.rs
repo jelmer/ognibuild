@@ -1,8 +1,8 @@
 use clap::Parser;
 use ognibuild::debian::fix_build::{rescue_build_log, IterateBuildError};
+use ognibuild::session::plain::PlainSession;
 #[cfg(target_os = "linux")]
 use ognibuild::session::schroot::SchrootSession;
-use ognibuild::session::plain::PlainSession;
 use ognibuild::session::Session;
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -83,7 +83,7 @@ fn main() -> Result<(), i32> {
         )
         .init();
 
-    let mut temp_output_dir = None;
+    let temp_output_dir;
 
     let output_directory = if let Some(output_directory) = &args.output_directory {
         if !output_directory.is_dir() {
@@ -112,7 +112,10 @@ fn main() -> Result<(), i32> {
 
     let apt = ognibuild::debian::apt::AptManager::new(session.as_ref(), None);
 
-    let committer = args.committer.as_ref().map(|committer| breezyshim::config::parse_username(committer));
+    let committer = args
+        .committer
+        .as_ref()
+        .map(|committer| breezyshim::config::parse_username(committer));
 
     let packaging_context = ognibuild::debian::context::DebianPackagingContext::new(
         tree.clone(),
