@@ -349,7 +349,7 @@ impl Session for SchrootSession {
 
         let export_directory = self.external_path(&reldir).join(subdir);
         if !include_controldir.unwrap_or(false) {
-            crate::vcs::export_vcs_tree(tree.as_tree(), &export_directory, None).unwrap();
+            tree.export_to(&export_directory, None).unwrap();
         } else {
             crate::vcs::dupe_vcs_tree(tree, &export_directory).unwrap();
         }

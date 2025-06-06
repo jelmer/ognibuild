@@ -4,6 +4,7 @@ use crate::debian::fix_build::DebianBuildFixer;
 use crate::dependencies::debian::{DebianDependency, TieBreaker};
 use crate::session::Session;
 use breezyshim::tree::Tree;
+use breezyshim::workingtree::WorkingTree;
 use buildlog_consultant::problems::common::NeedPgBuildExtUpdateControl;
 use buildlog_consultant::sbuild::Phase;
 use buildlog_consultant::Problem;

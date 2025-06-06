@@ -1,5 +1,5 @@
 use breezyshim::error::Error as BrzError;
-use breezyshim::workingtree;
+use breezyshim::workingtree::{self, WorkingTree};
 use clap::Parser;
 use debian_analyzer::editor::{Editor, MutableTreeEdit};
 use debian_control::lossless::relations::Relations;

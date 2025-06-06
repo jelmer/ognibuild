@@ -104,7 +104,7 @@ pub fn create_dist<T: crate::vcs::DupableTree>(
     include_controldir: Option<bool>,
     log_manager: &mut dyn LogManager,
     version: Option<&str>,
-    subpath: &Path,
+    _subpath: &Path,
     temp_subdir: Option<&str>,
 ) -> Result<OsString, Error> {
     let temp_subdir = temp_subdir.unwrap_or("package");

@@ -1,6 +1,9 @@
 //! VCS-related functions
+use breezyshim::branch::Branch;
 use breezyshim::error::Error as BrzError;
-use breezyshim::tree::Tree;
+use breezyshim::prelude::Repository;
+use breezyshim::tree::PyTree;
+use breezyshim::workingtree::{GenericWorkingTree, WorkingTree};
 use std::path::{Path, PathBuf};
 use url::Url;
 
@@ -10,8 +13,8 @@ use url::Url;
 /// * `tree` - The tree to export
 /// * `directory` - The directory to export the tree to
 /// * `subpath` - The subpath to export
-pub fn export_vcs_tree(
-    tree: &dyn Tree,
+pub fn export_vcs_tree<T: PyTree>(
+    tree: &T,
     directory: &Path,
     subpath: Option<&Path>,
 ) -> Result<(), BrzError> {
@@ -29,25 +32,25 @@ pub trait DupableTree {
     /// Get the base directory of this tree, if it has one.
     fn basedir(&self) -> Option<PathBuf>;
 
-    /// Get this tree as a Tree.
-    fn as_tree(&self) -> &dyn Tree;
+    /// Export this tree to a directory.
+    fn export_to(&self, directory: &Path, subpath: Option<&Path>) -> Result<(), BrzError>;
 }
 
-impl DupableTree for breezyshim::workingtree::WorkingTree {
+impl DupableTree for GenericWorkingTree {
     fn basis_tree(&self) -> breezyshim::tree::RevisionTree {
-        self.basis_tree().unwrap()
+        WorkingTree::basis_tree(self).unwrap()
     }
 
     fn get_parent(&self) -> Option<String> {
-        self.branch().get_parent()
+        WorkingTree::branch(self).get_parent()
     }
 
     fn basedir(&self) -> Option<PathBuf> {
-        Some(self.basedir())
+        Some(WorkingTree::basedir(self))
     }
 
-    fn as_tree(&self) -> &dyn Tree {
-        self
+    fn export_to(&self, directory: &Path, subpath: Option<&Path>) -> Result<(), BrzError> {
+        export_vcs_tree(self, directory, subpath)
     }
 }
 
@@ -68,8 +71,8 @@ impl DupableTree for breezyshim::tree::RevisionTree {
         None
     }
 
-    fn as_tree(&self) -> &dyn Tree {
-        self
+    fn export_to(&self, directory: &Path, subpath: Option<&Path>) -> Result<(), BrzError> {
+        export_vcs_tree(self, directory, subpath)
     }
 }
 

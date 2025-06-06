@@ -23,7 +23,7 @@ use url::Url;
 /// List of APT requirements.
 async fn resolve_apt_requirement_dep_server(
     url: &url::Url,
-    dep: &dyn Dependency,
+    _dep: &dyn Dependency,
 ) -> Result<Option<DebianDependency>, Error> {
     let client = reqwest::Client::new();
     let response = client

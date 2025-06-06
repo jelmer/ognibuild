@@ -1,10 +1,9 @@
-use crate::debian::build::BUILD_LOG_FILENAME;
 use crate::debian::build::{attempt_build, BuildOnceError, BuildOnceResult};
 use crate::debian::context::Error;
 use crate::debian::context::Phase;
 pub use crate::fix_build::InterimError;
 use breezyshim::error::Error as BrzError;
-use breezyshim::workingtree::WorkingTree;
+use breezyshim::workingtree::{PyWorkingTree, WorkingTree};
 use breezyshim::workspace::reset_tree;
 use buildlog_consultant::Match;
 use buildlog_consultant::Problem;
@@ -13,7 +12,7 @@ use std::path::{Path, PathBuf};
 /// Rescue a build log and store it in the users' cache directory
 pub fn rescue_build_log(
     output_directory: &Path,
-    tree: Option<&WorkingTree>,
+    tree: Option<&dyn WorkingTree>,
 ) -> Result<(), std::io::Error> {
     let xdg_cache_dir = match dirs::cache_dir() {
         Some(dir) => dir,
@@ -144,7 +143,7 @@ pub enum IterateBuildError {
 /// * `Ok(BuildOnceResult)` if the build succeeded
 /// * `Err(IterateBuildError)` if the build failed and could not be fixed
 pub fn build_incrementally(
-    local_tree: &WorkingTree,
+    local_tree: &dyn PyWorkingTree,
     suffix: Option<&str>,
     build_suite: Option<&str>,
     output_directory: &Path,

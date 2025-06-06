@@ -5,6 +5,7 @@
 //! and handling build failures.
 
 use breezyshim::tree::{MutableTree, Tree, WorkingTree};
+use breezyshim::workingtree::PyWorkingTree;
 use buildlog_consultant::Problem;
 use debian_changelog::{ChangeLog, Urgency};
 use debversion::Version;
@@ -42,7 +43,7 @@ pub const DEFAULT_BUILDER: &str = "sbuild --no-clean-source";
 fn python_command() -> String {
     pyo3::Python::with_gil(|py| {
         use pyo3::types::PyAnyMethods;
-        let sys_module = py.import_bound("sys").unwrap();
+        let sys_module = py.import("sys").unwrap();
         sys_module
             .getattr("executable")
             .unwrap()
@@ -131,7 +132,7 @@ impl std::error::Error for BuildFailedError {}
 /// # Returns
 /// Ok on success, BuildFailedError with exit code on failure
 pub fn build(
-    local_tree: &WorkingTree,
+    local_tree: &dyn PyWorkingTree,
     outf: std::fs::File,
     build_command: &str,
     result_dir: Option<&std::path::Path>,
@@ -257,7 +258,7 @@ pub struct BuildOnceResult {
 /// # Returns
 /// BuildOnceResult on success, detailed BuildOnceError on failure
 pub fn build_once(
-    local_tree: &WorkingTree,
+    local_tree: &dyn PyWorkingTree,
     build_suite: Option<&str>,
     output_directory: &Path,
     build_command: &str,
@@ -350,7 +351,7 @@ pub fn build_once(
 ///
 /// # Returns
 /// true if control files are in root, false if they are in a debian/ directory
-fn control_files_in_root(tree: &dyn MutableTree, subpath: &std::path::Path) -> bool {
+fn control_files_in_root(tree: &dyn PyWorkingTree, subpath: &std::path::Path) -> bool {
     let debian_path = subpath.join("debian");
     if tree.has_filename(&debian_path) {
         return false;
@@ -374,7 +375,7 @@ fn control_files_in_root(tree: &dyn MutableTree, subpath: &std::path::Path) -> b
 /// # Returns
 /// Tuple of (package name, version) from the last changelog entry
 fn get_last_changelog_entry(
-    local_tree: &WorkingTree,
+    local_tree: &dyn PyWorkingTree,
     subpath: &std::path::Path,
 ) -> (String, debversion::Version) {
     let path = if control_files_in_root(local_tree, subpath) {
@@ -461,7 +462,7 @@ pub fn find_changes_files(
 /// * `apt_repository_key` - APT repository key to use.
 /// * `extra_repositories` - Extra repositories to use.
 pub fn attempt_build(
-    local_tree: &WorkingTree,
+    local_tree: &dyn PyWorkingTree,
     suffix: Option<&str>,
     build_suite: Option<&str>,
     output_directory: &std::path::Path,
@@ -476,14 +477,9 @@ pub fn attempt_build(
 ) -> Result<BuildOnceResult, BuildOnceError> {
     if run_gbp_dch
         && subpath == std::path::Path::new("")
-        && pyo3::Python::with_gil(|py| {
-            use pyo3::ToPyObject;
-            local_tree
-                .controldir()
-                .to_object(py)
-                .getattr(py, "_git")
-                .is_ok()
-        })
+        && local_tree
+            .abspath(std::path::Path::new(".git"))
+            .map_or(false, |p| std::path::Path::new(&p).exists())
     {
         gbp_dch(&local_tree.abspath(subpath).unwrap()).unwrap();
     }
@@ -568,7 +564,7 @@ pub fn version_add_suffix(version: &Version, suffix: &str) -> Version {
 /// # Returns
 /// The version of the newly added entry.
 pub fn add_dummy_changelog_entry(
-    tree: &dyn MutableTree,
+    tree: &dyn PyWorkingTree,
     subpath: &Path,
     suffix: &str,
     suite: &str,
