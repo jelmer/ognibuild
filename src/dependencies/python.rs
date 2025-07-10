@@ -18,7 +18,7 @@ use debian_control::{
 };
 use pep508_rs::pep440_rs;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A dependency on a Python package.
@@ -653,7 +653,7 @@ fn get_package_for_python_package(
 }
 
 #[cfg(any(feature = "debian", test))]
-fn get_possible_python3_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
+fn get_possible_python3_paths_for_python_object(mut object_path: &str) -> Vec<std::path::PathBuf> {
     let mut cpython3_regexes = vec![];
     loop {
         cpython3_regexes.extend([
@@ -685,7 +685,7 @@ fn get_possible_python3_paths_for_python_object(mut object_path: &str) -> Vec<Pa
 }
 
 #[cfg(feature = "debian")]
-fn get_possible_pypy_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
+fn get_possible_pypy_paths_for_python_object(mut object_path: &str) -> Vec<std::path::PathBuf> {
     let mut pypy_regexes = vec![];
     loop {
         pypy_regexes.extend([
@@ -710,7 +710,7 @@ fn get_possible_pypy_paths_for_python_object(mut object_path: &str) -> Vec<PathB
 }
 
 #[cfg(feature = "debian")]
-fn get_possible_python2_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
+fn get_possible_python2_paths_for_python_object(mut object_path: &str) -> Vec<std::path::PathBuf> {
     let mut cpython2_regexes = vec![];
     loop {
         cpython2_regexes.extend([
@@ -1021,6 +1021,8 @@ mod tests {
 
     #[test]
     fn test_paths() {
+        use std::path::PathBuf;
+
         assert_eq!(
             vec![
                 PathBuf::from("/usr/lib/python3/dist\\-packages/dulwich/__init__\\.py"),

@@ -2,7 +2,6 @@ use crate::buildlog::ToDependency;
 use crate::dependency::Dependency;
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::path::PathBuf;
 
 /// Dependency handling for autoconf-based projects.
@@ -98,6 +97,7 @@ impl ToDependency for buildlog_consultant::problems::common::MissingCommandOrBui
     }
 }
 
+#[cfg(feature = "debian")]
 const BIN_PATHS: &[&str] = &["/usr/bin", "/bin"];
 
 #[cfg(feature = "debian")]

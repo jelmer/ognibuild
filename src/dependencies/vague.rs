@@ -14,7 +14,6 @@ use crate::dependencies::Dependency;
 use crate::dependencies::PkgConfigDependency;
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A dependency that is not tied to a specific system or package manager.
@@ -278,6 +277,8 @@ fn resolve_vague_dep_req(
 
     // Try even harder
     if options.is_empty() {
+        use std::path::Path;
+
         let paths = [
             Path::new("/usr/lib")
                 .join(".*")

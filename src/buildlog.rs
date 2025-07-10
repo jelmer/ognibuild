@@ -1,5 +1,6 @@
 use crate::dependency::Dependency;
 use buildlog_consultant::problems::common::*;
+#[cfg(feature = "debian")]
 use buildlog_consultant::problems::debian::UnsatisfiedAptDependencies;
 use buildlog_consultant::Problem;
 

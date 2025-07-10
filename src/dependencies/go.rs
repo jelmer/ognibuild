@@ -2,7 +2,6 @@ use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Represents a Go package dependency.
@@ -127,6 +126,8 @@ impl crate::dependencies::debian::IntoDebianDependency for GoPackageDependency {
         &self,
         apt: &crate::debian::apt::AptManager,
     ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        use std::path::Path;
+
         let names = apt
             .get_packages_for_paths(
                 vec![Path::new("/usr/share/gocode/src")

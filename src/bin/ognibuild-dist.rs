@@ -105,7 +105,7 @@ pub fn main() -> Result<(), i32> {
     };
 
     #[cfg(not(feature = "debian"))]
-    let (packaging_tree, packaging_subdir): (
+    let (packaging_tree, packaging_subdir, package_name): (
         Option<Box<dyn WorkingTree>>,
         Option<PathBuf>,
         Option<String>,

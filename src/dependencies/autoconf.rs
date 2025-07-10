@@ -1,6 +1,7 @@
 use crate::dependency::Dependency;
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "debian")]
 use std::io::BufRead;
 
 /// Dependency on an Autoconf macro.
@@ -78,6 +79,7 @@ impl Dependency for AutoconfMacroDependency {
 ///
 /// # Returns
 /// Regular expression string pattern for finding the macro definition
+#[cfg(any(feature = "debian", test))]
 fn m4_macro_regex(r#macro: &str) -> String {
     let defun_prefix = regex::escape(format!("AC_DEFUN([{}],", r#macro).as_str());
     let au_alias_prefix = regex::escape(format!("AU_ALIAS([{}],", r#macro).as_str());

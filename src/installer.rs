@@ -367,7 +367,7 @@ fn apt_installer<'a>(
 pub fn select_installers<'a>(
     session: &'a dyn crate::session::Session,
     names: &[&str],
-    dep_server_url: Option<&url::Url>,
+    #[allow(unused_variables)] dep_server_url: Option<&url::Url>,
 ) -> Result<Box<dyn Installer + 'a>, String> {
     let mut installers = Vec::new();
     for name in names.iter() {
@@ -419,8 +419,8 @@ pub fn auto_installation_scope(session: &dyn crate::session::Session) -> Install
 /// An installer that can install dependencies in the given session
 pub fn auto_installer<'a>(
     session: &'a dyn crate::session::Session,
-    scope: InstallationScope,
-    dep_server_url: Option<&url::Url>,
+    #[allow(unused_variables)] scope: InstallationScope,
+    #[allow(unused_variables)] dep_server_url: Option<&url::Url>,
 ) -> Box<dyn Installer + 'a> {
     // if session is SchrootSession or if we're root, use apt
     let mut installers: Vec<Box<dyn Installer + 'a>> = Vec::new();

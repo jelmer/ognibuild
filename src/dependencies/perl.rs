@@ -7,7 +7,6 @@ use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A dependency on a Perl module.
@@ -403,6 +402,8 @@ impl crate::dependencies::debian::IntoDebianDependency for PerlModuleDependency 
         &self,
         apt: &crate::debian::apt::AptManager,
     ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        use std::path::Path;
+
         let (regex, paths) = if let (Some(inc), Some(filename)) =
             (self.inc.as_ref(), self.filename.as_ref())
         {
