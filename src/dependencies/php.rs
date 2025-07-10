@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 /// This represents a dependency on a specific PHP class that needs to be available
 /// for the code to function properly.
 pub struct PhpClassDependency {
-    php_class: String,
+    /// The name of the PHP class
+    pub php_class: String,
 }
 
 impl PhpClassDependency {
@@ -146,25 +147,6 @@ mod tests {
             .downcast_ref::<PhpExtensionDependency>()
             .unwrap();
         assert_eq!(php_dep.extension, "curl");
-    }
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for PhpClassDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        let path = format!("/usr/share/php/{}", self.php_class.replace("\\", "/"));
-        let names = apt
-            .get_packages_for_paths(vec![&path], false, false)
-            .unwrap();
-        Some(
-            names
-                .into_iter()
-                .map(|name| crate::dependencies::debian::DebianDependency::new(&name))
-                .collect(),
-        )
     }
 }
 
@@ -335,18 +317,6 @@ impl Dependency for PhpExtensionDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
-    }
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for PhpExtensionDependency {
-    fn try_into_debian_dependency(
-        &self,
-        _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::new(
-            &format!("php-{}", &self.extension),
-        )])
     }
 }
 

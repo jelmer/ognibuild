@@ -4,21 +4,14 @@
 //! including parsing and resolving PEP 508 package requirements, and integrating
 //! with package managers.
 
-#[cfg(feature = "debian")]
-use crate::debian::apt::AptManager;
-#[cfg(feature = "debian")]
-use crate::dependencies::debian::DebianDependency;
 use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
-#[cfg(feature = "debian")]
-use debian_control::{
-    lossless::relations::{Relation, Relations},
-    relations::VersionConstraint,
-};
 use pep508_rs::pep440_rs;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(test)]
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A dependency on a Python package.
@@ -169,36 +162,6 @@ impl crate::buildlog::ToDependency
     }
 }
 
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependency {
-    fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>> {
-        // TODO: handle other things than min version
-        let (name, min_version) =
-            crate::dependencies::debian::extract_simple_min_version(dependency)?;
-
-        let (_, python_version, name) = lazy_regex::regex_captures!("python([0-9.]*)-(.*)", &name)?;
-
-        let major_python_version = if python_version.is_empty() {
-            None
-        } else {
-            Some(python_version.parse::<u32>().unwrap())
-        };
-
-        Some(Box::new(PythonPackageDependency::from(
-            pep508_rs::Requirement {
-                name: pep508_rs::PackageName::new(name.to_owned()).unwrap(),
-                version_or_url: min_version
-                    .map(|x| min_version_as_version_or_url(&x.upstream_version)),
-                marker: major_python_version
-                    .map(major_python_version_as_marker)
-                    .unwrap_or(pep508_rs::MarkerTree::TRUE),
-                extras: vec![],
-                origin: None,
-            },
-        )))
-    }
-}
-
 #[derive(Debug, Clone, Default, Copy, Serialize, Deserialize)]
 /// Supported Python implementations and versions.
 ///
@@ -279,9 +242,12 @@ impl crate::upstream::FindUpstream for PythonPackageDependency {
 /// This represents a dependency on a specific Python module (importable name)
 /// rather than a package. Used for checking if specific imports will work.
 pub struct PythonModuleDependency {
-    module: String,
-    minimum_version: Option<String>,
-    python_version: Option<PythonVersion>,
+    /// The Python module name
+    pub module: String,
+    /// Minimum version requirement
+    pub minimum_version: Option<String>,
+    /// Python version (e.g., Python 2 or 3)
+    pub python_version: Option<PythonVersion>,
 }
 
 impl PythonModuleDependency {
@@ -460,95 +426,6 @@ impl<'a> Installer for PypiResolver<'a> {
     }
 }
 
-#[cfg(feature = "debian")]
-/// Convert Python version specifiers to Debian package version constraints.
-///
-/// # Arguments
-/// * `pkg_name` - The name of the Debian package
-/// * `version_specifiers` - The Python version specifiers (PEP 440)
-///
-/// # Returns
-/// Debian package relations with appropriate version constraints
-pub fn python_version_specifiers_to_debian(
-    pkg_name: &str,
-    version_specifiers: Option<&pep440_rs::VersionSpecifiers>,
-) -> Relations {
-    // TODO(jelmer): Dealing with epoch, etc?
-    let mut rels: Vec<Relation> = vec![];
-    if let Some(version_specifiers) = version_specifiers {
-        for vs in version_specifiers.iter() {
-            let v = vs.version().to_string();
-            match vs.operator() {
-                pep440_rs::Operator::TildeEqual => {
-                    // PEP 440: For a given release identifier V.N , the compatible
-                    // release clause is approximately equivalent to the pair of
-                    // comparison clauses: >= V.N, == V.*
-                    let mut parts = v.split('.').map(|s| s.to_string()).collect::<Vec<String>>();
-                    parts.pop();
-                    let last: isize = parts.pop().unwrap().parse().unwrap();
-                    parts.push((last + 1).to_string());
-                    let next_maj_deb_version: debversion::Version =
-                        parts.join(".").parse().unwrap();
-                    let deb_version: debversion::Version = v.parse().unwrap();
-                    rels.push(Relation::new(
-                        pkg_name,
-                        Some((VersionConstraint::GreaterThanEqual, deb_version)),
-                    ));
-                    rels.push(Relation::new(
-                        pkg_name,
-                        Some((VersionConstraint::LessThan, next_maj_deb_version)),
-                    ));
-                }
-                pep440_rs::Operator::NotEqual => {
-                    let deb_version: debversion::Version = v.parse().unwrap();
-                    rels.push(Relation::new(
-                        pkg_name,
-                        Some((VersionConstraint::GreaterThan, deb_version.clone())),
-                    ));
-                    rels.push(Relation::new(
-                        pkg_name,
-                        Some((VersionConstraint::LessThan, deb_version)),
-                    ));
-                }
-                pep440_rs::Operator::Equal if v.ends_with(".*") => {
-                    let mut parts = v.split('.').map(|s| s.to_string()).collect::<Vec<String>>();
-                    parts.pop();
-                    let last: isize = parts.pop().unwrap().parse().unwrap();
-                    parts.push((last + 1).to_string());
-                    let deb_version: debversion::Version = v.parse().unwrap();
-                    let next_maj_deb_version: debversion::Version =
-                        parts.join(".").parse().unwrap();
-                    rels.push(Relation::new(
-                        pkg_name,
-                        Some((VersionConstraint::GreaterThanEqual, deb_version)),
-                    ));
-                    rels.push(Relation::new(
-                        pkg_name,
-                        Some((VersionConstraint::LessThan, next_maj_deb_version)),
-                    ));
-                }
-                o => {
-                    let vc = match o {
-                        pep440_rs::Operator::GreaterThanEqual => {
-                            VersionConstraint::GreaterThanEqual
-                        }
-                        pep440_rs::Operator::GreaterThan => VersionConstraint::GreaterThan,
-                        pep440_rs::Operator::LessThanEqual => VersionConstraint::LessThanEqual,
-                        pep440_rs::Operator::LessThan => VersionConstraint::LessThan,
-                        pep440_rs::Operator::Equal => VersionConstraint::Equal,
-                        _ => unimplemented!(),
-                    };
-                    let v: debversion::Version = v.parse().unwrap();
-                    rels.push(Relation::new(pkg_name, Some((vc, v))));
-                }
-            }
-        }
-        Relations::from(rels.into_iter().map(|r| r.into()).collect::<Vec<_>>())
-    } else {
-        Relations::from(vec![Relation::new(pkg_name, None).into()])
-    }
-}
-
 fn find_python_version(marker: Vec<Vec<pep508_rs::MarkerExpression>>) -> Option<PythonVersion> {
     let mut major_version = None;
     let mut implementation = None;
@@ -591,68 +468,7 @@ fn find_python_version(marker: Vec<Vec<pep508_rs::MarkerExpression>>) -> Option<
     }
 }
 
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for PythonPackageDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt_mgr: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<DebianDependency>> {
-        let names = get_package_for_python_package(
-            apt_mgr,
-            &self.package(),
-            find_python_version(self.0.marker.to_dnf()),
-            self.0.version_or_url.as_ref(),
-        );
-        Some(names)
-    }
-}
-
-#[cfg(feature = "debian")]
-fn get_package_for_python_package(
-    apt_mgr: &AptManager,
-    package: &str,
-    python_version: Option<PythonVersion>,
-    version_or_url: Option<&pep508_rs::VersionOrUrl>,
-) -> Vec<DebianDependency> {
-    let pypy_regex = format!(
-        "/usr/lib/pypy/dist\\-packages/{}-.*\\.(dist|egg)\\-info",
-        regex::escape(&package.replace('-', "_"))
-    );
-    let cpython2_regex = format!(
-        "/usr/lib/python2\\.[0-9]/dist\\-packages/{}-.*\\.(dist|egg)\\-info",
-        regex::escape(&package.replace('-', "_"))
-    );
-    let cpython3_regex = format!(
-        "/usr/lib/python3/dist\\-packages/{}-.*\\.(dist|egg)\\-info",
-        regex::escape(&package.replace('-', "_"))
-    );
-    let paths = match python_version {
-        Some(PythonVersion::PyPy) => vec![pypy_regex],
-        Some(PythonVersion::CPython2) => vec![cpython2_regex],
-        Some(PythonVersion::CPython3) => vec![cpython3_regex],
-        None => vec![cpython3_regex, cpython2_regex, pypy_regex],
-        _ => unimplemented!(),
-    };
-    let names = apt_mgr
-        .get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, true)
-        .unwrap();
-
-    names
-        .iter()
-        .map(|name| {
-            DebianDependency::from(python_version_specifiers_to_debian(
-                name,
-                if let Some(pep508_rs::VersionOrUrl::VersionSpecifier(specs)) = version_or_url {
-                    Some(specs)
-                } else {
-                    None
-                },
-            ))
-        })
-        .collect()
-}
-
-#[cfg(any(feature = "debian", test))]
+#[cfg(test)]
 fn get_possible_python3_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
     let mut cpython3_regexes = vec![];
     loop {
@@ -682,122 +498,6 @@ fn get_possible_python3_paths_for_python_object(mut object_path: &str) -> Vec<Pa
         };
     }
     cpython3_regexes
-}
-
-#[cfg(feature = "debian")]
-fn get_possible_pypy_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
-    let mut pypy_regexes = vec![];
-    loop {
-        pypy_regexes.extend([
-            Path::new("/usr/lib/pypy/dist\\-packages")
-                .join(regex::escape(&object_path.replace('.', "/")))
-                .join("__init__\\.py"),
-            Path::new("/usr/lib/pypy/dist\\-packages").join(format!(
-                "{}\\.py",
-                regex::escape(&object_path.replace('.', "/"))
-            )),
-            Path::new("/usr/lib/pypy/dist\\-packages").join(format!(
-                "{}\\.pypy-.*\\.so",
-                regex::escape(&object_path.replace('.', "/"))
-            )),
-        ]);
-        object_path = match object_path.rsplit_once('.') {
-            Some((o, _)) => o,
-            None => break,
-        };
-    }
-    pypy_regexes
-}
-
-#[cfg(feature = "debian")]
-fn get_possible_python2_paths_for_python_object(mut object_path: &str) -> Vec<PathBuf> {
-    let mut cpython2_regexes = vec![];
-    loop {
-        cpython2_regexes.extend([
-            Path::new("/usr/lib/python2\\.[0-9]/dist\\-packages")
-                .join(regex::escape(&object_path.replace('.', "/")))
-                .join("__init__\\.py"),
-            Path::new("/usr/lib/python2\\.[0-9]/dist\\-packages").join(format!(
-                "{}\\.py",
-                regex::escape(&object_path.replace('.', "/"))
-            )),
-            Path::new("/usr/lib/python2.\\.[0-9]/lib\\-dynload").join(format!(
-                "{}\\.so",
-                regex::escape(&object_path.replace('.', "/"))
-            )),
-        ]);
-        object_path = match object_path.rsplit_once('.') {
-            Some((o, _)) => o,
-            None => break,
-        };
-    }
-    cpython2_regexes
-}
-
-#[cfg(feature = "debian")]
-fn get_package_for_python_object_path(
-    apt_mgr: &AptManager,
-    object_path: &str,
-    python_version: Option<PythonVersion>,
-    version_specifiers: Option<&pep440_rs::VersionSpecifiers>,
-) -> Vec<DebianDependency> {
-    // Try to find the most specific file
-    let paths = match python_version {
-        Some(PythonVersion::CPython3) => get_possible_python3_paths_for_python_object(object_path),
-        Some(PythonVersion::CPython2) => get_possible_python2_paths_for_python_object(object_path),
-        Some(PythonVersion::PyPy) => get_possible_pypy_paths_for_python_object(object_path),
-        None => get_possible_python3_paths_for_python_object(object_path)
-            .into_iter()
-            .chain(get_possible_python2_paths_for_python_object(object_path))
-            .chain(get_possible_pypy_paths_for_python_object(object_path))
-            .collect(),
-        _ => unimplemented!(),
-    };
-    let names = apt_mgr
-        .get_packages_for_paths(
-            paths.iter().map(|x| x.to_str().unwrap()).collect(),
-            true,
-            false,
-        )
-        .unwrap();
-
-    names
-        .into_iter()
-        .map(|name| {
-            DebianDependency::from(python_version_specifiers_to_debian(
-                &name,
-                version_specifiers,
-            ))
-        })
-        .collect()
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for PythonModuleDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<DebianDependency>> {
-        use std::str::FromStr;
-        let specs = self.minimum_version.as_ref().map(|min_version| {
-            std::iter::once(
-                pep440_rs::VersionSpecifier::from_pattern(
-                    pep440_rs::Operator::GreaterThanEqual,
-                    pep440_rs::VersionPattern::verbatim(
-                        pep440_rs::Version::from_str(min_version).unwrap(),
-                    ),
-                )
-                .unwrap(),
-            )
-            .collect()
-        });
-        Some(get_package_for_python_object_path(
-            apt,
-            &self.module,
-            self.python_version,
-            specs.as_ref(),
-        ))
-    }
 }
 
 impl crate::buildlog::ToDependency
@@ -965,53 +665,6 @@ impl From<&pep440_rs::VersionSpecifiers> for PythonDependency {
             }
         }
         Self { min_version: None }
-    }
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::FromDebianDependency for PythonDependency {
-    fn from_debian_dependency(dependency: &DebianDependency) -> Option<Box<dyn Dependency>> {
-        let (name, min_version) =
-            crate::dependencies::debian::extract_simple_min_version(dependency)?;
-        if name == "python" || name == "python3" {
-            Some(Box::new(PythonDependency {
-                min_version: min_version.map(|x| x.upstream_version.clone()),
-            }))
-        } else {
-            None
-        }
-    }
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for PythonDependency {
-    fn try_into_debian_dependency(
-        &self,
-        _apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<DebianDependency>> {
-        let mut deps = vec![];
-        if let Some(min_version) = &self.min_version {
-            if min_version.starts_with("2") {
-                deps.push(
-                    crate::dependencies::debian::DebianDependency::new_with_min_version(
-                        "python",
-                        &min_version.parse::<debversion::Version>().unwrap(),
-                    ),
-                );
-            } else {
-                deps.push(
-                    crate::dependencies::debian::DebianDependency::new_with_min_version(
-                        "python3",
-                        &min_version.parse::<debversion::Version>().unwrap(),
-                    ),
-                );
-            }
-        } else {
-            deps.push(crate::dependencies::debian::DebianDependency::simple(
-                "python3",
-            ));
-        }
-        Some(deps)
     }
 }
 

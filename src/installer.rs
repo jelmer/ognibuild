@@ -266,6 +266,79 @@ impl<'a> Installer for StackedInstaller<'a> {
     }
 }
 
+/// Trait for creating installers for a specific session.
+pub trait InstallerFactory: Send + Sync {
+    /// Get the name of this installer.
+    fn name(&self) -> &'static str;
+
+    /// Create an installer instance for the given session.
+    fn create_installer<'a>(&self, session: &'a dyn Session) -> Box<dyn Installer + 'a>;
+}
+
+/// Registry for installer factories using the inventory crate.
+pub struct InstallerRegistry;
+
+impl InstallerRegistry {
+    /// Get an installer factory by name.
+    pub fn get(name: &str) -> Option<&'static dyn InstallerFactory> {
+        for factory in inventory::iter::<&'static dyn InstallerFactory> {
+            if factory.name() == name {
+                return Some(*factory);
+            }
+        }
+        None
+    }
+
+    /// Get all registered installer names.
+    pub fn names() -> Vec<&'static str> {
+        inventory::iter::<&'static dyn InstallerFactory>
+            .into_iter()
+            .map(|factory| factory.name())
+            .collect()
+    }
+}
+
+// Collect all registered installer factories
+inventory::collect!(&'static dyn InstallerFactory);
+
+/// Macro to register an installer factory.
+///
+/// # Example
+/// ```
+/// use ognibuild::installer::{InstallerFactory, Installer};
+/// use ognibuild::session::Session;
+/// use ognibuild::register_installer;
+///
+/// struct MyInstallerFactory;
+///
+/// impl MyInstallerFactory {
+///     const fn new() -> Self {
+///         MyInstallerFactory
+///     }
+/// }
+///
+/// impl InstallerFactory for MyInstallerFactory {
+///     fn name(&self) -> &'static str {
+///         "my-installer"
+///     }
+///     
+///     fn create_installer<'a>(&self, session: &'a dyn Session) -> Box<dyn Installer + 'a> {
+///         // In a real implementation, you would return your custom installer here
+///         unimplemented!()
+///     }
+/// }
+///
+/// register_installer!(MyInstallerFactory);
+/// ```
+#[macro_export]
+macro_rules! register_installer {
+    ($factory_type:ty) => {
+        ::inventory::submit! {
+            &<$factory_type>::new() as &'static dyn $crate::installer::InstallerFactory
+        }
+    };
+}
+
 /// Create an installer by name.
 ///
 /// # Arguments
@@ -278,12 +351,13 @@ pub fn installer_by_name<'a>(
     session: &'a dyn crate::session::Session,
     name: &str,
 ) -> Option<Box<dyn Installer + 'a>> {
-    // TODO: Use more dynamic way to load installers
+    // First check the registry for dynamically registered installers
+    if let Some(factory) = InstallerRegistry::get(name) {
+        return Some(factory.create_installer(session));
+    }
+
+    // Fall back to built-in installers for backward compatibility
     match name {
-        #[cfg(feature = "debian")]
-        "apt" => Some(
-            Box::new(crate::debian::apt::AptInstaller::from_session(session)) as Box<dyn Installer>,
-        ),
         "cpan" => Some(
             Box::new(crate::dependencies::perl::CPAN::new(session, false)) as Box<dyn Installer>,
         ),
@@ -343,26 +417,6 @@ pub fn native_installers<'a>(
     .collect()
 }
 
-#[cfg(feature = "debian")]
-fn apt_installer<'a>(
-    session: &'a dyn crate::session::Session,
-    #[allow(unused_variables)] dep_server_url: Option<&url::Url>,
-) -> Box<dyn Installer + 'a> {
-    #[cfg(feature = "dep-server")]
-    if let Some(dep_server_url) = dep_server_url {
-        Box::new(
-            crate::debian::dep_server::DepServerAptInstaller::from_session(session, dep_server_url),
-        ) as Box<dyn Installer + 'a>
-    } else {
-        Box::new(crate::debian::apt::AptInstaller::from_session(session))
-    }
-
-    #[cfg(not(feature = "dep-server"))]
-    {
-        Box::new(crate::debian::apt::AptInstaller::from_session(session))
-    }
-}
-
 /// Select installers by name.
 pub fn select_installers<'a>(
     session: &'a dyn crate::session::Session,
@@ -371,12 +425,15 @@ pub fn select_installers<'a>(
 ) -> Result<Box<dyn Installer + 'a>, String> {
     let mut installers = Vec::new();
     for name in names.iter() {
-        if name == &"apt" {
-            #[cfg(feature = "debian")]
-            installers.push(apt_installer(session, dep_server_url));
-            #[cfg(not(feature = "debian"))]
-            return Err("Apt installer not available".to_string());
-        } else if let Some(installer) = installer_by_name(session, name) {
+        if name == &"apt" && dep_server_url.is_some() {
+            // Special handling for apt with dep-server URL
+            // Set environment variable for the factory to pick up
+            if let Some(url) = dep_server_url {
+                std::env::set_var("OGNIBUILD_DEP_SERVER_URL", url.as_str());
+            }
+        }
+
+        if let Some(installer) = installer_by_name(session, name) {
             installers.push(installer);
         } else {
             return Err(format!("Unknown installer: {}", name));
@@ -422,15 +479,23 @@ pub fn auto_installer<'a>(
     scope: InstallationScope,
     dep_server_url: Option<&url::Url>,
 ) -> Box<dyn Installer + 'a> {
-    // if session is SchrootSession or if we're root, use apt
     let mut installers: Vec<Box<dyn Installer + 'a>> = Vec::new();
-    #[cfg(feature = "debian")]
+
+    // Check for apt installer in the registry
     if scope == InstallationScope::Global && crate::session::which(session, "apt-get").is_some() {
-        log::info!(
-            "Using global installation scope and apt-get is available, so using apt installer"
-        );
-        installers.push(apt_installer(session, dep_server_url));
+        // Set dep-server URL if provided
+        if let Some(url) = dep_server_url {
+            std::env::set_var("OGNIBUILD_DEP_SERVER_URL", url.as_str());
+        }
+
+        if let Some(apt_installer) = installer_by_name(session, "apt") {
+            log::info!(
+                "Using global installation scope and apt-get is available, so using apt installer"
+            );
+            installers.push(apt_installer);
+        }
     }
+
     installers.extend(native_installers(session));
     Box::new(StackedInstaller::new(installers))
 }

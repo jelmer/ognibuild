@@ -6,8 +6,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// OctavePackageDependency represents a dependency on an Octave package.
 pub struct OctavePackageDependency {
-    package: String,
-    minimum_version: Option<String>,
+    /// The name of the Octave package
+    pub package: String,
+    /// Optional minimum version requirement
+    pub minimum_version: Option<String>,
 }
 
 impl OctavePackageDependency {
@@ -183,26 +185,5 @@ impl<'a> Installer for OctaveForgeResolver<'a> {
             .command(cmd.iter().map(|x| x.as_str()).collect())
             .run_detecting_problems()?;
         Ok(())
-    }
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for OctavePackageDependency {
-    fn try_into_debian_dependency(
-        &self,
-        _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        if let Some(minimum_version) = &self.minimum_version {
-            Some(vec![
-                crate::dependencies::debian::DebianDependency::new_with_min_version(
-                    &format!("octave-{}", &self.package),
-                    &minimum_version.parse().unwrap(),
-                ),
-            ])
-        } else {
-            Some(vec![crate::dependencies::debian::DebianDependency::new(
-                &format!("octave-{}", &self.package),
-            )])
-        }
     }
 }

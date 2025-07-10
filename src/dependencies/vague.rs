@@ -5,16 +5,11 @@
 //! it's a binary, library, etc.). These dependencies are expanded into more
 //! specific dependencies when resolved.
 
-#[cfg(feature = "debian")]
-use crate::dependencies::debian::DebianDependency;
-#[cfg(feature = "debian")]
-use crate::dependencies::python::PythonPackageDependency;
 use crate::dependencies::BinaryDependency;
 use crate::dependencies::Dependency;
 use crate::dependencies::PkgConfigDependency;
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A dependency that is not tied to a specific system or package manager.
@@ -76,32 +71,6 @@ impl VagueDependency {
                     &lcname,
                     self.minimum_version.clone().as_deref(),
                 )) as Box<dyn Dependency>);
-            }
-            #[cfg(feature = "debian")]
-            {
-                ret.push(Box::new(
-                    if let Some(minimum_version) = &self.minimum_version {
-                        DebianDependency::new_with_min_version(
-                            &self.name,
-                            &minimum_version.parse().unwrap(),
-                        )
-                    } else {
-                        DebianDependency::new(&self.name)
-                    },
-                ));
-                let devname = if lcname.starts_with("lib") {
-                    format!("{}-dev", lcname)
-                } else {
-                    format!("lib{}-dev", lcname)
-                };
-                ret.push(if let Some(minimum_version) = &self.minimum_version {
-                    Box::new(DebianDependency::new_with_min_version(
-                        &devname,
-                        &minimum_version.parse().unwrap(),
-                    ))
-                } else {
-                    Box::new(DebianDependency::new(&devname))
-                });
             }
         }
         ret
@@ -198,117 +167,6 @@ mod tests {
 
         // Should not expand dependencies with spaces
         assert!(expanded.is_empty());
-    }
-}
-
-#[cfg(feature = "debian")]
-fn known_vague_dep_to_debian(name: &str) -> Option<&str> {
-    match name {
-        "the Gnu Scientific Library" => Some("libgsl-dev"),
-        "the required FreeType library" => Some("libfreetype-dev"),
-        "the Boost C++ libraries" => Some("libboost-dev"),
-        "the sndfile library" => Some("libsndfile-dev"),
-        // TODO(jelmer): Support resolving virtual packages
-        "PythonLibs" => Some("libpython3-dev"),
-        "PythonInterp" => Some("python3"),
-        "ZLIB" => Some("libz3-dev"),
-        "Osmium" => Some("libosmium2-dev"),
-        "glib" => Some("libglib2.0-dev"),
-        "OpenGL" => Some("libgl-dev"),
-        // TODO(jelmer): For Python, check minimum_version and map to python 2 or python 3
-        "Python" => Some("libpython3-dev"),
-        "Lua" => Some("liblua5.4-dev"),
-        _ => None,
-    }
-}
-
-#[cfg(feature = "debian")]
-fn resolve_vague_dep_req(
-    apt_mgr: &crate::debian::apt::AptManager,
-    req: VagueDependency,
-) -> Vec<DebianDependency> {
-    let name = req.name.as_str();
-    let mut options = vec![];
-    if name.contains(" or ") {
-        for entry in name.split(" or ") {
-            options.extend(resolve_vague_dep_req(
-                apt_mgr,
-                VagueDependency {
-                    name: entry.to_string(),
-                    minimum_version: req.minimum_version.clone(),
-                },
-            ));
-        }
-    }
-
-    if let Some(dep) = known_vague_dep_to_debian(name) {
-        options.push(
-            if let Some(minimum_version) = req.minimum_version.as_ref() {
-                DebianDependency::new_with_min_version(dep, &minimum_version.parse().unwrap())
-            } else {
-                DebianDependency::new(dep)
-            },
-        );
-    }
-    for x in req.expand() {
-        options.extend(crate::debian::apt::dependency_to_possible_deb_dependencies(
-            apt_mgr,
-            x.as_ref(),
-        ));
-    }
-
-    if let Some(rest) = name.strip_prefix("GNU ") {
-        options.extend(resolve_vague_dep_req(
-            apt_mgr,
-            VagueDependency::simple(rest),
-        ));
-    }
-
-    if name.starts_with("py") || name.ends_with("py") {
-        // TODO(jelmer): Try harder to determine whether this is a python package
-        let dep = if let Some(min_version) = req.minimum_version.as_ref() {
-            PythonPackageDependency::new_with_min_version(name, min_version)
-        } else {
-            PythonPackageDependency::simple(name)
-        };
-        options.extend(crate::debian::apt::dependency_to_possible_deb_dependencies(
-            apt_mgr, &dep,
-        ));
-    }
-
-    // Try even harder
-    if options.is_empty() {
-        let paths = [
-            Path::new("/usr/lib")
-                .join(".*")
-                .join("pkgconfig")
-                .join(format!("{}-.*\\.pc", regex::escape(&req.name))),
-            Path::new("/usr/lib/pkgconfig").join(format!("{}-.*\\.pc", regex::escape(&req.name))),
-        ];
-
-        options.extend(
-            apt_mgr
-                .get_packages_for_paths(
-                    paths.iter().map(|x| x.to_str().unwrap()).collect(),
-                    true,
-                    true,
-                )
-                .unwrap()
-                .iter()
-                .map(|x| DebianDependency::new(x)),
-        )
-    }
-
-    options
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for VagueDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt_mgr: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(resolve_vague_dep_req(apt_mgr, self.clone()))
     }
 }
 

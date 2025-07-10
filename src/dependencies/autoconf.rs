@@ -10,7 +10,7 @@ use std::io::BufRead;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoconfMacroDependency {
     /// Name of the Autoconf macro
-    macro_name: String,
+    pub macro_name: String,
 }
 
 impl AutoconfMacroDependency {
@@ -78,7 +78,7 @@ impl Dependency for AutoconfMacroDependency {
 ///
 /// # Returns
 /// Regular expression string pattern for finding the macro definition
-fn m4_macro_regex(r#macro: &str) -> String {
+pub fn m4_macro_regex(r#macro: &str) -> String {
     let defun_prefix = regex::escape(format!("AC_DEFUN([{}],", r#macro).as_str());
     let au_alias_prefix = regex::escape(format!("AU_ALIAS([{}],", r#macro).as_str());
     let m4_copy = format!(r"m4_copy\(.*,\s*\[{}\]\)", regex::escape(r#macro));
@@ -136,7 +136,6 @@ mod tests {
     }
 }
 
-#[cfg(feature = "debian")]
 /// Find a local M4 macro file that contains the definition of a given macro.
 ///
 /// Searches in `/usr/share/aclocal` for files containing the definition
@@ -147,7 +146,7 @@ mod tests {
 ///
 /// # Returns
 /// Path to the M4 file containing the macro definition, or None if not found
-fn find_local_m4_macro(r#macro: &str) -> Option<String> {
+pub fn find_local_m4_macro(r#macro: &str) -> Option<String> {
     // TODO(jelmer): Query some external service that can search all binary packages?
     let p = regex::Regex::new(&m4_macro_regex(r#macro)).unwrap();
     for entry in std::fs::read_dir("/usr/share/aclocal").unwrap() {
@@ -164,37 +163,6 @@ fn find_local_m4_macro(r#macro: &str) -> Option<String> {
         }
     }
     None
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for AutoconfMacroDependency {
-    /// Convert this dependency to a list of Debian package dependencies.
-    ///
-    /// Attempts to find the Debian packages that provide the Autoconf macro by
-    /// searching for M4 files in standard locations.
-    ///
-    /// # Arguments
-    /// * `apt` - The APT package manager to use for queries
-    ///
-    /// # Returns
-    /// A list of Debian package dependencies if found, or None if not found
-    fn try_into_debian_dependency(
-        &self,
-        apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        let path = find_local_m4_macro(&self.macro_name);
-        if path.is_none() {
-            log::info!("No local m4 file found defining {}", self.macro_name);
-            return None;
-        }
-        Some(
-            apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false)
-                .unwrap()
-                .iter()
-                .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
-                .collect(),
-        )
-    }
 }
 
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingAutoconfMacro {

@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A dependency representing a Java class.
 pub struct JavaClassDependency {
-    classname: String,
+    /// The name of the Java class
+    pub classname: String,
 }
 
 impl JavaClassDependency {
@@ -31,44 +32,6 @@ impl Dependency for JavaClassDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
-    }
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for JavaClassDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        apt.satisfy(vec![crate::debian::apt::SatisfyEntry::Required(
-            "java-propose-classpath".to_string(),
-        )])
-        .unwrap();
-        let output = String::from_utf8(
-            apt.session()
-                .command(vec![
-                    "java-propose-classpath",
-                    &format!("-c{}", &self.classname),
-                ])
-                .check_output()
-                .unwrap(),
-        )
-        .unwrap();
-        let classpath = output
-            .trim_matches(':')
-            .trim()
-            .split(':')
-            .collect::<Vec<&str>>();
-        if classpath.is_empty() {
-            None
-        } else {
-            Some(
-                classpath
-                    .iter()
-                    .map(|path| crate::dependencies::debian::DebianDependency::new(path))
-                    .collect(),
-            )
-        }
     }
 }
 
@@ -105,18 +68,6 @@ impl Dependency for JDKDependency {
     }
 }
 
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for JDKDependency {
-    fn try_into_debian_dependency(
-        &self,
-        _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::new(
-            "default-jdk",
-        )])
-    }
-}
-
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingJDK {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(JDKDependency))
@@ -150,18 +101,6 @@ impl Dependency for JREDependency {
     }
 }
 
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for JREDependency {
-    fn try_into_debian_dependency(
-        &self,
-        _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::new(
-            "default-jre",
-        )])
-    }
-}
-
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingJRE {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(JREDependency))
@@ -171,8 +110,10 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A dependency representing a specific file in the JDK.
 pub struct JDKFileDependency {
-    jdk_path: std::path::PathBuf,
-    filename: String,
+    /// The path to the JDK installation
+    pub jdk_path: std::path::PathBuf,
+    /// The filename within the JDK
+    pub filename: String,
 }
 
 impl JDKFileDependency {
@@ -204,32 +145,6 @@ impl Dependency for JDKFileDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
-    }
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for JDKFileDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        let path = regex::escape(self.jdk_path.to_str().unwrap())
-            + ".*/"
-            + &regex::escape(self.filename.as_str());
-        let names = apt
-            .get_packages_for_paths(vec![path.as_str()], true, false)
-            .unwrap();
-
-        if names.is_empty() {
-            None
-        } else {
-            Some(
-                names
-                    .iter()
-                    .map(|name| crate::dependencies::debian::DebianDependency::simple(name))
-                    .collect(),
-            )
-        }
     }
 }
 

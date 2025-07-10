@@ -100,8 +100,10 @@ mod tests {
 
 /// A resolver for LaTeX package dependencies using tlmgr
 pub struct TlmgrResolver<'a> {
-    session: &'a dyn Session,
-    repository: String,
+    /// The session to use for command execution
+    pub session: &'a dyn Session,
+    /// The repository URL for package installation
+    pub repository: String,
 }
 
 impl<'a> TlmgrResolver<'a> {

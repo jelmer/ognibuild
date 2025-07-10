@@ -6,8 +6,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A dependency on a Haskell package
 pub struct HaskellPackageDependency {
-    package: String,
-    specs: Option<Vec<String>>,
+    /// The name of the Haskell package
+    pub package: String,
+    /// Optional version specifications
+    pub specs: Option<Vec<String>>,
 }
 
 impl HaskellPackageDependency {
@@ -78,33 +80,6 @@ impl Dependency for HaskellPackageDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
-    }
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for HaskellPackageDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<super::debian::DebianDependency>> {
-        let path = format!(
-            "/var/lib/ghc/package\\.conf\\.d/{}\\-.*\\.conf",
-            regex::escape(&self.package)
-        );
-
-        let names = apt
-            .get_packages_for_paths(vec![path.as_str()], true, false)
-            .unwrap();
-        if names.is_empty() {
-            None
-        } else {
-            Some(
-                names
-                    .into_iter()
-                    .map(|name| super::debian::DebianDependency::new(&name))
-                    .collect(),
-            )
-        }
     }
 }
 

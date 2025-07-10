@@ -14,7 +14,8 @@ use serde::{Deserialize, Serialize};
 /// This represents a dependency on an XML entity, which is typically resolved
 /// through an XML catalog.
 pub struct XmlEntityDependency {
-    url: String,
+    /// The URL of the XML entity
+    pub url: String,
 }
 
 impl XmlEntityDependency {
@@ -110,28 +111,18 @@ mod tests {
     }
 }
 
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for XmlEntityDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        let path = XML_ENTITY_URL_MAP.iter().find_map(|(url, path)| {
-            self.url
-                .strip_prefix(url)
-                .map(|rest| format!("{}{}", path, rest))
-        });
-
-        path.as_ref()?;
-
-        Some(
-            apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false)
-                .unwrap()
-                .iter()
-                .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
-                .collect(),
-        )
-    }
+/// Convert an XML entity URL to a filesystem path
+///
+/// # Arguments
+/// * `url` - The XML entity URL
+///
+/// # Returns
+/// The corresponding filesystem path, or None if no mapping exists
+pub fn xml_entity_url_to_path(url: &str) -> Option<String> {
+    XML_ENTITY_URL_MAP.iter().find_map(|(prefix, path)| {
+        url.strip_prefix(prefix)
+            .map(|rest| format!("{}{}", path, rest))
+    })
 }
 
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingXmlEntity {

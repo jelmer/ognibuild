@@ -21,14 +21,6 @@ pub trait FindUpstream: Dependency {
 /// * `Some(UpstreamMetadata)` if upstream metadata was found
 /// * `None` if no upstream metadata could be found
 pub fn find_upstream(dependency: &dyn Dependency) -> Option<UpstreamMetadata> {
-    #[cfg(feature = "debian")]
-    if let Some(dep) = dependency
-        .as_any()
-        .downcast_ref::<crate::dependencies::debian::DebianDependency>()
-    {
-        return dep.find_upstream();
-    }
-
     if let Some(dep) = dependency
         .as_any()
         .downcast_ref::<crate::dependencies::python::PythonPackageDependency>()

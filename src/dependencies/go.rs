@@ -2,7 +2,6 @@ use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Represents a Go package dependency.
@@ -118,61 +117,6 @@ impl Dependency for GoPackageDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
-    }
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for GoPackageDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        let names = apt
-            .get_packages_for_paths(
-                vec![Path::new("/usr/share/gocode/src")
-                    .join(regex::escape(&self.package))
-                    .join(".*")
-                    .to_str()
-                    .unwrap()],
-                true,
-                false,
-            )
-            .unwrap();
-        if names.is_empty() {
-            return None;
-        }
-
-        Some(
-            names
-                .iter()
-                .map(|name| crate::dependencies::debian::DebianDependency::new(name))
-                .collect(),
-        )
-    }
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::FromDebianDependency for GoPackageDependency {
-    fn from_debian_dependency(
-        dependency: &super::debian::DebianDependency,
-    ) -> Option<Box<dyn Dependency>> {
-        let (package, version) =
-            crate::dependencies::debian::extract_simple_exact_version(&dependency)?;
-        let (_, package) = lazy_regex::regex_captures!(r"golang-(.*)-dev", &package)?;
-
-        let mut parts = package.split('-').collect::<Vec<_>>();
-
-        if parts[0] == "github" {
-            parts[1] = "github.com";
-        }
-        if parts[0] == "gopkg" {
-            parts[1] = "gopkg.in";
-        }
-
-        Some(Box::new(GoPackageDependency::new(
-            &parts.join("/"),
-            version.map(|s| s.to_string()).as_deref(),
-        )))
     }
 }
 
@@ -299,26 +243,5 @@ impl<'a> Installer for GoResolver<'a> {
         }
         cmd.run_detecting_problems()?;
         Ok(())
-    }
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for GoDependency {
-    fn try_into_debian_dependency(
-        &self,
-        _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        if let Some(version) = &self.version {
-            Some(vec![
-                crate::dependencies::debian::DebianDependency::new_with_min_version(
-                    "golang-go",
-                    &version.parse().unwrap(),
-                ),
-            ])
-        } else {
-            Some(vec![crate::dependencies::debian::DebianDependency::new(
-                "golang-go",
-            )])
-        }
     }
 }

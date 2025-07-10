@@ -11,9 +11,6 @@ pub mod buildlog;
 pub mod buildsystem;
 /// Implementations of different build systems.
 pub mod buildsystems;
-#[cfg(feature = "debian")]
-/// Debian-specific functionality.
-pub mod debian;
 /// Dependency resolution implementations.
 pub mod dependencies;
 /// Dependency trait and related types.

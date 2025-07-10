@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// A dependency on an R package.
 ///
 /// This represents a dependency on an R package from CRAN, Bioconductor, or another repository.
-pub struct RPackageDependency(Relation);
+pub struct RPackageDependency(pub Relation);
 
 impl From<RPackageDependency> for Relation {
     fn from(dep: RPackageDependency) -> Self {
@@ -119,43 +119,14 @@ impl Dependency for RPackageDependency {
     }
 }
 
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<super::debian::DebianDependency>> {
-        let names = apt
-            .get_packages_for_paths(
-                vec![std::path::Path::new("/usr/lib/R/site-library")
-                    .join(&self.0.name)
-                    .join("DESCRIPTION")
-                    .to_str()
-                    .unwrap()],
-                false,
-                false,
-            )
-            .unwrap();
-
-        if names.is_empty() {
-            return None;
-        }
-
-        Some(
-            names
-                .into_iter()
-                .map(|name| super::debian::DebianDependency::new(&name))
-                .collect(),
-        )
-    }
-}
-
 /// A resolver for R package dependencies.
 ///
 /// This resolver installs R packages from repositories like CRAN and Bioconductor.
 pub struct RResolver<'a> {
-    session: &'a dyn Session,
-    repos: String,
+    /// The session to use for command execution
+    pub session: &'a dyn Session,
+    /// The repository URL for R packages
+    pub repos: String,
 }
 
 impl<'a> RResolver<'a> {

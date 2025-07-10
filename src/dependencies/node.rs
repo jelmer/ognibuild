@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A dependency on a Node.js package.
 pub struct NodePackageDependency {
-    package: String,
+    /// The name of the Node.js package
+    pub package: String,
 }
 
 impl NodePackageDependency {
@@ -43,44 +44,6 @@ impl Dependency for NodePackageDependency {
     }
 }
 
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<super::debian::DebianDependency>> {
-        let paths = vec![
-            format!(
-                "/usr/share/nodejs/.*/node_modules/{}/package\\.json",
-                regex::escape(&self.package)
-            ),
-            format!(
-                "/usr/lib/nodejs/{}/package\\.json",
-                regex::escape(&self.package)
-            ),
-            format!(
-                "/usr/share/nodejs/{}/package\\.json",
-                regex::escape(&self.package)
-            ),
-        ];
-
-        let names = apt
-            .get_packages_for_paths(paths.iter().map(|p| p.as_str()).collect(), true, false)
-            .unwrap();
-
-        if names.is_empty() {
-            None
-        } else {
-            Some(
-                names
-                    .into_iter()
-                    .map(|name| super::debian::DebianDependency::new(&name))
-                    .collect(),
-            )
-        }
-    }
-}
-
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingNodePackage {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(NodePackageDependency::new(&self.0)))
@@ -101,7 +64,8 @@ impl crate::upstream::FindUpstream for NodePackageDependency {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A dependency on a Node.js module.
 pub struct NodeModuleDependency {
-    module: String,
+    /// The name of the Node.js module
+    pub module: String,
 }
 
 impl NodeModuleDependency {
@@ -141,44 +105,6 @@ impl Dependency for NodeModuleDependency {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
-    }
-}
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<super::debian::DebianDependency>> {
-        let paths = vec![
-            format!(
-                "/usr/share/nodejs/.*/node_modules/{}/package\\.json",
-                regex::escape(&self.module)
-            ),
-            format!(
-                "/usr/lib/nodejs/{}/package\\.json",
-                regex::escape(&self.module)
-            ),
-            format!(
-                "/usr/share/nodejs/{}/package\\.json",
-                regex::escape(&self.module)
-            ),
-        ];
-
-        let names = apt
-            .get_packages_for_paths(paths.iter().map(|p| p.as_str()).collect(), true, false)
-            .unwrap();
-
-        if names.is_empty() {
-            None
-        } else {
-            Some(
-                names
-                    .into_iter()
-                    .map(|name| super::debian::DebianDependency::new(&name))
-                    .collect(),
-            )
-        }
     }
 }
 

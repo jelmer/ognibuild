@@ -145,18 +145,6 @@ impl Dependency for PytestPluginDependency {
     }
 }
 
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for PytestPluginDependency {
-    fn try_into_debian_dependency(
-        &self,
-        _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::simple(
-            &format!("python3-pytest-{}", self.plugin),
-        )])
-    }
-}
-
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPytestFixture {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         pytest_fixture_to_plugin(&self.0)

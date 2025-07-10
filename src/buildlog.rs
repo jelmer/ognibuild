@@ -1,6 +1,5 @@
 use crate::dependency::Dependency;
 use buildlog_consultant::problems::common::*;
-use buildlog_consultant::problems::debian::UnsatisfiedAptDependencies;
 use buildlog_consultant::Problem;
 
 /// Trait for converting build problems to dependencies.
@@ -41,8 +40,6 @@ macro_rules! try_problem_to_dependency {
 pub fn problem_to_dependency(problem: &dyn Problem) -> Option<Box<dyn Dependency>> {
     // TODO(jelmer): Find a more idiomatic way to do this.
     try_problem_to_dependency!(problem, MissingAutoconfMacro);
-    #[cfg(feature = "debian")]
-    try_problem_to_dependency!(problem, UnsatisfiedAptDependencies);
     try_problem_to_dependency!(problem, MissingGoPackage);
     try_problem_to_dependency!(problem, MissingHaskellDependencies);
     try_problem_to_dependency!(problem, MissingJavaClass);
