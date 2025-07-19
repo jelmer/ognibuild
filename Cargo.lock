@@ -319,32 +319,6 @@ checksum = "26c4925bc979b677330a8c7fe7a8c94af2dbb4a2d37b4a20a80d884400f46baa"
 
 [[package]]
 name = "breezyshim"
-version = "0.5.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17bbc502c3444ac819d7a5f82a54d4663a3690ca4e2c3d7baa36a17e7d951b44"
-dependencies = [
- "chrono",
- "ctor",
- "deb822-lossless 0.3.0",
- "debian-changelog",
- "debian-control",
- "debversion",
- "difflib",
- "dirty-tracker",
- "lazy-regex",
- "lazy_static",
- "log",
- "patchkit",
- "percent-encoding",
- "pyo3",
- "pyo3-filelike",
- "serde",
- "tempfile",
- "url",
-]
-
-[[package]]
-name = "breezyshim"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9065928e4632fabbaba71de5ea32680785f97c2d40e5de8e7a0a696fb5a951e2"
@@ -356,6 +330,7 @@ dependencies = [
  "debian-control",
  "debversion",
  "difflib",
+ "dirty-tracker",
  "lazy-regex",
  "lazy_static",
  "log",
@@ -779,11 +754,11 @@ dependencies = [
 
 [[package]]
 name = "debian-analyzer"
-version = "0.158.28"
+version = "0.159.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42c1549c5ea5c6325abf90af53bb9dae102bfe64bd11701ea58c80b71c164460"
+checksum = "3d52ecfe3fa3071d9ddcfcba3bd713bb2f2d82cebfa385e81a84dd7bdb07e060"
 dependencies = [
- "breezyshim 0.5.6",
+ "breezyshim",
  "chrono",
  "configparser",
  "deb822-lossless 0.3.0",
@@ -811,7 +786,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "tempfile",
- "toml_edit 0.23.2",
+ "toml_edit",
  "url",
 ]
 
@@ -2775,11 +2750,11 @@ name = "ognibuild"
 version = "0.1.1"
 dependencies = [
  "axum",
- "breezyshim 0.6.0",
+ "breezyshim",
  "buildlog-consultant",
  "chrono",
  "clap",
- "deb822-lossless 0.2.4",
+ "deb822-lossless 0.3.0",
  "debian-analyzer",
  "debian-changelog",
  "debian-control",
@@ -2816,8 +2791,8 @@ dependencies = [
  "tempfile",
  "test-log",
  "tokio",
- "toml 0.8.23",
- "toml_edit 0.22.27",
+ "toml 0.9.2",
+ "toml_edit",
  "upstream-ontologist",
  "url",
  "whoami",
@@ -4677,7 +4652,7 @@ dependencies = [
  "serde",
  "serde_spanned 0.6.9",
  "toml_datetime 0.6.11",
- "toml_edit 0.22.27",
+ "toml_edit",
 ]
 
 [[package]]
@@ -4724,19 +4699,6 @@ dependencies = [
  "serde_spanned 0.6.9",
  "toml_datetime 0.6.11",
  "toml_write",
- "winnow",
-]
-
-[[package]]
-name = "toml_edit"
-version = "0.23.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1dee9dc43ac2aaf7d3b774e2fba5148212bf2bd9374f4e50152ebe9afd03d42"
-dependencies = [
- "indexmap",
- "toml_datetime 0.7.0",
- "toml_parser",
- "toml_writer",
  "winnow",
 ]
 
@@ -4992,7 +4954,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "01f77651d20345e54e1655532e5d5dd7cef65b0c42a7aa6be9f651bf67f90429"
 dependencies = [
  "async-trait",
- "breezyshim 0.6.0",
+ "breezyshim",
  "chrono",
  "configparser",
  "debbugs",
