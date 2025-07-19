@@ -416,6 +416,7 @@ impl crate::dependencies::debian::FromDebianDependency for CargoCrateDependency 
     fn from_debian_dependency(
         dependency: &crate::dependencies::debian::DebianDependency,
     ) -> Option<Box<dyn Dependency>> {
+        use std::collections::HashSet;
         let (name, min_version) =
             crate::dependencies::debian::extract_simple_min_version(dependency)?;
         let (_, name, api_version, features) =
