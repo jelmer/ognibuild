@@ -319,13 +319,13 @@ checksum = "26c4925bc979b677330a8c7fe7a8c94af2dbb4a2d37b4a20a80d884400f46baa"
 
 [[package]]
 name = "breezyshim"
-version = "0.6.0"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9065928e4632fabbaba71de5ea32680785f97c2d40e5de8e7a0a696fb5a951e2"
+checksum = "f98db91f21981e10935802bd24043c92b5a03fe69fc622b2ff2ee01b884457d0"
 dependencies = [
  "chrono",
  "ctor",
- "deb822-lossless 0.3.0",
+ "deb822-lossless 0.3.1",
  "debian-changelog",
  "debian-control",
  "debversion",
@@ -660,9 +660,9 @@ dependencies = [
 
 [[package]]
 name = "ctor"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4735f265ba6a1188052ca32d461028a7d1125868be18e287e756019da7607b5"
+checksum = "ec09e802f5081de6157da9a75701d6c713d8dc3ba52571fd4bd25f412644e8a6"
 dependencies = [
  "ctor-proc-macro",
  "dtor",
@@ -670,9 +670,9 @@ dependencies = [
 
 [[package]]
 name = "ctor-proc-macro"
-version = "0.0.5"
+version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f211af61d8efdd104f96e57adf5e426ba1bc3ed7a4ead616e15e5881fd79c4d"
+checksum = "e2931af7e13dc045d8e9d26afccc6fa115d64e115c9c84b1166288b46f6782c2"
 
 [[package]]
 name = "data-encoding"
@@ -719,20 +719,20 @@ checksum = "812bb5c8052a89edc6d45d1bc3b3400e8186dd166e9b0a9520bfa5a2bd8477ee"
 dependencies = [
  "deb822-derive 0.2.0",
  "regex",
- "rowan 0.16.1",
+ "rowan",
  "serde",
 ]
 
 [[package]]
 name = "deb822-lossless"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6336404073bb257d3e15c6af29c380ee78199ed03bc84e359155ef95b98ac67"
+checksum = "318c7cbdb7ea56e14e022b787a3a7e792a94950fb066ba95947dec0e4cc796f4"
 dependencies = [
  "deb822-fast",
  "pyo3",
  "regex",
- "rowan 0.16.1",
+ "rowan",
  "serde",
 ]
 
@@ -754,14 +754,14 @@ dependencies = [
 
 [[package]]
 name = "debian-analyzer"
-version = "0.159.0"
+version = "0.159.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d52ecfe3fa3071d9ddcfcba3bd713bb2f2d82cebfa385e81a84dd7bdb07e060"
+checksum = "d1b1c5e3e33983fcd1de149bcfca898177f9ae92d2c87cc9e866bdfc6fd878c8"
 dependencies = [
  "breezyshim",
  "chrono",
  "configparser",
- "deb822-lossless 0.3.0",
+ "deb822-lossless 0.3.1",
  "debian-changelog",
  "debian-control",
  "debian-copyright",
@@ -792,32 +792,32 @@ dependencies = [
 
 [[package]]
 name = "debian-changelog"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98258e2066472d8d04bfe8a3fab2e7be77fe87b913dab2308a59f13061145814"
+checksum = "a6e87a6b3bb320a4b1ee979720c1a531e32cd7ae3615d375759ac66768958bc9"
 dependencies = [
  "chrono",
  "debversion",
  "lazy-regex",
  "log",
- "rowan 0.15.16",
+ "rowan",
  "textwrap",
  "whoami",
 ]
 
 [[package]]
 name = "debian-control"
-version = "0.1.45"
+version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5b5fa1448bc64423185de82603c928882e328f9c22bc56b733f1ab05f4873f4"
+checksum = "332b0b41435a34631c0313267271e9a00a0d85d3c9e374690feb8adbbcce46d1"
 dependencies = [
  "chrono",
  "deb822-fast",
- "deb822-lossless 0.3.0",
+ "deb822-lossless 0.3.1",
  "debversion",
  "pyo3",
  "regex",
- "rowan 0.16.1",
+ "rowan",
  "url",
 ]
 
@@ -840,7 +840,7 @@ checksum = "f692668701f5382bea79960cad4798f97689de3e22af638ee43552887c180f4f"
 dependencies = [
  "debversion",
  "m_lexer",
- "rowan 0.16.1",
+ "rowan",
  "url",
 ]
 
@@ -1955,9 +1955,9 @@ dependencies = [
 
 [[package]]
 name = "hyper-util"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f66d5bd4c6f02bf0542fad85d626775bab9258cf795a4256dcaf3161114d1df"
+checksum = "8d9b05277c7e8da2c93a568989bb6207bef0112e8d17df7a6eda4a3cf143bc5e"
 dependencies = [
  "base64",
  "bytes",
@@ -2158,9 +2158,9 @@ dependencies = [
 
 [[package]]
 name = "io-uring"
-version = "0.7.8"
+version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b86e202f00093dcba4275d4636b93ef9dd75d025ae560d2521b45ea28ab49013"
+checksum = "d93587f37623a1a17d94ef2bc9ada592f5465fe7732084ab7beefabe5c77c0c4"
 dependencies = [
  "bitflags 2.9.1",
  "cfg-if",
@@ -2372,9 +2372,9 @@ checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
 
 [[package]]
 name = "libredox"
-version = "0.1.4"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1580801010e535496706ba011c15f8532df6b42297d2e471fec38ceadd8c0638"
+checksum = "360e552c93fa0e8152ab463bc4c4837fce76a225df11dfaeea66c313de5e61f7"
 dependencies = [
  "bitflags 2.9.1",
  "libc",
@@ -2471,7 +2471,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d336a1f57cdee530a7b9afe7fe297653f8f44d3eaa0e45b05dec8708dfda00ad"
 dependencies = [
  "log",
- "rowan 0.16.1",
+ "rowan",
 ]
 
 [[package]]
@@ -2754,7 +2754,7 @@ dependencies = [
  "buildlog-consultant",
  "chrono",
  "clap",
- "deb822-lossless 0.3.0",
+ "deb822-lossless 0.3.1",
  "debian-analyzer",
  "debian-changelog",
  "debian-control",
@@ -3375,8 +3375,8 @@ checksum = "7fe3393d9093043150fe262c2ac86d413a78266af434de1f984d9d6aa53b1177"
 dependencies = [
  "deb822-derive 0.3.0",
  "deb822-fast",
- "deb822-lossless 0.3.0",
- "rowan 0.16.1",
+ "deb822-lossless 0.3.1",
+ "rowan",
  "serde",
  "url",
 ]
@@ -3448,9 +3448,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.5.13"
+version = "0.5.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d04b7d0ee6b4a0207a0a7adb104d23ecb0b47d6beae7152d0fa34b692b29fd6"
+checksum = "5407465600fb0548f1442edf71dd20683c6ed326200ace4b1ef0763521bb3b77"
 dependencies = [
  "bitflags 2.9.1",
 ]
@@ -3593,18 +3593,6 @@ dependencies = [
 
 [[package]]
 name = "rowan"
-version = "0.15.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a542b0253fa46e632d27a1dc5cf7b930de4df8659dc6e720b647fc72147ae3d"
-dependencies = [
- "countme",
- "hashbrown 0.14.5",
- "rustc-hash 1.1.0",
- "text-size",
-]
-
-[[package]]
-name = "rowan"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "417a3a9f582e349834051b8a10c8d71ca88da4211e4093528e36b9845f6b5f21"
@@ -3659,9 +3647,9 @@ dependencies = [
 
 [[package]]
 name = "rustc-demangle"
-version = "0.1.25"
+version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "989e6739f80c4ad5b13e0fd7fe89531180375b18520cc8c82080e4dc4035b84f"
+checksum = "56f7d92ca342cea22a06f2121d944b4fd82af56988c270852495420f961d4ace"
 
 [[package]]
 name = "rustc-hash"
@@ -4004,12 +3992,12 @@ checksum = "b7c388c1b5e93756d0c740965c41e8822f866621d41acbdf6336a6a168f8840c"
 
 [[package]]
 name = "socket2"
-version = "0.5.10"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e22376abed350d73dd1cd119b57ffccad95b4e585a7cda43e286245ce23c0678"
+checksum = "233504af464074f9d066d7b5416c5f9b894a5862a6506e306f7b816cdd6f1807"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4561,9 +4549,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.46.1"
+version = "1.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cc3a2344dafbe23a245241fe8b09735b521110d30fcefbbd5feb1797ca35d17"
+checksum = "43864ed400b6043a4757a25c7a64a8efde741aed79a056a2fb348a406701bb35"
 dependencies = [
  "backtrace",
  "bytes",
@@ -4576,7 +4564,7 @@ dependencies = [
  "slab",
  "socket2",
  "tokio-macros",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5344,7 +5332,7 @@ version = "0.60.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb"
 dependencies = [
- "windows-targets 0.53.2",
+ "windows-targets 0.53.3",
 ]
 
 [[package]]
@@ -5380,10 +5368,11 @@ dependencies = [
 
 [[package]]
 name = "windows-targets"
-version = "0.53.2"
+version = "0.53.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c66f69fcc9ce11da9966ddb31a40968cad001c5bedeb5c2b82ede4253ab48aef"
+checksum = "d5fe6031c4041849d7c496a8ded650796e7b6ecc19df1a431c1a363342e5dc91"
 dependencies = [
+ "windows-link",
  "windows_aarch64_gnullvm 0.53.0",
  "windows_aarch64_msvc 0.53.0",
  "windows_i686_gnu 0.53.0",
