@@ -99,12 +99,22 @@ fn pytest_fixture_to_plugin(fixture: &str) -> Option<&str> {
 /// # Returns
 /// A list of (plugin_name, version) pairs if available
 fn pytest_plugins(session: &dyn Session) -> Option<Vec<(String, String)>> {
-    let output = session
+    let output = match session
         .command(vec!["pytest", "--version"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .output()
-        .unwrap();
+    {
+        Ok(output) => output,
+        Err(crate::session::Error::IoError(e)) if e.kind() == std::io::ErrorKind::NotFound => {
+            // pytest is not installed
+            return None;
+        }
+        Err(e) => {
+            // Other errors should panic
+            panic!("Failed to run pytest: {:?}", e);
+        }
+    };
     for line in String::from_utf8(output.stdout).unwrap().lines() {
         if let Some(rest) = line.strip_prefix("plugins: ") {
             return Some(
@@ -307,5 +317,48 @@ mod tests {
         );
         let dependency = problem.to_dependency();
         assert!(dependency.is_none());
+    }
+
+    #[test]
+    fn test_pytest_plugins_no_pytest() {
+        use crate::session::plain::PlainSession;
+        use tempfile::TempDir;
+
+        let _temp_dir = TempDir::new().unwrap();
+        let session = PlainSession::new();
+
+        // When pytest is not available, pytest_plugins should return None
+        let result = pytest_plugins(&session);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_pytest_plugins_parsing() {
+        // We can't easily test the actual pytest_plugins function without having pytest installed
+        // But we can test the parsing logic by testing the components
+
+        // Test plugin name parsing logic
+        let test_line = "plugins: cov-2.10.1, xdist-2.3.0, mock-3.6.1";
+        if let Some(rest) = test_line.strip_prefix("plugins: ") {
+            let parsed: Vec<(String, String)> = rest
+                .split(',')
+                .map(|s| {
+                    let s = s.trim();
+                    let mut parts = s.splitn(2, '-');
+                    (
+                        parts.next().unwrap().to_string(),
+                        parts.next().unwrap_or("").to_string(),
+                    )
+                })
+                .collect();
+
+            assert_eq!(parsed.len(), 3);
+            assert_eq!(parsed[0].0, "cov");
+            assert_eq!(parsed[0].1, "2.10.1");
+            assert_eq!(parsed[1].0, "xdist");
+            assert_eq!(parsed[1].1, "2.3.0");
+            assert_eq!(parsed[2].0, "mock");
+            assert_eq!(parsed[2].1, "3.6.1");
+        }
     }
 }

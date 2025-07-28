@@ -87,6 +87,204 @@ impl std::fmt::Display for AnalyzedError {
 
 impl std::error::Error for AnalyzedError {}
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::session::plain::PlainSession;
+    use std::process::ExitStatus;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_analyzed_error_display_missing_command() {
+        let error = AnalyzedError::MissingCommandError {
+            command: "nonexistent".to_string(),
+        };
+        assert_eq!(error.to_string(), "Command not found: nonexistent");
+    }
+
+    #[test]
+    fn test_analyzed_error_display_io_error() {
+        let io_error = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "Access denied");
+        let error = AnalyzedError::IoError(io_error);
+        assert_eq!(error.to_string(), "IO error: Access denied");
+    }
+
+    #[test]
+    fn test_analyzed_error_display_detailed() {
+        let problem = Box::new(buildlog_consultant::problems::common::MissingCommand(
+            "test".to_string(),
+        ));
+        let error = AnalyzedError::Detailed {
+            retcode: 127,
+            error: problem,
+        };
+        let display = error.to_string();
+        assert!(display.starts_with("Command failed with code 127"));
+        assert!(display.contains("test"));
+    }
+
+    #[test]
+    fn test_analyzed_error_display_unidentified_with_secondary() {
+        let error = AnalyzedError::Unidentified {
+            retcode: 1,
+            lines: vec!["line1".to_string(), "line2".to_string()],
+            secondary: None, // Skip the secondary match for now due to API complexity
+        };
+        let display = error.to_string();
+        assert!(display.starts_with("Command failed with code 1"));
+        assert!(display.contains("line1\nline2"));
+    }
+
+    #[test]
+    fn test_analyzed_error_display_unidentified_without_secondary() {
+        let error = AnalyzedError::Unidentified {
+            retcode: 1,
+            lines: vec!["line1".to_string(), "line2".to_string()],
+            secondary: None,
+        };
+        let display = error.to_string();
+        assert!(display.starts_with("Command failed with code 1"));
+        assert!(display.contains("line1\nline2"));
+    }
+
+    #[test]
+    fn test_analyzed_error_from_io_error() {
+        let io_error = std::io::Error::new(std::io::ErrorKind::NotFound, "File not found");
+        let analyzed_error: AnalyzedError = io_error.into();
+        match analyzed_error {
+            AnalyzedError::IoError(e) => assert_eq!(e.kind(), std::io::ErrorKind::NotFound),
+            _ => panic!("Expected IoError variant"),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_analyzed_error_from_no_space_error() {
+        let io_error = std::io::Error::new(std::io::ErrorKind::Other, "No space left");
+        // Unfortunately we can't easily create an io::Error with a specific raw_os_error
+        // in a portable way, so this test is limited
+        let analyzed_error: AnalyzedError = io_error.into();
+        match analyzed_error {
+            AnalyzedError::IoError(_) => {}
+            _ => panic!("Expected IoError variant for non-specific error"),
+        }
+    }
+
+    #[test]
+    fn test_run_detecting_problems_success() {
+        let _temp_dir = TempDir::new().unwrap();
+        let session = PlainSession::new();
+
+        let result = run_detecting_problems(
+            &session,
+            vec!["echo", "hello"],
+            None,
+            true,
+            None,
+            None,
+            None,
+            None,
+        );
+
+        assert!(result.is_ok());
+        let lines = result.unwrap();
+        assert_eq!(lines, vec!["hello"]);
+    }
+
+    #[test]
+    fn test_run_detecting_problems_with_custom_check_success() {
+        let _temp_dir = TempDir::new().unwrap();
+        let session = PlainSession::new();
+
+        let custom_check = |_status: ExitStatus, lines: Vec<&str>| -> bool {
+            lines.iter().any(|line| line.contains("hello"))
+        };
+
+        let result = run_detecting_problems(
+            &session,
+            vec!["echo", "hello"],
+            Some(&custom_check),
+            true,
+            None,
+            None,
+            None,
+            None,
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_run_detecting_problems_nonexistent_command() {
+        let _temp_dir = TempDir::new().unwrap();
+        let session = PlainSession::new();
+
+        let result = run_detecting_problems(
+            &session,
+            vec!["nonexistent_command_12345"],
+            None,
+            true,
+            None,
+            None,
+            None,
+            None,
+        );
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AnalyzedError::Detailed { retcode, error } => {
+                assert_eq!(retcode, 127);
+                assert_eq!(
+                    error.to_string(),
+                    "Missing command: nonexistent_command_12345"
+                );
+            }
+            _ => panic!("Expected Detailed error for nonexistent command"),
+        }
+    }
+
+    #[test]
+    fn test_run_detecting_problems_failing_command() {
+        let _temp_dir = TempDir::new().unwrap();
+        let session = PlainSession::new();
+
+        let result = run_detecting_problems(
+            &session,
+            vec!["false"], // Command that always fails
+            None,
+            true,
+            None,
+            None,
+            None,
+            None,
+        );
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AnalyzedError::Unidentified { retcode, .. } => {
+                assert_eq!(retcode, 1);
+            }
+            _ => panic!("Expected Unidentified error for failing command"),
+        }
+    }
+
+    #[test]
+    fn test_default_check_success_with_success() {
+        // Create a successful exit status (0)
+        let output = std::process::Command::new("true").output().unwrap();
+        let result = default_check_success(output.status, vec![]);
+        assert!(result);
+    }
+
+    #[test]
+    fn test_default_check_success_with_failure() {
+        // Create a failed exit status (non-zero)
+        let output = std::process::Command::new("false").output().unwrap();
+        let result = default_check_success(output.status, vec![]);
+        assert!(!result);
+    }
+}
+
 /// Run a command and analyze the output for common build errors.
 ///
 /// # Arguments

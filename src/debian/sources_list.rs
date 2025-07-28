@@ -157,6 +157,16 @@ mod tests {
                 comps: vec!["main".to_string(), "restricted".to_string()]
             })
         );
+
+        // Test edge cases that should return None
+        assert_eq!(parse_sources_list_entry(""), None);
+        assert_eq!(parse_sources_list_entry("# comment"), None);
+        assert_eq!(parse_sources_list_entry("deb"), None);
+        assert_eq!(parse_sources_list_entry("deb http://example.com"), None);
+        assert_eq!(
+            parse_sources_list_entry("invalid-type http://example.com bionic main"),
+            None
+        );
     }
 
     #[test]
