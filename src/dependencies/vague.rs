@@ -322,4 +322,30 @@ mod tests {
         // Should not expand dependencies with spaces
         assert!(expanded.is_empty());
     }
+
+    #[cfg(feature = "debian")]
+    #[test]
+    fn test_known_vague_dep_to_debian() {
+        assert_eq!(
+            known_vague_dep_to_debian("the Gnu Scientific Library"),
+            Some("libgsl-dev")
+        );
+        assert_eq!(
+            known_vague_dep_to_debian("the required FreeType library"),
+            Some("libfreetype-dev")
+        );
+        assert_eq!(
+            known_vague_dep_to_debian("the Boost C++ libraries"),
+            Some("libboost-dev")
+        );
+        assert_eq!(
+            known_vague_dep_to_debian("PythonLibs"),
+            Some("libpython3-dev")
+        );
+        assert_eq!(known_vague_dep_to_debian("Python"), Some("libpython3-dev"));
+        assert_eq!(known_vague_dep_to_debian("ZLIB"), Some("libz3-dev"));
+        assert_eq!(known_vague_dep_to_debian("OpenGL"), Some("libgl-dev"));
+        assert_eq!(known_vague_dep_to_debian("unknown_library"), None);
+        assert_eq!(known_vague_dep_to_debian(""), None);
+    }
 }
