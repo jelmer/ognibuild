@@ -719,7 +719,7 @@ checksum = "812bb5c8052a89edc6d45d1bc3b3400e8186dd166e9b0a9520bfa5a2bd8477ee"
 dependencies = [
  "deb822-derive 0.2.0",
  "regex",
- "rowan 0.16.1",
+ "rowan",
  "serde",
 ]
 
@@ -732,7 +732,7 @@ dependencies = [
  "deb822-fast",
  "pyo3",
  "regex",
- "rowan 0.16.1",
+ "rowan",
  "serde",
 ]
 
@@ -792,15 +792,15 @@ dependencies = [
 
 [[package]]
 name = "debian-changelog"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98258e2066472d8d04bfe8a3fab2e7be77fe87b913dab2308a59f13061145814"
+checksum = "a6e87a6b3bb320a4b1ee979720c1a531e32cd7ae3615d375759ac66768958bc9"
 dependencies = [
  "chrono",
  "debversion",
  "lazy-regex",
  "log",
- "rowan 0.15.16",
+ "rowan",
  "textwrap",
  "whoami",
 ]
@@ -817,7 +817,7 @@ dependencies = [
  "debversion",
  "pyo3",
  "regex",
- "rowan 0.16.1",
+ "rowan",
  "url",
 ]
 
@@ -840,7 +840,7 @@ checksum = "f692668701f5382bea79960cad4798f97689de3e22af638ee43552887c180f4f"
 dependencies = [
  "debversion",
  "m_lexer",
- "rowan 0.16.1",
+ "rowan",
  "url",
 ]
 
@@ -2471,7 +2471,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d336a1f57cdee530a7b9afe7fe297653f8f44d3eaa0e45b05dec8708dfda00ad"
 dependencies = [
  "log",
- "rowan 0.16.1",
+ "rowan",
 ]
 
 [[package]]
@@ -3376,7 +3376,7 @@ dependencies = [
  "deb822-derive 0.3.0",
  "deb822-fast",
  "deb822-lossless 0.3.0",
- "rowan 0.16.1",
+ "rowan",
  "serde",
  "url",
 ]
@@ -3589,18 +3589,6 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "rowan"
-version = "0.15.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a542b0253fa46e632d27a1dc5cf7b930de4df8659dc6e720b647fc72147ae3d"
-dependencies = [
- "countme",
- "hashbrown 0.14.5",
- "rustc-hash 1.1.0",
- "text-size",
 ]
 
 [[package]]
