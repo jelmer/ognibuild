@@ -325,7 +325,7 @@ checksum = "9065928e4632fabbaba71de5ea32680785f97c2d40e5de8e7a0a696fb5a951e2"
 dependencies = [
  "chrono",
  "ctor",
- "deb822-lossless 0.3.0",
+ "deb822-lossless 0.3.1",
  "debian-changelog",
  "debian-control",
  "debversion",
@@ -725,9 +725,9 @@ dependencies = [
 
 [[package]]
 name = "deb822-lossless"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6336404073bb257d3e15c6af29c380ee78199ed03bc84e359155ef95b98ac67"
+checksum = "318c7cbdb7ea56e14e022b787a3a7e792a94950fb066ba95947dec0e4cc796f4"
 dependencies = [
  "deb822-fast",
  "pyo3",
@@ -761,7 +761,7 @@ dependencies = [
  "breezyshim",
  "chrono",
  "configparser",
- "deb822-lossless 0.3.0",
+ "deb822-lossless 0.3.1",
  "debian-changelog",
  "debian-control",
  "debian-copyright",
@@ -813,7 +813,7 @@ checksum = "e5b5fa1448bc64423185de82603c928882e328f9c22bc56b733f1ab05f4873f4"
 dependencies = [
  "chrono",
  "deb822-fast",
- "deb822-lossless 0.3.0",
+ "deb822-lossless 0.3.1",
  "debversion",
  "pyo3",
  "regex",
@@ -2754,7 +2754,7 @@ dependencies = [
  "buildlog-consultant",
  "chrono",
  "clap",
- "deb822-lossless 0.3.0",
+ "deb822-lossless 0.3.1",
  "debian-analyzer",
  "debian-changelog",
  "debian-control",
@@ -3375,7 +3375,7 @@ checksum = "7fe3393d9093043150fe262c2ac86d413a78266af434de1f984d9d6aa53b1177"
 dependencies = [
  "deb822-derive 0.3.0",
  "deb822-fast",
- "deb822-lossless 0.3.0",
+ "deb822-lossless 0.3.1",
  "rowan 0.16.1",
  "serde",
  "url",
