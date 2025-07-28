@@ -283,22 +283,14 @@ pub trait BuildSystem: std::fmt::Debug {
         fixers: Option<&[&dyn crate::fix_build::BuildFixer<InstallerError>]>,
     ) -> Result<(), Error> {
         let declared_deps = self.get_declared_dependencies(session, fixers)?;
-        let relevant = declared_deps
+        let relevant: Vec<_> = declared_deps
             .into_iter()
             .filter(|(c, _d)| categories.contains(c))
             .map(|(_, d)| d)
-            .collect::<Vec<_>>();
+            .collect();
         log::debug!("Declared dependencies: {:?}", relevant);
-        install_missing_deps(
-            session,
-            installer,
-            scopes,
-            relevant
-                .iter()
-                .map(|d| d.as_ref())
-                .collect::<Vec<_>>()
-                .as_slice(),
-        )?;
+        let dep_refs: Vec<&dyn Dependency> = relevant.iter().map(|d| d.as_ref()).collect();
+        install_missing_deps(session, installer, scopes, &dep_refs)?;
         Ok(())
     }
 
@@ -555,11 +547,11 @@ impl BuildSystem for Pear {
 
         let dependencies_tag = root
             .get_child("dependencies")
-            .ok_or_else(|| Error::Other("No <dependencies> tag found in <package>".to_string()))?;
+            .ok_or_else(|| Error::Other("No <dependencies> tag found in <package>".to_owned()))?;
 
         let required_tag = dependencies_tag
             .get_child("required")
-            .ok_or_else(|| Error::Other("No <required> tag found in <dependencies>".to_string()))?;
+            .ok_or_else(|| Error::Other("No <required> tag found in <dependencies>".to_owned()))?;
 
         Ok(required_tag
             .children

@@ -29,7 +29,7 @@ impl BinaryOutput {
     /// # Returns
     /// A new BinaryOutput instance
     pub fn new(name: &str) -> Self {
-        BinaryOutput(name.to_string())
+        BinaryOutput(name.to_owned())
     }
 }
 
@@ -63,8 +63,8 @@ impl PythonPackageOutput {
     /// A new PythonPackageOutput instance
     pub fn new(name: &str, version: Option<&str>) -> Self {
         PythonPackageOutput {
-            name: name.to_string(),
-            version: version.map(|s| s.to_string()),
+            name: name.to_owned(),
+            version: version.map(|s| s.to_owned()),
         }
     }
 }
@@ -96,7 +96,7 @@ impl RPackageOutput {
     /// A new RPackageOutput instance
     pub fn new(name: &str) -> Self {
         RPackageOutput {
-            name: name.to_string(),
+            name: name.to_owned(),
         }
     }
 }

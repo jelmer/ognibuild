@@ -260,17 +260,13 @@ impl BuildSystem for Cargo {
         _installer: &dyn crate::installer::Installer,
         install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), Error> {
-        let mut args = vec![
-            "cargo".to_string(),
-            "install".to_string(),
-            "--path=.".to_string(),
-        ];
+        let mut args = vec!["cargo", "install", "--path=."];
+        let root_arg;
         if let Some(prefix) = install_target.prefix.as_ref() {
-            args.push(format!("-root={}", prefix.to_str().unwrap()));
+            root_arg = format!("--root={}", prefix.display());
+            args.push(&root_arg);
         }
-        session
-            .command(args.iter().map(|x| x.as_str()).collect())
-            .run_detecting_problems()?;
+        session.command(args).run_detecting_problems()?;
         Ok(())
     }
 
@@ -303,8 +299,8 @@ impl BuildSystem for Cargo {
             ret.push((
                 DependencyCategory::Build,
                 Box::new(CargoCrateDependency {
-                    name: name.clone(),
-                    features: Some(details.features().unwrap_or(&[]).to_vec()),
+                    name: name.to_owned(),
+                    features: details.features().map(|f| f.to_vec()),
                     api_version: None,
                     minimum_version: None,
                 }),

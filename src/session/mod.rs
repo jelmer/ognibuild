@@ -548,7 +548,7 @@ pub fn which(session: &dyn Session, name: &str) -> Option<String> {
     if ret.is_empty() {
         None
     } else {
-        Some(String::from_utf8(ret).unwrap().trim().to_string())
+        Some(String::from_utf8(ret).unwrap().trim().to_owned())
     }
 }
 
@@ -572,7 +572,7 @@ pub fn get_user(session: &dyn Session) -> String {
     )
     .unwrap()
     .trim()
-    .to_string()
+    .to_owned()
 }
 
 /// A function to capture and forward stdout and stderr of a child process.
