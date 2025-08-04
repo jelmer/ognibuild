@@ -31,15 +31,27 @@ pub fn get_project_wide_deps(
     ];
 
     let apt = crate::debian::apt::AptManager::new(session, None);
-    let tie_breakers = vec![
-        Box::new(crate::debian::build_deps::BuildDependencyTieBreaker::from_session(session))
-            as Box<dyn crate::dependencies::debian::TieBreaker>,
-        #[cfg(feature = "udd")]
-        {
-            Box::new(crate::debian::udd::PopconTieBreaker)
-                as Box<dyn crate::dependencies::debian::TieBreaker>
-        },
-    ];
+
+    // Try to create build dependency tie breaker, but handle failure gracefully
+    let mut tie_breakers = vec![];
+    match crate::debian::build_deps::BuildDependencyTieBreaker::try_from_session(session) {
+        Ok(tie_breaker) => {
+            tie_breakers
+                .push(Box::new(tie_breaker) as Box<dyn crate::dependencies::debian::TieBreaker>);
+        }
+        Err(e) => {
+            log::warn!(
+                "Failed to create BuildDependencyTieBreaker: {}. Using basic dependency resolution.",
+                e
+            );
+        }
+    }
+
+    #[cfg(feature = "udd")]
+    {
+        tie_breakers.push(Box::new(crate::debian::udd::PopconTieBreaker)
+            as Box<dyn crate::dependencies::debian::TieBreaker>);
+    }
     match buildsystem.get_declared_dependencies(
         session,
         Some(

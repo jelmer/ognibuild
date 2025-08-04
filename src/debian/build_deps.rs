@@ -36,6 +36,26 @@ impl BuildDependencyTieBreaker {
         }
     }
 
+    /// Try to create a new BuildDependencyTieBreaker from a session.
+    ///
+    /// This method attempts to create a BuildDependencyTieBreaker but returns
+    /// an error if the LocalApt instance cannot be created (e.g., due to
+    /// network restrictions or permission issues).
+    ///
+    /// # Arguments
+    /// * `session` - Session to use for accessing the local APT cache
+    ///
+    /// # Returns
+    /// Result containing a new BuildDependencyTieBreaker instance or an error
+    pub fn try_from_session(session: &dyn Session) -> Result<Self, Box<dyn std::error::Error>> {
+        let apt = LocalApt::new(Some(&session.location()))
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+        Ok(Self {
+            apt,
+            counts: RefCell::new(None),
+        })
+    }
+
     /// Count the occurrences of each build dependency across all source packages.
     ///
     /// This method scans all source packages in the APT cache and counts how many
