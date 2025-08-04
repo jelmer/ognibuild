@@ -38,9 +38,30 @@ struct Distribution {
 
 fn load_toml(path: &Path) -> Result<pyproject_toml::PyProjectToml, PyErr> {
     let path = path.join("pyproject.toml");
-    let text = std::fs::read_to_string(path).unwrap();
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) => {
+            return Err(match e.kind() {
+                std::io::ErrorKind::NotFound => {
+                    PyFileNotFoundError::new_err(format!("File not found: {}", path.display()))
+                }
+                _ => pyo3::exceptions::PyIOError::new_err(format!(
+                    "Failed to read {}: {}",
+                    path.display(),
+                    e
+                )),
+            })
+        }
+    };
 
-    Ok(toml::from_str(&text).unwrap())
+    match toml::from_str(&text) {
+        Ok(parsed) => Ok(parsed),
+        Err(e) => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Failed to parse {}: {}",
+            path.display(),
+            e
+        ))),
+    }
 }
 
 #[derive(Debug)]
@@ -876,5 +897,66 @@ impl BuildSystem for SetupPy {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_python_project_without_pyproject_toml() {
+        pyo3::prepare_freethreaded_python();
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+
+        // Create only setup.py, no pyproject.toml
+        fs::write(
+            path.join("setup.py"),
+            "from setuptools import setup\nsetup(name='test')",
+        )
+        .unwrap();
+
+        // This should not panic
+        let setup_py = SetupPy::new(path);
+        assert!(setup_py.has_setup_py);
+        assert!(setup_py.pyproject.is_none());
+    }
+
+    #[test]
+    fn test_load_toml_file_not_found() {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            let temp_dir = tempdir().unwrap();
+            let path = temp_dir.path();
+
+            // Don't create pyproject.toml
+            let result = load_toml(path);
+            assert!(result.is_err());
+
+            let err = result.unwrap_err();
+            assert!(err.is_instance_of::<PyFileNotFoundError>(py));
+        });
+    }
+
+    #[test]
+    fn test_load_toml_invalid_content() {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            let temp_dir = tempdir().unwrap();
+            let path = temp_dir.path();
+
+            // Create invalid pyproject.toml
+            fs::write(path.join("pyproject.toml"), "invalid toml content").unwrap();
+
+            let result = load_toml(path);
+            assert!(result.is_err());
+
+            let err = result.unwrap_err();
+            assert!(err.is_instance_of::<pyo3::exceptions::PyValueError>(py));
+        });
     }
 }
