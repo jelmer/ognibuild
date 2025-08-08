@@ -265,7 +265,7 @@ impl<'a> Installer for GoResolver<'a> {
             .ok_or(Error::UnknownDependencyFamily)?;
         Ok(Explanation {
             message: format!("Install go package {}", req.package),
-            command: Some(self.cmd(&[&req])),
+            command: Some(self.cmd(&[req])),
         })
     }
 
@@ -274,7 +274,7 @@ impl<'a> Installer for GoResolver<'a> {
             .as_any()
             .downcast_ref::<GoPackageDependency>()
             .ok_or(Error::UnknownDependencyFamily)?;
-        let cmd = self.cmd(&[&req]);
+        let cmd = self.cmd(&[req]);
         let (env, user) = match scope {
             InstallationScope::User => (std::collections::HashMap::new(), None),
             InstallationScope::Global => {

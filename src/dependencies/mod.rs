@@ -601,7 +601,7 @@ impl ToDependency for buildlog_consultant::problems::common::MissingPkgConfig {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(PkgConfigDependency::new(
             &self.module,
-            self.minimum_version.as_ref().map(|s| s.as_str()),
+            self.minimum_version.as_deref(),
         )))
     }
 }
@@ -1148,7 +1148,7 @@ impl ToDependency for buildlog_consultant::problems::common::MissingRubyGem {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(RubyGemDependency::new(
             &self.gem,
-            self.version.as_ref().map(|s| s.as_str()),
+            self.version.as_deref(),
         )))
     }
 }
@@ -1735,7 +1735,7 @@ impl ToDependency for buildlog_consultant::problems::common::CMakeFilesMissing {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(CMakeFileDependency::new(
             &self.filenames[0],
-            self.version.as_ref().map(|s| s.as_str()),
+            self.version.as_deref(),
         )))
     }
 }
@@ -2493,7 +2493,7 @@ impl Dependency for GnulibDirectoryDependency {
 impl ToDependency for buildlog_consultant::problems::common::MissingGnulibDirectory {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(GnulibDirectoryDependency {
-            directory: PathBuf::from(self.0.clone()),
+            directory: self.0.clone(),
         }))
     }
 }

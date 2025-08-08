@@ -300,7 +300,7 @@ impl<'a> Installer for CPAN<'a> {
         scope: InstallationScope,
     ) -> Result<Explanation, Error> {
         if let Some(dep) = dep.as_any().downcast_ref::<PerlModuleDependency>() {
-            let cmd = self.cmd(&[&dep], scope)?;
+            let cmd = self.cmd(&[dep], scope)?;
             let explanation = Explanation {
                 message: "Install the following Perl modules".to_string(),
                 command: Some(cmd),

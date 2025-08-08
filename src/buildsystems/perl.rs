@@ -104,19 +104,19 @@ pub fn declared_deps_from_meta_yml<R: Read>(
     let mut ret = vec![];
 
     // TODO: handle versions
-    for (name, _version) in &data.requires {
+    for name in data.requires.keys() {
         ret.push((
             DependencyCategory::Universal,
             PerlModuleDependency::simple(name),
         ));
     }
-    for (name, _version) in &data.build_requires {
+    for name in data.build_requires.keys() {
         ret.push((
             DependencyCategory::Build,
             PerlModuleDependency::simple(name),
         ));
     }
-    for (name, _version) in &data.configure_requires {
+    for name in data.configure_requires.keys() {
         ret.push((
             DependencyCategory::Build,
             PerlModuleDependency::simple(name),
@@ -418,7 +418,7 @@ impl BuildSystem for PerlBuildTiny {
             crate::analyze::run_detecting_problems(
                 session,
                 vec!["minil", "dist"],
-                Some(&|_, _| !dc.find_files().is_some()),
+                Some(&|_, _| dc.find_files().is_none()),
                 quiet,
                 None,
                 None,

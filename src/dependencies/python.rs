@@ -565,12 +565,11 @@ fn find_python_version(marker: Vec<Vec<pep508_rs::MarkerExpression>>) -> Option<
                 key: pep508_rs::MarkerValueString::PlatformPythonImplementation,
                 operator: pep508_rs::MarkerOperator::Equal,
                 value,
-            } => match value.as_str() {
-                "PyPy" => {
+            } => {
+                if value.as_str() == "PyPy" {
                     implementation = Some("PyPy");
                 }
-                _ => {}
-            },
+            }
             _ => {}
         }
     }

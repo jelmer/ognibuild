@@ -269,7 +269,7 @@ pub fn run_fixing_problems<
         limit,
     )
     .map_err(|e| match e {
-        IterateBuildError::Other(e) => IterateBuildError::Other(e.into()),
+        IterateBuildError::Other(e) => IterateBuildError::Other(e),
         e => e,
     })
 }

@@ -41,12 +41,12 @@ pub fn run_install(
         prefix: prefix.map(|p| p.to_path_buf()),
     };
 
-    for buildsystem in buildsystems {
+    if let Some(buildsystem) = buildsystems.iter().next() {
         return Ok(iterate_with_build_fixers(
             fixers,
             || -> Result<_, InterimError<Error>> {
                 Ok(wrap(log_manager, || -> Result<_, Error> {
-                    Ok(buildsystem.install(session, installer, &target)?)
+                    buildsystem.install(session, installer, &target)
                 })?)
             },
             None,

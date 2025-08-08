@@ -45,24 +45,18 @@ impl RPackageDependency {
     /// A new RPackageDependency
     pub fn new(package: &str, minimum_version: Option<&str>) -> Self {
         if let Some(minimum_version) = minimum_version {
-            Self(
-                Relation {
-                    name: package.to_string(),
-                    version: Some((
-                        VersionConstraint::GreaterThanEqual,
-                        minimum_version.parse().unwrap(),
-                    )),
-                }
-                .into(),
-            )
+            Self(Relation {
+                name: package.to_string(),
+                version: Some((
+                    VersionConstraint::GreaterThanEqual,
+                    minimum_version.parse().unwrap(),
+                )),
+            })
         } else {
-            Self(
-                Relation {
-                    name: package.to_string(),
-                    version: None,
-                }
-                .into(),
-            )
+            Self(Relation {
+                name: package.to_string(),
+                version: None,
+            })
         }
     }
 
@@ -74,13 +68,10 @@ impl RPackageDependency {
     /// # Returns
     /// A new RPackageDependency with no version constraints
     pub fn simple(package: &str) -> Self {
-        Self(
-            Relation {
-                name: package.to_string(),
-                version: None,
-            }
-            .into(),
-        )
+        Self(Relation {
+            name: package.to_string(),
+            version: None,
+        })
     }
 
     /// Create an R package dependency from a string representation.

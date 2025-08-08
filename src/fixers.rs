@@ -198,7 +198,7 @@ impl<'a> BuildFixer<InstallerError> for MinimumAutoconfFixer<'a> {
             .as_any()
             .downcast_ref::<MinimumAutoconfTooOld>()
             .unwrap();
-        for name in ["configure.ac", "configure.in"] {
+        if let Some(name) = ["configure.ac", "configure.in"].into_iter().next() {
             let p = self.session.external_path(std::path::Path::new(name));
             let f = std::fs::File::open(&p).unwrap();
             let buf = std::io::BufReader::new(f);

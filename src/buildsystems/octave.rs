@@ -81,7 +81,7 @@ fn read_description_fields<R: std::io::BufRead>(
         let mut parts = line.splitn(2, ": ");
         let key = parts.next().unwrap().to_string();
         let mut value = parts.next().unwrap().to_string();
-        while let Some(line) = lines.next() {
+        for line in lines.by_ref() {
             let line = line?;
             if line.starts_with(' ') {
                 value.push_str(line.trim_start());
