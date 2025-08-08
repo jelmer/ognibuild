@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
 use ognibuild::analyze::AnalyzedError;
-use ognibuild::buildsystem::{detect_buildsystems, BuildSystem, DependencyCategory, Error};
+use ognibuild::buildsystem::{
+    detect_buildsystems, supported_buildsystem_names, BuildSystem, DependencyCategory, Error,
+};
 use ognibuild::dependency::Dependency;
 use ognibuild::fix_build::BuildFixer;
 use ognibuild::installer::{
@@ -48,7 +50,7 @@ enum Command {
 #[derive(Parser)]
 struct Args {
     #[clap(subcommand)]
-    command: Command,
+    command: Option<Command>,
 
     #[clap(long, short, default_value = ".")]
     directory: String,
@@ -85,6 +87,10 @@ struct Args {
     #[clap(long)]
     /// Print more verbose output
     debug: bool,
+
+    #[clap(long)]
+    /// List all supported build systems
+    supported_buildsystems: bool,
 }
 
 fn explain_missing_deps(
@@ -166,7 +172,7 @@ fn run_action(
     fixers: &[&dyn BuildFixer<InstallerError>],
     args: &Args,
 ) -> Result<(), Error> {
-    if let Command::Exec(ExecArgs { subargv }) = &args.command {
+    if let Some(Command::Exec(ExecArgs { subargv })) = &args.command {
         ognibuild::fix_build::run_fixing_problems::<_, Error>(
             fixers,
             None,
@@ -186,7 +192,7 @@ fn run_action(
     let mut log_manager = ognibuild::logs::NoLogManager;
     let bss = detect_buildsystems(external_dir);
     if !args.ignore_declared_dependencies {
-        let categories = match args.command {
+        let categories = match args.command.as_ref().unwrap() {
             Command::Dist => vec![],
             Command::Build => vec![DependencyCategory::Universal, DependencyCategory::Build],
             Command::Clean => vec![],
@@ -250,7 +256,7 @@ fn run_action(
         }
     }
 
-    match &args.command {
+    match args.command.as_ref().unwrap() {
         Command::Exec(..) => unreachable!(),
         Command::Dist => {
             ognibuild::actions::dist::run_dist(
@@ -355,6 +361,23 @@ fn run_action(
 fn main() -> Result<(), i32> {
     let mut args = Args::parse();
 
+    if args.supported_buildsystems {
+        for bs in supported_buildsystem_names() {
+            println!("{}", bs);
+        }
+        return Ok(());
+    }
+
+    // Check if command is provided
+    let command = match args.command {
+        Some(cmd) => cmd,
+        None => {
+            eprintln!("Error: No command provided");
+            return Err(1);
+        }
+    };
+    args.command = Some(command);
+
     env_logger::builder()
         .format(|buf, record| writeln!(buf, "{}", record.args()))
         .filter(
@@ -422,7 +445,7 @@ fn main() -> Result<(), i32> {
     session.chdir(project.internal_path()).unwrap();
     std::env::set_current_dir(project.external_path()).unwrap();
 
-    if !session.is_temporary() && matches!(args.command, Command::Info) {
+    if !session.is_temporary() && matches!(args.command, Some(Command::Info)) {
         args.explain = true;
     }
 

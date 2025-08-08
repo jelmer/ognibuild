@@ -149,7 +149,7 @@ impl BuildSystem for Gradle {
         _installer: &dyn crate::installer::Installer,
         _install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), crate::buildsystem::Error> {
-        return Err(crate::buildsystem::Error::Unimplemented);
+        Err(crate::buildsystem::Error::Unimplemented)
         // TODO(jelmer): installDist just creates files under build/install/...
         // self.run(session, installer, "installDist", [].to_vec())?;
         // Ok(())

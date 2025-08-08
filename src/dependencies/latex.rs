@@ -48,56 +48,6 @@ impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::Mi
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::buildlog::ToDependency;
-    use std::any::Any;
-
-    #[test]
-    fn test_latex_package_dependency_new() {
-        let dependency = LatexPackageDependency::new("graphicx");
-        assert_eq!(dependency.package, "graphicx");
-    }
-
-    #[test]
-    fn test_latex_package_dependency_family() {
-        let dependency = LatexPackageDependency::new("graphicx");
-        assert_eq!(dependency.family(), "latex-package");
-    }
-
-    #[test]
-    fn test_latex_package_dependency_as_any() {
-        let dependency = LatexPackageDependency::new("graphicx");
-        let any_dep: &dyn Any = dependency.as_any();
-        assert!(any_dep.downcast_ref::<LatexPackageDependency>().is_some());
-    }
-
-    #[test]
-    fn test_missing_latex_file_to_dependency() {
-        let problem =
-            buildlog_consultant::problems::common::MissingLatexFile("graphicx.sty".to_string());
-        let dependency = problem.to_dependency();
-        assert!(dependency.is_some());
-        let dep = dependency.unwrap();
-        assert_eq!(dep.family(), "latex-package");
-        let latex_dep = dep
-            .as_any()
-            .downcast_ref::<LatexPackageDependency>()
-            .unwrap();
-        assert_eq!(latex_dep.package, "graphicx");
-    }
-
-    #[test]
-    fn test_missing_latex_file_non_sty_to_dependency() {
-        // Non .sty files should return None
-        let problem =
-            buildlog_consultant::problems::common::MissingLatexFile("graphicx.cls".to_string());
-        let dependency = problem.to_dependency();
-        assert!(dependency.is_none());
-    }
-}
-
 /// A resolver for LaTeX package dependencies using tlmgr
 pub struct TlmgrResolver<'a> {
     session: &'a dyn Session,
@@ -196,4 +146,54 @@ impl<'a> Installer for TlmgrResolver<'a> {
 /// Creates a new `TlmgrResolver` instance for the CTAN repository
 pub fn ctan<'a>(session: &'a dyn Session) -> TlmgrResolver<'a> {
     TlmgrResolver::new(session, "ctan")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buildlog::ToDependency;
+    use std::any::Any;
+
+    #[test]
+    fn test_latex_package_dependency_new() {
+        let dependency = LatexPackageDependency::new("graphicx");
+        assert_eq!(dependency.package, "graphicx");
+    }
+
+    #[test]
+    fn test_latex_package_dependency_family() {
+        let dependency = LatexPackageDependency::new("graphicx");
+        assert_eq!(dependency.family(), "latex-package");
+    }
+
+    #[test]
+    fn test_latex_package_dependency_as_any() {
+        let dependency = LatexPackageDependency::new("graphicx");
+        let any_dep: &dyn Any = dependency.as_any();
+        assert!(any_dep.downcast_ref::<LatexPackageDependency>().is_some());
+    }
+
+    #[test]
+    fn test_missing_latex_file_to_dependency() {
+        let problem =
+            buildlog_consultant::problems::common::MissingLatexFile("graphicx.sty".to_string());
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_some());
+        let dep = dependency.unwrap();
+        assert_eq!(dep.family(), "latex-package");
+        let latex_dep = dep
+            .as_any()
+            .downcast_ref::<LatexPackageDependency>()
+            .unwrap();
+        assert_eq!(latex_dep.package, "graphicx");
+    }
+
+    #[test]
+    fn test_missing_latex_file_non_sty_to_dependency() {
+        // Non .sty files should return None
+        let problem =
+            buildlog_consultant::problems::common::MissingLatexFile("graphicx.cls".to_string());
+        let dependency = problem.to_dependency();
+        assert!(dependency.is_none());
+    }
 }

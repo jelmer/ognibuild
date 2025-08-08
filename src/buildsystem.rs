@@ -383,6 +383,103 @@ pub trait BuildSystem: std::fmt::Debug {
     fn as_any(&self) -> &dyn std::any::Any;
 }
 
+/// A single buildsystem registry entry.
+struct BuildSystemEntry {
+    /// The name of the buildsystem
+    name: &'static str,
+    /// Function to probe for this buildsystem
+    probe: fn(&Path) -> Option<Box<dyn BuildSystem>>,
+}
+
+/// Registry of all supported buildsystems in detection order.
+const BUILDSYSTEM_REGISTRY: &[BuildSystemEntry] = &[
+    BuildSystemEntry {
+        name: "pear",
+        probe: Pear::probe,
+    },
+    BuildSystemEntry {
+        name: "setup.py",
+        probe: crate::buildsystems::python::SetupPy::probe,
+    },
+    BuildSystemEntry {
+        name: "node",
+        probe: crate::buildsystems::node::Node::probe,
+    },
+    BuildSystemEntry {
+        name: "waf",
+        probe: crate::buildsystems::waf::Waf::probe,
+    },
+    BuildSystemEntry {
+        name: "gem",
+        probe: crate::buildsystems::ruby::Gem::probe,
+    },
+    BuildSystemEntry {
+        name: "meson",
+        probe: crate::buildsystems::meson::Meson::probe,
+    },
+    BuildSystemEntry {
+        name: "cargo",
+        probe: crate::buildsystems::rust::Cargo::probe,
+    },
+    BuildSystemEntry {
+        name: "cabal",
+        probe: crate::buildsystems::haskell::Cabal::probe,
+    },
+    BuildSystemEntry {
+        name: "gradle",
+        probe: crate::buildsystems::java::Gradle::probe,
+    },
+    BuildSystemEntry {
+        name: "maven",
+        probe: crate::buildsystems::java::Maven::probe,
+    },
+    BuildSystemEntry {
+        name: "distzilla",
+        probe: crate::buildsystems::perl::DistZilla::probe,
+    },
+    BuildSystemEntry {
+        name: "perl-build-tiny",
+        probe: crate::buildsystems::perl::PerlBuildTiny::probe,
+    },
+    BuildSystemEntry {
+        name: "go",
+        probe: crate::buildsystems::go::Golang::probe,
+    },
+    BuildSystemEntry {
+        name: "bazel",
+        probe: crate::buildsystems::bazel::Bazel::probe,
+    },
+    BuildSystemEntry {
+        name: "r",
+        probe: crate::buildsystems::r::R::probe,
+    },
+    BuildSystemEntry {
+        name: "octave",
+        probe: crate::buildsystems::octave::Octave::probe,
+    },
+    BuildSystemEntry {
+        name: "cmake",
+        probe: crate::buildsystems::make::CMake::probe,
+    },
+    BuildSystemEntry {
+        name: "gnome-shell-extension",
+        probe: crate::buildsystems::gnome::GnomeShellExtension::probe,
+    },
+    // Make is intentionally at the end of the list.
+    BuildSystemEntry {
+        name: "make",
+        probe: crate::buildsystems::make::Make::probe,
+    },
+    BuildSystemEntry {
+        name: "composer",
+        probe: Composer::probe,
+    },
+    BuildSystemEntry {
+        name: "runtests",
+        probe: RunTests::probe,
+    },
+];
+
 /// XML namespaces used by PEAR package definitions.
 pub const PEAR_NAMESPACES: &[&str] = &[
     "http://pear.php.net/dtd/package-2.0",
@@ -836,31 +933,8 @@ pub fn detect_buildsystems(path: &std::path::Path) -> Vec<Box<dyn BuildSystem>> 
     }
     let path = path.canonicalize().unwrap();
     let mut ret = vec![];
-    for probe in [
-        Pear::probe,
-        crate::buildsystems::python::SetupPy::probe,
-        crate::buildsystems::node::Node::probe,
-        crate::buildsystems::waf::Waf::probe,
-        crate::buildsystems::ruby::Gem::probe,
-        crate::buildsystems::meson::Meson::probe,
-        crate::buildsystems::rust::Cargo::probe,
-        crate::buildsystems::haskell::Cabal::probe,
-        crate::buildsystems::java::Gradle::probe,
-        crate::buildsystems::java::Maven::probe,
-        crate::buildsystems::perl::DistZilla::probe,
-        crate::buildsystems::perl::PerlBuildTiny::probe,
-        crate::buildsystems::go::Golang::probe,
-        crate::buildsystems::bazel::Bazel::probe,
-        crate::buildsystems::r::R::probe,
-        crate::buildsystems::octave::Octave::probe,
-        crate::buildsystems::make::CMake::probe,
-        crate::buildsystems::gnome::GnomeShellExtension::probe,
-        // Make is intentionally at the end of the list.
-        crate::buildsystems::make::Make::probe,
-        Composer::probe,
-        RunTests::probe,
-    ] {
-        let bs = probe(&path);
+    for entry in BUILDSYSTEM_REGISTRY {
+        let bs = (entry.probe)(&path);
         if let Some(bs) = bs {
             ret.push(bs);
         }
@@ -882,6 +956,17 @@ pub fn get_buildsystem(path: &Path) -> Option<(PathBuf, Box<dyn BuildSystem>)> {
     scan_buildsystems(path).into_iter().next()
 }
 
+/// Get all supported build system names.
+///
+/// # Returns
+/// A vector of all supported build system names in detection order
+pub fn supported_buildsystem_names() -> Vec<&'static str> {
+    BUILDSYSTEM_REGISTRY
+        .iter()
+        .map(|entry| entry.name)
+        .collect()
+}
+
 /// Get a build system by name for a given path.
 ///
 /// This function tries to create a specific build system by name for the provided
@@ -894,30 +979,10 @@ pub fn get_buildsystem(path: &Path) -> Option<(PathBuf, Box<dyn BuildSystem>)> {
 /// # Returns
 /// An optional build system instance if the specified build system is applicable
 pub fn buildsystem_by_name(name: &str, path: &Path) -> Option<Box<dyn BuildSystem>> {
-    match name {
-        "pear" => Pear::probe(path),
-        "composer" => Composer::probe(path),
-        "runtests" => RunTests::probe(path),
-        "setup.py" => crate::buildsystems::python::SetupPy::probe(path),
-        "node" => crate::buildsystems::node::Node::probe(path),
-        "waf" => crate::buildsystems::waf::Waf::probe(path),
-        "gem" => crate::buildsystems::ruby::Gem::probe(path),
-        "meson" => crate::buildsystems::meson::Meson::probe(path),
-        "cargo" => crate::buildsystems::rust::Cargo::probe(path),
-        "cabal" => crate::buildsystems::haskell::Cabal::probe(path),
-        "gradle" => crate::buildsystems::java::Gradle::probe(path),
-        "maven" => crate::buildsystems::java::Maven::probe(path),
-        "distzilla" => crate::buildsystems::perl::DistZilla::probe(path),
-        "perl-build-tiny" => crate::buildsystems::perl::PerlBuildTiny::probe(path),
-        "go" => crate::buildsystems::go::Golang::probe(path),
-        "bazel" => crate::buildsystems::bazel::Bazel::probe(path),
-        "r" => crate::buildsystems::r::R::probe(path),
-        "octave" => crate::buildsystems::octave::Octave::probe(path),
-        "cmake" => crate::buildsystems::make::CMake::probe(path),
-        "gnome-shell-extension" => crate::buildsystems::gnome::GnomeShellExtension::probe(path),
-        "make" => crate::buildsystems::make::Make::probe(path),
-        _ => None,
-    }
+    BUILDSYSTEM_REGISTRY
+        .iter()
+        .find(|entry| entry.name == name)
+        .and_then(|entry| (entry.probe)(path))
 }
 
 #[cfg(test)]
@@ -943,5 +1008,15 @@ mod tests {
             guaranteed_which(&session, &installer, "this-does-not-exist").unwrap_err(),
             InstallerError::UnknownDependencyFamily,
         ));
+    }
+
+    #[test]
+    fn test_supported_buildsystem_names() {
+        let names = supported_buildsystem_names();
+        assert!(!names.is_empty());
+        assert!(names.contains(&"cargo"));
+        assert!(names.contains(&"make"));
+        assert!(names.contains(&"meson"));
+        assert_eq!(names.len(), 21);
     }
 }

@@ -173,10 +173,7 @@ fn run_setup(py: Python, script_name: &Path, stop_after: &str) -> PyResult<PyObj
         Ok(m) => m,
         Err(e) if e.is_instance_of::<PyImportError>(py) => {
             // Importing distutils failed, but that's fine.
-            match py.import("setuptools._distutils.core") {
-                Ok(m) => m,
-                Err(e) => return Err(e),
-            }
+            py.import("setuptools._distutils.core")?
         }
         Err(e) => return Err(e),
     };

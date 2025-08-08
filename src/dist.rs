@@ -67,7 +67,7 @@ pub fn dist(
     // Some things want to write to the user's home directory, e.g. pip caches in ~/.cache
     session.create_home()?;
 
-    for buildsystem in buildsystems {
+    if let Some(buildsystem) = buildsystems.into_iter().next() {
         return Ok(iterate_with_build_fixers(
             fixers
                 .iter()
