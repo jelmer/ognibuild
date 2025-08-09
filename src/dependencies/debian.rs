@@ -230,7 +230,17 @@ pub trait TieBreaker {
 pub fn default_tie_breakers(session: &dyn Session) -> Vec<Box<dyn TieBreaker>> {
     let mut tie_breakers: Vec<Box<dyn TieBreaker>> = Vec::new();
     use crate::debian::build_deps::BuildDependencyTieBreaker;
-    tie_breakers.push(Box::new(BuildDependencyTieBreaker::from_session(session)));
+    match BuildDependencyTieBreaker::try_from_session(session) {
+        Ok(tie_breaker) => {
+            tie_breakers.push(Box::new(tie_breaker));
+        }
+        Err(e) => {
+            log::warn!(
+                "Failed to create BuildDependencyTieBreaker: {}. Continuing without it.",
+                e
+            );
+        }
+    }
 
     #[cfg(feature = "udd")]
     {

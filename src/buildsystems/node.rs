@@ -28,14 +28,14 @@ struct NodePackage {
 
 impl Node {
     /// Create a new Node build system with the specified path to package.json.
-    pub fn new(path: PathBuf) -> Self {
-        let package = path.join("package.json");
+    pub fn new(path: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
+        let package_path = path.join("package.json");
 
-        let package = std::fs::read_to_string(&package).unwrap();
+        let package_content = std::fs::read_to_string(&package_path)?;
 
-        let package: NodePackage = serde_json::from_str(&package).unwrap();
+        let package: NodePackage = serde_json::from_str(&package_content)?;
 
-        Self { path, package }
+        Ok(Self { path, package })
     }
 
     fn setup(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
@@ -50,10 +50,16 @@ impl Node {
     ///
     /// Returns a Node build system if a package.json file is found.
     pub fn probe(path: &std::path::Path) -> Option<Box<dyn BuildSystem>> {
-        let path = path.join("package.json");
-        if path.exists() {
-            log::debug!("Found package.json, assuming node package.");
-            return Some(Box::new(Self::new(path)));
+        let package_json_path = path.join("package.json");
+        if package_json_path.exists() {
+            log::debug!("Found package.json, attempting to parse as node package.");
+            match Self::new(path.to_path_buf()) {
+                Ok(node_system) => return Some(Box::new(node_system)),
+                Err(e) => {
+                    log::debug!("Failed to parse package.json: {}", e);
+                    return None;
+                }
+            }
         }
         None
     }

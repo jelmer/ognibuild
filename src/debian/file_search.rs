@@ -23,6 +23,8 @@ pub enum Error {
     FileNotFoundError(String),
     /// I/O error accessing files or network resources.
     IoError(std::io::Error),
+    /// Decompression error when unpacking compressed files.
+    DecompressionError(String),
 }
 
 impl From<std::io::Error> for Error {
@@ -37,6 +39,7 @@ impl std::fmt::Display for Error {
             Error::AptFileAccessError(e) => write!(f, "AptFileAccessError: {}", e),
             Error::FileNotFoundError(e) => write!(f, "FileNotFoundError: {}", e),
             Error::IoError(e) => write!(f, "IoError: {}", e),
+            Error::DecompressionError(e) => write!(f, "DecompressionError: {}", e),
         }
     }
 }
@@ -211,17 +214,18 @@ pub fn contents_urls_from_sourceslist<'a>(
 ///
 /// # Returns
 /// Reader for the decompressed contents
-pub fn unwrap<'a, R: Read + 'a>(f: R, ext: &str) -> Box<dyn Read + 'a> {
+pub fn unwrap<'a, R: Read + 'a>(f: R, ext: &str) -> Result<Box<dyn Read + 'a>, Error> {
     match ext {
-        ".gz" => Box::new(GzDecoder::new(f)),
+        ".gz" => Ok(Box::new(GzDecoder::new(f))),
         ".xz" => {
             let mut compressed_reader = BufReader::new(f);
             let mut decompressed_data = Vec::new();
-            lzma_decompress(&mut compressed_reader, &mut decompressed_data).unwrap();
-            Box::new(std::io::Cursor::new(decompressed_data.into_iter()))
+            lzma_decompress(&mut compressed_reader, &mut decompressed_data)
+                .map_err(|e| Error::DecompressionError(format!("LZMA decompression failed: {}", e)))?;
+            Ok(Box::new(std::io::Cursor::new(decompressed_data)))
         }
-        ".lz4" => Box::new(lz4_flex::frame::FrameDecoder::new(f)),
-        _ => Box::new(f),
+        ".lz4" => Ok(Box::new(lz4_flex::frame::FrameDecoder::new(f))),
+        _ => Ok(Box::new(f)),
     }
 }
 
@@ -246,7 +250,7 @@ pub fn load_direct_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
                 )));
             }
         };
-        return Ok(unwrap(response, ext));
+        return unwrap(response, ext);
     }
     Err(Error::FileNotFoundError(format!("{} not found", url)))
 }
@@ -338,7 +342,11 @@ pub fn load_apt_cache_file(
         log::debug!("Loading cached contents file {}", p.display());
         // return os.popen('/usr/lib/apt/apt-helper cat-file %s' % p)
         let f = File::open(p)?;
-        return Ok(unwrap(f, ext));
+        return unwrap(f, ext).map_err(|e| match e {
+            Error::IoError(io_err) => io_err,
+            Error::DecompressionError(msg) => std::io::Error::new(std::io::ErrorKind::InvalidData, msg),
+            other => std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", other)),
+        });
     }
     Err(std::io::Error::new(
         std::io::ErrorKind::NotFound,
@@ -1037,12 +1045,59 @@ mod tests {
     }
 
     #[test]
-    fn test_unwrap() {
+    fn test_unwrap_plain() {
         let data = b"hello world";
         let f = std::io::Cursor::new(data);
-        let f = unwrap(f, "");
+        let mut f = unwrap(f, "").unwrap();
         let mut buf = Vec::new();
-        f.take(5).read_to_end(&mut buf).unwrap();
-        assert_eq!(buf, b"hello");
+        f.read_to_end(&mut buf).unwrap();
+        assert_eq!(buf, b"hello world");
+    }
+
+    #[test]
+    fn test_unwrap_gz() {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+        
+        let original = b"hello world from gzip";
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(original).unwrap();
+        let compressed = encoder.finish().unwrap();
+        
+        let f = std::io::Cursor::new(compressed);
+        let mut f = unwrap(f, ".gz").unwrap();
+        let mut buf = Vec::new();
+        f.read_to_end(&mut buf).unwrap();
+        assert_eq!(buf, original);
+    }
+
+    #[test]
+    fn test_unwrap_xz() {
+        use lzma_rs::lzma_compress;
+        
+        let original = b"hello world from xz";
+        let mut compressed = Vec::new();
+        lzma_compress(&mut original.as_ref(), &mut compressed).unwrap();
+        
+        let f = std::io::Cursor::new(compressed);
+        let mut f = unwrap(f, ".xz").unwrap();
+        let mut buf = Vec::new();
+        f.read_to_end(&mut buf).unwrap();
+        assert_eq!(buf, original);
+    }
+
+    #[test]
+    fn test_unwrap_corrupt_xz() {
+        // Test that corrupt XZ data returns an error, not a panic
+        let corrupt_data = b"this is not valid xz data";
+        let f = std::io::Cursor::new(corrupt_data);
+        let result = unwrap(f, ".xz");
+        assert!(result.is_err());
+        if let Err(Error::DecompressionError(msg)) = result {
+            assert!(msg.contains("LZMA"));
+        } else {
+            panic!("Expected DecompressionError");
+        }
     }
 }
