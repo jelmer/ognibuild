@@ -20,9 +20,11 @@ pub struct Node {
 
 #[derive(Debug, Deserialize)]
 struct NodePackage {
+    #[serde(default)]
     dependencies: HashMap<String, String>,
-    #[serde(rename = "devDependencies")]
+    #[serde(rename = "devDependencies", default)]
     dev_dependencies: HashMap<String, String>,
+    #[serde(default)]
     scripts: HashMap<String, String>,
 }
 
@@ -181,5 +183,117 @@ impl BuildSystem for Node {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_node_detection_minimal_package() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path();
+
+        // Create minimal package.json
+        std::fs::write(
+            project_dir.join("package.json"),
+            r#"{"name": "test-package", "version": "1.0.0"}"#,
+        )
+        .unwrap();
+
+        let result = Node::probe(project_dir);
+
+        match result {
+            Some(bs) => {
+                assert_eq!(bs.name(), "node");
+            }
+            None => {
+                panic!("Should detect node buildsystem with minimal package.json");
+            }
+        }
+    }
+
+    #[test]
+    fn test_node_detection_complex_package() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path();
+
+        // Create package.json with dependencies
+        std::fs::write(
+            project_dir.join("package.json"),
+            r#"{
+  "name": "test-nodejs-package",
+  "version": "1.2.3",
+  "dependencies": {
+    "express": "^4.18.0",
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "jest": "^28.0.0"
+  },
+  "scripts": {
+    "test": "jest",
+    "build": "webpack"
+  }
+}"#,
+        )
+        .unwrap();
+
+        let result = Node::probe(project_dir);
+
+        assert!(
+            result.is_some(),
+            "Should detect node buildsystem with complex package.json"
+        );
+    }
+
+    #[test]
+    fn test_detect_buildsystems_integration() {
+        use crate::buildsystem::detect_buildsystems;
+
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path();
+
+        // Create minimal package.json
+        std::fs::write(
+            project_dir.join("package.json"),
+            r#"{"name": "test-package", "version": "1.0.0"}"#,
+        )
+        .unwrap();
+
+        let buildsystems = detect_buildsystems(project_dir);
+
+        assert!(
+            !buildsystems.is_empty(),
+            "Should detect at least one buildsystem"
+        );
+
+        let has_node = buildsystems.iter().any(|bs| bs.name() == "node");
+        assert!(
+            has_node,
+            "Should detect node buildsystem. Found: {:?}",
+            buildsystems.iter().map(|bs| bs.name()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_scoped_package_detection() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path();
+
+        // Create package.json with scoped name
+        std::fs::write(
+            project_dir.join("package.json"),
+            r#"{"name": "@myorg/test-package", "version": "1.0.0"}"#,
+        )
+        .unwrap();
+
+        let result = Node::probe(project_dir);
+        assert!(
+            result.is_some(),
+            "Should detect node buildsystem with scoped package name"
+        );
     }
 }
