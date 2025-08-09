@@ -72,7 +72,8 @@ impl Meson {
             .path
             .parent()
             .expect("meson.build should have a parent directory");
-        let args = [&["meson", "introspect"], args, &["./meson.build"]].concat();
+        // When cwd is set to project directory, meson finds meson.build automatically
+        let args = [&["meson", "introspect"], args].concat();
         let ret = if let Some(fixers) = fixers {
             session
                 .command(args)
