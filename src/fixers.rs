@@ -365,10 +365,99 @@ impl<'a> BuildFixer<crate::installer::Error> for InstallFixer<'a> {
     fn fix(&self, error: &dyn Problem) -> Result<bool, InterimError<crate::installer::Error>> {
         let req = crate::buildlog::problem_to_dependency(error);
         if let Some(req) = req {
-            self.installer.install(req.as_ref(), self.scope).unwrap();
-            Ok(true)
+            match self.installer.install(req.as_ref(), self.scope) {
+                Ok(()) => {
+                    log::debug!("Successfully installed dependency: {:?}", req);
+                    Ok(true)
+                }
+                Err(crate::installer::Error::UnknownDependencyFamily) => {
+                    log::warn!("Cannot install dependency from unknown family: {:?}", req);
+                    Ok(false) // Can't fix this problem, but that's okay
+                }
+                Err(e) => {
+                    log::error!("Failed to install dependency {:?}: {}", req, e);
+                    Err(InterimError::Other(e))
+                }
+            }
         } else {
             Ok(false)
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::installer::{InstallationScope, NullInstaller};
+    use buildlog_consultant::Problem;
+    use std::borrow::Cow;
+
+    // Mock problem that doesn't map to any dependency (to test the None case)
+    struct UnknownProblem {
+        description: String,
+    }
+    
+    impl Problem for UnknownProblem {
+        fn kind(&self) -> Cow<'_, str> {
+            Cow::Borrowed("unknown")
+        }
+        
+        fn json(&self) -> serde_json::Value {
+            serde_json::json!({
+                "kind": "unknown",
+                "description": self.description
+            })
+        }
+        
+        fn as_any(&self) -> &(dyn std::any::Any + 'static) {
+            self
+        }
+    }
+    
+    impl std::fmt::Display for UnknownProblem {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "{}", self.description)
+        }
+    }
+    
+    impl std::fmt::Debug for UnknownProblem {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "UnknownProblem({})", self.description)
+        }
+    }
+
+    #[test]
+    fn test_install_fixer_handles_unknown_problem() {
+        // Test with a problem that doesn't map to any dependency
+        let installer = NullInstaller {};
+        let fixer = InstallFixer::new(&installer, InstallationScope::Global);
+        
+        let problem = UnknownProblem {
+            description: "some unknown build problem".to_string(),
+        };
+        
+        // This should return Ok(false) without panicking
+        let result = fixer.fix(&problem);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), false);
+    }
+    
+    #[test]
+    fn test_install_fixer_handles_unknown_dependency_family() {
+        use buildlog_consultant::problems::common::MissingCommand;
+        
+        // NullInstaller always returns UnknownDependencyFamily for any dependency
+        let installer = NullInstaller {};
+        let fixer = InstallFixer::new(&installer, InstallationScope::Global);
+        
+        // Use MissingCommand which maps to a BinaryDependency
+        let problem = MissingCommand("nonexistent-command".to_string());
+        
+        // This should return Ok(false) without panicking, even though the dependency
+        // family is unknown to the NullInstaller
+        let result = fixer.fix(&problem);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), false);
+    }
+}
+
