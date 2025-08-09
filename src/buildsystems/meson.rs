@@ -314,27 +314,37 @@ impl BuildSystem for Meson {
     ) -> Result<Vec<(crate::buildsystem::DependencyCategory, Box<dyn Dependency>)>, Error> {
         let mut ret: Vec<(DependencyCategory, Box<dyn Dependency>)> = Vec::new();
 
-        // Try --scan-dependencies first, fall back to --dependencies if it fails
-        // This works around a bug in some meson versions where --scan-dependencies
-        // returns "No command specified" error
-        let resp = match self.introspect::<Vec<MesonDependency>>(
-            session,
-            fixers,
-            &["--scan-dependencies"],
-        ) {
-            Ok(deps) => deps,
-            Err(e) => {
-                // Check if this is the "No command specified" error
-                let error_str = format!("{:?}", e);
-                if error_str.contains("No command specified") {
-                    log::debug!("--scan-dependencies failed, falling back to --dependencies");
-                    // Fall back to --dependencies which works more reliably
-                    self.introspect::<Vec<MesonDependency>>(session, fixers, &["--dependencies"])?
-                } else {
-                    return Err(e.into());
-                }
-            }
+        // Use --scan-dependencies directly on the meson.build file
+        // This is the correct usage - scan-dependencies works on source files, not build dirs
+        let meson_file_str = self.path.to_string_lossy();
+        let scan_args = vec![
+            "meson",
+            "introspect",
+            "--scan-dependencies",
+            &meson_file_str,
+        ];
+
+        let output = if let Some(fixers) = fixers {
+            session
+                .command(scan_args)
+                .quiet(true)
+                .run_fixing_problems::<_, Error>(fixers)
+                .map_err(|e| {
+                    InstallerError::Other(format!("Failed to run scan-dependencies: {:?}", e))
+                })?
+        } else {
+            session
+                .command(scan_args)
+                .run_detecting_problems()
+                .map_err(|e| {
+                    InstallerError::Other(format!("Failed to run scan-dependencies: {:?}", e))
+                })?
         };
+
+        let text = output.concat();
+        let resp: Vec<MesonDependency> = serde_json::from_str(&text).map_err(|e| {
+            InstallerError::Other(format!("Failed to parse scan-dependencies JSON: {}", e))
+        })?;
 
         for entry in resp {
             let mut minimum_version = None;
@@ -734,16 +744,16 @@ executable('main-app', 'main.c')
     }
 
     #[test]
-    fn test_meson_introspect_fallback_to_dependencies() {
-        // This test verifies the fallback from --scan-dependencies to --dependencies
+    fn test_meson_introspect_scan_dependencies() {
+        // This test verifies that --scan-dependencies works correctly on meson.build files
         let temp_dir = TempDir::new().unwrap();
-        let project_dir = temp_dir.path().join("fallback-test");
+        let project_dir = temp_dir.path().join("scan-deps-test");
         fs::create_dir(&project_dir).unwrap();
 
-        // Create a project with multiple dependencies to test both modes
+        // Create a project with multiple dependencies to test scan-dependencies
         fs::write(
             project_dir.join("meson.build"),
-            r#"project('fallback-test', 'c',
+            r#"project('scan-deps-test', 'c',
   version : '1.0.0',
   license : 'MIT')
 
@@ -778,8 +788,7 @@ int main() { printf("Result: %f\n", sqrt(16.0)); return 0; }"#,
             .find(|bs| bs.name() == "meson")
             .expect("Should find Meson buildsystem");
 
-        // Test dependency introspection - this should handle both scan-dependencies
-        // and regular dependencies modes gracefully
+        // Test dependency introspection using --scan-dependencies on meson.build
         match meson.get_declared_dependencies(&session, None) {
             Ok(deps) => {
                 println!("Found {} dependencies", deps.len());
@@ -795,14 +804,14 @@ int main() { printf("Result: %f\n", sqrt(16.0)); return 0; }"#,
 
                 // Should find some dependencies from our test project
                 // Note: Exact dependencies depend on system availability
-                // (deps.len() is always >= 0 for Vec, so this is just a documentation assert)
+                // We expect to find at least glib-2.0 and threads if they're available
             }
             Err(e) => {
                 let error_str = format!("{:?}", e);
-                // Should NOT fail with "No command specified" - our fallback should handle this
+                // Should NOT fail with "No command specified" since we fixed the root cause
                 assert!(
                     !error_str.contains("No command specified"),
-                    "Should not fail with 'No command specified' due to fallback: {}",
+                    "Should not fail with 'No command specified' after fixing scan-dependencies usage: {}",
                     error_str
                 );
 
@@ -1111,7 +1120,7 @@ executable('test', 'main.c', dependencies: missing_dep)
                 // Verify we don't get the specific errors we've been fixing
                 assert!(
                     !error_str.contains("No command specified"),
-                    "Should not get 'No command specified' due to fallback: {}",
+                    "Should not get 'No command specified' after fixing scan-dependencies: {}",
                     error_str
                 );
 
