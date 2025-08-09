@@ -126,9 +126,10 @@ impl Meson {
         })?;
 
         // Set up the build directory
+        let project_dir_str = project_dir.to_string_lossy();
+        let temp_build_str = temp_build_dir.to_string_lossy();
         let setup_result = session
-            .command(vec!["meson", "setup", &temp_build_dir.to_string_lossy()])
-            .cwd(project_dir)
+            .command(vec!["meson", "setup", &project_dir_str, &temp_build_str])
             .quiet(true)
             .run_detecting_problems();
 
