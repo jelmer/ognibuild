@@ -44,11 +44,19 @@ impl Meson {
     }
 
     fn setup(&self, session: &dyn Session) -> Result<(), Error> {
-        if !session.exists(Path::new("build")) {
-            session.mkdir(Path::new("build")).unwrap();
+        // Get the project directory (parent of meson.build)
+        let project_dir = self
+            .path
+            .parent()
+            .expect("meson.build should have a parent directory");
+        let build_dir = project_dir.join("build");
+
+        if !session.exists(&build_dir) {
+            session.mkdir(&build_dir).unwrap();
         }
         session
             .command(vec!["meson", "setup", "build"])
+            .cwd(project_dir)
             .run_detecting_problems()?;
         Ok(())
     }
@@ -59,15 +67,24 @@ impl Meson {
         fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
         args: &[&str],
     ) -> Result<T, InstallerError> {
+        // Get the project directory (parent of meson.build)
+        let project_dir = self
+            .path
+            .parent()
+            .expect("meson.build should have a parent directory");
         let args = [&["meson", "introspect"], args, &["./meson.build"]].concat();
         let ret = if let Some(fixers) = fixers {
             session
                 .command(args)
+                .cwd(project_dir)
                 .quiet(true)
                 .run_fixing_problems::<_, Error>(fixers)
                 .unwrap()
         } else {
-            session.command(args).run_detecting_problems()?
+            session
+                .command(args)
+                .cwd(project_dir)
+                .run_detecting_problems()?
         };
 
         let text = ret.concat();
@@ -102,9 +119,16 @@ impl BuildSystem for Meson {
         _quiet: bool,
     ) -> Result<std::ffi::OsString, Error> {
         self.setup(session)?;
-        let dc = DistCatcher::new(vec![session.external_path(Path::new("build/meson-dist"))]);
+        let project_dir = self
+            .path
+            .parent()
+            .expect("meson.build should have a parent directory");
+        let dc = DistCatcher::new(vec![
+            session.external_path(&project_dir.join("build/meson-dist"))
+        ]);
         match session
             .command(vec!["ninja", "-C", "build", "dist"])
+            .cwd(project_dir)
             .run_detecting_problems()
         {
             Ok(_) => {}
@@ -126,8 +150,13 @@ impl BuildSystem for Meson {
         _installer: &dyn crate::installer::Installer,
     ) -> Result<(), Error> {
         self.setup(session)?;
+        let project_dir = self
+            .path
+            .parent()
+            .expect("meson.build should have a parent directory");
         session
             .command(vec!["ninja", "-C", "build", "test"])
+            .cwd(project_dir)
             .run_detecting_problems()?;
         Ok(())
     }
@@ -138,8 +167,13 @@ impl BuildSystem for Meson {
         _installer: &dyn crate::installer::Installer,
     ) -> Result<(), Error> {
         self.setup(session)?;
+        let project_dir = self
+            .path
+            .parent()
+            .expect("meson.build should have a parent directory");
         session
             .command(vec!["ninja", "-C", "build"])
+            .cwd(project_dir)
             .run_detecting_problems()?;
         Ok(())
     }
@@ -150,8 +184,13 @@ impl BuildSystem for Meson {
         _installer: &dyn crate::installer::Installer,
     ) -> Result<(), Error> {
         self.setup(session)?;
+        let project_dir = self
+            .path
+            .parent()
+            .expect("meson.build should have a parent directory");
         session
             .command(vec!["ninja", "-C", "build", "clean"])
+            .cwd(project_dir)
             .run_detecting_problems()?;
         Ok(())
     }
@@ -163,8 +202,13 @@ impl BuildSystem for Meson {
         _install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), Error> {
         self.setup(session)?;
+        let project_dir = self
+            .path
+            .parent()
+            .expect("meson.build should have a parent directory");
         session
             .command(vec!["ninja", "-C", "build", "install"])
+            .cwd(project_dir)
             .run_detecting_problems()?;
         Ok(())
     }
