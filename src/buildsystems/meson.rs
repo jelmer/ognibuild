@@ -72,25 +72,93 @@ impl Meson {
             .path
             .parent()
             .expect("meson.build should have a parent directory");
-        // When cwd is set to project directory, meson finds meson.build automatically
-        let args = [&["meson", "introspect"], args].concat();
-        let ret = if let Some(fixers) = fixers {
-            session
-                .command(args)
-                .cwd(project_dir)
-                .quiet(true)
-                .run_fixing_problems::<_, Error>(fixers)
-                .unwrap()
+
+        // Check if we have a configured build directory
+        let build_dir = project_dir.join("build");
+        let use_build_dir =
+            session.exists(&build_dir) && session.exists(&build_dir.join("build.ninja"));
+
+        let ret = if use_build_dir {
+            // Use configured build directory
+            let build_dir_str = build_dir.to_string_lossy();
+            let introspect_args = [&["meson", "introspect", &build_dir_str], args].concat();
+
+            if let Some(fixers) = fixers {
+                session
+                    .command(introspect_args)
+                    .quiet(true)
+                    .run_fixing_problems::<_, Error>(fixers)
+                    .unwrap()
+            } else {
+                session.command(introspect_args).run_detecting_problems()?
+            }
         } else {
-            session
-                .command(args)
-                .cwd(project_dir)
-                .run_detecting_problems()?
+            // For unconfigured projects, set up a temporary build and introspect from there
+            self.setup_temp_build_for_introspect(session, fixers, args)?
         };
 
         let text = ret.concat();
-
         Ok(serde_json::from_str(&text).unwrap())
+    }
+
+    /// Set up a temporary build directory for introspection of unconfigured projects
+    fn setup_temp_build_for_introspect(
+        &self,
+        session: &dyn Session,
+        fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
+        args: &[&str],
+    ) -> Result<Vec<String>, InstallerError> {
+        let project_dir = self
+            .path
+            .parent()
+            .expect("meson.build should have a parent directory");
+
+        // Create a temporary build directory
+        let temp_build_dir = project_dir.join(".ognibuild-temp-build");
+
+        // Clean up any existing temp build
+        if session.exists(&temp_build_dir) {
+            session.rmtree(&temp_build_dir).ok();
+        }
+
+        session.mkdir(&temp_build_dir).map_err(|e| {
+            InstallerError::Other(format!("Failed to create temp build dir: {}", e))
+        })?;
+
+        // Set up the build directory
+        let setup_result = session
+            .command(vec!["meson", "setup", &temp_build_dir.to_string_lossy()])
+            .cwd(project_dir)
+            .quiet(true)
+            .run_detecting_problems();
+
+        match setup_result {
+            Ok(_) => {
+                // Now introspect the configured build directory
+                let temp_build_str = temp_build_dir.to_string_lossy();
+                let introspect_args = [&["meson", "introspect", &temp_build_str], args].concat();
+
+                let result = if let Some(fixers) = fixers {
+                    session
+                        .command(introspect_args)
+                        .quiet(true)
+                        .run_fixing_problems::<_, Error>(fixers)
+                        .unwrap()
+                } else {
+                    session.command(introspect_args).run_detecting_problems()?
+                };
+
+                // Clean up temp build directory
+                session.rmtree(&temp_build_dir).ok();
+
+                Ok(result)
+            }
+            Err(e) => {
+                // Clean up temp build directory on failure
+                session.rmtree(&temp_build_dir).ok();
+                Err(e.into())
+            }
+        }
     }
 
     /// Probe a directory for a Meson build system.
@@ -337,11 +405,15 @@ int main(int argc, char *argv[]) {
             buildsystems.iter().any(|bs| bs.name() == "meson"),
             "Should detect Meson with meson.build"
         );
-        
+
         // Verify it's the first detected build system (highest priority)
         if !buildsystems.is_empty() {
             let first = &buildsystems[0];
-            assert_eq!(first.name(), "meson", "Meson should be the primary build system");
+            assert_eq!(
+                first.name(),
+                "meson",
+                "Meson should be the primary build system"
+            );
         }
     }
 
@@ -351,30 +423,30 @@ int main(int argc, char *argv[]) {
         let temp_dir = TempDir::new().unwrap();
         let project_dir = temp_dir.path().join("my-project");
         fs::create_dir(&project_dir).unwrap();
-        
+
         create_meson_project(&project_dir).unwrap();
-        
+
         // Create a session with a different working directory
         let mut session = PlainSession::new();
         // Set the session's cwd to the temp directory, NOT the project directory
         session.chdir(temp_dir.path()).unwrap();
-        
+
         // Detect the buildsystem
         let buildsystems = detect_buildsystems(&project_dir);
         assert!(!buildsystems.is_empty(), "Should detect Meson buildsystem");
-        
+
         let meson = buildsystems
             .iter()
             .find(|bs| bs.name() == "meson")
             .expect("Should find Meson buildsystem");
-        
+
         // Try to get dependencies - this should work even with different cwd
         match meson.get_declared_dependencies(&session, None) {
             Ok(deps) => {
                 // Check that we found the glib dependency
-                let _has_glib = deps.iter().any(|(_, dep)| {
-                    dep.family() == "glib" || dep.family() == "pkg-config"
-                });
+                let _has_glib = deps
+                    .iter()
+                    .any(|(_, dep)| dep.family() == "glib" || dep.family() == "pkg-config");
                 println!("Found {} dependencies", deps.len());
                 if !deps.is_empty() {
                     println!("Dependencies: {:?}", deps);
@@ -405,20 +477,20 @@ int main(int argc, char *argv[]) {
         let workspace_dir = temp_dir.path().join("workspace");
         let project_dir = workspace_dir.join("subdir").join("project");
         fs::create_dir_all(&project_dir).unwrap();
-        
+
         create_meson_project(&project_dir).unwrap();
-        
+
         // Create session at workspace root
         let mut session = PlainSession::new();
         session.chdir(&workspace_dir).unwrap();
-        
+
         // Detect buildsystem in nested project
         let buildsystems = detect_buildsystems(&project_dir);
         let meson = buildsystems
             .iter()
             .find(|bs| bs.name() == "meson")
             .expect("Should find Meson buildsystem");
-        
+
         // This should work despite the session being 2 levels up from the project
         match meson.get_declared_dependencies(&session, None) {
             Ok(_) => {
@@ -428,8 +500,8 @@ int main(int argc, char *argv[]) {
                 let error_str = format!("{:?}", e);
                 // Check it's not a path-related error
                 assert!(
-                    !error_str.contains("Missing Meson file") && 
-                    !error_str.contains("./meson.build"),
+                    !error_str.contains("Missing Meson file")
+                        && !error_str.contains("./meson.build"),
                     "Path handling error: {}",
                     error_str
                 );
@@ -443,22 +515,22 @@ int main(int argc, char *argv[]) {
         let temp_dir = TempDir::new().unwrap();
         let project_dir = temp_dir.path().join("build-test");
         fs::create_dir(&project_dir).unwrap();
-        
+
         create_meson_project(&project_dir).unwrap();
-        
+
         // Create session in a different directory
         let mut session = PlainSession::new();
         session.chdir(temp_dir.path()).unwrap();
-        
+
         let buildsystems = detect_buildsystems(&project_dir);
         let meson = buildsystems
             .iter()
             .find(|bs| bs.name() == "meson")
             .expect("Should find Meson buildsystem");
-        
+
         // Test build operation
         let installer = NullInstaller;
-        
+
         // Build should work with proper cwd handling
         match meson.build(&session, &installer) {
             Ok(_) => println!("Build succeeded"),
@@ -471,7 +543,7 @@ int main(int argc, char *argv[]) {
                 );
             }
         }
-        
+
         // Test clean operation
         match meson.clean(&session, &installer) {
             Ok(_) => println!("Clean succeeded"),
@@ -490,7 +562,7 @@ int main(int argc, char *argv[]) {
     fn test_meson_project_with_subprojects() {
         let temp_dir = TempDir::new().unwrap();
         let project_dir = temp_dir.path();
-        
+
         // Create main project
         fs::write(
             project_dir.join("meson.build"),
@@ -503,13 +575,11 @@ int main(int argc, char *argv[]) {
 
 executable('main-app', 'main.c')
 "#,
-        ).unwrap();
-        
-        fs::write(
-            project_dir.join("main.c"),
-            r#"int main() { return 0; }"#,
-        ).unwrap();
-        
+        )
+        .unwrap();
+
+        fs::write(project_dir.join("main.c"), r#"int main() { return 0; }"#).unwrap();
+
         let buildsystems = detect_buildsystems(project_dir);
         assert!(
             buildsystems.iter().any(|bs| bs.name() == "meson"),
@@ -522,34 +592,34 @@ executable('main-app', 'main.c')
         #[cfg(unix)]
         {
             use std::os::unix::fs::symlink;
-            
+
             let temp_dir = TempDir::new().unwrap();
             let real_project = temp_dir.path().join("real-project");
             let link_project = temp_dir.path().join("link-project");
-            
+
             fs::create_dir(&real_project).unwrap();
             create_meson_project(&real_project).unwrap();
-            
+
             // Create a symlink to the project
             symlink(&real_project, &link_project).unwrap();
-            
+
             // Should detect Meson through the symlink
             let buildsystems = detect_buildsystems(&link_project);
             assert!(
                 buildsystems.iter().any(|bs| bs.name() == "meson"),
                 "Should detect Meson through symlink"
             );
-            
+
             // Create session in temp dir
             let mut session = PlainSession::new();
             session.chdir(temp_dir.path()).unwrap();
-            
+
             // Operations should work through the symlink
             let meson = buildsystems
                 .iter()
                 .find(|bs| bs.name() == "meson")
                 .expect("Should find Meson buildsystem");
-            
+
             match meson.get_declared_dependencies(&session, None) {
                 Ok(_) => {
                     // Success - symlink handling works
@@ -562,6 +632,57 @@ executable('main-app', 'main.c')
                         error_str
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn test_meson_introspect_unconfigured_project() {
+        // This test specifically verifies the fix for introspecting unconfigured projects
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("unconfigured-project");
+        fs::create_dir(&project_dir).unwrap();
+
+        create_meson_project(&project_dir).unwrap();
+
+        // Create session in a different directory to test path handling
+        let mut session = PlainSession::new();
+        session.chdir(temp_dir.path()).unwrap();
+
+        // Detect the buildsystem
+        let buildsystems = detect_buildsystems(&project_dir);
+        let meson = buildsystems
+            .iter()
+            .find(|bs| bs.name() == "meson")
+            .expect("Should find Meson buildsystem");
+
+        // This should NOT fail with "Current directory is not a meson build directory"
+        match meson.get_declared_dependencies(&session, None) {
+            Ok(deps) => {
+                println!(
+                    "Successfully introspected unconfigured project with {} dependencies",
+                    deps.len()
+                );
+            }
+            Err(e) => {
+                let error_str = format!("{:?}", e);
+                // The specific error from the bug report should not occur
+                assert!(
+                    !error_str.contains("Current directory is not a meson build directory"),
+                    "Should not fail with build directory error for unconfigured projects: {}",
+                    error_str
+                );
+                assert!(
+                    !error_str.contains("Please specify a valid build dir"),
+                    "Should not fail asking for build dir when introspecting source: {}",
+                    error_str
+                );
+
+                // Other errors (like meson not installed) are acceptable
+                println!(
+                    "Got acceptable error (likely meson not installed): {}",
+                    error_str
+                );
             }
         }
     }
