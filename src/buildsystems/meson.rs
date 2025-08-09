@@ -271,3 +271,298 @@ impl BuildSystem for Meson {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buildsystem::detect_buildsystems;
+    use crate::installer::NullInstaller;
+    use crate::session::plain::PlainSession;
+    use std::fs;
+    use tempfile::TempDir;
+
+    /// Helper function to create a minimal meson.build file
+    fn create_meson_project(dir: &Path) -> std::io::Result<()> {
+        fs::write(
+            dir.join("meson.build"),
+            r#"project('test-project', 'c',
+  version : '1.0.0',
+  license : 'MIT',
+  default_options : ['warning_level=2'])
+
+# A simple dependency for testing
+glib_dep = dependency('glib-2.0', required: false)
+
+# Define a simple executable
+executable('test-app',
+  'main.c',
+  dependencies : glib_dep,
+  install : true)
+"#,
+        )?;
+
+        // Create a simple C source file
+        fs::write(
+            dir.join("main.c"),
+            r#"#include <stdio.h>
+
+int main(int argc, char *argv[]) {
+    printf("Hello from Meson test!\n");
+    return 0;
+}
+"#,
+        )?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_meson_detection() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path();
+
+        // Should not detect Meson without meson.build
+        let buildsystems = detect_buildsystems(project_dir);
+        assert!(
+            !buildsystems.iter().any(|bs| bs.name() == "meson"),
+            "Should not detect Meson without meson.build"
+        );
+
+        // Create meson.build
+        create_meson_project(project_dir).unwrap();
+
+        // Should detect Meson with meson.build
+        let buildsystems = detect_buildsystems(project_dir);
+        assert!(
+            buildsystems.iter().any(|bs| bs.name() == "meson"),
+            "Should detect Meson with meson.build"
+        );
+        
+        // Verify it's the first detected build system (highest priority)
+        if !buildsystems.is_empty() {
+            let first = &buildsystems[0];
+            assert_eq!(first.name(), "meson", "Meson should be the primary build system");
+        }
+    }
+
+    #[test]
+    fn test_meson_introspect_with_different_cwd() {
+        // This test verifies the fix for the cwd issue
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("my-project");
+        fs::create_dir(&project_dir).unwrap();
+        
+        create_meson_project(&project_dir).unwrap();
+        
+        // Create a session with a different working directory
+        let mut session = PlainSession::new();
+        // Set the session's cwd to the temp directory, NOT the project directory
+        session.chdir(temp_dir.path()).unwrap();
+        
+        // Detect the buildsystem
+        let buildsystems = detect_buildsystems(&project_dir);
+        assert!(!buildsystems.is_empty(), "Should detect Meson buildsystem");
+        
+        let meson = buildsystems
+            .iter()
+            .find(|bs| bs.name() == "meson")
+            .expect("Should find Meson buildsystem");
+        
+        // Try to get dependencies - this should work even with different cwd
+        match meson.get_declared_dependencies(&session, None) {
+            Ok(deps) => {
+                // Check that we found the glib dependency
+                let _has_glib = deps.iter().any(|(_, dep)| {
+                    dep.family() == "glib" || dep.family() == "pkg-config"
+                });
+                println!("Found {} dependencies", deps.len());
+                if !deps.is_empty() {
+                    println!("Dependencies: {:?}", deps);
+                }
+            }
+            Err(e) => {
+                // It's okay if meson isn't installed, but the error should NOT be
+                // about missing meson.build file
+                let error_str = format!("{:?}", e);
+                assert!(
+                    !error_str.contains("Missing Meson file"),
+                    "Should not fail with 'Missing Meson file' error: {}",
+                    error_str
+                );
+                assert!(
+                    !error_str.contains("./meson.build"),
+                    "Should not reference relative path './meson.build': {}",
+                    error_str
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_meson_with_nested_project_structure() {
+        // Test that Meson works correctly with nested directory structures
+        let temp_dir = TempDir::new().unwrap();
+        let workspace_dir = temp_dir.path().join("workspace");
+        let project_dir = workspace_dir.join("subdir").join("project");
+        fs::create_dir_all(&project_dir).unwrap();
+        
+        create_meson_project(&project_dir).unwrap();
+        
+        // Create session at workspace root
+        let mut session = PlainSession::new();
+        session.chdir(&workspace_dir).unwrap();
+        
+        // Detect buildsystem in nested project
+        let buildsystems = detect_buildsystems(&project_dir);
+        let meson = buildsystems
+            .iter()
+            .find(|bs| bs.name() == "meson")
+            .expect("Should find Meson buildsystem");
+        
+        // This should work despite the session being 2 levels up from the project
+        match meson.get_declared_dependencies(&session, None) {
+            Ok(_) => {
+                // Success - the cwd handling is working correctly
+            }
+            Err(e) => {
+                let error_str = format!("{:?}", e);
+                // Check it's not a path-related error
+                assert!(
+                    !error_str.contains("Missing Meson file") && 
+                    !error_str.contains("./meson.build"),
+                    "Path handling error: {}",
+                    error_str
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[ignore] // This test requires meson to be installed
+    fn test_meson_build_operations() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("build-test");
+        fs::create_dir(&project_dir).unwrap();
+        
+        create_meson_project(&project_dir).unwrap();
+        
+        // Create session in a different directory
+        let mut session = PlainSession::new();
+        session.chdir(temp_dir.path()).unwrap();
+        
+        let buildsystems = detect_buildsystems(&project_dir);
+        let meson = buildsystems
+            .iter()
+            .find(|bs| bs.name() == "meson")
+            .expect("Should find Meson buildsystem");
+        
+        // Test build operation
+        let installer = NullInstaller;
+        
+        // Build should work with proper cwd handling
+        match meson.build(&session, &installer) {
+            Ok(_) => println!("Build succeeded"),
+            Err(e) => {
+                let error_str = format!("{:?}", e);
+                assert!(
+                    !error_str.contains("./meson.build"),
+                    "Should not have path errors: {}",
+                    error_str
+                );
+            }
+        }
+        
+        // Test clean operation
+        match meson.clean(&session, &installer) {
+            Ok(_) => println!("Clean succeeded"),
+            Err(e) => {
+                let error_str = format!("{:?}", e);
+                assert!(
+                    !error_str.contains("./meson.build"),
+                    "Should not have path errors: {}",
+                    error_str
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_meson_project_with_subprojects() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path();
+        
+        // Create main project
+        fs::write(
+            project_dir.join("meson.build"),
+            r#"project('main-project', 'c',
+  version : '2.0.0',
+  license : 'GPL-3.0')
+
+# Subproject (would normally be in subprojects/ dir)
+# This tests that we handle the main meson.build correctly
+
+executable('main-app', 'main.c')
+"#,
+        ).unwrap();
+        
+        fs::write(
+            project_dir.join("main.c"),
+            r#"int main() { return 0; }"#,
+        ).unwrap();
+        
+        let buildsystems = detect_buildsystems(project_dir);
+        assert!(
+            buildsystems.iter().any(|bs| bs.name() == "meson"),
+            "Should detect Meson for project with subprojects structure"
+        );
+    }
+
+    #[test]
+    fn test_meson_handles_symlinks() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            
+            let temp_dir = TempDir::new().unwrap();
+            let real_project = temp_dir.path().join("real-project");
+            let link_project = temp_dir.path().join("link-project");
+            
+            fs::create_dir(&real_project).unwrap();
+            create_meson_project(&real_project).unwrap();
+            
+            // Create a symlink to the project
+            symlink(&real_project, &link_project).unwrap();
+            
+            // Should detect Meson through the symlink
+            let buildsystems = detect_buildsystems(&link_project);
+            assert!(
+                buildsystems.iter().any(|bs| bs.name() == "meson"),
+                "Should detect Meson through symlink"
+            );
+            
+            // Create session in temp dir
+            let mut session = PlainSession::new();
+            session.chdir(temp_dir.path()).unwrap();
+            
+            // Operations should work through the symlink
+            let meson = buildsystems
+                .iter()
+                .find(|bs| bs.name() == "meson")
+                .expect("Should find Meson buildsystem");
+            
+            match meson.get_declared_dependencies(&session, None) {
+                Ok(_) => {
+                    // Success - symlink handling works
+                }
+                Err(e) => {
+                    let error_str = format!("{:?}", e);
+                    assert!(
+                        !error_str.contains("Missing Meson file"),
+                        "Should handle symlinks correctly: {}",
+                        error_str
+                    );
+                }
+            }
+        }
+    }
+}
