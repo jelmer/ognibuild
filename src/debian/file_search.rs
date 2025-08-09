@@ -220,8 +220,9 @@ pub fn unwrap<'a, R: Read + 'a>(f: R, ext: &str) -> Result<Box<dyn Read + 'a>, E
         ".xz" => {
             let mut compressed_reader = BufReader::new(f);
             let mut decompressed_data = Vec::new();
-            lzma_decompress(&mut compressed_reader, &mut decompressed_data)
-                .map_err(|e| Error::DecompressionError(format!("LZMA decompression failed: {}", e)))?;
+            lzma_decompress(&mut compressed_reader, &mut decompressed_data).map_err(|e| {
+                Error::DecompressionError(format!("LZMA decompression failed: {}", e))
+            })?;
             Ok(Box::new(std::io::Cursor::new(decompressed_data)))
         }
         ".lz4" => Ok(Box::new(lz4_flex::frame::FrameDecoder::new(f))),
@@ -344,7 +345,9 @@ pub fn load_apt_cache_file(
         let f = File::open(p)?;
         return unwrap(f, ext).map_err(|e| match e {
             Error::IoError(io_err) => io_err,
-            Error::DecompressionError(msg) => std::io::Error::new(std::io::ErrorKind::InvalidData, msg),
+            Error::DecompressionError(msg) => {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, msg)
+            }
             other => std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", other)),
         });
     }
@@ -1059,12 +1062,12 @@ mod tests {
         use flate2::write::GzEncoder;
         use flate2::Compression;
         use std::io::Write;
-        
+
         let original = b"hello world from gzip";
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
         encoder.write_all(original).unwrap();
         let compressed = encoder.finish().unwrap();
-        
+
         let f = std::io::Cursor::new(compressed);
         let mut f = unwrap(f, ".gz").unwrap();
         let mut buf = Vec::new();
@@ -1075,11 +1078,11 @@ mod tests {
     #[test]
     fn test_unwrap_xz() {
         use lzma_rs::lzma_compress;
-        
+
         let original = b"hello world from xz";
         let mut compressed = Vec::new();
         lzma_compress(&mut original.as_ref(), &mut compressed).unwrap();
-        
+
         let f = std::io::Cursor::new(compressed);
         let mut f = unwrap(f, ".xz").unwrap();
         let mut buf = Vec::new();

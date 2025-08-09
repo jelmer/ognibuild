@@ -396,30 +396,30 @@ mod tests {
     struct UnknownProblem {
         description: String,
     }
-    
+
     impl Problem for UnknownProblem {
         fn kind(&self) -> Cow<'_, str> {
             Cow::Borrowed("unknown")
         }
-        
+
         fn json(&self) -> serde_json::Value {
             serde_json::json!({
                 "kind": "unknown",
                 "description": self.description
             })
         }
-        
+
         fn as_any(&self) -> &(dyn std::any::Any + 'static) {
             self
         }
     }
-    
+
     impl std::fmt::Display for UnknownProblem {
         fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
             write!(f, "{}", self.description)
         }
     }
-    
+
     impl std::fmt::Debug for UnknownProblem {
         fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
             write!(f, "UnknownProblem({})", self.description)
@@ -431,28 +431,28 @@ mod tests {
         // Test with a problem that doesn't map to any dependency
         let installer = NullInstaller {};
         let fixer = InstallFixer::new(&installer, InstallationScope::Global);
-        
+
         let problem = UnknownProblem {
             description: "some unknown build problem".to_string(),
         };
-        
+
         // This should return Ok(false) without panicking
         let result = fixer.fix(&problem);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), false);
     }
-    
+
     #[test]
     fn test_install_fixer_handles_unknown_dependency_family() {
         use buildlog_consultant::problems::common::MissingCommand;
-        
+
         // NullInstaller always returns UnknownDependencyFamily for any dependency
         let installer = NullInstaller {};
         let fixer = InstallFixer::new(&installer, InstallationScope::Global);
-        
+
         // Use MissingCommand which maps to a BinaryDependency
         let problem = MissingCommand("nonexistent-command".to_string());
-        
+
         // This should return Ok(false) without panicking, even though the dependency
         // family is unknown to the NullInstaller
         let result = fixer.fix(&problem);
@@ -460,4 +460,3 @@ mod tests {
         assert_eq!(result.unwrap(), false);
     }
 }
-

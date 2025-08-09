@@ -70,21 +70,24 @@ impl Make {
         if self.kind == Kind::MakefilePL && !makefile_exists(session) {
             session
                 .command(vec!["perl", "Makefile.PL"])
+                .cwd(&self.path)
                 .run_detecting_problems()?;
         }
 
-        if !makefile_exists(session) && !session.exists(Path::new("configure")) {
-            if session.exists(Path::new("autogen.sh")) {
+        if !makefile_exists(session) && !session.exists(&self.path.join("configure")) {
+            if session.exists(&self.path.join("autogen.sh")) {
                 if shebang_binary(&self.path.join("autogen.sh"))
                     .unwrap()
                     .is_none()
                 {
                     session
                         .command(vec!["/bin/sh", "./autogen.sh"])
+                        .cwd(&self.path)
                         .run_detecting_problems()?;
                 }
                 match session
                     .command(vec!["./autogen.sh"])
+                    .cwd(&self.path)
                     .run_detecting_problems()
                 {
                     Err(AnalyzedError::Unidentified { lines, .. })
@@ -94,23 +97,26 @@ impl Make {
                     {
                         session
                             .command(vec!["./bootstrap"])
+                            .cwd(&self.path)
                             .run_detecting_problems()?;
                         session
                             .command(vec!["./autogen.sh"])
+                            .cwd(&self.path)
                             .run_detecting_problems()
                     }
                     other => other,
                 }?;
-            } else if session.exists(Path::new("configure.ac"))
-                || session.exists(Path::new("configure.in"))
+            } else if session.exists(&self.path.join("configure.ac"))
+                || session.exists(&self.path.join("configure.in"))
             {
                 session
                     .command(vec!["autoreconf", "-i"])
+                    .cwd(&self.path)
                     .run_detecting_problems()?;
             }
         }
 
-        if !makefile_exists(session) && session.exists(Path::new("configure")) {
+        if !makefile_exists(session) && session.exists(&self.path.join("configure")) {
             let args = [
                 vec!["./configure".to_string()],
                 if let Some(p) = prefix {
@@ -122,17 +128,21 @@ impl Make {
             .concat();
             session
                 .command(args.iter().map(|s| s.as_str()).collect())
+                .cwd(&self.path)
                 .run_detecting_problems()?;
         }
 
         if !makefile_exists(session)
             && session
-                .read_dir(Path::new("."))
+                .read_dir(&self.path)
                 .unwrap()
                 .iter()
                 .any(|n| n.file_name().to_str().unwrap().ends_with(".pro"))
         {
-            session.command(vec!["qmake"]).run_detecting_problems()?;
+            session
+                .command(vec!["qmake"])
+                .cwd(&self.path)
+                .run_detecting_problems()?;
         }
 
         Ok(())
@@ -163,10 +173,11 @@ impl Make {
             )
         }
 
-        let cwd = if session.exists(Path::new("build/Makefile")) {
-            Path::new("build")
+        let build_path = self.path.join("build");
+        let cwd = if session.exists(&build_path.join("Makefile")) {
+            &build_path
         } else {
-            Path::new(".")
+            &self.path
         };
 
         let args = [vec!["make"], args].concat();
@@ -194,6 +205,7 @@ impl Make {
                         .map(|x| x.as_str())
                         .collect(),
                     )
+                    .cwd(&self.path)
                     .run_detecting_problems()?;
                 session.command(args).cwd(cwd).run_detecting_problems()
             }
@@ -203,7 +215,10 @@ impl Make {
                         .to_string(),
                 ) =>
             {
-                session.command(vec!["./config"]).run_detecting_problems()?;
+                session
+                    .command(vec!["./config"])
+                    .cwd(&self.path)
+                    .run_detecting_problems()?;
                 session.command(args).cwd(cwd).run_detecting_problems()
             }
             other => other,
@@ -448,16 +463,18 @@ impl CMake {
         session: &dyn Session,
         _installer: &dyn crate::installer::Installer,
     ) -> Result<(), Error> {
-        if !session.exists(Path::new(&self.builddir)) {
-            session.mkdir(Path::new(&self.builddir))?;
+        let build_path = self.path.join(&self.builddir);
+        if !session.exists(&build_path) {
+            session.mkdir(&build_path)?;
         }
         match session
             .command(vec!["cmake", ".", &format!("-B{}", self.builddir)])
+            .cwd(&self.path)
             .run_detecting_problems()
         {
             Ok(_) => Ok(()),
             Err(e) => {
-                session.rmtree(Path::new(&self.builddir))?;
+                session.rmtree(&build_path)?;
                 Err(e.into())
             }
         }
@@ -497,6 +514,7 @@ impl crate::buildsystem::BuildSystem for CMake {
         self.setup(session, installer)?;
         session
             .command(vec!["cmake", "--build", &self.builddir])
+            .cwd(&self.path)
             .run_detecting_problems()?;
         Ok(())
     }
@@ -510,6 +528,7 @@ impl crate::buildsystem::BuildSystem for CMake {
         self.setup(session, installer)?;
         session
             .command(vec!["cmake", "--install", &self.builddir])
+            .cwd(&self.path)
             .run_detecting_problems()?;
         Ok(())
     }
@@ -529,6 +548,7 @@ impl crate::buildsystem::BuildSystem for CMake {
                 "--target",
                 "clean",
             ])
+            .cwd(&self.path)
             .run_detecting_problems()?;
         Ok(())
     }

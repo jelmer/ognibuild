@@ -136,6 +136,12 @@ pub fn find_upstream(dependency: &dyn Dependency) -> Option<UpstreamMetadata> {
 mod tests {
     use super::*;
     use std::any::Any;
+    use std::sync::Mutex;
+    
+    // Global test lock to ensure tests using custom providers don't interfere with each other
+    lazy_static! {
+        static ref TEST_LOCK: Mutex<()> = Mutex::new(());
+    }
 
     #[derive(Debug)]
     struct TestDependency {
@@ -163,6 +169,9 @@ mod tests {
 
     #[test]
     fn test_register_custom_provider() {
+        // Acquire test lock to prevent interference from parallel tests
+        let _lock = TEST_LOCK.lock().unwrap();
+        
         // Clear any existing providers from other tests
         clear_custom_providers();
 
@@ -205,6 +214,9 @@ mod tests {
 
     #[test]
     fn test_multiple_custom_providers() {
+        // Acquire test lock to prevent interference from parallel tests
+        let _lock = TEST_LOCK.lock().unwrap();
+        
         // Clear any existing providers from other tests
         clear_custom_providers();
 
@@ -255,6 +267,9 @@ mod tests {
 
     #[test]
     fn test_clear_custom_providers() {
+        // Acquire test lock to prevent interference from parallel tests
+        let _lock = TEST_LOCK.lock().unwrap();
+        
         clear_custom_providers();
 
         let test_dep = TestDependency {
