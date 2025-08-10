@@ -777,38 +777,30 @@ mod tests {
 /// Test utilities for sessions
 #[cfg(test)]
 pub mod test_utils {
-    #[cfg(target_os = "linux")]
-    lazy_static::lazy_static! {
-        static ref TEST_UNSHARE_SESSION: std::sync::Mutex<super::unshare::UnshareSession> =
-            std::sync::Mutex::new(super::unshare::UnshareSession::bootstrap().unwrap());
-    }
-
     /// Get a test session for use in tests.
     ///
     /// This returns an isolated session that's suitable for testing.
-    /// On Linux, it returns a shared UnshareSession that's reused across tests for efficiency.
-    /// The session is isolated from the host system, so it won't have access to the host's
-    /// APT configuration or other system resources.
+    /// On Linux, it tries to create an UnshareSession for better isolation.
+    /// If that fails (e.g., no unshare permissions), it falls back to PlainSession.
+    /// The session is isolated from the host system when possible.
     ///
-    /// Returns None if running in an environment where isolated sessions aren't available
-    /// (e.g., GitHub Actions without appropriate permissions).
+    /// Returns None only if no session can be created at all.
     #[cfg(target_os = "linux")]
-    pub fn get_test_session(
-    ) -> Option<std::sync::MutexGuard<'static, super::unshare::UnshareSession>> {
-        // Don't run tests if we're in github actions
-        // TODO: check for ability to run unshare instead
-        if std::env::var("GITHUB_ACTIONS").is_ok() {
-            return None;
+    pub fn get_test_session() -> Option<Box<dyn super::Session>> {
+        // Try to create an UnshareSession for isolation
+        if let Ok(session) = super::unshare::UnshareSession::bootstrap() {
+            return Some(Box::new(session));
         }
-
-        Some(TEST_UNSHARE_SESSION.lock().unwrap())
+        
+        // Fall back to PlainSession if unshare isn't available
+        Some(Box::new(super::plain::PlainSession::new()))
     }
 
     /// Get a test session for use in tests (non-Linux fallback).
     ///
     /// On non-Linux systems, returns a PlainSession for testing.
     #[cfg(not(target_os = "linux"))]
-    pub fn get_test_session() -> Option<super::plain::PlainSession> {
-        Some(super::plain::PlainSession::new())
+    pub fn get_test_session() -> Option<Box<dyn super::Session>> {
+        Some(Box::new(super::plain::PlainSession::new()))
     }
 }

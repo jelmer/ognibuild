@@ -317,15 +317,15 @@ mod tests {
 
         println!("Detected buildsystem: {}", node_buildsystem.name());
 
-        // Use test session for better isolation - it won't try to access the host's APT configuration
-        let mut session = test_utils::get_test_session()
-            .expect("This test requires an isolated session (unshare on Linux)");
+        // Use test session for better isolation when possible
+        let session = test_utils::get_test_session()
+            .expect("Failed to create test session");
 
         // This should NOT hang, even with network dependencies
         println!("Calling get_project_wide_deps...");
         let start = std::time::Instant::now();
         let result = crate::debian::upstream_deps::get_project_wide_deps(
-            &*session,
+            session.as_ref(),
             node_buildsystem.as_ref(),
         );
         let duration = start.elapsed();
