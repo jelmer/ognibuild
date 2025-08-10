@@ -259,6 +259,57 @@ fn to_node_package_req(requirement: &dyn Dependency) -> Option<NodePackageDepend
     }
 }
 
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    #[cfg(feature = "debian")]
+    fn test_get_project_wide_deps_no_hang() {
+        use crate::buildsystem::detect_buildsystems;
+        use crate::session::plain::PlainSession;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("test-nodejs");
+        std::fs::create_dir(&project_dir).unwrap();
+
+        std::fs::write(
+            project_dir.join("package.json"),
+            r#"{"name": "test", "version": "1.0.0", "dependencies": {"lodash": "^4.17.21"}}"#,
+        )
+        .unwrap();
+
+        let buildsystems = detect_buildsystems(&project_dir);
+        assert!(!buildsystems.is_empty(), "Should detect node buildsystem");
+
+        let node_buildsystem = buildsystems
+            .iter()
+            .find(|bs| bs.name() == "node")
+            .expect("Should find node buildsystem");
+
+        let session = PlainSession::new();
+
+        // This should NOT hang, even with network dependencies
+        let start = std::time::Instant::now();
+        let result = crate::debian::upstream_deps::get_project_wide_deps(
+            &session,
+            node_buildsystem.as_ref(),
+        );
+        let duration = start.elapsed();
+
+        // Should complete within reasonable time (30 seconds max, including our shorter timeouts)
+        assert!(
+            duration.as_secs() < 30,
+            "get_project_wide_deps took too long: {:?}",
+            duration
+        );
+
+        println!("get_project_wide_deps completed in {:?}", duration);
+        println!("Build deps: {} items", result.0.len());
+        println!("Test deps: {} items", result.1.len());
+    }
+}
+
 impl<'a> Installer for NpmResolver<'a> {
     fn explain(
         &self,

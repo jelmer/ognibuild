@@ -238,13 +238,21 @@ pub fn unwrap<'a, R: Read + 'a>(f: R, ext: &str) -> Result<Box<dyn Read + 'a>, E
 /// # Returns
 /// Reader for the URL contents
 pub fn load_direct_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
+    // Create a client with short timeouts to prevent hanging in test/build environments
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(10)) // Reduced from 30 to 10 seconds
+        .connect_timeout(std::time::Duration::from_secs(3)) // Reduced from 10 to 3 seconds
+        .build()
+        .map_err(|e| Error::AptFileAccessError(format!("Failed to create HTTP client: {}", e)))?;
+
     for ext in [".xz", ".gz", ""] {
-        let response = match reqwest::blocking::get(url.to_string() + ext) {
+        let response = match client.get(url.to_string() + ext).send() {
             Ok(response) => response,
             Err(e) => {
                 if e.status() == Some(reqwest::StatusCode::NOT_FOUND) {
                     continue;
                 }
+                log::debug!("Failed to fetch APT contents from {}{}: {}", url, ext, e);
                 return Err(Error::AptFileAccessError(format!(
                     "Unable to access apt URL {}{}: {}",
                     url, ext, e
@@ -561,8 +569,9 @@ pub fn get_apt_contents_file_searcher<'a>(
     if AptFileFileSearcher::has_cache(session).unwrap() {
         Ok(Box::new(AptFileFileSearcher::from_session(session)) as Box<dyn FileSearcher<'a>>)
     } else {
-        Ok(Box::new(RemoteContentsFileSearcher::from_session(session)?)
-            as Box<dyn FileSearcher<'a>>)
+        // Try to load remote contents, but with timeouts to prevent hanging
+        RemoteContentsFileSearcher::from_session(session)
+            .map(|searcher| Box::new(searcher) as Box<dyn FileSearcher<'a>>)
     }
 }
 
