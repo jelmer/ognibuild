@@ -787,6 +787,11 @@ pub mod test_utils {
     /// Returns None only if no session can be created at all.
     #[cfg(target_os = "linux")]
     pub fn get_test_session() -> Option<Box<dyn super::Session>> {
+        // In CI environments like GitHub Actions, skip UnshareSession due to permission restrictions
+        if std::env::var("GITHUB_ACTIONS").is_ok() {
+            return Some(Box::new(super::plain::PlainSession::new()));
+        }
+        
         // Try to create an UnshareSession for isolation
         if let Ok(session) = super::unshare::UnshareSession::bootstrap() {
             return Some(Box::new(session));
