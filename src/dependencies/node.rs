@@ -64,11 +64,18 @@ impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency
             ),
         ];
 
-        let names = match apt
-            .get_packages_for_paths(paths.iter().map(|p| p.as_str()).collect(), true, false) {
+        let names = match apt.get_packages_for_paths(
+            paths.iter().map(|p| p.as_str()).collect(),
+            true,
+            false,
+        ) {
             Ok(names) => names,
             Err(e) => {
-                log::warn!("Failed to search for Node package {} in APT: {}", self.package, e);
+                log::warn!(
+                    "Failed to search for Node package {} in APT: {}",
+                    self.package,
+                    e
+                );
                 return None;
             }
         };
@@ -170,11 +177,18 @@ impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency 
             ),
         ];
 
-        let names = match apt
-            .get_packages_for_paths(paths.iter().map(|p| p.as_str()).collect(), true, false) {
+        let names = match apt.get_packages_for_paths(
+            paths.iter().map(|p| p.as_str()).collect(),
+            true,
+            false,
+        ) {
             Ok(names) => names,
             Err(e) => {
-                log::warn!("Failed to search for Node module {} in APT: {}", self.module, e);
+                log::warn!(
+                    "Failed to search for Node module {} in APT: {}",
+                    self.module,
+                    e
+                );
                 return None;
             }
         };
@@ -276,11 +290,11 @@ mod tests {
     #[cfg(feature = "debian")]
     fn test_get_project_wide_deps_no_hang() {
         use crate::buildsystem::detect_buildsystems;
-        use crate::session::plain::PlainSession;
+        use crate::session::test_utils;
         use tempfile::TempDir;
 
         println!("Starting test_get_project_wide_deps_no_hang");
-        
+
         let temp_dir = TempDir::new().unwrap();
         let project_dir = temp_dir.path().join("test-nodejs");
         std::fs::create_dir(&project_dir).unwrap();
@@ -303,20 +317,22 @@ mod tests {
 
         println!("Detected buildsystem: {}", node_buildsystem.name());
 
-        let session = PlainSession::new();
+        // Use test session for better isolation - it won't try to access the host's APT configuration
+        let mut session = test_utils::get_test_session()
+            .expect("This test requires an isolated session (unshare on Linux)");
 
         // This should NOT hang, even with network dependencies
         println!("Calling get_project_wide_deps...");
         let start = std::time::Instant::now();
         let result = crate::debian::upstream_deps::get_project_wide_deps(
-            &session,
+            &*session,
             node_buildsystem.as_ref(),
         );
         let duration = start.elapsed();
 
-        // Should complete within reasonable time (10 minutes max for downloading APT files)
+        // Should complete quickly with isolated session (no large APT downloads)
         assert!(
-            duration.as_secs() < 600,
+            duration.as_secs() < 30,
             "get_project_wide_deps took too long: {:?}",
             duration
         );

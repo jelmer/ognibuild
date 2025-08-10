@@ -289,12 +289,15 @@ pub fn load_url_with_cache(url: &url::Url, cache_dirs: &[&Path]) -> Result<Box<d
             }
         }
     }
-    
+
     // Then check user cache directory
     if let Some(user_cache_dir) = get_user_cache_dir() {
         match load_apt_cache_file(url, &user_cache_dir) {
             Ok(f) => {
-                log::debug!("Found cached APT contents in user cache: {}", user_cache_dir.display());
+                log::debug!(
+                    "Found cached APT contents in user cache: {}",
+                    user_cache_dir.display()
+                );
                 return Ok(Box::new(f));
             }
             Err(e) => {
@@ -304,7 +307,7 @@ pub fn load_url_with_cache(url: &url::Url, cache_dirs: &[&Path]) -> Result<Box<d
             }
         }
     }
-    
+
     // If not found in any cache, download and cache it
     download_and_cache_url(url)
 }
@@ -313,12 +316,16 @@ pub fn load_url_with_cache(url: &url::Url, cache_dirs: &[&Path]) -> Result<Box<d
 fn download_and_cache_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
     // Download the file
     let content = load_direct_url(url)?;
-    
+
     // Try to cache it in user directory
     if let Some(user_cache_dir) = get_user_cache_dir() {
         // Ensure cache directory exists
         if let Err(e) = std::fs::create_dir_all(&user_cache_dir) {
-            log::debug!("Failed to create cache directory {}: {}", user_cache_dir.display(), e);
+            log::debug!(
+                "Failed to create cache directory {}: {}",
+                user_cache_dir.display(),
+                e
+            );
         } else {
             // Read the content into memory so we can both cache and return it
             let mut buffer = Vec::new();
@@ -327,7 +334,7 @@ fn download_and_cache_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
                 log::debug!("Failed to read content for caching: {}", e);
                 return Ok(reader); // Return the original reader if we can't cache
             }
-            
+
             // Write to cache file
             let cache_file_path = user_cache_dir.join(uri_to_filename(url));
             match std::fs::write(&cache_file_path, &buffer) {
@@ -335,15 +342,19 @@ fn download_and_cache_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
                     log::info!("Cached APT contents to: {}", cache_file_path.display());
                 }
                 Err(e) => {
-                    log::debug!("Failed to write cache file {}: {}", cache_file_path.display(), e);
+                    log::debug!(
+                        "Failed to write cache file {}: {}",
+                        cache_file_path.display(),
+                        e
+                    );
                 }
             }
-            
+
             // Return the buffer as a reader
             return Ok(Box::new(std::io::Cursor::new(buffer)));
         }
     }
-    
+
     // If we can't cache, just return the downloaded content
     Ok(content)
 }
@@ -719,16 +730,19 @@ impl RemoteContentsFileSearcher {
     ) -> Result<(), Error> {
         let urls: Vec<url::Url> = urls.collect();
         let num_urls = urls.len();
-        
+
         if num_urls == 0 {
             return Ok(());
         }
-        
-        log::info!("Loading {} APT Contents files (this may take several minutes)...", num_urls);
-        
+
+        log::info!(
+            "Loading {} APT Contents files (this may take several minutes)...",
+            num_urls
+        );
+
         let mut success_count = 0;
         let mut contents = Vec::new();
-        
+
         // Try to load each URL
         for (idx, url) in urls.iter().enumerate() {
             log::info!("Loading Contents file {}/{}: {}", idx + 1, num_urls, url);
@@ -745,9 +759,10 @@ impl RemoteContentsFileSearcher {
                         }
                         Err(e) => {
                             if fail_on_error {
-                                return Err(Error::AptFileAccessError(
-                                    format!("Failed to read Contents from {}: {}", url, e)
-                                ));
+                                return Err(Error::AptFileAccessError(format!(
+                                    "Failed to read Contents from {}: {}",
+                                    url, e
+                                )));
                             } else {
                                 log::warn!("Failed to read Contents from {}: {}", url, e);
                             }
@@ -763,21 +778,25 @@ impl RemoteContentsFileSearcher {
                 }
             }
         }
-        
-        log::info!("Successfully loaded {}/{} Contents files", success_count, num_urls);
-        
+
+        log::info!(
+            "Successfully loaded {}/{} Contents files",
+            success_count,
+            num_urls
+        );
+
         if success_count == 0 {
             return Err(Error::AptFileAccessError(
-                "Failed to download any APT Contents files".to_string()
+                "Failed to download any APT Contents files".to_string(),
             ));
         }
-        
+
         // Process the successfully loaded files
         for (url, content) in contents {
             let reader = Box::new(std::io::Cursor::new(content));
             self.load_file(reader, url);
         }
-        
+
         Ok(())
     }
 
