@@ -64,9 +64,21 @@ impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency
             ),
         ];
 
-        let names = apt
-            .get_packages_for_paths(paths.iter().map(|p| p.as_str()).collect(), true, false)
-            .unwrap();
+        let names = match apt.get_packages_for_paths(
+            paths.iter().map(|p| p.as_str()).collect(),
+            true,
+            false,
+        ) {
+            Ok(names) => names,
+            Err(e) => {
+                log::warn!(
+                    "Failed to search for Node package {} in APT: {}",
+                    self.package,
+                    e
+                );
+                return None;
+            }
+        };
 
         if names.is_empty() {
             None
@@ -165,9 +177,21 @@ impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency 
             ),
         ];
 
-        let names = apt
-            .get_packages_for_paths(paths.iter().map(|p| p.as_str()).collect(), true, false)
-            .unwrap();
+        let names = match apt.get_packages_for_paths(
+            paths.iter().map(|p| p.as_str()).collect(),
+            true,
+            false,
+        ) {
+            Ok(names) => names,
+            Err(e) => {
+                log::warn!(
+                    "Failed to search for Node module {} in APT: {}",
+                    self.module,
+                    e
+                );
+                return None;
+            }
+        };
 
         if names.is_empty() {
             None
@@ -256,6 +280,66 @@ fn to_node_package_req(requirement: &dyn Dependency) -> Option<NodePackageDepend
         command_package(&requirement.binary_name).map(NodePackageDependency::new)
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    #[cfg(feature = "debian")]
+    fn test_get_project_wide_deps_no_hang() {
+        use crate::buildsystem::detect_buildsystems;
+        use crate::session::test_utils;
+        use tempfile::TempDir;
+
+        println!("Starting test_get_project_wide_deps_no_hang");
+
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("test-nodejs");
+        std::fs::create_dir(&project_dir).unwrap();
+
+        std::fs::write(
+            project_dir.join("package.json"),
+            r#"{"name": "test", "version": "1.0.0", "dependencies": {"lodash": "^4.17.21"}}"#,
+        )
+        .unwrap();
+
+        println!("Created test project at {:?}", project_dir);
+
+        let buildsystems = detect_buildsystems(&project_dir);
+        assert!(!buildsystems.is_empty(), "Should detect node buildsystem");
+
+        let node_buildsystem = buildsystems
+            .iter()
+            .find(|bs| bs.name() == "node")
+            .expect("Should find node buildsystem");
+
+        println!("Detected buildsystem: {}", node_buildsystem.name());
+
+        // Use test session for better isolation when possible
+        let session = test_utils::get_test_session()
+            .expect("Failed to create test session");
+
+        // This should NOT hang, even with network dependencies
+        println!("Calling get_project_wide_deps...");
+        let start = std::time::Instant::now();
+        let result = crate::debian::upstream_deps::get_project_wide_deps(
+            session.as_ref(),
+            node_buildsystem.as_ref(),
+        );
+        let duration = start.elapsed();
+
+        // Should complete quickly with isolated session (no large APT downloads)
+        assert!(
+            duration.as_secs() < 30,
+            "get_project_wide_deps took too long: {:?}",
+            duration
+        );
+
+        println!("get_project_wide_deps completed in {:?}", duration);
+        println!("Build deps: {} items", result.0.len());
+        println!("Test deps: {} items", result.1.len());
     }
 }
 

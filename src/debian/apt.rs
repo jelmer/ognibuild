@@ -37,6 +37,8 @@ pub enum Error {
     },
     /// An error occurred in the session.
     Session(crate::session::Error),
+    /// An error occurred in file search operations.
+    FileSearch(crate::debian::file_search::Error),
 }
 
 impl std::fmt::Debug for Error {
@@ -70,6 +72,7 @@ impl std::fmt::Debug for Error {
                 )
             }
             Error::Session(error) => write!(f, "{:?}", error),
+            Error::FileSearch(error) => write!(f, "File search error: {:?}", error),
         }
     }
 }
@@ -77,6 +80,12 @@ impl std::fmt::Debug for Error {
 impl From<crate::session::Error> for Error {
     fn from(error: crate::session::Error) -> Self {
         Error::Session(error)
+    }
+}
+
+impl From<crate::debian::file_search::Error> for Error {
+    fn from(error: crate::debian::file_search::Error) -> Self {
+        Error::FileSearch(error)
     }
 }
 
@@ -111,6 +120,7 @@ impl std::fmt::Display for Error {
                 )
             }
             Error::Session(error) => write!(f, "{}", error),
+            Error::FileSearch(error) => write!(f, "{}", error),
         }
     }
 }
@@ -266,7 +276,7 @@ impl<'a> AptManager<'a> {
         }
         if self.searchers.read().unwrap().is_none() {
             *self.searchers.write().unwrap() = Some(vec![
-                crate::debian::file_search::get_apt_contents_file_searcher(self.session).unwrap(),
+                crate::debian::file_search::get_apt_contents_file_searcher(self.session)?,
                 Box::new(crate::debian::file_search::GENERATED_FILE_SEARCHER.clone()),
             ]);
         }

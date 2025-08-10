@@ -773,3 +773,39 @@ mod tests {
         assert_eq!(output, vec!["Hello, world!"]);
     }
 }
+
+/// Test utilities for sessions
+#[cfg(test)]
+pub mod test_utils {
+    /// Get a test session for use in tests.
+    ///
+    /// This returns an isolated session that's suitable for testing.
+    /// On Linux, it tries to create an UnshareSession for better isolation.
+    /// If that fails (e.g., no unshare permissions), it falls back to PlainSession.
+    /// The session is isolated from the host system when possible.
+    ///
+    /// Returns None only if no session can be created at all.
+    #[cfg(target_os = "linux")]
+    pub fn get_test_session() -> Option<Box<dyn super::Session>> {
+        // In CI environments like GitHub Actions, skip UnshareSession due to permission restrictions
+        if std::env::var("GITHUB_ACTIONS").is_ok() {
+            return Some(Box::new(super::plain::PlainSession::new()));
+        }
+        
+        // Try to create an UnshareSession for isolation
+        if let Ok(session) = super::unshare::UnshareSession::bootstrap() {
+            return Some(Box::new(session));
+        }
+        
+        // Fall back to PlainSession if unshare isn't available
+        Some(Box::new(super::plain::PlainSession::new()))
+    }
+
+    /// Get a test session for use in tests (non-Linux fallback).
+    ///
+    /// On non-Linux systems, returns a PlainSession for testing.
+    #[cfg(not(target_os = "linux"))]
+    pub fn get_test_session() -> Option<Box<dyn super::Session>> {
+        Some(Box::new(super::plain::PlainSession::new()))
+    }
+}

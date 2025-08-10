@@ -488,8 +488,7 @@ mod tests {
     }
 
     fn test_session() -> Option<std::sync::MutexGuard<'static, UnshareSession>> {
-        // Don't run tests if we're in github actions
-        // TODO: check for ability to run unshare instead
+        // Don't run tests if we're in github actions (CI environment restrictions)
         if std::env::var("GITHUB_ACTIONS").is_ok() {
             return None;
         }
