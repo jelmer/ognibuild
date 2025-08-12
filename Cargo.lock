@@ -846,12 +846,13 @@ dependencies = [
 
 [[package]]
 name = "debversion"
-version = "0.4.5"
+version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fcc80ce2f93511a7ad477669cb8935d5d6eb247dd2ef75cf897cef8a00e9f72"
+checksum = "79574f3b742eecc49e9ad4c42faf4b3b3371a202b131c5693545d8388a4b27b5"
 dependencies = [
  "chrono",
  "lazy-regex",
+ "num-bigint",
  "pyo3",
  "serde",
 ]
@@ -2687,6 +2688,16 @@ checksum = "77a8165726e8236064dbb45459242600304b42a5ea24ee2948e18e023bf7ba84"
 dependencies = [
  "overload",
  "winapi",
+]
+
+[[package]]
+name = "num-bigint"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
+dependencies = [
+ "num-integer",
+ "num-traits",
 ]
 
 [[package]]
