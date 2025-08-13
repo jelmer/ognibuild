@@ -23,6 +23,7 @@ debian-analyzer = { version = "0.159.0", optional = true }
 #debian-analyzer = { path = "../lintian-brush/analyzer", optional = true }
 debian-changelog = { version = ">=0.2", optional = true }
 debian-control = { version = ">=0.1.25", optional = true }
+apt-sources = { version = "0.1.1", optional = true }
 debversion = { version = "0.4", optional = true }
 env_logger = { version = ">=0.10", optional = true }
 flate2 = { version = "1", optional = true }
@@ -62,7 +63,7 @@ dirs = ">=5,<7"
 
 [features]
 default = ["cli", "upstream", "breezy", "dep-server"]
-debian = ["dep:debian-changelog", "dep:debversion", "dep:debian-control", "dep:flate2", "dep:lzma-rs", "dep:lz4_flex", "dep:reqwest", "breezyshim/debian", "dep:debian-analyzer"]
+debian = ["dep:debian-changelog", "dep:debversion", "dep:debian-control", "dep:apt-sources", "dep:flate2", "dep:lzma-rs", "dep:lz4_flex", "dep:reqwest", "breezyshim/debian", "dep:debian-analyzer"]
 cli = ["dep:clap", "dep:env_logger"]
 udd = ["dep:sqlx", "dep:tokio", "debian"]
 dep-server = ["dep:axum", "dep:tokio"]
@@ -72,6 +73,7 @@ breezy = ["dep:breezyshim"]
 [dev-dependencies]
 lazy_static = "1"
 test-log = "0.2"
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bin]]
 name = "ognibuild-deb"
@@ -112,3 +114,8 @@ required-features = ["cli", "debian", "breezy"]
 name = "report-apt-deps-status"
 path = "src/bin/report-apt-deps-status.rs"
 required-features = ["cli", "debian"]
+
+[[bench]]
+name = "apt_file_search"
+harness = false
+required-features = ["debian"]

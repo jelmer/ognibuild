@@ -21,8 +21,6 @@ pub mod file_search;
 pub mod fix_build;
 /// Build fixers for Debian packages.
 pub mod fixers;
-/// Debian sources.list handling.
-pub mod sources_list;
 /// Ultimate Debian Database integration.
 #[cfg(feature = "udd")]
 pub mod udd;
