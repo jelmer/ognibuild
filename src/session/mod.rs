@@ -791,12 +791,12 @@ pub mod test_utils {
         if std::env::var("GITHUB_ACTIONS").is_ok() {
             return Some(Box::new(super::plain::PlainSession::new()));
         }
-        
+
         // Try to create an UnshareSession for isolation
         if let Ok(session) = super::unshare::UnshareSession::bootstrap() {
             return Some(Box::new(session));
         }
-        
+
         // Fall back to PlainSession if unshare isn't available
         Some(Box::new(super::plain::PlainSession::new()))
     }

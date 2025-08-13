@@ -318,8 +318,7 @@ mod tests {
         println!("Detected buildsystem: {}", node_buildsystem.name());
 
         // Use test session for better isolation when possible
-        let session = test_utils::get_test_session()
-            .expect("Failed to create test session");
+        let session = test_utils::get_test_session().expect("Failed to create test session");
 
         // This should NOT hang, even with network dependencies
         println!("Calling get_project_wide_deps...");
