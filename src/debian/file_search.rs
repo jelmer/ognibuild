@@ -3,8 +3,11 @@
 //! This module provides functionality for searching files in Debian
 //! packages, including using apt-file and other package contents databases.
 
-use crate::debian::sources_list::{SourcesEntry, SourcesList};
 use crate::session::{Error as SessionError, Session};
+use apt_sources::{
+    error::{LoadError, RepositoryError},
+    Repository, RepositoryType,
+};
 use debian_control::apt::Release;
 use flate2::read::GzDecoder;
 use lzma_rs::lzma_decompress;
@@ -30,6 +33,18 @@ pub enum Error {
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Error {
         Error::IoError(e)
+    }
+}
+
+impl From<RepositoryError> for Error {
+    fn from(e: RepositoryError) -> Error {
+        Error::AptFileAccessError(format!("Repository error: {}", e))
+    }
+}
+
+impl From<LoadError> for Error {
+    fn from(e: LoadError) -> Error {
+        Error::AptFileAccessError(format!("Load error: {}", e))
     }
 }
 
@@ -97,23 +112,36 @@ pub fn read_contents_file<R: Read>(f: R) -> impl Iterator<Item = (String, String
     })
 }
 
-/// Get URLs for contents files from a sources entry.
+/// Get URLs for contents files from a repository entry.
 ///
 /// # Arguments
-/// * `entry` - Sources entry to get contents URLs from
+/// * `repo` - Repository to get contents URLs from
 /// * `arches` - List of architectures to include
 /// * `load_url` - Function to load a URL and get a reader
 ///
 /// # Returns
 /// Iterator of URLs for contents files
-pub fn contents_urls_from_sources_entry<'a>(
-    entry: &'a SourcesEntry,
+pub fn contents_urls_from_repository<'a>(
+    repo: &'a Repository,
     arches: Vec<&'a str>,
     load_url: impl Fn(&url::Url) -> Result<Box<dyn Read>, Error>,
 ) -> Box<dyn Iterator<Item = url::Url> + 'a> {
-    match entry {
-        SourcesEntry::Deb { uri, dist, comps } => {
-            let base_url = uri.trim_end_matches('/');
+    // Only process binary repositories (deb), not source repositories (deb-src)
+    if !repo.types.contains(&RepositoryType::Binary) {
+        return Box::new(vec![].into_iter());
+    }
+
+    // Process all URIs and suites combinations
+    let mut all_urls = Vec::new();
+
+    for uri in &repo.uris {
+        for dist in &repo.suites {
+            let comps = repo
+                .components
+                .as_ref()
+                .map(|c| c.as_slice())
+                .unwrap_or(&[]);
+            let base_url = uri.as_str().trim_end_matches('/');
             let name = dist.trim_end_matches('/');
             let dists_url: url::Url = if comps.is_empty() {
                 base_url.to_string()
@@ -163,7 +191,7 @@ pub fn contents_urls_from_sources_entry<'a>(
             }
             let mut contents_files = HashSet::new();
             if comps.is_empty() {
-                for arch in arches {
+                for arch in &arches {
                     contents_files.insert(format!("Contents-{}", arch));
                 }
             } else {
@@ -173,37 +201,43 @@ pub fn contents_urls_from_sources_entry<'a>(
                     }
                 }
             }
-            return Box::new(contents_files.into_iter().filter_map(move |f| {
-                if let Some(name) =
-                    existing_names.get(&std::path::Path::new(&f).file_stem().unwrap().to_owned())
-                {
-                    return Some(dists_url.join(name).unwrap().join(&f).unwrap());
-                }
-                None
-            }));
+            let urls: Vec<_> = contents_files
+                .into_iter()
+                .filter_map(move |f| {
+                    if let Some(name) = existing_names
+                        .get(&std::path::Path::new(&f).file_stem().unwrap().to_owned())
+                    {
+                        return Some(dists_url.join(name).unwrap().join(&f).unwrap());
+                    }
+                    None
+                })
+                .collect();
+            all_urls.extend(urls);
         }
-        SourcesEntry::DebSrc { .. } => Box::new(vec![].into_iter()),
     }
+
+    Box::new(all_urls.into_iter())
 }
 
-/// Get URLs for contents files from a sources.list file.
+/// Get URLs for contents files from APT sources.
 ///
 /// # Arguments
-/// * `sl` - Sources list to get contents URLs from
+/// * `repositories` - Repositories to get contents URLs from
 /// * `arch` - Architecture to include
 /// * `load_url` - Function to load a URL and get a reader
 ///
 /// # Returns
 /// Iterator of URLs for contents files
-pub fn contents_urls_from_sourceslist<'a>(
-    sl: &'a SourcesList,
+pub fn contents_urls_from_sources<'a>(
+    repositories: &'a apt_sources::Repositories,
     arch: &'a str,
     load_url: impl Fn(&'_ url::Url) -> Result<Box<dyn Read>, Error> + 'a + Copy,
 ) -> impl Iterator<Item = url::Url> + 'a {
     // TODO(jelmer): Verify signatures, etc.
     let arches = vec![arch, "all"];
-    sl.iter()
-        .flat_map(move |source| contents_urls_from_sources_entry(source, arches.clone(), load_url))
+    repositories
+        .iter()
+        .flat_map(move |repo| contents_urls_from_repository(repo, arches.clone(), load_url))
 }
 
 /// Unwrap a compressed file based on its extension.
@@ -625,6 +659,44 @@ impl<'b> FileSearcher<'b> for AptFileFileSearcher<'b> {
     }
 }
 
+/// Set up apt-file in a session.
+///
+/// This function installs apt-file if needed and updates the apt-file cache.
+///
+/// # Arguments
+/// * `session` - Session to set up
+///
+/// # Returns
+/// Ok(()) if setup was successful, Error otherwise
+pub fn setup_apt_file(session: &dyn Session) -> Result<(), Error> {
+    // Update APT package lists first
+    log::info!("Updating APT package lists...");
+    session
+        .command(vec!["apt-get", "update"])
+        .user("root")
+        .check_call()
+        .map_err(|e| Error::AptFileAccessError(format!("Failed to run apt-get update: {}", e)))?;
+
+    // Install apt-file if not already installed
+    log::info!("Installing apt-file...");
+    session
+        .command(vec!["apt-get", "install", "-y", "apt-file"])
+        .user("root")
+        .check_call()
+        .map_err(|e| Error::AptFileAccessError(format!("Failed to install apt-file: {}", e)))?;
+
+    // Update apt-file cache
+    log::info!("Updating apt-file cache...");
+    session
+        .command(vec!["apt-file", "update"])
+        .user("root")
+        .check_call()
+        .map_err(|e| Error::AptFileAccessError(format!("Failed to run apt-file update: {}", e)))?;
+
+    log::info!("apt-file setup complete");
+    Ok(())
+}
+
 /// Get a file searcher that uses apt-file or remote contents.
 ///
 /// This function returns the appropriate file searcher based on whether
@@ -680,11 +752,11 @@ impl RemoteContentsFileSearcher {
     /// # Returns
     /// Ok(()) if successful, Error otherwise
     pub fn load_local(&mut self) -> Result<(), Error> {
-        let sl = SourcesList::default();
+        let repositories = apt_sources::Repositories::default();
         let arch = crate::debian::build::get_build_architecture();
         let cache_dirs = vec![Path::new("/var/lib/apt/lists")];
         let load_url = |url: &url::Url| load_url_with_cache(url, cache_dirs.as_slice());
-        let urls = contents_urls_from_sourceslist(&sl, &arch, load_url);
+        let urls = contents_urls_from_sources(&repositories, &arch, load_url);
         self.load_urls(urls, load_url, false)
     }
 
@@ -696,8 +768,9 @@ impl RemoteContentsFileSearcher {
     /// # Returns
     /// Ok(()) if successful, Error otherwise
     pub fn load_from_session(&mut self, session: &dyn Session) -> Result<(), Error> {
-        // TODO(jelmer): what about sources.list.d?
-        let sl = SourcesList::from_apt_dir(&session.external_path(Path::new("/etc/apt")));
+        let (repositories, _errors) = apt_sources::Repositories::load_from_directory(
+            &session.external_path(Path::new("/etc/apt")),
+        );
         let arch = crate::debian::build::get_build_architecture();
         let cache_dirs = [session.external_path(Path::new("/var/lib/apt/lists"))];
         let load_url = |url: &url::Url| {
@@ -710,7 +783,7 @@ impl RemoteContentsFileSearcher {
                     .as_slice(),
             )
         };
-        let urls = contents_urls_from_sourceslist(&sl, &arch, load_url);
+        let urls = contents_urls_from_sources(&repositories, &arch, load_url);
         self.load_urls(urls, load_url, false)
     }
 
