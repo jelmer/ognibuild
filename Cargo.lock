@@ -5131,9 +5131,9 @@ dependencies = [
 
 [[package]]
 name = "upstream-ontologist"
-version = "0.2.10"
+version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01f77651d20345e54e1655532e5d5dd7cef65b0c42a7aa6be9f651bf67f90429"
+checksum = "93faefc6ec8c0bdb0f165e2bd2f22733f3f89b984f498d2d91d00d9af4330c32"
 dependencies = [
  "async-trait",
  "breezyshim",
