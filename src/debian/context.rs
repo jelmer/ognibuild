@@ -149,7 +149,7 @@ impl DebianPackagingContext {
         &self,
         path: &std::path::Path,
         allow_generated: bool,
-    ) -> Result<TreeEditor<P>, EditorError> {
+    ) -> Result<TreeEditor<'_, P>, EditorError> {
         let path = self.subpath.join(path);
         self.tree.edit_file(&path, allow_generated, true)
     }
@@ -295,7 +295,7 @@ impl DebianPackagingContext {
     ///
     /// # Returns
     /// An editor for the tests control file, or Error if not found or cannot be edited
-    pub fn edit_tests_control(&self) -> Result<TreeEditor<deb822_lossless::Deb822>, Error> {
+    pub fn edit_tests_control(&self) -> Result<TreeEditor<'_, deb822_lossless::Deb822>, Error> {
         Ok(self.edit_file::<deb822_lossless::Deb822>(Path::new("debian/tests/control"), false)?)
     }
 
@@ -303,7 +303,7 @@ impl DebianPackagingContext {
     ///
     /// # Returns
     /// An editor for the rules file, or Error if not found or cannot be edited
-    pub fn edit_rules(&self) -> Result<TreeEditor<makefile_lossless::Makefile>, Error> {
+    pub fn edit_rules(&self) -> Result<TreeEditor<'_, makefile_lossless::Makefile>, Error> {
         Ok(self.edit_file::<makefile_lossless::Makefile>(Path::new("debian/rules"), false)?)
     }
 

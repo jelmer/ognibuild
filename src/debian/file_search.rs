@@ -520,7 +520,7 @@ impl<'a> AptFileFileSearcher<'a> {
     ///
     /// # Returns
     /// A new AptFileFileSearcher instance
-    pub fn from_session(session: &dyn Session) -> AptFileFileSearcher {
+    pub fn from_session(session: &dyn Session) -> AptFileFileSearcher<'_> {
         log::debug!("Using apt-file to search apt contents");
         if !session.exists(&CACHE_IS_EMPTY_PATH) {
             crate::debian::apt::AptManager::from_session(session)
