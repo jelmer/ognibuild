@@ -492,7 +492,16 @@ mod tests {
         if std::env::var("GITHUB_ACTIONS").is_ok() {
             return None;
         }
-        Some(TEST_SESSION.lock().unwrap())
+        // Handle poisoned mutex: if a previous test panicked while holding the lock,
+        // we recover the guard to allow tests to continue
+        match TEST_SESSION.lock() {
+            Ok(guard) => Some(guard),
+            Err(poisoned) => {
+                // Recover from poisoned mutex - this is safe because UnshareSession
+                // doesn't have invalid states that could cause issues after a panic
+                Some(poisoned.into_inner())
+            }
+        }
     }
 
     #[test]
@@ -667,6 +676,37 @@ mod tests {
         session.rmtree(project.internal_path()).unwrap();
         assert!(!session.exists(project.internal_path()));
         assert!(!project.external_path().exists());
+    }
+
+    #[test]
+    fn test_session_works_after_panic() {
+        // Skip if we're in CI
+        if std::env::var("GITHUB_ACTIONS").is_ok() {
+            return;
+        }
+
+        // First, verify we can get the session normally
+        let session1 = test_session().unwrap();
+        assert!(session1.exists(std::path::Path::new("/bin")));
+        std::mem::drop(session1);
+
+        // Now cause a panic while holding the lock
+        let result = std::panic::catch_unwind(|| {
+            let _session = test_session().unwrap();
+            panic!("Intentional panic to test recovery");
+        });
+
+        // Verify the panic happened
+        assert!(result.is_err());
+
+        // Now verify we can still get the session (it shouldn't be blocked)
+        let session2 = test_session().unwrap();
+        assert!(session2.exists(std::path::Path::new("/bin")));
+
+        // Verify the session is still functional by running a command
+        session2
+            .check_call(vec!["true"], Some(std::path::Path::new("/")), None, None)
+            .unwrap();
     }
 
     #[test]

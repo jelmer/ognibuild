@@ -228,7 +228,7 @@ impl<'a> Installer for RResolver<'a> {
 ///
 /// # Returns
 /// An RResolver configured for Bioconductor
-pub fn bioconductor(session: &dyn Session) -> RResolver {
+pub fn bioconductor(session: &dyn Session) -> RResolver<'_> {
     RResolver::new(session, "https://hedgehog.fhcrc.org/bioconductor")
 }
 
@@ -239,7 +239,7 @@ pub fn bioconductor(session: &dyn Session) -> RResolver {
 ///
 /// # Returns
 /// An RResolver configured for CRAN
-pub fn cran(session: &dyn Session) -> RResolver {
+pub fn cran(session: &dyn Session) -> RResolver<'_> {
     RResolver::new(session, "https://cran.r-project.org")
 }
 

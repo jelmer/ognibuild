@@ -1078,50 +1078,50 @@ executable('complex-app',
 
     #[test]
     fn test_meson_commands_work_from_different_cwd_regression() {
-        // Regression test for the bug where meson commands fail when the current 
+        // Regression test for the bug where meson commands fail when the current
         // working directory is not the project directory.
-        // 
-        // Bug details: The Meson struct stores the path to meson.build file, but when 
-        // running meson commands, it wasn't changing the working directory to the project 
+        //
+        // Bug details: The Meson struct stores the path to meson.build file, but when
+        // running meson commands, it wasn't changing the working directory to the project
         // directory. This caused commands like "meson setup" and "meson introspect" to fail
         // when run from a different directory.
-        
+
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create a deeply nested project structure to test path handling
         let workspace = temp_dir.path().join("workspace");
         let other_dir = temp_dir.path().join("other_directory");
         let project_dir = workspace.join("projects").join("my-meson-project");
-        
+
         fs::create_dir_all(&workspace).unwrap();
         fs::create_dir_all(&other_dir).unwrap();
         fs::create_dir_all(&project_dir).unwrap();
-        
+
         create_meson_project(&project_dir).unwrap();
-        
+
         // Create a session in a completely different directory
         let mut session = PlainSession::new();
         // IMPORTANT: Set working directory to somewhere completely unrelated to the project
         session.chdir(&other_dir).unwrap();
-        
+
         // Verify we're in a different directory
         assert_ne!(session.pwd(), project_dir);
         assert_ne!(session.pwd().parent(), Some(project_dir.as_path()));
-        
+
         // Detect the buildsystem from the project directory
         let buildsystems = detect_buildsystems(&project_dir);
         let meson = buildsystems
             .iter()
             .find(|bs| bs.name() == "meson")
             .expect("Should find Meson buildsystem");
-        
+
         // Test 1: get_declared_dependencies should work even from different cwd
         match meson.get_declared_dependencies(&session, None) {
             Ok(deps) => {
                 // Should find the glib dependency we declared
-                let has_glib = deps.iter().any(|(_, dep)| {
-                    dep.family() == "glib-2.0" || dep.family().contains("glib")
-                });
+                let has_glib = deps
+                    .iter()
+                    .any(|(_, dep)| dep.family() == "glib-2.0" || dep.family().contains("glib"));
                 // Success - the fix is working
                 assert!(!deps.is_empty() || has_glib, "Should find dependencies");
             }
@@ -1131,15 +1131,15 @@ executable('complex-app',
                 // - "ERROR: Neither source directory './meson.build' nor build directory './' contain a meson.build file"
                 // - "ERROR: Missing Meson file in './meson.build'"
                 assert!(
-                    !error_str.contains("Missing Meson file") &&
-                    !error_str.contains("nor build directory") &&
-                    !error_str.contains("contain a meson.build"),
+                    !error_str.contains("Missing Meson file")
+                        && !error_str.contains("nor build directory")
+                        && !error_str.contains("contain a meson.build"),
                     "BUG REPRODUCED: Meson command failed due to working directory issue: {}",
                     error_str
                 );
             }
         }
-        
+
         // Test 2: get_declared_outputs should also work from different cwd
         match meson.get_declared_outputs(&session, None) {
             Ok(_outputs) => {
@@ -1149,15 +1149,15 @@ executable('complex-app',
                 let error_str = format!("{:?}", e);
                 // Should not fail with path-related errors
                 assert!(
-                    !error_str.contains("Missing Meson file") &&
-                    !error_str.contains("nor build directory") &&
-                    !error_str.contains("contain a meson.build"),
+                    !error_str.contains("Missing Meson file")
+                        && !error_str.contains("nor build directory")
+                        && !error_str.contains("contain a meson.build"),
                     "BUG REPRODUCED: Meson introspect failed due to working directory issue: {}",
                     error_str
                 );
             }
         }
-        
+
         // Test 3: Verify setup works from different cwd (if meson is available)
         let installer = NullInstaller;
         match meson.build(&session, &installer) {
@@ -1168,16 +1168,19 @@ executable('complex-app',
                 let error_str = format!("{:?}", e);
                 // The bug would cause "meson setup build" to fail because it runs in wrong dir
                 assert!(
-                    !error_str.contains("source directory") &&
-                    !error_str.contains("meson.build"),
+                    !error_str.contains("source directory") && !error_str.contains("meson.build"),
                     "BUG REPRODUCED: Meson setup failed due to working directory issue: {}",
                     error_str
                 );
             }
         }
-        
+
         // Verify session is still in the other directory (commands shouldn't change it)
-        assert_eq!(session.pwd(), &other_dir, "Session cwd should not have changed");
+        assert_eq!(
+            session.pwd(),
+            &other_dir,
+            "Session cwd should not have changed"
+        );
     }
 
     #[test]

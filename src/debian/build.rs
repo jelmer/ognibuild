@@ -4,7 +4,6 @@
 //! functions for managing changelog entries, running build commands,
 //! and handling build failures.
 
-use breezyshim::tree::{MutableTree, Tree, WorkingTree};
 use breezyshim::workingtree::PyWorkingTree;
 use buildlog_consultant::Problem;
 use debian_changelog::{ChangeLog, Urgency};
