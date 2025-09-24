@@ -293,7 +293,7 @@ mod tests {
         use crate::session::test_utils;
         use tempfile::TempDir;
 
-        println!("Starting test_get_project_wide_deps_no_hang");
+        log::debug!("Starting test_get_project_wide_deps_no_hang");
 
         let temp_dir = TempDir::new().unwrap();
         let project_dir = temp_dir.path().join("test-nodejs");
@@ -305,7 +305,7 @@ mod tests {
         )
         .unwrap();
 
-        println!("Created test project at {:?}", project_dir);
+        log::debug!("Created test project at {:?}", project_dir);
 
         let buildsystems = detect_buildsystems(&project_dir);
         assert!(!buildsystems.is_empty(), "Should detect node buildsystem");
@@ -315,13 +315,13 @@ mod tests {
             .find(|bs| bs.name() == "node")
             .expect("Should find node buildsystem");
 
-        println!("Detected buildsystem: {}", node_buildsystem.name());
+        log::debug!("Detected buildsystem: {}", node_buildsystem.name());
 
         // Use test session for better isolation when possible
         let session = test_utils::get_test_session().expect("Failed to create test session");
 
         // This should NOT hang, even with network dependencies
-        println!("Calling get_project_wide_deps...");
+        log::debug!("Calling get_project_wide_deps...");
         let start = std::time::Instant::now();
         let result = crate::debian::upstream_deps::get_project_wide_deps(
             session.as_ref(),
@@ -336,9 +336,9 @@ mod tests {
             duration
         );
 
-        println!("get_project_wide_deps completed in {:?}", duration);
-        println!("Build deps: {} items", result.0.len());
-        println!("Test deps: {} items", result.1.len());
+        log::debug!("get_project_wide_deps completed in {:?}", duration);
+        log::debug!("Build deps: {} items", result.0.len());
+        log::debug!("Test deps: {} items", result.1.len());
     }
 }
 

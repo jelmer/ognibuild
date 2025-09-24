@@ -1324,4 +1324,61 @@ mod tests {
             panic!("Expected DecompressionError");
         }
     }
+
+    #[test]
+    fn test_setup_apt_file() {
+        use crate::session::unshare::UnshareSession;
+
+        fn test_session() -> Option<UnshareSession> {
+            // Don't run tests if we're in github actions (CI environment restrictions)
+            if std::env::var("GITHUB_ACTIONS").is_ok() {
+                return None;
+            }
+            UnshareSession::bootstrap().ok()
+        }
+
+        let session = if let Some(session) = test_session() {
+            session
+        } else {
+            return;
+        };
+
+        // Test that setup_apt_file runs without errors
+        let result = setup_apt_file(&session);
+        assert!(result.is_ok(), "setup_apt_file failed: {:?}", result);
+
+        // Verify apt-file is installed and functional
+        let output = session
+            .command(vec!["apt-file", "--version"])
+            .output()
+            .expect("Failed to run apt-file --version");
+        assert!(output.status.success(), "apt-file --version failed");
+
+        // Verify apt-file cache exists (Contents files should be downloaded)
+        let cache_check = session
+            .command(vec!["ls", "/var/cache/apt/apt-file/"])
+            .output()
+            .expect("Failed to check apt-file cache");
+        assert!(
+            cache_check.status.success(),
+            "apt-file cache directory not found"
+        );
+
+        // Test that apt-file can actually search for a file
+        let search_result = session
+            .command(vec!["apt-file", "search", "bin/ls"])
+            .output()
+            .expect("Failed to run apt-file search");
+        assert!(search_result.status.success(), "apt-file search failed");
+
+        let search_output = String::from_utf8_lossy(&search_result.stdout);
+        assert!(
+            !search_output.trim().is_empty(),
+            "apt-file search returned no results"
+        );
+        assert!(
+            search_output.contains("coreutils"),
+            "Expected coreutils package in search results"
+        );
+    }
 }
