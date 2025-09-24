@@ -81,6 +81,7 @@ impl Meson {
         session
             .command(vec!["meson", "setup", "build"])
             .cwd(project_dir)
+            .quiet(true)
             .run_detecting_problems()?;
         Ok(())
     }
@@ -118,6 +119,7 @@ impl Meson {
                 session
                     .command(introspect_args)
                     .cwd(project_dir)
+                    .quiet(true)
                     .run_detecting_problems()?
             }
         } else {
@@ -178,6 +180,7 @@ impl Meson {
                     session
                         .command(introspect_args)
                         .cwd(project_dir)
+                        .quiet(true)
                         .run_detecting_problems()?
                 };
 
@@ -231,6 +234,7 @@ impl BuildSystem for Meson {
         match session
             .command(vec!["ninja", "-C", "build", "dist"])
             .cwd(project_dir)
+            .quiet(true)
             .run_detecting_problems()
         {
             Ok(_) => {}
@@ -259,6 +263,7 @@ impl BuildSystem for Meson {
         session
             .command(vec!["ninja", "-C", "build", "test"])
             .cwd(project_dir)
+            .quiet(true)
             .run_detecting_problems()?;
         Ok(())
     }
@@ -276,6 +281,7 @@ impl BuildSystem for Meson {
         session
             .command(vec!["ninja", "-C", "build"])
             .cwd(project_dir)
+            .quiet(true)
             .run_detecting_problems()?;
         Ok(())
     }
@@ -293,6 +299,7 @@ impl BuildSystem for Meson {
         session
             .command(vec!["ninja", "-C", "build", "clean"])
             .cwd(project_dir)
+            .quiet(true)
             .run_detecting_problems()?;
         Ok(())
     }
@@ -311,6 +318,7 @@ impl BuildSystem for Meson {
         session
             .command(vec!["ninja", "-C", "build", "install"])
             .cwd(project_dir)
+            .quiet(true)
             .run_detecting_problems()?;
         Ok(())
     }
@@ -351,6 +359,7 @@ impl BuildSystem for Meson {
             session
                 .command(scan_args)
                 .cwd(project_dir)
+                .quiet(true)
                 .run_detecting_problems()
                 .map_err(|e| {
                     InstallerError::Other(format!("Failed to run scan-dependencies: {:?}", e))
@@ -519,9 +528,9 @@ int main(int argc, char *argv[]) {
                 let _has_glib = deps
                     .iter()
                     .any(|(_, dep)| dep.family() == "glib" || dep.family() == "pkg-config");
-                println!("Found {} dependencies", deps.len());
+                log::debug!("Found {} dependencies", deps.len());
                 if !deps.is_empty() {
-                    println!("Dependencies: {:?}", deps);
+                    log::debug!("Dependencies: {:?}", deps);
                 }
             }
             Err(e) => {
@@ -605,7 +614,7 @@ int main(int argc, char *argv[]) {
 
         // Build should work with proper cwd handling
         match meson.build(&session, &installer) {
-            Ok(_) => println!("Build succeeded"),
+            Ok(_) => log::debug!("Build succeeded"),
             Err(e) => {
                 let error_str = format!("{:?}", e);
                 assert!(
@@ -618,7 +627,7 @@ int main(int argc, char *argv[]) {
 
         // Test clean operation
         match meson.clean(&session, &installer) {
-            Ok(_) => println!("Clean succeeded"),
+            Ok(_) => log::debug!("Clean succeeded"),
             Err(e) => {
                 let error_str = format!("{:?}", e);
                 assert!(
@@ -731,7 +740,7 @@ executable('main-app', 'main.c')
         // This should NOT fail with "Current directory is not a meson build directory"
         match meson.get_declared_dependencies(&session, None) {
             Ok(deps) => {
-                println!(
+                log::debug!(
                     "Successfully introspected unconfigured project with {} dependencies",
                     deps.len()
                 );
@@ -751,7 +760,7 @@ executable('main-app', 'main.c')
                 );
 
                 // Other errors (like meson not installed) are acceptable
-                println!(
+                log::debug!(
                     "Got acceptable error (likely meson not installed): {}",
                     error_str
                 );
@@ -807,7 +816,7 @@ int main() { printf("Result: %f\n", sqrt(16.0)); return 0; }"#,
         // Test dependency introspection using --scan-dependencies on meson.build
         match meson.get_declared_dependencies(&session, None) {
             Ok(deps) => {
-                println!("Found {} dependencies", deps.len());
+                log::debug!("Found {} dependencies", deps.len());
                 for (category, dep) in &deps {
                     let min_ver =
                         if let Some(vague_dep) = dep.as_any().downcast_ref::<VagueDependency>() {
@@ -815,7 +824,7 @@ int main() { printf("Result: %f\n", sqrt(16.0)); return 0; }"#,
                         } else {
                             "any"
                         };
-                    println!("  {:?}: {} ({})", category, dep.family(), min_ver);
+                    log::debug!("  {:?}: {} ({})", category, dep.family(), min_ver);
                 }
 
                 // Should find some dependencies from our test project
@@ -832,7 +841,7 @@ int main() { printf("Result: %f\n", sqrt(16.0)); return 0; }"#,
                 );
 
                 // Other errors (meson not installed, etc.) are acceptable
-                println!("Got acceptable error: {}", error_str);
+                log::debug!("Got acceptable error: {}", error_str);
             }
         }
     }
@@ -881,9 +890,9 @@ static_library('helper',
         // Test output introspection
         match meson.get_declared_outputs(&session, None) {
             Ok(outputs) => {
-                println!("Found {} outputs", outputs.len());
+                log::debug!("Found {} outputs", outputs.len());
                 for output in &outputs {
-                    println!("  Output: {:?}", output);
+                    log::debug!("  Output: {:?}", output);
                 }
 
                 // Should find at least the installed executable
@@ -901,7 +910,7 @@ static_library('helper',
                     error_str
                 );
 
-                println!("Got acceptable error: {}", error_str);
+                log::debug!("Got acceptable error: {}", error_str);
             }
         }
     }
@@ -976,7 +985,7 @@ executable('complex-app',
         // Test that complex projects work with our introspection
         match meson.get_declared_dependencies(&session, None) {
             Ok(deps) => {
-                println!("Complex project dependencies: {} found", deps.len());
+                log::debug!("Complex project dependencies: {} found", deps.len());
 
                 // Look for dependencies with version constraints
                 let versioned_deps: Vec<_> = deps
@@ -991,7 +1000,7 @@ executable('complex-app',
                     .collect();
 
                 if !versioned_deps.is_empty() {
-                    println!("Dependencies with version constraints:");
+                    log::debug!("Dependencies with version constraints:");
                     for (cat, dep) in versioned_deps {
                         let min_ver = if let Some(vague_dep) =
                             dep.as_any().downcast_ref::<VagueDependency>()
@@ -1000,7 +1009,7 @@ executable('complex-app',
                         } else {
                             "any"
                         };
-                        println!("  {:?}: {} >= {}", cat, dep.family(), min_ver);
+                        log::debug!("  {:?}: {} >= {}", cat, dep.family(), min_ver);
                     }
                 }
             }
@@ -1014,14 +1023,14 @@ executable('complex-app',
                     error_str
                 );
 
-                println!("Got acceptable error on complex project: {}", error_str);
+                log::debug!("Got acceptable error on complex project: {}", error_str);
             }
         }
 
         // Also test outputs for complex project
         match meson.get_declared_outputs(&session, None) {
             Ok(outputs) => {
-                println!("Complex project outputs: {} found", outputs.len());
+                log::debug!("Complex project outputs: {} found", outputs.len());
             }
             Err(e) => {
                 let error_str = format!("{:?}", e);
@@ -1053,7 +1062,7 @@ executable('complex-app',
 
         match result {
             Ok(_) => {
-                println!("Setup with source and build dirs succeeded");
+                log::debug!("Setup with source and build dirs succeeded");
 
                 // Verify temp build dir was cleaned up
                 let temp_build = project_dir.join(".ognibuild-temp-build");
@@ -1071,7 +1080,7 @@ executable('complex-app',
                     error_str
                 );
 
-                println!("Got acceptable setup error: {}", error_str);
+                log::debug!("Got acceptable setup error: {}", error_str);
             }
         }
     }
@@ -1219,7 +1228,7 @@ executable('test', 'main.c', dependencies: missing_dep)
         // Test that we handle various error conditions gracefully
         match meson.get_declared_dependencies(&session, None) {
             Ok(deps) => {
-                println!(
+                log::debug!(
                     "Handled potentially problematic project: {} deps",
                     deps.len()
                 );
@@ -1232,7 +1241,7 @@ executable('test', 'main.c', dependencies: missing_dep)
                     .collect();
 
                 if !missing_deps.is_empty() {
-                    println!(
+                    log::debug!(
                         "Found declared but unavailable dependency: {:?}",
                         missing_deps[0].1.family()
                     );
@@ -1247,7 +1256,7 @@ executable('test', 'main.c', dependencies: missing_dep)
                     error_str
                 );
 
-                println!("Handled error case appropriately: {}", error_str);
+                log::debug!("Handled error case appropriately: {}", error_str);
             }
         }
     }
