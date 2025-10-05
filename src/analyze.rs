@@ -114,6 +114,7 @@ pub fn run_detecting_problems(
         match run_with_tee(session, args.clone(), cwd, user, env, stdin, quiet) {
             Ok((retcode, contents)) => (retcode, contents),
             Err(SessionError::SetupFailure(..)) => unreachable!(),
+            Err(SessionError::ImageError(..)) => unreachable!(),
             Err(SessionError::IoError(e)) if e.kind() == std::io::ErrorKind::NotFound => {
                 let command = args[0].to_string();
                 return Err(AnalyzedError::Detailed {

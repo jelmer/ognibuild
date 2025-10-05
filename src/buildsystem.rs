@@ -95,6 +95,7 @@ impl From<crate::session::Error> for Error {
             }
             crate::session::Error::IoError(e) => e.into(),
             crate::session::Error::SetupFailure(_, _) => unreachable!(),
+            crate::session::Error::ImageError(_) => unreachable!(),
         }
     }
 }

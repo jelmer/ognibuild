@@ -9,7 +9,7 @@ use ognibuild::installer::{
     auto_installer, select_installers, Error as InstallerError, Explanation, InstallationScope,
     Installer,
 };
-use ognibuild::session::Session;
+use ognibuild::session::{unshare::UnshareSession, Session};
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
@@ -25,6 +25,17 @@ struct ExecArgs {
 struct InstallArgs {
     #[clap(long)]
     prefix: Option<PathBuf>,
+}
+
+#[derive(Parser)]
+struct CacheDebianImageArgs {
+    /// Debian suite to cache (e.g., "sid", "bookworm", "stable")
+    #[clap(default_value = "sid")]
+    suite: String,
+
+    /// Force re-download even if cached
+    #[clap(long)]
+    force: bool,
 }
 
 #[derive(Subcommand)]
@@ -45,6 +56,9 @@ enum Command {
     Exec(ExecArgs),
     #[clap(name = "install")]
     Install(InstallArgs),
+    #[clap(name = "cache-debian-image")]
+    /// Cache a Debian cloud image for use with UnshareSession
+    CacheDebianImage(CacheDebianImageArgs),
 }
 
 #[derive(Parser)]
@@ -209,6 +223,7 @@ fn run_action(
                 DependencyCategory::Test,
             ],
             Command::Exec(_) => vec![],
+            Command::CacheDebianImage(_) => return Ok(()), // No dependencies needed
         };
         if !categories.is_empty() {
             log::info!("Checking that declared dependencies are present");
@@ -258,6 +273,7 @@ fn run_action(
 
     match args.command.as_ref().unwrap() {
         Command::Exec(..) => unreachable!(),
+        Command::CacheDebianImage(..) => unreachable!(),
         Command::Dist => {
             ognibuild::actions::dist::run_dist(
                 session,
@@ -389,6 +405,11 @@ fn main() -> Result<(), i32> {
             },
         )
         .init();
+
+    // Handle cache-debian-image command separately as it doesn't need a session
+    if let Some(Command::CacheDebianImage(ref cache_args)) = args.command {
+        return cache_debian_image(&cache_args.suite, cache_args.force);
+    }
 
     #[cfg(target_os = "linux")]
     let mut session: Box<dyn Session> = if let Some(schroot) = args.schroot.as_ref() {
@@ -535,4 +556,64 @@ fn main() -> Result<(), i32> {
 
     std::mem::drop(td);
     Ok(())
+}
+
+fn cache_debian_image(suite: &str, force: bool) -> Result<(), i32> {
+    let arch = std::env::consts::ARCH;
+    let arch_name = match arch {
+        "x86_64" => "amd64",
+        "aarch64" => "arm64",
+        _ => {
+            eprintln!("Unsupported architecture: {}", arch);
+            return Err(1);
+        }
+    };
+
+    let cache_dir = match dirs::cache_dir() {
+        Some(dir) => dir.join("ognibuild").join("images"),
+        None => {
+            eprintln!("Cannot determine cache directory");
+            return Err(1);
+        }
+    };
+
+    if let Err(e) = std::fs::create_dir_all(&cache_dir) {
+        eprintln!("Failed to create cache directory: {}", e);
+        return Err(1);
+    }
+
+    let tarball_name = format!("debian-{}-{}.tar.xz", suite, arch_name);
+    let tarball_path = cache_dir.join(&tarball_name);
+
+    if tarball_path.exists() && !force {
+        log::info!(
+            "Debian {} image already cached at {}",
+            suite,
+            tarball_path.display()
+        );
+        log::info!("Use --force to re-download.");
+        return Ok(());
+    }
+
+    // Try to create a cached session, which will download if needed
+    log::info!("Caching Debian {} image...", suite);
+    match UnshareSession::cached_debian_session(suite, true) {
+        Ok(_) => {
+            log::info!(
+                "Successfully cached Debian {} image at {}",
+                suite,
+                tarball_path.display()
+            );
+            log::info!("");
+            log::info!("You can now use this cached image in tests by setting:");
+            log::info!("  OGNIBUILD_DEBIAN_TEST_TARBALL={}", tarball_path.display());
+            log::info!("or");
+            log::info!("  OGNIBUILD_USE_DEBIAN_CLOUD_IMAGE=1");
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("Failed to cache image: {}", e);
+            Err(1)
+        }
+    }
 }

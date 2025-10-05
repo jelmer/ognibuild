@@ -1327,14 +1327,14 @@ mod tests {
 
     #[test]
     fn test_setup_apt_file() {
-        use crate::session::unshare::UnshareSession;
+        use crate::session::unshare::{create_debian_session_for_testing, UnshareSession};
 
         fn test_session() -> Option<UnshareSession> {
             // Don't run tests if we're in github actions (CI environment restrictions)
             if std::env::var("GITHUB_ACTIONS").is_ok() {
                 return None;
             }
-            UnshareSession::bootstrap().ok()
+            create_debian_session_for_testing("sid").ok()
         }
 
         let session = if let Some(session) = test_session() {
