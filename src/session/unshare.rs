@@ -399,7 +399,7 @@ pub fn download_debian_cloud_image(
 ///
 /// This function tries the following in order:
 /// 1. If OGNIBUILD_DEBIAN_TEST_TARBALL is set, use that tarball
-/// 2. If OGNIBUILD_USE_DEBIAN_CLOUD_IMAGE is set, use cached cloud image
+/// 2. If a cached image exists, use it
 /// 3. Otherwise, bootstrap from network using mmdebstrap
 ///
 /// # Arguments
@@ -427,18 +427,22 @@ pub fn create_debian_session_for_testing(
         }
     }
 
-    // Check if we should use a cached Debian cloud image for testing
-    if std::env::var("OGNIBUILD_USE_DEBIAN_CLOUD_IMAGE").is_ok() {
-        log::info!(
-            "OGNIBUILD_USE_DEBIAN_CLOUD_IMAGE is set, attempting to use cached Debian {} image",
-            suite
-        );
-        return UnshareSession::cached_debian_session(suite, true);
+    // Try to use cached session first (without downloading if not present)
+    match UnshareSession::cached_debian_session(suite, false) {
+        Ok(session) => {
+            log::info!("Using cached Debian {} image", suite);
+            return Ok(session);
+        }
+        Err(Error::ImageError(ImageError::CachedImageNotFound { path })) => {
+            log::debug!("No cached image found at {}", path.display());
+            // Continue to next option: bootstrap from network
+        }
+        Err(e) => return Err(e), // Other errors should propagate
     }
 
     // Default: bootstrap from network
     log::info!(
-        "Bootstrapping Debian {} test session from network using mmdebstrap",
+        "No cached image found, bootstrapping Debian {} test session from network using mmdebstrap",
         suite
     );
     bootstrap_debian_tarball(suite)
@@ -699,7 +703,7 @@ mod tests {
     lazy_static::lazy_static! {
         static ref TEST_SESSION: std::sync::Mutex<UnshareSession> = std::sync::Mutex::new(
             create_debian_session_for_testing("sid")
-                .expect("Failed to create test session. This requires network access.\nYou can avoid this by setting:\n  OGNIBUILD_DEBIAN_TEST_TARBALL=/path/to/tarball.tar.xz\n  OGNIBUILD_USE_DEBIAN_CLOUD_IMAGE=1 (downloads once from cdimage.debian.org)")
+                .expect("Failed to create test session. This requires network access.\nYou can avoid this by:\n  - Pre-caching with: ogni cache-debian-image sid\n  - Setting: OGNIBUILD_DEBIAN_TEST_TARBALL=/path/to/tarball.tar.xz")
         );
     }
 

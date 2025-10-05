@@ -28,7 +28,7 @@ struct InstallArgs {
 }
 
 #[derive(Parser)]
-struct CacheDebianImageArgs {
+struct CacheEnvArgs {
     /// Debian suite to cache (e.g., "sid", "bookworm", "stable")
     #[clap(default_value = "sid")]
     suite: String,
@@ -56,9 +56,9 @@ enum Command {
     Exec(ExecArgs),
     #[clap(name = "install")]
     Install(InstallArgs),
-    #[clap(name = "cache-debian-image")]
+    #[clap(name = "cache-env")]
     /// Cache a Debian cloud image for use with UnshareSession
-    CacheDebianImage(CacheDebianImageArgs),
+    CacheEnv(CacheEnvArgs),
 }
 
 #[derive(Parser)]
@@ -223,7 +223,7 @@ fn run_action(
                 DependencyCategory::Test,
             ],
             Command::Exec(_) => vec![],
-            Command::CacheDebianImage(_) => return Ok(()), // No dependencies needed
+            Command::CacheEnv(_) => return Ok(()), // No dependencies needed
         };
         if !categories.is_empty() {
             log::info!("Checking that declared dependencies are present");
@@ -273,7 +273,7 @@ fn run_action(
 
     match args.command.as_ref().unwrap() {
         Command::Exec(..) => unreachable!(),
-        Command::CacheDebianImage(..) => unreachable!(),
+        Command::CacheEnv(..) => unreachable!(),
         Command::Dist => {
             ognibuild::actions::dist::run_dist(
                 session,
@@ -406,8 +406,8 @@ fn main() -> Result<(), i32> {
         )
         .init();
 
-    // Handle cache-debian-image command separately as it doesn't need a session
-    if let Some(Command::CacheDebianImage(ref cache_args)) = args.command {
+    // Handle cache-env command separately as it doesn't need a session
+    if let Some(Command::CacheEnv(ref cache_args)) = args.command {
         return cache_debian_image(&cache_args.suite, cache_args.force);
     }
 
@@ -605,10 +605,9 @@ fn cache_debian_image(suite: &str, force: bool) -> Result<(), i32> {
                 tarball_path.display()
             );
             log::info!("");
-            log::info!("You can now use this cached image in tests by setting:");
+            log::info!("This cached image will now be used automatically by tests.");
+            log::info!("You can also explicitly use it by setting:");
             log::info!("  OGNIBUILD_DEBIAN_TEST_TARBALL={}", tarball_path.display());
-            log::info!("or");
-            log::info!("  OGNIBUILD_USE_DEBIAN_CLOUD_IMAGE=1");
             Ok(())
         }
         Err(e) => {

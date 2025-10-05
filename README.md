@@ -27,6 +27,7 @@ Ognibuild has a number of subcommands:
  * ``ogni build`` - build the package in-tree
  * ``ogni install`` - install the package
  * ``ogni test`` - run the testsuite in the source directory
+ * ``ogni cache-env`` - cache a Debian cloud image for testing (Linux only)
 
 It also includes a subcommand that can fix up the build dependencies
 for Debian packages, called deb-fix-build.
@@ -36,6 +37,30 @@ for Debian packages, called deb-fix-build.
 ```
 ogni -d https://gitlab.gnome.org/GNOME/fractal install
 ```
+
+### Caching Test Environments
+
+On Linux systems with the `debian` feature enabled, ognibuild can use cached Debian cloud images
+to speed up tests that require a Debian environment. This is particularly useful for running tests
+with `UnshareSession`.
+
+To cache a Debian image:
+
+```bash
+ogni cache-env sid
+```
+
+Once cached, tests will automatically use the cached image instead of bootstrapping a new environment
+from the network. This significantly reduces test execution time.
+
+You can also specify a different Debian suite:
+
+```bash
+ogni cache-env bookworm
+ogni cache-env stable
+```
+
+The cached images are stored in `~/.cache/ognibuild/images/`.
 
 ### Debugging
 
