@@ -1185,9 +1185,12 @@ executable('complex-app',
         }
 
         // Verify session is still in the other directory (commands shouldn't change it)
+        // Canonicalize both paths to handle macOS /var -> /private/var symlink resolution
+        let actual_pwd = session.pwd().canonicalize().unwrap_or_else(|_| session.pwd().to_path_buf());
+        let expected_pwd = other_dir.canonicalize().unwrap_or_else(|_| other_dir.clone());
         assert_eq!(
-            session.pwd(),
-            &other_dir,
+            actual_pwd,
+            expected_pwd,
             "Session cwd should not have changed"
         );
     }
