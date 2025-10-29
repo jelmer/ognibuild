@@ -69,11 +69,11 @@ fn load_toml(path: &Path) -> Result<pyproject_toml::PyProjectToml, PyErr> {
 ///
 /// This provides access to the configuration in a setup.cfg file, which is used
 /// by setuptools to configure Python package builds.
-pub struct SetupCfg(PyObject);
+pub struct SetupCfg(Py<PyAny>);
 
 impl SetupCfg {
     fn has_section(&self, section: &str) -> bool {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             self.0
                 .call_method1(py, "__contains__", (section,))
                 .unwrap()
@@ -83,9 +83,9 @@ impl SetupCfg {
     }
 
     fn get_section(&self, section: &str) -> Option<SetupCfgSection> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             if self.has_section(section) {
-                let section: Option<PyObject> = self
+                let section: Option<Py<PyAny>> = self
                     .0
                     .call_method1(py, "get", (section, py.None()))
                     .unwrap()
@@ -103,22 +103,22 @@ impl SetupCfg {
 ///
 /// This provides access to a specific section in a setup.cfg file, allowing
 /// access to configuration keys within that section.
-pub struct SetupCfgSection(PyObject);
+pub struct SetupCfgSection(Py<PyAny>);
 
 impl Default for SetupCfg {
     fn default() -> Self {
-        Python::with_gil(|py| SetupCfg(py.None()))
+        Python::attach(|py| SetupCfg(py.None()))
     }
 }
 
 impl SetupCfgSection {
-    fn get<T: for<'a> FromPyObject<'a>>(&self, key: &str) -> Option<T> {
-        Python::with_gil(|py| {
+    fn get<T: for<'a, 'py> FromPyObject<'a, 'py>>(&self, key: &str) -> Option<T> {
+        Python::attach(|py| {
             self.0
                 .call_method1(py, "get", (key, py.None()))
-                .unwrap()
+                .ok()?
                 .extract::<Option<T>>(py)
-                .unwrap()
+                .ok()?
         })
     }
 
@@ -130,7 +130,7 @@ impl SetupCfgSection {
     /// # Returns
     /// `true` if the key exists, `false` otherwise
     pub fn has_key(&self, key: &str) -> bool {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             self.0
                 .call_method1(py, "__contains__", (key,))
                 .unwrap()
@@ -141,7 +141,7 @@ impl SetupCfgSection {
 }
 
 fn load_setup_cfg(path: &Path) -> Result<Option<SetupCfg>, PyErr> {
-    Python::with_gil(|py| {
+    Python::attach(|py| {
         let m = py.import("setuptools.config.setupcfg")?;
         let read_configuration = m.getattr("read_configuration")?;
 
@@ -159,7 +159,7 @@ fn load_setup_cfg(path: &Path) -> Result<Option<SetupCfg>, PyErr> {
 //  run_setup, but setting __name__
 // Imported from Python's distutils.core, Copyright (C) PSF
 
-fn run_setup(py: Python, script_name: &Path, stop_after: &str) -> PyResult<PyObject> {
+fn run_setup(py: Python, script_name: &Path, stop_after: &str) -> PyResult<Py<PyAny>> {
     assert!(
         stop_after == "init"
             || stop_after == "config"
@@ -293,7 +293,7 @@ impl SetupPy {
     pub fn new(path: &Path) -> Self {
         let has_setup_py = path.join("setup.py").exists();
 
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let config = match load_setup_cfg(path) {
                 Ok(config) => config,
                 Err(e) if e.is_instance_of::<PyFileNotFoundError>(py) => None,
@@ -352,7 +352,7 @@ impl SetupPy {
     fn extract_setup_direct(&self) -> Option<Distribution> {
         let p = self.path.join("setup.py").canonicalize().unwrap();
 
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let d = match run_setup(py, &p, "init") {
                 Err(e) if e.is_instance_of::<PyRuntimeError>(py) => {
                     log::warn!("Unable to load setup.py metadata: {}", e);
@@ -905,7 +905,7 @@ mod tests {
 
     #[test]
     fn test_python_project_without_pyproject_toml() {
-        pyo3::prepare_freethreaded_python();
+        pyo3::Python::initialize();
 
         let temp_dir = tempdir().unwrap();
         let path = temp_dir.path();
@@ -925,8 +925,8 @@ mod tests {
 
     #[test]
     fn test_load_toml_file_not_found() {
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
+        pyo3::Python::initialize();
+        Python::attach(|py| {
             let temp_dir = tempdir().unwrap();
             let path = temp_dir.path();
 
@@ -941,8 +941,8 @@ mod tests {
 
     #[test]
     fn test_load_toml_invalid_content() {
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
+        pyo3::Python::initialize();
+        Python::attach(|py| {
             let temp_dir = tempdir().unwrap();
             let path = temp_dir.path();
 
