@@ -41,6 +41,17 @@ impl UnshareSession {
             crate::session::Error::SetupFailure("open failed".to_string(), e.to_string())
         })?;
 
+        // Create necessary directories for mounting before extraction
+        // These might not exist in cloud images
+        for dir in &["proc", "sys", "dev"] {
+            std::fs::create_dir_all(root.join(dir)).map_err(|e| {
+                crate::session::Error::SetupFailure(
+                    format!("Failed to create {} directory", dir),
+                    e.to_string(),
+                )
+            })?;
+        }
+
         let output = std::process::Command::new("unshare")
             .arg("--map-users=auto")
             .arg("--map-groups=auto")

@@ -51,3 +51,29 @@ jobs:
       - name: Run tests (with Debian feature)
         run: cargo test --verbose --features=debian
         if: matrix.os == 'ubuntu-24.04'
+
+  minimal-versions:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - name: Update apt cache
+        run: sudo apt-get update
+      - name: Install Debian tools
+        run: sudo apt-get install -y mmdebstrap
+      - name: Install system dependencies
+        run: sudo apt-get install -y brz libapt-pkg-dev libpcre3-dev
+      - name: Install breezy and brz-debian
+        run: pip install breezy \
+            git+https://github.com/breezy-team/breezy-debian \
+            python_apt@git+https://salsa.debian.org/apt-team/python-apt
+      - name: Install cargo-minimal-versions
+        run: cargo install cargo-minimal-versions cargo-hack
+      - name: Check with minimal versions
+        run: cargo minimal-versions check --all-features
+      - name: Test with minimal versions
+        run: cargo minimal-versions test --all-features
