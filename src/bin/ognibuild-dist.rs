@@ -1,12 +1,17 @@
 use breezyshim::export::export;
-use breezyshim::tree::Tree;
 use breezyshim::workingtree::{self, WorkingTree};
 use clap::Parser;
 #[cfg(feature = "debian")]
 use debian_control::Control;
-use ognibuild::analyze::AnalyzedError;
-use ognibuild::buildsystem::Error;
 use std::path::{Path, PathBuf};
+
+// These imports are only used in Linux-specific code
+#[cfg(target_os = "linux")]
+use breezyshim::tree::Tree;
+#[cfg(target_os = "linux")]
+use ognibuild::analyze::AnalyzedError;
+#[cfg(target_os = "linux")]
+use ognibuild::buildsystem::Error;
 
 #[derive(Clone, Default, PartialEq, Eq)]
 pub enum Mode {
@@ -82,7 +87,8 @@ pub fn main() -> Result<(), i32> {
 
     let (tree, subpath) = workingtree::open_containing(&args.directory).unwrap();
 
-    #[cfg(feature = "debian")]
+    // These variables are only used in the Linux-specific code path
+    #[cfg(all(target_os = "linux", feature = "debian"))]
     let (packaging_tree, packaging_subdir, package_name): (
         Option<Box<dyn WorkingTree>>,
         Option<PathBuf>,
@@ -104,7 +110,7 @@ pub fn main() -> Result<(), i32> {
         (None, None, None)
     };
 
-    #[cfg(not(feature = "debian"))]
+    #[cfg(all(target_os = "linux", not(feature = "debian")))]
     let (packaging_tree, packaging_subdir, package_name): (
         Option<Box<dyn WorkingTree>>,
         Option<PathBuf>,

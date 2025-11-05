@@ -9,7 +9,7 @@ use ognibuild::installer::{
     auto_installer, select_installers, Error as InstallerError, Explanation, InstallationScope,
     Installer,
 };
-use ognibuild::session::{unshare::UnshareSession, Session};
+use ognibuild::session::Session;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
@@ -590,6 +590,7 @@ fn main() -> Result<(), i32> {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 fn cache_debian_image(suite: &str, force: bool) -> Result<(), i32> {
     if is_network_disabled() {
         eprintln!("Error: Network access is disabled (OGNIBUILD_DISABLE_NET is set)");
@@ -663,6 +664,12 @@ fn cache_debian_image(suite: &str, force: bool) -> Result<(), i32> {
             Err(1)
         }
     }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn cache_debian_image(_suite: &str, _force: bool) -> Result<(), i32> {
+    eprintln!("Error: cache-env command is only available on Linux");
+    Err(1)
 }
 
 #[cfg(test)]
