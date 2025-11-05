@@ -118,3 +118,42 @@ impl TieBreaker for BuildDependencyTieBreaker {
         Some(*top.0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::session::plain::PlainSession;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_build_dependency_tie_breaker_from_session() {
+        let _temp_dir = TempDir::new().unwrap();
+        let session = PlainSession::new();
+
+        // This test verifies that we can create a BuildDependencyTieBreaker
+        // Note: The actual functionality depends on APT cache being available
+        let _tie_breaker = BuildDependencyTieBreaker::from_session(&session);
+    }
+
+    #[test]
+    fn test_build_dependency_tie_breaker_count_empty() {
+        let _temp_dir = TempDir::new().unwrap();
+        let session = PlainSession::new();
+        let tie_breaker = BuildDependencyTieBreaker::from_session(&session);
+
+        // With no APT cache, count should return an empty HashMap
+        let counts = tie_breaker.count();
+        assert!(counts.is_empty());
+    }
+
+    #[test]
+    fn test_build_dependency_tie_breaker_break_tie_empty() {
+        let _temp_dir = TempDir::new().unwrap();
+        let session = PlainSession::new();
+        let tie_breaker = BuildDependencyTieBreaker::from_session(&session);
+
+        // With empty input, should return None
+        let result = tie_breaker.break_tie(&[]);
+        assert!(result.is_none());
+    }
+}
