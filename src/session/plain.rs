@@ -233,8 +233,14 @@ mod tests {
     fn test_prepend_user() {
         let session = PlainSession::new();
         let args = vec!["ls"];
+        let current_user = whoami::username();
         let args = session.prepend_user(Some("root"), args);
-        assert_eq!(args, vec!["sudo", "-u", "root", "ls"]);
+        // If we're already root, don't prepend sudo
+        if current_user == "root" {
+            assert_eq!(args, vec!["ls"]);
+        } else {
+            assert_eq!(args, vec!["sudo", "-u", "root", "ls"]);
+        }
     }
 
     #[test]

@@ -61,7 +61,7 @@ impl UnshareSession {
             Error::SetupFailure("Failed to create cache dir".to_string(), e.to_string())
         })?;
 
-        let tarball_name = format!("debian-{}-{}.tar.xz", suite, arch_name);
+        let tarball_name = format!("debian-{}-{}.tar.gz", suite, arch_name);
         let tarball_path = cache_dir.join(&tarball_name);
 
         // Check if already cached
@@ -703,7 +703,7 @@ mod tests {
     lazy_static::lazy_static! {
         static ref TEST_SESSION: std::sync::Mutex<UnshareSession> = std::sync::Mutex::new(
             create_debian_session_for_testing("sid")
-                .expect("Failed to create test session. This requires network access.\nYou can avoid this by:\n  - Pre-caching with: ogni cache-debian-image sid\n  - Setting: OGNIBUILD_DEBIAN_TEST_TARBALL=/path/to/tarball.tar.xz")
+                .expect("Failed to create test session. This requires network access.\nYou can avoid this by:\n  - Pre-caching with: ogni cache-env sid\n  - Setting: OGNIBUILD_DEBIAN_TEST_TARBALL=/path/to/tarball.tar.xz")
         );
     }
 

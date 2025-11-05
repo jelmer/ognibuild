@@ -62,6 +62,47 @@ ogni cache-env stable
 
 The cached images are stored in `~/.cache/ognibuild/images/`.
 
+To run tests without network access:
+
+1. First, cache an image and build everything (requires network):
+   ```bash
+   ogni cache-env sid
+   cargo build --all-targets
+   ```
+
+2. Run tests in a network-isolated environment (requires sudo):
+   ```bash
+   sudo CARGO_HOME=$HOME/.cargo OGNIBUILD_DEBIAN_TEST_TARBALL=$HOME/.cache/ognibuild/images/debian-sid-amd64.tar.gz unshare -n cargo test --frozen
+   ```
+
+The `CARGO_HOME` environment variable ensures cargo finds the downloaded dependencies.
+The `OGNIBUILD_DEBIAN_TEST_TARBALL` environment variable points to the cached Debian image.
+The `--frozen` flag prevents cargo from accessing the network.
+
+### Environment Variables
+
+Ognibuild respects the following environment variables:
+
+- `OGNIBUILD_DISABLE_NET` - When set to `1`, `true`, `yes`, or `on` (case-insensitive), prevents the `ogni cache-env` CLI command from downloading Debian images. Note: This only affects the CLI tool, not library code.
+- `OGNIBUILD_DEPS` - URL of the ognibuild dependency server to use for resolving dependencies.
+- `OGNIBUILD_DEBIAN_TEST_TARBALL` - Path to a custom Debian tarball to use for testing instead of downloading one.
+
+### Running Tests Without Network Access
+
+To run tests in a network-isolated environment:
+
+1. First, cache a Debian image (requires network):
+   ```bash
+   ogni cache-env sid
+   ```
+
+2. Then run tests in a network namespace (requires root or CAP_NET_ADMIN):
+   ```bash
+   sudo unshare -n -- sudo -u $USER bash -c 'cd $(pwd) && cargo test'
+   ```
+
+If no cached image exists and network is unavailable, tests will fail with a clear error message indicating that either a cached image or network access is required.
+
 ### Debugging
 
 If you run into any issues, please see [Debugging](notes/debugging.md).
