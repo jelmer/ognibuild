@@ -74,6 +74,6 @@ jobs:
       - name: Install cargo-minimal-versions
         run: cargo install cargo-minimal-versions cargo-hack
       - name: Check with minimal versions
-        run: cargo minimal-versions check --all-features
+        run: cargo minimal-versions --direct check --all-features
       - name: Test with minimal versions
-        run: cargo minimal-versions test --all-features
+        run: cargo minimal-versions --direct test --all-features
