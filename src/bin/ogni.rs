@@ -636,7 +636,7 @@ fn cache_debian_image(suite: &str, force: bool) -> Result<(), i32> {
 
     // Bootstrap a Debian session using mmdebstrap and save it
     log::info!("Bootstrapping Debian {} image using mmdebstrap...", suite);
-    match ognibuild::session::unshare::bootstrap_debian_tarball(suite) {
+    match ognibuild::session::unshare::bootstrap_debian_tarball(suite, true) {
         Ok(session) => {
             // Save the bootstrapped session to the cache
             log::info!("Saving to cache: {}", tarball_path.display());

@@ -1349,10 +1349,10 @@ mod tests {
 
         // Verify apt-file is installed and functional
         let output = session
-            .command(vec!["apt-file", "--version"])
+            .command(vec!["apt-file", "--help"])
             .output()
-            .expect("Failed to run apt-file --version");
-        assert!(output.status.success(), "apt-file --version failed");
+            .expect("Failed to run apt-file --help");
+        assert!(output.status.success(), "apt-file --help failed");
 
         // Verify apt-file cache exists (Contents files should be downloaded)
         let cache_check = session

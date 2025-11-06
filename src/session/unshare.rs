@@ -210,7 +210,7 @@ impl UnshareSession {
 
     /// Bootstrap the session environment with Debian sid
     pub fn bootstrap() -> Result<Self, crate::session::Error> {
-        bootstrap_debian_tarball("sid")
+        bootstrap_debian_tarball("sid", true)
     }
 
     /// Verify that the current user has an account in the session
@@ -445,28 +445,40 @@ pub fn create_debian_session_for_testing(
         "No cached image found, bootstrapping Debian {} test session from network using mmdebstrap",
         suite
     );
-    bootstrap_debian_tarball(suite)
+    bootstrap_debian_tarball(suite, true)
 }
 
 /// Bootstrap a Debian system using mmdebstrap and create a tarball
 ///
 /// # Arguments
 /// * `suite` - The Debian suite to use (e.g., "sid", "unstable", "bookworm", "stable")
-pub fn bootstrap_debian_tarball(suite: &str) -> Result<UnshareSession, crate::session::Error> {
+/// * `setup_apt_file` - Whether to install and configure apt-file during bootstrap (requires network)
+pub fn bootstrap_debian_tarball(suite: &str, setup_apt_file: bool) -> Result<UnshareSession, crate::session::Error> {
     let td = tempfile::tempdir().map_err(|e| {
         crate::session::Error::SetupFailure("tempdir failed".to_string(), e.to_string())
     })?;
 
     let root = td.path();
-    let status = std::process::Command::new("mmdebstrap")
-        .current_dir(root)
+
+    // Build mmdebstrap command
+    let mut cmd = std::process::Command::new("mmdebstrap");
+    cmd.current_dir(root)
         .arg("--mode=unshare")
-        .arg("--variant=minbase")
-        .arg("--quiet")
+        .arg("--variant=minbase");
+
+    // Conditionally add apt-file setup if requested
+    if setup_apt_file {
+        log::info!("Including apt-file in bootstrap (this requires network access)");
+        cmd.arg("--include=apt-file")  // Install apt-file package during bootstrap
+            .arg("--customize-hook=chroot \"$1\" apt-file update");  // Update cache (must succeed)
+    }
+
+    cmd.arg("--quiet")
         .arg(suite)
         .arg(root)
-        .arg("http://deb.debian.org/debian/")
-        .status()
+        .arg("http://deb.debian.org/debian/");
+
+    let status = cmd.status()
         .map_err(|e| {
             crate::session::Error::SetupFailure(
                 "mmdebstrap command not found or failed to execute".to_string(),
