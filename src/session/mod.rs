@@ -12,6 +12,33 @@ pub mod schroot;
 pub mod unshare;
 
 #[derive(Debug)]
+/// Errors related to image operations (downloading, caching, etc.)
+pub enum ImageError {
+    /// Cached image not found and downloading is not allowed
+    CachedImageNotFound {
+        /// Path where the image was expected to be cached
+        path: std::path::PathBuf,
+    },
+    /// Download is not available (missing feature or other reason)
+    DownloadNotAvailable {
+        /// Reason why download is not available
+        reason: String,
+    },
+    /// Architecture not supported for cloud images
+    UnsupportedArchitecture {
+        /// The unsupported architecture
+        arch: String,
+    },
+    /// Failed to download cloud image
+    DownloadFailed {
+        /// URL that failed to download
+        url: String,
+        /// Error message describing the failure
+        error: String,
+    },
+}
+
+#[derive(Debug)]
 /// Errors that can occur in a session.
 pub enum Error {
     /// Error caused by a command that exited with a non-zero status code.
@@ -20,11 +47,36 @@ pub enum Error {
     IoError(std::io::Error),
     /// Error from setting up the session, with a message and detailed description.
     SetupFailure(String, String),
+    /// Error from image operations (download, cache, etc.)
+    ImageError(ImageError),
 }
 
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
         Error::IoError(e)
+    }
+}
+
+impl std::fmt::Display for ImageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ImageError::CachedImageNotFound { path } => {
+                write!(
+                    f,
+                    "Cached image not found at {} and downloading is not allowed",
+                    path.display()
+                )
+            }
+            ImageError::DownloadNotAvailable { reason } => {
+                write!(f, "Download not available: {}", reason)
+            }
+            ImageError::UnsupportedArchitecture { arch } => {
+                write!(f, "Architecture {} not supported for cloud images", arch)
+            }
+            ImageError::DownloadFailed { url, error } => {
+                write!(f, "Failed to download from {}: {}", url, error)
+            }
+        }
     }
 }
 
@@ -34,6 +86,7 @@ impl std::fmt::Display for Error {
             Error::CalledProcessError(code) => write!(f, "CalledProcessError({})", code),
             Error::IoError(e) => write!(f, "IoError({})", e),
             Error::SetupFailure(msg, _long_description) => write!(f, "SetupFailure({})", msg),
+            Error::ImageError(e) => write!(f, "ImageError: {}", e),
         }
     }
 }

@@ -15,6 +15,38 @@ use std::path::Path;
 use std::path::PathBuf;
 use url::Url;
 
+/// Check if network access is disabled via the OGNIBUILD_DISABLE_NET environment variable.
+///
+/// Network access is disabled if OGNIBUILD_DISABLE_NET is set to "1", "true", "yes", or "on" (case-insensitive).
+///
+/// # Arguments
+/// * `env_getter` - Function to get environment variable value
+///
+/// # Returns
+/// `true` if network access should be disabled, `false` otherwise
+fn is_network_disabled_with<F>(env_getter: F) -> bool
+where
+    F: Fn(&str) -> Option<String>,
+{
+    match env_getter("OGNIBUILD_DISABLE_NET") {
+        Some(val) => {
+            let val = val.to_lowercase();
+            val == "1" || val == "true" || val == "yes" || val == "on"
+        }
+        None => false,
+    }
+}
+
+/// Check if network access is disabled via the OGNIBUILD_DISABLE_NET environment variable.
+///
+/// Network access is disabled if OGNIBUILD_DISABLE_NET is set to "1", "true", "yes", or "on" (case-insensitive).
+///
+/// # Returns
+/// `true` if network access should be disabled, `false` otherwise
+fn is_network_disabled() -> bool {
+    is_network_disabled_with(|key| std::env::var(key).ok())
+}
+
 #[derive(Parser)]
 struct ExecArgs {
     #[clap(name = "subargv", trailing_var_arg = true)]
@@ -25,6 +57,17 @@ struct ExecArgs {
 struct InstallArgs {
     #[clap(long)]
     prefix: Option<PathBuf>,
+}
+
+#[derive(Parser)]
+struct CacheEnvArgs {
+    /// Debian suite to cache (e.g., "sid", "bookworm", "stable")
+    #[clap(default_value = "sid")]
+    suite: String,
+
+    /// Force re-download even if cached
+    #[clap(long)]
+    force: bool,
 }
 
 #[derive(Subcommand)]
@@ -45,6 +88,9 @@ enum Command {
     Exec(ExecArgs),
     #[clap(name = "install")]
     Install(InstallArgs),
+    #[clap(name = "cache-env")]
+    /// Cache a Debian cloud image for use with UnshareSession
+    CacheEnv(CacheEnvArgs),
 }
 
 #[derive(Parser)]
@@ -209,6 +255,7 @@ fn run_action(
                 DependencyCategory::Test,
             ],
             Command::Exec(_) => vec![],
+            Command::CacheEnv(_) => return Ok(()), // No dependencies needed
         };
         if !categories.is_empty() {
             log::info!("Checking that declared dependencies are present");
@@ -258,6 +305,7 @@ fn run_action(
 
     match args.command.as_ref().unwrap() {
         Command::Exec(..) => unreachable!(),
+        Command::CacheEnv(..) => unreachable!(),
         Command::Dist => {
             ognibuild::actions::dist::run_dist(
                 session,
@@ -389,6 +437,11 @@ fn main() -> Result<(), i32> {
             },
         )
         .init();
+
+    // Handle cache-env command separately as it doesn't need a session
+    if let Some(Command::CacheEnv(ref cache_args)) = args.command {
+        return cache_debian_image(&cache_args.suite, cache_args.force);
+    }
 
     #[cfg(target_os = "linux")]
     let mut session: Box<dyn Session> = if let Some(schroot) = args.schroot.as_ref() {
@@ -535,4 +588,146 @@ fn main() -> Result<(), i32> {
 
     std::mem::drop(td);
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn cache_debian_image(suite: &str, force: bool) -> Result<(), i32> {
+    if is_network_disabled() {
+        eprintln!("Error: Network access is disabled (OGNIBUILD_DISABLE_NET is set)");
+        eprintln!("Cannot download Debian image without network access.");
+        return Err(1);
+    }
+
+    let arch = std::env::consts::ARCH;
+    let arch_name = match arch {
+        "x86_64" => "amd64",
+        "aarch64" => "arm64",
+        _ => {
+            eprintln!("Unsupported architecture: {}", arch);
+            return Err(1);
+        }
+    };
+
+    let cache_dir = match dirs::cache_dir() {
+        Some(dir) => dir.join("ognibuild").join("images"),
+        None => {
+            eprintln!("Cannot determine cache directory");
+            return Err(1);
+        }
+    };
+
+    if let Err(e) = std::fs::create_dir_all(&cache_dir) {
+        eprintln!("Failed to create cache directory: {}", e);
+        return Err(1);
+    }
+
+    let tarball_name = format!("debian-{}-{}.tar.gz", suite, arch_name);
+    let tarball_path = cache_dir.join(&tarball_name);
+
+    if tarball_path.exists() && !force {
+        log::info!(
+            "Debian {} image already cached at {}",
+            suite,
+            tarball_path.display()
+        );
+        log::info!("Use --force to re-download.");
+        return Ok(());
+    }
+
+    // Bootstrap a Debian session using mmdebstrap and save it
+    log::info!("Bootstrapping Debian {} image using mmdebstrap...", suite);
+    match ognibuild::session::unshare::bootstrap_debian_tarball(suite) {
+        Ok(session) => {
+            // Save the bootstrapped session to the cache
+            log::info!("Saving to cache: {}", tarball_path.display());
+            match session.save_to_tarball(&tarball_path) {
+                Ok(_) => {
+                    log::info!(
+                        "Successfully cached Debian {} image at {}",
+                        suite,
+                        tarball_path.display()
+                    );
+                    log::info!("");
+                    log::info!("This cached image will now be used automatically by tests.");
+                    log::info!("You can also explicitly use it by setting:");
+                    log::info!("  OGNIBUILD_DEBIAN_TEST_TARBALL={}", tarball_path.display());
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!("Failed to save tarball: {}", e);
+                    Err(1)
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to bootstrap image: {}", e);
+            Err(1)
+        }
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn cache_debian_image(_suite: &str, _force: bool) -> Result<(), i32> {
+    eprintln!("Error: cache-env command is only available on Linux");
+    Err(1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_network_disabled_not_set() {
+        use std::collections::HashMap;
+        let env: HashMap<String, String> = HashMap::new();
+        assert!(!is_network_disabled_with(|key| env.get(key).cloned()));
+    }
+
+    #[test]
+    fn test_is_network_disabled_true() {
+        use std::collections::HashMap;
+
+        let mut env = HashMap::new();
+        env.insert("OGNIBUILD_DISABLE_NET".to_string(), "1".to_string());
+        assert!(is_network_disabled_with(|key| env.get(key).cloned()));
+
+        env.insert("OGNIBUILD_DISABLE_NET".to_string(), "true".to_string());
+        assert!(is_network_disabled_with(|key| env.get(key).cloned()));
+
+        env.insert("OGNIBUILD_DISABLE_NET".to_string(), "TRUE".to_string());
+        assert!(is_network_disabled_with(|key| env.get(key).cloned()));
+
+        env.insert("OGNIBUILD_DISABLE_NET".to_string(), "yes".to_string());
+        assert!(is_network_disabled_with(|key| env.get(key).cloned()));
+
+        env.insert("OGNIBUILD_DISABLE_NET".to_string(), "YES".to_string());
+        assert!(is_network_disabled_with(|key| env.get(key).cloned()));
+
+        env.insert("OGNIBUILD_DISABLE_NET".to_string(), "on".to_string());
+        assert!(is_network_disabled_with(|key| env.get(key).cloned()));
+
+        env.insert("OGNIBUILD_DISABLE_NET".to_string(), "ON".to_string());
+        assert!(is_network_disabled_with(|key| env.get(key).cloned()));
+    }
+
+    #[test]
+    fn test_is_network_disabled_false() {
+        use std::collections::HashMap;
+
+        let mut env = HashMap::new();
+        env.insert("OGNIBUILD_DISABLE_NET".to_string(), "0".to_string());
+        assert!(!is_network_disabled_with(|key| env.get(key).cloned()));
+
+        env.insert("OGNIBUILD_DISABLE_NET".to_string(), "false".to_string());
+        assert!(!is_network_disabled_with(|key| env.get(key).cloned()));
+
+        env.insert("OGNIBUILD_DISABLE_NET".to_string(), "no".to_string());
+        assert!(!is_network_disabled_with(|key| env.get(key).cloned()));
+
+        env.insert("OGNIBUILD_DISABLE_NET".to_string(), "off".to_string());
+        assert!(!is_network_disabled_with(|key| env.get(key).cloned()));
+
+        env.insert("OGNIBUILD_DISABLE_NET".to_string(), "random".to_string());
+        assert!(!is_network_disabled_with(|key| env.get(key).cloned()));
+    }
 }
