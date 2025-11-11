@@ -2,7 +2,6 @@ use crate::buildlog::ToDependency;
 use crate::dependency::Dependency;
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::path::PathBuf;
 
 /// Dependency handling for autoconf-based projects.
