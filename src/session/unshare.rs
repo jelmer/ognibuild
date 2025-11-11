@@ -470,7 +470,8 @@ pub fn bootstrap_debian_tarball(suite: &str, setup_apt_file: bool) -> Result<Uns
     if setup_apt_file {
         log::info!("Including apt-file in bootstrap (this requires network access)");
         cmd.arg("--include=apt-file")  // Install apt-file package during bootstrap
-            .arg("--customize-hook=chroot \"$1\" apt-file update");  // Update cache (must succeed)
+            .arg("--customize-hook=chroot \"$1\" apt-file update")  // Download Contents files
+            .arg("--skip=cleanup/apt/lists");  // Preserve apt lists (Contents files) for apt-file
     }
 
     cmd.arg("--quiet")
