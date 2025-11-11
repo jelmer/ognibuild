@@ -73,7 +73,7 @@ breezy = ["dep:breezyshim"]
 [dev-dependencies]
 lazy_static = "1.5"
 test-log = "0.2"
-criterion = { version = "0.7", features = ["html_reports"] }
+criterion = { version = ">=0.5,<0.8", features = ["html_reports"] }
 
 [[bin]]
 name = "ognibuild-deb"
