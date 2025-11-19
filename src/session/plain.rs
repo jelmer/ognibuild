@@ -227,7 +227,7 @@ impl Session for PlainSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(any(feature="breezy", feature="debian"))]
+    #[cfg(any(feature = "breezy", feature = "debian"))]
     use breezyshim::WorkingTree;
 
     #[test]

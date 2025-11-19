@@ -73,20 +73,28 @@ struct CacheEnvArgs {
 #[derive(Subcommand)]
 enum Command {
     #[clap(name = "dist")]
+    /// Create a distribution package/tarball
     Dist,
     #[clap(name = "build")]
+    /// Build the project
     Build,
     #[clap(name = "clean")]
+    /// Clean build artifacts
     Clean,
     #[clap(name = "test")]
+    /// Run tests
     Test,
     #[clap(name = "info")]
+    /// Display build system information and dependencies
     Info,
     #[clap(name = "verify")]
+    /// Build and run tests
     Verify,
     #[clap(name = "exec")]
+    /// Execute a command with automatic dependency resolution
     Exec(ExecArgs),
     #[clap(name = "install")]
+    /// Install the project
     Install(InstallArgs),
     #[clap(name = "cache-env")]
     /// Cache a Debian cloud image for use with UnshareSession
