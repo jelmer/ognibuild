@@ -1,6 +1,6 @@
 [package]
 name = "ognibuild"
-version = "0.2.1"
+version = "0.2.2"
 authors = [ "Jelmer Vernooij <jelmer@jelmer.uk>"]
 edition = "2021"
 license = "GPL-2.0+"
@@ -13,14 +13,12 @@ default-run = "ogni"
 pyo3 = "0.27"
 breezyshim = { version = "0.7.4", optional = true }
 buildlog-consultant = { version = "0.1.1" }
-#buildlog-consultant = { path = "../buildlog-consultant" }
 upstream-ontologist = { version = "0.3.2", optional = true }
 axum = { version = "0.8", optional = true, features = ["json", "http2", "tokio"] }
 chrono = "0.4.42"
 clap = { version = "4.5", features = ["derive", "env"], optional = true }
 deb822-lossless = "0.4"
 debian-analyzer = { version = "0.160.1", optional = true }
-#debian-analyzer = { path = "../lintian-brush/analyzer", optional = true }
 debian-changelog = { version = "0.2.3", optional = true }
 debian-control = { version = "0.2", optional = true }
 apt-sources = { version = "0.1.1", optional = true }
@@ -67,13 +65,13 @@ debian = ["dep:debian-changelog", "dep:debversion", "dep:debian-control", "dep:a
 cli = ["dep:clap", "dep:env_logger"]
 udd = ["dep:sqlx", "dep:tokio", "debian"]
 dep-server = ["dep:axum", "dep:tokio"]
-upstream = ["dep:upstream-ontologist"]
+upstream = ["dep:upstream-ontologist", "dep:tokio"]
 breezy = ["dep:breezyshim"]
 
 [dev-dependencies]
 lazy_static = "1.5"
 test-log = "0.2"
-criterion = { version = "0.7", features = ["html_reports"] }
+criterion = { version = ">=0.5,<0.8", features = ["html_reports"] }
 
 [[bin]]
 name = "ognibuild-deb"
