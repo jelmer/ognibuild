@@ -453,7 +453,10 @@ pub fn create_debian_session_for_testing(
 /// # Arguments
 /// * `suite` - The Debian suite to use (e.g., "sid", "unstable", "bookworm", "stable")
 /// * `setup_apt_file` - Whether to install and configure apt-file during bootstrap (requires network)
-pub fn bootstrap_debian_tarball(suite: &str, setup_apt_file: bool) -> Result<UnshareSession, crate::session::Error> {
+pub fn bootstrap_debian_tarball(
+    suite: &str,
+    setup_apt_file: bool,
+) -> Result<UnshareSession, crate::session::Error> {
     let td = tempfile::tempdir().map_err(|e| {
         crate::session::Error::SetupFailure("tempdir failed".to_string(), e.to_string())
     })?;
@@ -469,9 +472,9 @@ pub fn bootstrap_debian_tarball(suite: &str, setup_apt_file: bool) -> Result<Uns
     // Conditionally add apt-file setup if requested
     if setup_apt_file {
         log::info!("Including apt-file in bootstrap (this requires network access)");
-        cmd.arg("--include=apt-file")  // Install apt-file package during bootstrap
-            .arg("--customize-hook=chroot \"$1\" apt-file update")  // Download Contents files
-            .arg("--skip=cleanup/apt/lists");  // Preserve apt lists (Contents files) for apt-file
+        cmd.arg("--include=apt-file") // Install apt-file package during bootstrap
+            .arg("--customize-hook=chroot \"$1\" apt-file update") // Download Contents files
+            .arg("--skip=cleanup/apt/lists"); // Preserve apt lists (Contents files) for apt-file
     }
 
     cmd.arg("--quiet")
@@ -479,13 +482,12 @@ pub fn bootstrap_debian_tarball(suite: &str, setup_apt_file: bool) -> Result<Uns
         .arg(root)
         .arg("http://deb.debian.org/debian/");
 
-    let status = cmd.status()
-        .map_err(|e| {
-            crate::session::Error::SetupFailure(
-                "mmdebstrap command not found or failed to execute".to_string(),
-                format!("Failed to run mmdebstrap (ensure it's installed): {}", e),
-            )
-        })?;
+    let status = cmd.status().map_err(|e| {
+        crate::session::Error::SetupFailure(
+            "mmdebstrap command not found or failed to execute".to_string(),
+            format!("Failed to run mmdebstrap (ensure it's installed): {}", e),
+        )
+    })?;
 
     if !status.success() {
         return Err(crate::session::Error::SetupFailure(
