@@ -22,78 +22,48 @@ fn compression_flag(path: &Path) -> Result<Option<&str>, crate::session::Error> 
     }
 }
 
+/// Get the path to a cached Debian tarball if it exists
+///
+/// # Arguments
+/// * `suite` - The Debian suite to use (e.g., "sid", "bookworm")
+///
+/// # Returns
+/// * `Option<PathBuf>` - Path to the cached tarball if it exists
+pub fn cached_debian_tarball_path(suite: &str) -> Result<PathBuf, crate::session::Error> {
+    let arch = std::env::consts::ARCH;
+    let arch_name = match arch {
+        "x86_64" => "amd64",
+        "aarch64" => "arm64",
+        other => other,
+    };
+
+    // Use ~/.cache/ognibuild/images/ for caching
+    let base_cache_dir = dirs::cache_dir()
+        .ok_or_else(|| crate::session::Error::ImageError(ImageError::NoCachedImage))?;
+    let cache_dir = base_cache_dir.join("ognibuild").join("images");
+
+    let tarball_name = format!("debian-{}-{}.tar.gz", suite, arch_name);
+    Ok(cache_dir.join(&tarball_name))
+}
+
 impl UnshareSession {
     /// Create a cached Debian session from a cloud image
     ///
     /// Looks for a cached tarball in ~/.cache/ognibuild/images/debian-{suite}-{arch}.tar.xz
-    /// If not found and allow_download is true, downloads it from cdimage.debian.org (requires 'debian' feature)
-    ///
     /// # Arguments
     /// * `suite` - The Debian suite to use (e.g., "sid", "bookworm")
-    /// * `allow_download` - Whether to download the image if not cached (requires 'debian' feature)
-    pub fn cached_debian_session(
-        suite: &str,
-        allow_download: bool,
-    ) -> Result<Self, crate::session::Error> {
-        let arch = std::env::consts::ARCH;
-        let arch_name = match arch {
-            "x86_64" => "amd64",
-            "aarch64" => "arm64",
-            _ => {
-                return Err(Error::ImageError(ImageError::UnsupportedArchitecture {
-                    arch: arch.to_string(),
-                }))
-            }
-        };
-
-        // Use ~/.cache/ognibuild/images/ for caching
-        let cache_dir = dirs::cache_dir()
-            .ok_or_else(|| {
-                Error::SetupFailure(
-                    "Cannot determine cache directory".to_string(),
-                    "Unable to find user cache directory".to_string(),
-                )
-            })?
-            .join("ognibuild")
-            .join("images");
-
-        std::fs::create_dir_all(&cache_dir).map_err(|e| {
-            Error::SetupFailure("Failed to create cache dir".to_string(), e.to_string())
-        })?;
-
-        let tarball_name = format!("debian-{}-{}.tar.gz", suite, arch_name);
-        let tarball_path = cache_dir.join(&tarball_name);
-
-        // Check if already cached
+    pub fn cached_debian_session(suite: &str) -> Result<Self, crate::session::Error> {
+        let tarball_path = cached_debian_tarball_path(suite)?;
         if !tarball_path.exists() {
-            if !allow_download {
-                return Err(Error::ImageError(ImageError::CachedImageNotFound {
-                    path: tarball_path,
-                }));
-            }
-
-            #[cfg(feature = "debian")]
-            {
-                log::info!("Cached Debian {} image not found, downloading...", suite);
-                download_debian_cloud_image(suite, &tarball_path)?;
-            }
-
-            #[cfg(not(feature = "debian"))]
-            {
-                return Err(Error::ImageError(ImageError::DownloadNotAvailable {
-                    reason: "Downloading cloud images requires the 'debian' feature to be enabled"
-                        .to_string(),
-                }));
-            }
+            Err(Error::ImageError(ImageError::NoCachedImage))
         } else {
             log::info!(
                 "Using cached Debian {} image from: {}",
                 suite,
                 tarball_path.display()
             );
+            Self::from_tarball(&tarball_path)
         }
-
-        Self::from_tarball(&tarball_path)
     }
 
     /// Create a session from a tarball
@@ -333,68 +303,6 @@ impl UnshareSession {
     }
 }
 
-/// Download a Debian cloud image tarball
-///
-/// Downloads from cdimage.debian.org to the specified path
-///
-/// # Arguments
-/// * `suite` - The Debian suite to use (e.g., "sid", "bookworm")
-/// * `tarball_path` - Path where the tarball should be saved
-#[cfg(feature = "debian")]
-pub fn download_debian_cloud_image(
-    suite: &str,
-    tarball_path: &Path,
-) -> Result<(), crate::session::Error> {
-    let arch = std::env::consts::ARCH;
-    let arch_name = match arch {
-        "x86_64" => "amd64",
-        "aarch64" => "arm64",
-        _ => {
-            return Err(Error::ImageError(ImageError::UnsupportedArchitecture {
-                arch: arch.to_string(),
-            }))
-        }
-    };
-
-    let tarball_name = format!("debian-{}-generic-{}-daily.tar.xz", suite, arch_name);
-    let url = format!(
-        "https://cdimage.debian.org/images/cloud/{}/daily/latest/{}",
-        suite, tarball_name
-    );
-
-    log::info!("Downloading Debian {} cloud image from {}...", suite, url);
-
-    // Download the file using reqwest blocking client
-    let client = reqwest::blocking::Client::new();
-    let mut response = client.get(&url).send().map_err(|e| {
-        Error::ImageError(ImageError::DownloadFailed {
-            url: url.clone(),
-            error: e.to_string(),
-        })
-    })?;
-
-    if !response.status().is_success() {
-        return Err(Error::ImageError(ImageError::DownloadFailed {
-            url: url.clone(),
-            error: format!("Server returned status {}", response.status()),
-        }));
-    }
-
-    let mut file = std::fs::File::create(tarball_path).map_err(|e| {
-        Error::SetupFailure("Failed to create tarball file".to_string(), e.to_string())
-    })?;
-
-    std::io::copy(&mut response, &mut file)
-        .map_err(|e| Error::SetupFailure("Failed to write tarball".to_string(), e.to_string()))?;
-
-    log::info!(
-        "Debian {} cloud image downloaded to: {}",
-        suite,
-        tarball_path.display()
-    );
-    Ok(())
-}
-
 /// Create a Debian UnshareSession for testing, with fallback options
 ///
 /// This function tries the following in order:
@@ -406,6 +314,7 @@ pub fn download_debian_cloud_image(
 /// * `suite` - The Debian suite to use (e.g., "sid", "unstable", "bookworm", "stable")
 pub fn create_debian_session_for_testing(
     suite: &str,
+    allow_network: bool,
 ) -> Result<UnshareSession, crate::session::Error> {
     // Check if a custom tarball path is provided for testing
     if let Ok(tarball_path) = std::env::var("OGNIBUILD_DEBIAN_TEST_TARBALL") {
@@ -428,16 +337,24 @@ pub fn create_debian_session_for_testing(
     }
 
     // Try to use cached session first (without downloading if not present)
-    match UnshareSession::cached_debian_session(suite, false) {
+    match UnshareSession::cached_debian_session(suite) {
         Ok(session) => {
             log::info!("Using cached Debian {} image", suite);
             return Ok(session);
         }
+        Err(Error::ImageError(ImageError::NoCachedImage)) => {
+            log::debug!("No cached image available for Debian {}", suite);
+            // Continue to next option: bootstrap from network
+        }
         Err(Error::ImageError(ImageError::CachedImageNotFound { path })) => {
-            log::debug!("No cached image found at {}", path.display());
+            log::debug!("Cached image not found at {}", path.display());
             // Continue to next option: bootstrap from network
         }
         Err(e) => return Err(e), // Other errors should propagate
+    }
+
+    if !allow_network {
+        return Err(Error::ImageError(ImageError::NoCachedImage));
     }
 
     // Default: bootstrap from network
@@ -712,32 +629,34 @@ impl Session for UnshareSession {
 }
 
 #[cfg(test)]
+lazy_static::lazy_static! {
+    static ref TEST_SESSION: std::sync::Mutex<UnshareSession> = std::sync::Mutex::new(
+        create_debian_session_for_testing("sid", false)
+            .expect("Failed to create test session. This requires network access.\nYou can avoid this by:\n  - Pre-caching with: ogni cache-env sid\n  - Setting: OGNIBUILD_DEBIAN_TEST_TARBALL=/path/to/tarball.tar.xz")
+    );
+}
+
+#[cfg(test)]
+pub(crate) fn test_session() -> Option<std::sync::MutexGuard<'static, UnshareSession>> {
+    // Don't run tests if we're in github actions (CI environment restrictions)
+    if std::env::var("GITHUB_ACTIONS").is_ok() {
+        return None;
+    }
+    // Handle poisoned mutex: if a previous test panicked while holding the lock,
+    // we recover the guard to allow tests to continue
+    match TEST_SESSION.lock() {
+        Ok(guard) => Some(guard),
+        Err(poisoned) => {
+            // Recover from poisoned mutex - this is safe because UnshareSession
+            // doesn't have invalid states that could cause issues after a panic
+            Some(poisoned.into_inner())
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-
-    lazy_static::lazy_static! {
-        static ref TEST_SESSION: std::sync::Mutex<UnshareSession> = std::sync::Mutex::new(
-            create_debian_session_for_testing("sid")
-                .expect("Failed to create test session. This requires network access.\nYou can avoid this by:\n  - Pre-caching with: ogni cache-env sid\n  - Setting: OGNIBUILD_DEBIAN_TEST_TARBALL=/path/to/tarball.tar.xz")
-        );
-    }
-
-    fn test_session() -> Option<std::sync::MutexGuard<'static, UnshareSession>> {
-        // Don't run tests if we're in github actions (CI environment restrictions)
-        if std::env::var("GITHUB_ACTIONS").is_ok() {
-            return None;
-        }
-        // Handle poisoned mutex: if a previous test panicked while holding the lock,
-        // we recover the guard to allow tests to continue
-        match TEST_SESSION.lock() {
-            Ok(guard) => Some(guard),
-            Err(poisoned) => {
-                // Recover from poisoned mutex - this is safe because UnshareSession
-                // doesn't have invalid states that could cause issues after a panic
-                Some(poisoned.into_inner())
-            }
-        }
-    }
 
     #[test]
     fn test_is_temporary() {
@@ -948,7 +867,7 @@ mod tests {
     fn test_cached_debian_session_no_download() {
         // Test that cached_debian_session returns the correct error when download is not allowed
         // and no cached file exists
-        let result = UnshareSession::cached_debian_session("test-suite-nonexistent", false);
+        let result = UnshareSession::cached_debian_session("test-suite-nonexistent");
         assert!(result.is_err());
         if let Err(err) = result {
             assert!(
@@ -956,6 +875,7 @@ mod tests {
                     err,
                     crate::session::Error::ImageError(
                         crate::session::ImageError::CachedImageNotFound { .. }
+                            | crate::session::ImageError::NoCachedImage
                     )
                 ),
                 "Expected CachedImageNotFound error, got {:?}",
@@ -973,7 +893,7 @@ mod tests {
             return;
         }
 
-        let result = UnshareSession::cached_debian_session("sid", false);
+        let result = UnshareSession::cached_debian_session("sid");
         assert!(result.is_err());
         if let Err(err) = result {
             assert!(
@@ -1005,7 +925,7 @@ mod tests {
         );
 
         // This should attempt to use the tarball (will fail because it's not valid, but that's ok)
-        let result = create_debian_session_for_testing("sid");
+        let result = create_debian_session_for_testing("sid", false);
 
         // Clean up
         std::env::remove_var("OGNIBUILD_DEBIAN_TEST_TARBALL");
@@ -1031,7 +951,7 @@ mod tests {
             "/nonexistent/path/tarball.tar.xz",
         );
 
-        let result = create_debian_session_for_testing("sid");
+        let result = create_debian_session_for_testing("sid", false);
 
         std::env::remove_var("OGNIBUILD_DEBIAN_TEST_TARBALL");
 
@@ -1055,7 +975,7 @@ mod tests {
     #[test]
     fn test_cached_debian_session_no_debian_feature() {
         // When debian feature is not enabled, downloading should return DownloadNotAvailable error
-        let result = UnshareSession::cached_debian_session("sid", true);
+        let result = UnshareSession::cached_debian_session("sid");
 
         // If the cache doesn't exist, it should fail with DownloadNotAvailable
         // (assuming the cache doesn't exist for this test)

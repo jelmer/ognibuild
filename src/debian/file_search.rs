@@ -1334,7 +1334,7 @@ mod tests {
             if std::env::var("GITHUB_ACTIONS").is_ok() {
                 return None;
             }
-            create_debian_session_for_testing("sid").ok()
+            create_debian_session_for_testing("sid", false).ok()
         }
 
         let session = if let Some(session) = test_session() {

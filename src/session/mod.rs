@@ -14,11 +14,13 @@ pub mod unshare;
 #[derive(Debug)]
 /// Errors related to image operations (downloading, caching, etc.)
 pub enum ImageError {
-    /// Cached image not found and downloading is not allowed
+    /// Cached image specified was not found and downloading is not allowed
     CachedImageNotFound {
         /// Path where the image was expected to be cached
         path: std::path::PathBuf,
     },
+    /// There is no cached image
+    NoCachedImage,
     /// Download is not available (missing feature or other reason)
     DownloadNotAvailable {
         /// Reason why download is not available
@@ -60,6 +62,9 @@ impl From<std::io::Error> for Error {
 impl std::fmt::Display for ImageError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            ImageError::NoCachedImage => {
+                write!(f, "No cached image available")
+            }
             ImageError::CachedImageNotFound { path } => {
                 write!(
                     f,
