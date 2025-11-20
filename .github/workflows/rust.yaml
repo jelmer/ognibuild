@@ -14,7 +14,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ['ubuntu-24.04', macos-latest]
+        os: ['ubuntu-latest', macos-latest]
       fail-fast: false
 
     steps:
@@ -24,13 +24,13 @@ jobs:
         with:
           python-version: "3.x"
       - name: Update apt cache
-        if: matrix.os == 'ubuntu-24.04'
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update
       - name: Install Debian tools on Ubuntu
-        if: matrix.os == 'ubuntu-24.04'
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get install -y mmdebstrap
       - name: Install system breezy and libapt-pkg-dev
-        if: matrix.os == 'ubuntu-24.04'
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get install -y brz libapt-pkg-dev libpcre3-dev
       - name: Install breezy
         run: pip install breezy
@@ -38,22 +38,22 @@ jobs:
         run: pip install \
             git+https://github.com/breezy-team/breezy-debian \
             python_apt@git+https://salsa.debian.org/apt-team/python-apt
-        if: matrix.os == 'ubuntu-24.04'
+        if: matrix.os == 'ubuntu-latest'
       - name: Build
         run: cargo build --verbose
       - name: Run tests
         # Exclude debian features:
         run: cargo test --verbose --no-default-features --features=breezy,dep-server,upstream
-        if: matrix.os != 'ubuntu-24.04'
+        if: matrix.os != 'ubuntu-latest'
       - name: Run tests
         run: cargo test --verbose
-        if: matrix.os == 'ubuntu-24.04'
+        if: matrix.os == 'ubuntu-latest'
       - name: Run tests (with Debian feature)
         run: cargo test --verbose --features=debian
-        if: matrix.os == 'ubuntu-24.04'
+        if: matrix.os == 'ubuntu-latest'
 
   minimal-versions:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v5
