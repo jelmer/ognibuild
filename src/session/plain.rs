@@ -382,6 +382,9 @@ mod tests {
     #[cfg(feature = "breezy")]
     #[test]
     fn test_project_from_vcs() {
+        // Trigger loading of test session before we mess up HOME
+        #[cfg(target_os = "linux")]
+        crate::session::unshare::test_session();
         use breezyshim::tree::MutableTree;
         let env = breezyshim::testing::TestEnv::new();
         let session = PlainSession::new();
