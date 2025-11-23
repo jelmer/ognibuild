@@ -40,7 +40,7 @@ pub const DEFAULT_BUILDER: &str = "sbuild --no-clean-source";
 /// # Returns
 /// The path to the Python interpreter as a String.
 fn python_command() -> String {
-    pyo3::Python::with_gil(|py| {
+    pyo3::Python::attach(|py| {
         use pyo3::types::PyAnyMethods;
         let sys_module = py.import("sys").unwrap();
         sys_module
