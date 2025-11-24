@@ -152,7 +152,7 @@ fn enable_dh_autoreconf(context: &DebianPackagingContext, phase: &Phase) -> Resu
     let mut modified = false;
 
     let rules = context.edit_rules()?;
-    for rule in rules.rules_by_target("%") {
+    for mut rule in rules.rules_by_target("%") {
         for (i, line) in rule.recipes().enumerate() {
             if !line.starts_with("dh ") {
                 continue;
@@ -217,7 +217,7 @@ fn fix_missing_config_status_input(
         return Ok(false);
     }
 
-    let rule = rules.add_rule("override_dh_autoreconf");
+    let mut rule = rules.add_rule("override_dh_autoreconf");
     rule.push_command("dh_autoreconf ./autogen.sh");
 
     rules.commit()?;

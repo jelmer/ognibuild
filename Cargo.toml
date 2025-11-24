@@ -33,7 +33,7 @@ libc = "0.2.172"
 log = "0.4.21"
 lz4_flex = { version = ">=0.11", optional = true }
 lzma-rs = { version = "0.3.0", optional = true }
-makefile-lossless = "0.2.1"
+makefile-lossless = ">=0.2.1,<0.4"
 maplit = "1.0.2"
 nix = { version = ">=0.27.0", features = ["user"] }
 pep508_rs = "0.9.1"
