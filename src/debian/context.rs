@@ -429,7 +429,7 @@ Description: A python package
         assert_eq!(
             control,
             r###"Source: blah
-Build-Depends: libc6, foo
+Build-Depends: foo, libc6
 
 Package: python-blah
 Depends: ${python3:Depends}
