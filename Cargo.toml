@@ -17,10 +17,10 @@ upstream-ontologist = { version = "0.3.2", optional = true }
 axum = { version = "0.8", optional = true, features = ["json", "http2", "tokio"] }
 chrono = "0.4.42"
 clap = { version = "4.5", features = ["derive", "env"], optional = true }
-deb822-lossless = "0.4"
+deb822-lossless = "0.4.7"
 debian-analyzer = { version = "0.160.1", optional = true }
 debian-changelog = { version = "0.2.3", optional = true }
-debian-control = { version = "0.2", optional = true }
+debian-control = { version = "0.2.7", optional = true }
 apt-sources = { version = "0.1.1", optional = true }
 debversion = { version = "0.5", optional = true }
 env_logger = { version = ">=0.10", optional = true }
