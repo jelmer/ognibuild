@@ -817,9 +817,9 @@ dependencies = [
 
 [[package]]
 name = "deb822-lossless"
-version = "0.5.3"
+version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbaa2e19fc1519e3be87cd23054a1633f4ff542924614d818df6f490cd3da7ac"
+checksum = "c4b7d08154e599ffe6652ff71969763c70a93e2acc3cd9c274e576028fddd4f1"
 dependencies = [
  "pyo3",
  "regex",
@@ -845,9 +845,9 @@ dependencies = [
 
 [[package]]
 name = "debian-analyzer"
-version = "0.160.10"
+version = "0.160.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0415e18e3efa3d81ad3957dbca2f935f0996410023d26081ab99bb0a4f352e7f"
+checksum = "fc57ca17843adbe374196d5500c5774db491db3c8cbb6da49a8564c7d09b52a4"
 dependencies = [
  "breezyshim",
  "chrono",
@@ -884,9 +884,9 @@ dependencies = [
 
 [[package]]
 name = "debian-changelog"
-version = "0.2.11"
+version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30c13e88d83cd2b4dffeda6ead980e5c5f8b6672ccafa0ff928c82c860625c2c"
+checksum = "9c01357a0eef65077fc38f22457cd1664b7f45700d12bf9bff146b8d160263be"
 dependencies = [
  "chrono",
  "debversion",
@@ -899,9 +899,9 @@ dependencies = [
 
 [[package]]
 name = "debian-control"
-version = "0.2.12"
+version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71a355d46e669ed0b4308821f47906f3993de6ae204cc8a85aafb27e6ccd66f5"
+checksum = "e1a790dbd18253b2d1e18284bee94d75676bbfa84ca130bd6f319e772c0fbcec"
 dependencies = [
  "chrono",
  "deb822-fast",
@@ -915,9 +915,9 @@ dependencies = [
 
 [[package]]
 name = "debian-copyright"
-version = "0.1.39"
+version = "0.1.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc51b8576a7bc3052d138d7777f4843cfdfcdf9fd97bd4926ed054f5b9a59a30"
+checksum = "a5eeb778309b1f76995b1cbcdc0fbc5f51927d6adb62b090e518467d9fb0a391"
 dependencies = [
  "deb822-fast",
  "deb822-lossless",
@@ -927,9 +927,9 @@ dependencies = [
 
 [[package]]
 name = "debian-watch"
-version = "0.2.17"
+version = "0.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e9e084b8cc8bcc7a8e9962cc73a91e43eb462f36b06b55b3dfebecdc249a317"
+checksum = "768cf538101583d708e872964dded949ab6730969f0d8ed479657505b158fa79"
 dependencies = [
  "debversion",
  "m_lexer",
@@ -2167,9 +2167,9 @@ checksum = "7aedcccd01fc5fe81e6b489c15b247b8b0690feb23304303a9e560f37efc560a"
 
 [[package]]
 name = "icu_properties"
-version = "2.1.1"
+version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e93fcd3157766c0c8da2f8cff6ce651a31f0810eaa1c51ec363ef790bbb5fb99"
+checksum = "020bfc02fe870ec3a66d93e677ccca0562506e5872c650f893269e08615d74ec"
 dependencies = [
  "icu_collections",
  "icu_locale_core",
@@ -2181,9 +2181,9 @@ dependencies = [
 
 [[package]]
 name = "icu_properties_data"
-version = "2.1.1"
+version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02845b3647bb045f1100ecd6480ff52f34c35f82d9880e029d329c21d1054899"
+checksum = "616c294cf8d725c6afcd8f55abc17c56464ef6211f9ed59cccffe534129c77af"
 
 [[package]]
 name = "icu_provider"
@@ -3714,9 +3714,9 @@ checksum = "7a2d987857b319362043e95f5353c0535c1f58eec5336fdfcf626430af7def58"
 
 [[package]]
 name = "reqwest"
-version = "0.12.24"
+version = "0.12.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d0946410b9f7b082a427e4ef5c8ff541a88b357bc6c637c40db3a68ac70a36f"
+checksum = "b6eff9328d40131d43bd911d42d79eb6a47312002a4daefc9e37f17e74a7701a"
 dependencies = [
  "base64",
  "bytes",
@@ -4160,9 +4160,9 @@ dependencies = [
 
 [[package]]
 name = "simd-adler32"
-version = "0.3.7"
+version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
+checksum = "e320a6c5ad31d271ad523dcf3ad13e2767ad8b1cb8f047f75a8aeaf8da139da2"
 
 [[package]]
 name = "siphasher"
@@ -4940,9 +4940,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf146f99d442e8e68e585f5d798ccd3cad9a7835b917e09728880a862706456"
+checksum = "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8"
 dependencies = [
  "bitflags 2.10.0",
  "bytes",
