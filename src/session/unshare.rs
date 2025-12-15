@@ -959,7 +959,7 @@ mod tests {
         if let Err(err) = result {
             // Should be a SetupFailure about non-existent file
             match err {
-                crate::session::Error::SetupFailure(msg, detail) => {
+                crate::session::Error::SetupFailure(_msg, detail) => {
                     assert!(
                         detail.contains("non-existent file"),
                         "Expected error about non-existent file, got: {}",
