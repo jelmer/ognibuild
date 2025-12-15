@@ -845,9 +845,9 @@ dependencies = [
 
 [[package]]
 name = "debian-analyzer"
-version = "0.160.11"
+version = "0.160.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc57ca17843adbe374196d5500c5774db491db3c8cbb6da49a8564c7d09b52a4"
+checksum = "bd24324c91994309fbf9ce624e5e7c07f0f7e5d80c38973bf12eb9e293833fe2"
 dependencies = [
  "breezyshim",
  "chrono",
@@ -884,9 +884,9 @@ dependencies = [
 
 [[package]]
 name = "debian-changelog"
-version = "0.2.13"
+version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c01357a0eef65077fc38f22457cd1664b7f45700d12bf9bff146b8d160263be"
+checksum = "b1b2dbdd00d57ff463e85d76ff81c1f28e64d8412d01ef5ae9bcd041eea982f9"
 dependencies = [
  "chrono",
  "debversion",
@@ -2356,9 +2356,9 @@ dependencies = [
 
 [[package]]
 name = "jiff-tzdb"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1283705eb0a21404d2bfd6eef2a7593d240bc42a0bdb39db0ad6fa2ec026524"
+checksum = "68971ebff725b9e2ca27a601c5eb38a4c5d64422c4cbab0c535f248087eda5c2"
 
 [[package]]
 name = "jiff-tzdb-platform"
@@ -2497,9 +2497,9 @@ dependencies = [
 
 [[package]]
 name = "libz-rs-sys"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b484ba8d4f775eeca644c452a56650e544bf7e617f1d170fe7298122ead5222"
+checksum = "15413ef615ad868d4d65dce091cb233b229419c7c0c4bcaa746c0901c49ff39c"
 dependencies = [
  "zlib-rs",
 ]
@@ -2578,9 +2578,9 @@ dependencies = [
 
 [[package]]
 name = "makefile-lossless"
-version = "0.3.19"
+version = "0.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "495df8728872b6ba77e496263992d2cfafbb671fbbefbd0328d827191a363933"
+checksum = "e78fb71eeb0d61e8c08be8aea87bbafbb03fcd9ebdef916be858cc7632130425"
 dependencies = [
  "log",
  "rowan",
@@ -5907,9 +5907,9 @@ dependencies = [
 
 [[package]]
 name = "zlib-rs"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36134c44663532e6519d7a6dfdbbe06f6f8192bde8ae9ed076e9b213f0e31df7"
+checksum = "51f936044d677be1a1168fae1d03b583a285a5dd9d8cbf7b24c23aa1fc775235"
 
 [[package]]
 name = "zopfli"
