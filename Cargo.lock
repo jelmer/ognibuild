@@ -390,7 +390,7 @@ dependencies = [
  "serde",
  "tempfile",
  "url",
- "whoami",
+ "whoami 1.6.1",
 ]
 
 [[package]]
@@ -953,7 +953,7 @@ dependencies = [
  "log",
  "rowan",
  "textwrap",
- "whoami",
+ "whoami 1.6.1",
 ]
 
 [[package]]
@@ -2993,7 +2993,7 @@ dependencies = [
  "toml_edit",
  "upstream-ontologist",
  "url",
- "whoami",
+ "whoami 2.1.0",
  "xmltree 0.12.0",
 ]
 
@@ -4594,7 +4594,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.18",
  "tracing",
- "whoami",
+ "whoami 1.6.1",
 ]
 
 [[package]]
@@ -4631,7 +4631,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.18",
  "tracing",
- "whoami",
+ "whoami 1.6.1",
 ]
 
 [[package]]
@@ -5649,6 +5649,15 @@ dependencies = [
  "libredox",
  "wasite",
  "web-sys",
+]
+
+[[package]]
+name = "whoami"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fae98cf96deed1b7572272dfc777713c249ae40aa1cf8862e091e8b745f5361"
+dependencies = [
+ "libredox",
 ]
 
 [[package]]
