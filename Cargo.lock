@@ -937,7 +937,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "tempfile",
- "toml_edit 0.24.0+spec-1.1.0",
+ "toml_edit",
  "url",
 ]
 
@@ -2943,7 +2943,7 @@ dependencies = [
 
 [[package]]
 name = "ognibuild"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "apt-sources",
  "axum",
@@ -2990,7 +2990,7 @@ dependencies = [
  "test-log",
  "tokio",
  "toml 0.9.11+spec-1.1.0",
- "toml_edit 0.23.10+spec-1.0.0",
+ "toml_edit",
  "upstream-ontologist",
  "url",
  "whoami",
@@ -5144,19 +5144,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347"
 dependencies = [
  "serde_core",
-]
-
-[[package]]
-name = "toml_edit"
-version = "0.23.10+spec-1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84c8b9f757e028cee9fa244aea147aab2a9ec09d5325a9b01e0a49730c2b5269"
-dependencies = [
- "indexmap",
- "toml_datetime",
- "toml_parser",
- "toml_writer",
- "winnow",
 ]
 
 [[package]]

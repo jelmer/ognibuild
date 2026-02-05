@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use breezyshim::branch::Branch;
 use ognibuild::analyze::AnalyzedError;
 use ognibuild::buildsystem::{
     detect_buildsystems, supported_buildsystem_names, BuildSystem, DependencyCategory, Error,
@@ -471,7 +472,7 @@ fn main() -> Result<(), i32> {
     // TODO(jelmer): Get a list of supported schemes from breezy?
     #[cfg(feature = "breezy")]
     let project = if ["git", "http", "https", "ssh"].contains(&url.scheme()) {
-        let b = breezyshim::branch::open(&url).unwrap();
+        let b = breezyshim::branch::open_as_generic(&url).unwrap();
         log::info!("Cloning {}", args.directory);
         td = Some(tempfile::tempdir().unwrap());
         let to_dir = b
