@@ -52,8 +52,8 @@ sqlx = { version = "0.8.6", optional = true, features = ["postgres", "runtime-to
 stackdriver_logger = { version = "0.8.2", optional = true }
 tempfile = "3.26"
 tokio = { version = "1.47.1", features = ["full"], optional = true }
-toml = "0.9.8"
-toml_edit = ">=0.23,<0.25"
+toml = ">=0.9.8,<2"
+toml_edit = ">=0.23,<0.26"
 url = "2.5.4"
 whoami = { version = "2.1", default-features = false }
 xmltree = ">=0.11,<0.13"

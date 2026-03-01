@@ -186,7 +186,12 @@ impl UnshareSession {
     /// Verify that the current user has an account in the session
     pub fn ensure_current_user(&self) -> Result<(), crate::session::Error> {
         // Ensure that the current user has an entry in /etc/passwd
-        let user = whoami::username();
+        let user = whoami::username().map_err(|e| {
+            crate::session::Error::SetupFailure(
+                "Failed to get current username".to_string(),
+                e.to_string(),
+            )
+        })?;
         let uid = nix::unistd::getuid().to_string();
         let gid = nix::unistd::getgid().to_string();
 
