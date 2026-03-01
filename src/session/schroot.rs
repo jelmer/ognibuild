@@ -2,7 +2,7 @@ use crate::session::{CommandBuilder, Error, Project, Session};
 use std::io::{BufRead, Read};
 
 extern crate rand;
-use rand::Rng;
+use rand::distr::{Alphanumeric, Distribution};
 use std::iter;
 
 /// Sanitize the session name
@@ -14,9 +14,10 @@ pub fn sanitize_session_name(name: &str) -> String {
 
 /// Generate a session
 pub fn generate_session_id(prefix: &str) -> String {
+    let mut rng = rand::rng();
     let suffix: String = String::from_utf8(
         iter::repeat(())
-            .map(|()| rand::rng().sample(rand::distr::Alphanumeric))
+            .map(|()| Alphanumeric.sample(&mut rng))
             .take(8)
             .collect(),
     )

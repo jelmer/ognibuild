@@ -26,8 +26,16 @@ impl PlainSession {
 
     fn prepend_user<'a>(&'a self, user: Option<&'a str>, mut args: Vec<&'a str>) -> Vec<&'a str> {
         if let Some(user) = user {
-            if user != whoami::username() {
-                args = vec!["sudo", "-u", user].into_iter().chain(args).collect();
+            match whoami::username() {
+                Ok(current_user) => {
+                    if user != current_user {
+                        args = vec!["sudo", "-u", user].into_iter().chain(args).collect();
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Failed to get current username: {}, assuming user switch is needed", e);
+                    args = vec!["sudo", "-u", user].into_iter().chain(args).collect();
+                }
             }
         }
         args
@@ -234,7 +242,7 @@ mod tests {
     fn test_prepend_user() {
         let session = PlainSession::new();
         let args = vec!["ls"];
-        let current_user = whoami::username();
+        let current_user = whoami::username().expect("Failed to get current username");
         let args = session.prepend_user(Some("root"), args);
         // If we're already root, don't prepend sudo
         if current_user == "root" {
@@ -256,7 +264,7 @@ mod tests {
     fn test_prepend_user_current_user() {
         let session = PlainSession::new();
         let args = vec!["ls"];
-        let username = whoami::username();
+        let username = whoami::username().expect("Failed to get current username");
         let args = session.prepend_user(Some(username.as_str()), args);
         assert_eq!(args, vec!["ls"]);
     }
