@@ -940,7 +940,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "tempfile",
- "toml_edit 0.24.1+spec-1.1.0",
+ "toml_edit",
  "url",
 ]
 
@@ -2972,7 +2972,7 @@ dependencies = [
 
 [[package]]
 name = "ognibuild"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "apt-sources",
  "axum",
@@ -2984,7 +2984,7 @@ dependencies = [
  "deb822-lossless",
  "debian-analyzer",
  "debian-changelog",
- "debian-control 0.3.0",
+ "debian-control 0.2.17",
  "debversion",
  "dirs",
  "env_logger 0.11.9",
@@ -3007,7 +3007,7 @@ dependencies = [
  "r-description",
  "rand 0.10.0",
  "regex",
- "reqwest 0.13.2",
+ "reqwest 0.12.28",
  "semver",
  "serde",
  "serde_json",
@@ -3018,12 +3018,12 @@ dependencies = [
  "tempfile",
  "test-log",
  "tokio",
- "toml 1.0.3+spec-1.1.0",
- "toml_edit 0.25.3+spec-1.1.0",
+ "toml 0.9.12+spec-1.1.0",
+ "toml_edit",
  "upstream-ontologist",
  "url",
  "whoami 2.1.1",
- "xmltree 0.12.0",
+ "xmltree 0.11.0",
 ]
 
 [[package]]
@@ -5244,19 +5244,6 @@ checksum = "01f2eadbbc6b377a847be05f60791ef1058d9f696ecb51d2c07fe911d8569d8e"
 dependencies = [
  "indexmap",
  "toml_datetime 0.7.5+spec-1.1.0",
- "toml_parser",
- "toml_writer",
- "winnow",
-]
-
-[[package]]
-name = "toml_edit"
-version = "0.25.3+spec-1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0a07913e63758bc95142d9863a5a45173b71515e68b690cad70cf99c3255ce1"
-dependencies = [
- "indexmap",
- "toml_datetime 1.0.0+spec-1.1.0",
  "toml_parser",
  "toml_writer",
  "winnow",
