@@ -879,9 +879,9 @@ dependencies = [
 
 [[package]]
 name = "deb822-lossless"
-version = "0.5.8"
+version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e25a82acbb59f93c4b2bb389e1fea66f5c81393ab7d1c6df3bfb58554fd93b00"
+checksum = "98649a39dbeaacd4696f96a6ef6a8637f471294a0b4fecff8dbc2c2f91685cb4"
 dependencies = [
  "pyo3",
  "regex",
@@ -946,9 +946,9 @@ dependencies = [
 
 [[package]]
 name = "debian-changelog"
-version = "0.2.14"
+version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1b2dbdd00d57ff463e85d76ff81c1f28e64d8412d01ef5ae9bcd041eea982f9"
+checksum = "c54dc825b416cb3e80a9dbde13ae400ab8b8a7388bac6dc2ef4a159d0396b043"
 dependencies = [
  "chrono",
  "debversion",
@@ -989,9 +989,9 @@ dependencies = [
 
 [[package]]
 name = "debian-watch"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfa2ef0588ff9174e9eda4f4e0016870df20d2b305a7eb6bde04d26a223d7663"
+checksum = "82d951dc7955b06d27bd303c72f5b37b604e593cd8c6a9ee4bf744ed97037403"
 dependencies = [
  "clap",
  "deb822-lossless",
@@ -5105,9 +5105,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "2.6.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af407857209536a95c8e56f8231ef2c2e2aff839b22e07a1ffcbc617e9db9fa5"
+checksum = "5c55a2eff8b69ce66c84f85e1da1c233edc36ceb85a2058d11b0d6a3c7e7569c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6465,9 +6465,9 @@ dependencies = [
 
 [[package]]
 name = "zlib-rs"
-version = "0.6.2"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c745c48e1007337ed136dc99df34128b9faa6ed542d80a1c673cf55a6d7236c8"
+checksum = "3be3d40e40a133f9c916ee3f9f4fa2d9d63435b5fbe1bfc6d9dae0aa0ada1513"
 
 [[package]]
 name = "zmij"

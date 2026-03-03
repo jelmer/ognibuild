@@ -11,7 +11,7 @@ default-run = "ogni"
 
 [dependencies]
 pyo3 = ">=0.27, <0.29"
-breezyshim = { version = "0.7.4", optional = true }
+breezyshim = { version = "0.7.10", optional = true }
 buildlog-consultant = { version = "0.1.1" }
 upstream-ontologist = { version = "0.3.10", optional = true }
 axum = { version = "0.8", optional = true, features = ["json", "http2", "tokio"] }
@@ -37,12 +37,12 @@ makefile-lossless = ">=0.2.1, <0.4"
 maplit = "1.0.2"
 nix = { version = ">=0.27.0", features = ["user"] }
 pep508_rs = "0.9.1"
-percent-encoding = "2.3.1"
+percent-encoding = "2.3.2"
 pyproject-toml = "0.13.4"
 r-description = { version = "0.3.5", features = ["serde"] }
 rand = "0.10.0"
-regex = "1.11.2"
-reqwest = { version = ">=0.12, <0.14", optional = true, features = ["blocking", "json"] }
+regex = "1.12"
+reqwest = { version = ">=0.12.10, <0.14", optional = true, features = ["blocking", "json"] }
 semver = "1.0.26"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.120"
@@ -54,7 +54,7 @@ tempfile = "3.26"
 tokio = { version = "1.47.1", features = ["full"], optional = true }
 toml = ">=0.9.8,<2"
 toml_edit = ">=0.23,<0.26"
-url = "2.5.4"
+url = "2.5.7"
 whoami = { version = "2.1", default-features = false }
 xmltree = ">=0.11,<0.13"
 dirs = ">=5,<7"
