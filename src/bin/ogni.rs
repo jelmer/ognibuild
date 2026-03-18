@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+#[cfg(feature = "breezy")]
 use breezyshim::branch::Branch;
 use ognibuild::analyze::AnalyzedError;
 use ognibuild::buildsystem::{
@@ -14,6 +15,7 @@ use ognibuild::session::Session;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
+#[cfg(feature = "breezy")]
 use url::Url;
 
 /// Check if network access is disabled via the OGNIBUILD_DISABLE_NET environment variable.
@@ -462,12 +464,14 @@ fn main() -> Result<(), i32> {
     #[cfg(not(target_os = "linux"))]
     let mut session: Box<dyn Session> = Box::new(ognibuild::session::plain::PlainSession::new());
 
+    #[cfg(feature = "breezy")]
     let url = if let Ok(url) = args.directory.parse::<url::Url>() {
         url
     } else {
         let p = Path::new(&args.directory);
         url::Url::from_directory_path(p.canonicalize().unwrap()).unwrap()
     };
+    #[cfg(feature = "breezy")]
     let mut td: Option<tempfile::TempDir> = None;
     // TODO(jelmer): Get a list of supported schemes from breezy?
     #[cfg(feature = "breezy")]
@@ -595,6 +599,7 @@ fn main() -> Result<(), i32> {
         }
     }
 
+    #[cfg(feature = "breezy")]
     std::mem::drop(td);
     Ok(())
 }
