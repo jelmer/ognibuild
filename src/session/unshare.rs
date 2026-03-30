@@ -6,6 +6,8 @@ pub struct UnshareSession {
     root: PathBuf,
     _tempdir: Option<tempfile::TempDir>,
     cwd: PathBuf,
+    /// Whether to isolate the network namespace (deny network access)
+    isolate_network: bool,
 }
 
 fn compression_flag(path: &Path) -> Result<Option<&str>, crate::session::Error> {
@@ -47,6 +49,14 @@ pub fn cached_debian_tarball_path(suite: &str) -> Result<PathBuf, crate::session
 }
 
 impl UnshareSession {
+    /// Set whether to isolate the network namespace.
+    ///
+    /// When true (the default), the session will have no network access.
+    /// When false, the session shares the host's network namespace.
+    pub fn set_isolate_network(&mut self, isolate: bool) {
+        self.isolate_network = isolate;
+    }
+
     /// Create a cached Debian session from a cloud image
     ///
     /// Looks for a cached tarball in ~/.cache/ognibuild/images/debian-{suite}-{arch}.tar.xz
@@ -126,6 +136,7 @@ impl UnshareSession {
             root: root.to_path_buf(),
             _tempdir: Some(td),
             cwd: std::path::PathBuf::from("/"),
+            isolate_network: true,
         };
 
         s.ensure_current_user()?;
@@ -262,14 +273,18 @@ impl UnshareSession {
             "--fork",
             "--pid",
             "--mount-proc",
-            "--net",
+        ];
+        if self.isolate_network {
+            ret.push("--net");
+        }
+        ret.extend([
             "--uts",
             "--ipc",
             "--root",
             self.root.to_str().unwrap(),
             "--wd",
             cwd.unwrap_or(&self.cwd).to_str().unwrap(),
-        ];
+        ]);
         if let Some(user) = user {
             if user == "root" {
                 ret.push("--map-root-user")
@@ -422,6 +437,7 @@ pub fn bootstrap_debian_tarball(
         root: root.to_path_buf(),
         _tempdir: Some(td),
         cwd: std::path::PathBuf::from("/"),
+        isolate_network: true,
     };
 
     s.ensure_current_user()?;
@@ -1021,6 +1037,26 @@ mod tests {
         assert!(dirs.contains(&"lib"));
         assert!(dirs.contains(&"usr"));
         assert!(dirs.contains(&"proc"));
+    }
+
+    #[test]
+    fn test_set_isolate_network() {
+        let mut session = UnshareSession {
+            root: std::path::PathBuf::from("/fakechroot"),
+            _tempdir: None,
+            cwd: std::path::PathBuf::from("/"),
+            isolate_network: true,
+        };
+        let argv = session.run_argv(vec!["true"], Some(std::path::Path::new("/")), None);
+        assert!(argv.contains(&"--net"));
+
+        session.set_isolate_network(false);
+        let argv = session.run_argv(vec!["true"], Some(std::path::Path::new("/")), None);
+        assert!(!argv.contains(&"--net"));
+
+        session.set_isolate_network(true);
+        let argv = session.run_argv(vec!["true"], Some(std::path::Path::new("/")), None);
+        assert!(argv.contains(&"--net"));
     }
 
     #[test]
