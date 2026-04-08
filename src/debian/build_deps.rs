@@ -104,7 +104,7 @@ impl TieBreaker for BuildDependencyTieBreaker {
         let mut by_count = HashMap::new();
         for req in reqs {
             let name = req.package_names().into_iter().next().unwrap();
-            by_count.insert(req, count[&name]);
+            by_count.insert(req, count.get(&name).copied().unwrap_or(0));
         }
         if by_count.is_empty() {
             return None;
