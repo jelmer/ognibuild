@@ -223,6 +223,7 @@ impl DebianPackagingContext {
         match phase {
             Phase::AutoPkgTest(n) => self.add_test_dependency(n, requirement),
             Phase::Build => self.add_build_dependency(requirement),
+            Phase::Unpack => unreachable!(),
             Phase::BuildEnv => {
                 // TODO(jelmer): Actually, we probably just want to install it on the host system?
                 log::warn!("Unknown phase {:?}", phase);
