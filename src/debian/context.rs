@@ -171,7 +171,12 @@ impl DebianPackagingContext {
         let r = if update_changelog {
             let mut cl = self
                 .edit_file::<debian_changelog::ChangeLog>(Path::new("debian/changelog"), false)?;
-            cl.auto_add_change(&[summary], self.committer.clone(), Some(chrono::Local::now().into()), None);
+            cl.auto_add_change(
+                &[summary],
+                self.committer.clone(),
+                Some(chrono::Local::now().into()),
+                None,
+            );
             cl.commit()?;
 
             debcommit(
@@ -222,6 +227,7 @@ impl DebianPackagingContext {
     ) -> Result<bool, Error> {
         match phase {
             Phase::AutoPkgTest(n) => self.add_test_dependency(n, requirement),
+            Phase::AptGetUpdate => unreachable!(),
             Phase::Build => self.add_build_dependency(requirement),
             Phase::Unpack => unreachable!(),
             Phase::BuildEnv => {
