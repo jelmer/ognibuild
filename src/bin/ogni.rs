@@ -63,6 +63,13 @@ struct InstallArgs {
 }
 
 #[derive(Parser)]
+struct ScipArgs {
+    /// Path to write the SCIP index file to
+    #[clap(long, short, default_value = "index.scip")]
+    output: PathBuf,
+}
+
+#[derive(Parser)]
 struct CacheEnvArgs {
     /// Debian suite to cache (e.g., "sid", "bookworm", "stable")
     #[clap(default_value = "sid")]
@@ -102,6 +109,9 @@ enum Command {
     #[clap(name = "cache-env")]
     /// Cache a Debian cloud image for use with UnshareSession
     CacheEnv(CacheEnvArgs),
+    #[clap(name = "scip")]
+    /// Generate a SCIP index file for the project
+    Scip(ScipArgs),
 }
 
 #[derive(Parser)]
@@ -267,6 +277,7 @@ fn run_action(
             ],
             Command::Exec(_) => vec![],
             Command::CacheEnv(_) => return Ok(()), // No dependencies needed
+            Command::Scip(_) => vec![DependencyCategory::Universal, DependencyCategory::Build],
         };
         if !categories.is_empty() {
             log::info!("Checking that declared dependencies are present");
@@ -317,6 +328,18 @@ fn run_action(
     match args.command.as_ref().unwrap() {
         Command::Exec(..) => unreachable!(),
         Command::CacheEnv(..) => unreachable!(),
+        Command::Scip(scip_args) => {
+            ognibuild::actions::scip::run_scip(
+                session,
+                bss.iter()
+                    .map(|bs| bs.as_ref())
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+                installer,
+                fixers,
+                scip_args.output.as_path(),
+            )?;
+        }
         Command::Dist => {
             ognibuild::actions::dist::run_dist(
                 session,
