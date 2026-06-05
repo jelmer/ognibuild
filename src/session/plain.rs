@@ -33,7 +33,10 @@ impl PlainSession {
                     }
                 }
                 Err(e) => {
-                    log::warn!("Failed to get current username: {}, assuming user switch is needed", e);
+                    log::warn!(
+                        "Failed to get current username: {}, assuming user switch is needed",
+                        e
+                    );
                     args = vec!["sudo", "-u", user].into_iter().chain(args).collect();
                 }
             }
