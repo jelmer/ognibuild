@@ -618,10 +618,14 @@ pub fn which(session: &dyn Session, name: &str) -> Option<String> {
 /// # Returns
 /// The username of the current user
 pub fn get_user(session: &dyn Session) -> String {
+    // Use `id -un` rather than `$USER`: the latter is frequently unset in
+    // containers and minimal environments, where it would wrongly read as a
+    // non-root user and make ognibuild pick the user installation scope (and
+    // so drop the apt installer) even when running as root.
     String::from_utf8(
         session
             .check_output(
-                vec!["sh", "-c", "echo $USER"],
+                vec!["id", "-un"],
                 Some(std::path::Path::new("/")),
                 None,
                 None,
@@ -807,7 +811,17 @@ mod tests {
     fn test_get_user() {
         let session = super::plain::PlainSession::new();
         let user = super::get_user(&session);
-        assert!(!user.is_empty());
+        let expected = String::from_utf8(
+            std::process::Command::new("id")
+                .arg("-un")
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap()
+        .trim()
+        .to_owned();
+        assert_eq!(user, expected);
     }
 
     #[test]
