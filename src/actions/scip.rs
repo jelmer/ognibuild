@@ -2,6 +2,7 @@ use crate::buildsystem::{guaranteed_which, BuildSystem, Error};
 use crate::fix_build::BuildFixer;
 use crate::installer::{Error as InstallerError, Installer};
 use crate::session::Session;
+use std::collections::HashSet;
 use std::path::Path;
 
 /// Substituted with the (UTF-8) output path in indexer arguments.
@@ -36,6 +37,10 @@ struct ScipIndexer {
     /// Arguments to the indexer binary. Any occurrence of `OUTPUT_PLACEHOLDER`
     /// is substituted with the resolved output path.
     args: &'static [&'static str],
+    /// Language indexed, used to name the output file (e.g. `python`).
+    /// Several build systems may share a language (e.g. cmake/meson/make all
+    /// produce `cpp`).
+    language: &'static str,
 }
 
 /// Look up the SCIP indexer that should be used for a given build system name.
@@ -54,26 +59,31 @@ fn indexer_for(buildsystem: &str) -> Option<ScipIndexer> {
             prep: ScipPrep::None,
             binary: "rust-analyzer",
             args: &["scip", ".", "--output", OUTPUT_PLACEHOLDER],
+            language: "rust",
         }),
         "setup.py" => Some(ScipIndexer {
             prep: ScipPrep::None,
             binary: "scip-python",
             args: &["index", "--output", OUTPUT_PLACEHOLDER],
+            language: "python",
         }),
         "golang" => Some(ScipIndexer {
             prep: ScipPrep::None,
             binary: "scip-go",
             args: &["--output", OUTPUT_PLACEHOLDER],
+            language: "go",
         }),
         "maven" | "gradle" => Some(ScipIndexer {
             prep: ScipPrep::None,
             binary: "scip-java",
             args: &["index", "--output", OUTPUT_PLACEHOLDER],
+            language: "java",
         }),
         "node" => Some(ScipIndexer {
             prep: ScipPrep::None,
             binary: "scip-typescript",
             args: &["index", "--output", OUTPUT_PLACEHOLDER],
+            language: "typescript",
         }),
         "cmake" => Some(ScipIndexer {
             prep: ScipPrep::CMakeCompileCommands,
@@ -84,6 +94,7 @@ fn indexer_for(buildsystem: &str) -> Option<ScipIndexer> {
                 "-o",
                 OUTPUT_PLACEHOLDER,
             ],
+            language: "cpp",
         }),
         "meson" => Some(ScipIndexer {
             prep: ScipPrep::MesonCompileCommands,
@@ -94,6 +105,7 @@ fn indexer_for(buildsystem: &str) -> Option<ScipIndexer> {
                 "-o",
                 OUTPUT_PLACEHOLDER,
             ],
+            language: "cpp",
         }),
         "make" => Some(ScipIndexer {
             prep: ScipPrep::BearMake,
@@ -104,6 +116,7 @@ fn indexer_for(buildsystem: &str) -> Option<ScipIndexer> {
                 "-o",
                 OUTPUT_PLACEHOLDER,
             ],
+            language: "cpp",
         }),
         _ => None,
     }
@@ -240,17 +253,28 @@ pub fn run_scip(
     Err(Error::NoBuildSystemDetected)
 }
 
-/// File name (within the output directory) for a build system's SCIP index.
-fn index_file_name(buildsystem: &str) -> String {
-    format!("{}.scip", buildsystem)
+/// File name (within the output directory) for a SCIP index.
+///
+/// Indexes are named after the language they cover (e.g. `python.scip`). When
+/// two build systems in the same project map to the same language (e.g. cmake
+/// and meson both produce `cpp`), `taken` already holds the plain language name,
+/// so the build system is appended to disambiguate (e.g. `cpp-meson.scip`).
+fn index_file_name(language: &str, buildsystem: &str, taken: &HashSet<String>) -> String {
+    let plain = format!("{}.scip", language);
+    if !taken.contains(&plain) {
+        return plain;
+    }
+    format!("{}-{}.scip", language, buildsystem)
 }
 
 /// Generate one SCIP index file per detected build system.
 ///
 /// Unlike [`run_scip`], which stops after the first build system with a known
 /// indexer, this runs the indexer for every build system that has one and
-/// writes the results into `output_dir`, named after the build system (e.g.
-/// `cargo.scip`). The directory is created if it does not exist.
+/// writes the results into `output_dir`, named after the indexed language (e.g.
+/// `python.scip`). When two build systems map to the same language the build
+/// system is appended to disambiguate (e.g. `cpp-meson.scip`). The directory is
+/// created if it does not exist.
 ///
 /// SCIP has no native merge step, so emitting one file per build system and
 /// uploading them separately is the supported way to cover a multi-language
@@ -276,6 +300,7 @@ pub fn run_scip_multi(
     }
 
     let mut indexed = 0;
+    let mut taken = HashSet::new();
     for buildsystem in buildsystems {
         let name = buildsystem.name();
         let Some(indexer) = indexer_for(name) else {
@@ -283,7 +308,9 @@ pub fn run_scip_multi(
             continue;
         };
 
-        let output = output_dir.join(index_file_name(name));
+        let file_name = index_file_name(indexer.language, name, &taken);
+        taken.insert(file_name.clone());
+        let output = output_dir.join(&file_name);
 
         log::info!(
             "Generating SCIP index for {} using {}",
@@ -310,8 +337,17 @@ mod tests {
 
     #[test]
     fn test_index_file_name() {
-        assert_eq!(index_file_name("cargo"), "cargo.scip");
-        assert_eq!(index_file_name("setup.py"), "setup.py.scip");
+        let taken = HashSet::new();
+        assert_eq!(index_file_name("rust", "cargo", &taken), "rust.scip");
+        assert_eq!(index_file_name("python", "setup.py", &taken), "python.scip");
+    }
+
+    #[test]
+    fn test_index_file_name_collision() {
+        let mut taken = HashSet::new();
+        assert_eq!(index_file_name("cpp", "cmake", &taken), "cpp.scip");
+        taken.insert("cpp.scip".to_string());
+        assert_eq!(index_file_name("cpp", "meson", &taken), "cpp-meson.scip");
     }
 
     #[test]

@@ -69,7 +69,7 @@ struct ScipArgs {
     output: Option<PathBuf>,
 
     /// Directory to write one SCIP index file per build system into,
-    /// each named after the build system (e.g. cargo.scip)
+    /// each named after the indexed language (e.g. python.scip)
     #[clap(long)]
     output_all: Option<PathBuf>,
 }
