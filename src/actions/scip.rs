@@ -44,7 +44,7 @@ struct ScipIndexer {
 /// based on the public SCIP indexers maintained by Sourcegraph:
 ///   - cargo:        rust-analyzer scip
 ///   - setup.py:     scip-python
-///   - go:           scip-go
+///   - golang:       scip-go
 ///   - maven/gradle: scip-java
 ///   - node:         scip-typescript
 ///   - cmake/meson/make: scip-clang (driven by compile_commands.json)
@@ -60,7 +60,7 @@ fn indexer_for(buildsystem: &str) -> Option<ScipIndexer> {
             binary: "scip-python",
             args: &["index", "--output", OUTPUT_PLACEHOLDER],
         }),
-        "go" => Some(ScipIndexer {
+        "golang" => Some(ScipIndexer {
             prep: ScipPrep::None,
             binary: "scip-go",
             args: &["--output", OUTPUT_PLACEHOLDER],
