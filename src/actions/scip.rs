@@ -280,6 +280,11 @@ fn index_file_name(language: &str, buildsystem: &str, taken: &HashSet<String>) -
 /// uploading them separately is the supported way to cover a multi-language
 /// project.
 ///
+/// Indexing is best-effort: a failure for one build system does not discard the
+/// indexes already written for the others. If any indexer fails the last error
+/// is still returned (so the caller exits non-zero) while the successful indexes
+/// remain on disk.
+///
 /// # Arguments
 /// * `session` - The session to run commands in
 /// * `buildsystems` - List of detected build systems
@@ -300,6 +305,8 @@ pub fn run_scip_multi(
     }
 
     let mut indexed = 0;
+    let mut attempted = 0;
+    let mut last_error = None;
     let mut taken = HashSet::new();
     for buildsystem in buildsystems {
         let name = buildsystem.name();
@@ -318,14 +325,41 @@ pub fn run_scip_multi(
             indexer.binary
         );
 
-        run_indexer(&indexer, session, installer, &output)?;
-
-        log::info!("Wrote SCIP index to {}", output.display());
-        indexed += 1;
+        // Index every build system on a best-effort basis: a failure for one
+        // (e.g. a project that ships a convenience Makefile alongside its real
+        // build system) must not discard the indexes that did succeed.
+        attempted += 1;
+        match run_indexer(&indexer, session, installer, &output) {
+            Ok(()) => {
+                log::info!("Wrote SCIP index to {}", output.display());
+                indexed += 1;
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to generate SCIP index for {} using {}: {}",
+                    name,
+                    indexer.binary,
+                    e
+                );
+                last_error = Some(e);
+            }
+        }
     }
 
-    if indexed == 0 {
+    if attempted == 0 {
         return Err(Error::NoBuildSystemDetected);
+    }
+
+    // Surface a failure if any indexer failed. The indexes that did succeed are
+    // already written to disk, so we keep them; we just report the error so the
+    // caller exits non-zero.
+    if let Some(e) = last_error {
+        log::warn!(
+            "Generated {} of {} SCIP indexes; some build systems failed",
+            indexed,
+            attempted
+        );
+        return Err(e);
     }
 
     Ok(())
