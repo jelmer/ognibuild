@@ -161,12 +161,47 @@ fn run_prep(
     }
 }
 
+/// Run a single indexer to produce a SCIP index at `output`.
+fn run_indexer(
+    indexer: &ScipIndexer,
+    session: &dyn Session,
+    installer: &dyn Installer,
+    output: &Path,
+) -> Result<(), Error> {
+    run_prep(&indexer.prep, session, installer)?;
+
+    let binary_path = guaranteed_which(session, installer, indexer.binary)?;
+
+    let output_str = output.to_str().ok_or_else(|| {
+        Error::Other(format!(
+            "Output path is not valid UTF-8: {}",
+            output.display()
+        ))
+    })?;
+
+    let mut argv: Vec<&str> = Vec::with_capacity(indexer.args.len() + 1);
+    argv.push(binary_path.to_str().unwrap());
+    for arg in indexer.args {
+        argv.push(if *arg == OUTPUT_PLACEHOLDER {
+            output_str
+        } else {
+            *arg
+        });
+    }
+
+    session.command(argv).run_detecting_problems()?;
+    Ok(())
+}
+
 /// Generate a SCIP index file for the project.
 ///
 /// Detects which build system applies and invokes the matching SCIP indexer
 /// (installing it via the configured installer if it is not already on PATH).
 /// For C/C++ projects, the build is run first to produce a
 /// `compile_commands.json` that `scip-clang` then consumes.
+///
+/// The first build system with a known indexer wins; remaining ones are
+/// ignored. Use [`run_scip_multi`] to index every build system separately.
 ///
 /// # Arguments
 /// * `session` - The session to run commands in
@@ -196,32 +231,99 @@ pub fn run_scip(
             indexer.binary
         );
 
-        run_prep(&indexer.prep, session, installer)?;
-
-        let binary_path = guaranteed_which(session, installer, indexer.binary)?;
-
-        let output_str = output.to_str().ok_or_else(|| {
-            Error::Other(format!(
-                "Output path is not valid UTF-8: {}",
-                output.display()
-            ))
-        })?;
-
-        let mut argv: Vec<&str> = Vec::with_capacity(indexer.args.len() + 1);
-        argv.push(binary_path.to_str().unwrap());
-        for arg in indexer.args {
-            argv.push(if *arg == OUTPUT_PLACEHOLDER {
-                output_str
-            } else {
-                *arg
-            });
-        }
-
-        session.command(argv).run_detecting_problems()?;
+        run_indexer(&indexer, session, installer, output)?;
 
         log::info!("Wrote SCIP index to {}", output.display());
         return Ok(());
     }
 
     Err(Error::NoBuildSystemDetected)
+}
+
+/// File name (within the output directory) for a build system's SCIP index.
+fn index_file_name(buildsystem: &str) -> String {
+    format!("{}.scip", buildsystem)
+}
+
+/// Generate one SCIP index file per detected build system.
+///
+/// Unlike [`run_scip`], which stops after the first build system with a known
+/// indexer, this runs the indexer for every build system that has one and
+/// writes the results into `output_dir`, named after the build system (e.g.
+/// `cargo.scip`). The directory is created if it does not exist.
+///
+/// SCIP has no native merge step, so emitting one file per build system and
+/// uploading them separately is the supported way to cover a multi-language
+/// project.
+///
+/// # Arguments
+/// * `session` - The session to run commands in
+/// * `buildsystems` - List of detected build systems
+/// * `installer` - Installer used to provide the indexer binary if missing
+/// * `_fixers` - Reserved for future use (problem detection during indexing)
+/// * `output_dir` - Directory (inside the session) to write the SCIP files into
+pub fn run_scip_multi(
+    session: &dyn Session,
+    buildsystems: &[&dyn BuildSystem],
+    installer: &dyn Installer,
+    _fixers: &[&dyn BuildFixer<InstallerError>],
+    output_dir: &Path,
+) -> Result<(), Error> {
+    session.create_home()?;
+
+    if !session.exists(output_dir) {
+        session.mkdir(output_dir)?;
+    }
+
+    let mut indexed = 0;
+    for buildsystem in buildsystems {
+        let name = buildsystem.name();
+        let Some(indexer) = indexer_for(name) else {
+            log::debug!("No SCIP indexer known for build system {}", name);
+            continue;
+        };
+
+        let output = output_dir.join(index_file_name(name));
+
+        log::info!(
+            "Generating SCIP index for {} using {}",
+            name,
+            indexer.binary
+        );
+
+        run_indexer(&indexer, session, installer, &output)?;
+
+        log::info!("Wrote SCIP index to {}", output.display());
+        indexed += 1;
+    }
+
+    if indexed == 0 {
+        return Err(Error::NoBuildSystemDetected);
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_index_file_name() {
+        assert_eq!(index_file_name("cargo"), "cargo.scip");
+        assert_eq!(index_file_name("setup.py"), "setup.py.scip");
+    }
+
+    #[test]
+    fn test_indexer_known_and_unknown() {
+        assert!(indexer_for("cargo").is_some());
+        assert!(indexer_for("unknown").is_none());
+    }
+
+    #[test]
+    fn test_indexer_golang_matches_build_system_name() {
+        // The Go build system reports its name as "golang", not "go".
+        assert_eq!(indexer_for("golang").map(|i| i.binary), Some("scip-go"));
+        assert!(indexer_for("go").is_none());
+    }
 }
