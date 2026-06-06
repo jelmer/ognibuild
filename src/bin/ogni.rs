@@ -532,7 +532,14 @@ fn main() -> Result<(), i32> {
         url
     } else {
         let p = Path::new(&args.directory);
-        url::Url::from_directory_path(p.canonicalize().unwrap()).unwrap()
+        let abs = p.canonicalize().map_err(|e| {
+            eprintln!("Error: Cannot access directory {}: {}", args.directory, e);
+            1
+        })?;
+        url::Url::from_directory_path(&abs).map_err(|()| {
+            eprintln!("Error: Invalid directory path: {}", abs.display());
+            1
+        })?
     };
     #[cfg(feature = "breezy")]
     let mut td: Option<tempfile::TempDir> = None;
