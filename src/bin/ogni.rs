@@ -64,9 +64,14 @@ struct InstallArgs {
 
 #[derive(Parser)]
 struct ScipArgs {
-    /// Path to write the SCIP index file to
-    #[clap(long, short, default_value = "index.scip")]
-    output: PathBuf,
+    /// Path to write a single combined SCIP index file to
+    #[clap(long, short, conflicts_with = "output_all")]
+    output: Option<PathBuf>,
+
+    /// Directory to write one SCIP index file per build system into,
+    /// each named after the build system (e.g. cargo.scip)
+    #[clap(long)]
+    output_all: Option<PathBuf>,
 }
 
 #[derive(Parser)]
@@ -340,16 +345,28 @@ fn run_action(
         Command::Exec(..) => unreachable!(),
         Command::CacheEnv(..) => unreachable!(),
         Command::Scip(scip_args) => {
-            ognibuild::actions::scip::run_scip(
-                session,
-                bss.iter()
-                    .map(|bs| bs.as_ref())
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-                installer,
-                fixers,
-                scip_args.output.as_path(),
-            )?;
+            let bss = bss.iter().map(|bs| bs.as_ref()).collect::<Vec<_>>();
+            if let Some(output_dir) = scip_args.output_all.as_ref() {
+                ognibuild::actions::scip::run_scip_multi(
+                    session,
+                    bss.as_slice(),
+                    installer,
+                    fixers,
+                    output_dir.as_path(),
+                )?;
+            } else {
+                let output = scip_args
+                    .output
+                    .clone()
+                    .unwrap_or_else(|| PathBuf::from("index.scip"));
+                ognibuild::actions::scip::run_scip(
+                    session,
+                    bss.as_slice(),
+                    installer,
+                    fixers,
+                    output.as_path(),
+                )?;
+            }
         }
         Command::Lsif(lsif_args) => {
             ognibuild::actions::lsif::run_lsif(
