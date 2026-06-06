@@ -1,5 +1,5 @@
 use crate::buildsystem::{guaranteed_which, BuildSystem, Error};
-use crate::fix_build::BuildFixer;
+use crate::fix_build::{run_fixing_problems, BuildFixer};
 use crate::installer::{Error as InstallerError, Installer};
 use crate::session::Session;
 use std::collections::HashSet;
@@ -124,10 +124,15 @@ fn indexer_for(buildsystem: &str) -> Option<ScipIndexer> {
 
 /// Run the preparation step required by the indexer (typically to produce a
 /// `compile_commands.json`).
+///
+/// The prep commands shell out to the project's own build tooling, which can
+/// hit missing dependencies the same way an ordinary build does, so they run
+/// through `run_fixing_problems` to resolve and retry rather than aborting.
 fn run_prep(
     prep: &ScipPrep,
     session: &dyn Session,
     installer: &dyn Installer,
+    fixers: &[&dyn BuildFixer<InstallerError>],
 ) -> Result<(), Error> {
     match prep {
         ScipPrep::None => Ok(()),
@@ -137,38 +142,68 @@ fn run_prep(
             if !session.exists(Path::new("build")) {
                 session.mkdir(Path::new("build"))?;
             }
-            session
-                .command(vec![
-                    cmake,
-                    ".",
-                    "-Bbuild",
-                    "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
-                ])
-                .run_detecting_problems()?;
-            session
-                .command(vec![cmake, "--build", "build"])
-                .run_detecting_problems()?;
+            run_fixing_problems::<_, Error>(
+                fixers,
+                None,
+                session,
+                &[cmake, ".", "-Bbuild", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
+                false,
+                None,
+                None,
+                None,
+            )?;
+            run_fixing_problems::<_, Error>(
+                fixers,
+                None,
+                session,
+                &[cmake, "--build", "build"],
+                false,
+                None,
+                None,
+                None,
+            )?;
             Ok(())
         }
         ScipPrep::MesonCompileCommands => {
             let meson = guaranteed_which(session, installer, "meson")?;
             let ninja = guaranteed_which(session, installer, "ninja")?;
             if !session.exists(Path::new("build")) {
-                session
-                    .command(vec![meson.to_str().unwrap(), "setup", "build"])
-                    .run_detecting_problems()?;
+                run_fixing_problems::<_, Error>(
+                    fixers,
+                    None,
+                    session,
+                    &[meson.to_str().unwrap(), "setup", "build"],
+                    false,
+                    None,
+                    None,
+                    None,
+                )?;
             }
-            session
-                .command(vec![ninja.to_str().unwrap(), "-C", "build"])
-                .run_detecting_problems()?;
+            run_fixing_problems::<_, Error>(
+                fixers,
+                None,
+                session,
+                &[ninja.to_str().unwrap(), "-C", "build"],
+                false,
+                None,
+                None,
+                None,
+            )?;
             Ok(())
         }
         ScipPrep::BearMake => {
             let bear = guaranteed_which(session, installer, "bear")?;
             let make = guaranteed_which(session, installer, "make")?;
-            session
-                .command(vec![bear.to_str().unwrap(), "--", make.to_str().unwrap()])
-                .run_detecting_problems()?;
+            run_fixing_problems::<_, Error>(
+                fixers,
+                None,
+                session,
+                &[bear.to_str().unwrap(), "--", make.to_str().unwrap()],
+                false,
+                None,
+                None,
+                None,
+            )?;
             Ok(())
         }
     }
@@ -179,9 +214,10 @@ fn run_indexer(
     indexer: &ScipIndexer,
     session: &dyn Session,
     installer: &dyn Installer,
+    fixers: &[&dyn BuildFixer<InstallerError>],
     output: &Path,
 ) -> Result<(), Error> {
-    run_prep(&indexer.prep, session, installer)?;
+    run_prep(&indexer.prep, session, installer, fixers)?;
 
     let binary_path = guaranteed_which(session, installer, indexer.binary)?;
 
@@ -202,7 +238,7 @@ fn run_indexer(
         });
     }
 
-    session.command(argv).run_detecting_problems()?;
+    run_fixing_problems::<_, Error>(fixers, None, session, &argv, false, None, None, None)?;
     Ok(())
 }
 
@@ -220,13 +256,14 @@ fn run_indexer(
 /// * `session` - The session to run commands in
 /// * `buildsystems` - List of detected build systems, tried in order
 /// * `installer` - Installer used to provide the indexer binary if missing
-/// * `_fixers` - Reserved for future use (problem detection during indexing)
+/// * `fixers` - Fixers applied to resolve problems detected while running the
+///   indexer and its preparation steps
 /// * `output` - Path (inside the session) where the SCIP file should be written
 pub fn run_scip(
     session: &dyn Session,
     buildsystems: &[&dyn BuildSystem],
     installer: &dyn Installer,
-    _fixers: &[&dyn BuildFixer<InstallerError>],
+    fixers: &[&dyn BuildFixer<InstallerError>],
     output: &Path,
 ) -> Result<(), Error> {
     session.create_home()?;
@@ -244,7 +281,7 @@ pub fn run_scip(
             indexer.binary
         );
 
-        run_indexer(&indexer, session, installer, output)?;
+        run_indexer(&indexer, session, installer, fixers, output)?;
 
         log::info!("Wrote SCIP index to {}", output.display());
         return Ok(());
@@ -289,13 +326,14 @@ fn index_file_name(language: &str, buildsystem: &str, taken: &HashSet<String>) -
 /// * `session` - The session to run commands in
 /// * `buildsystems` - List of detected build systems
 /// * `installer` - Installer used to provide the indexer binary if missing
-/// * `_fixers` - Reserved for future use (problem detection during indexing)
+/// * `fixers` - Fixers applied to resolve problems detected while running the
+///   indexer and its preparation steps
 /// * `output_dir` - Directory (inside the session) to write the SCIP files into
 pub fn run_scip_multi(
     session: &dyn Session,
     buildsystems: &[&dyn BuildSystem],
     installer: &dyn Installer,
-    _fixers: &[&dyn BuildFixer<InstallerError>],
+    fixers: &[&dyn BuildFixer<InstallerError>],
     output_dir: &Path,
 ) -> Result<(), Error> {
     session.create_home()?;
@@ -329,7 +367,7 @@ pub fn run_scip_multi(
         // (e.g. a project that ships a convenience Makefile alongside its real
         // build system) must not discard the indexes that did succeed.
         attempted += 1;
-        match run_indexer(&indexer, session, installer, &output) {
+        match run_indexer(&indexer, session, installer, fixers, &output) {
             Ok(()) => {
                 log::info!("Wrote SCIP index to {}", output.display());
                 indexed += 1;
