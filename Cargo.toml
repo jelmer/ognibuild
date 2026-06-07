@@ -69,6 +69,9 @@ upstream = ["dep:upstream-ontologist", "dep:tokio"]
 breezy = ["dep:breezyshim"]
 
 [dev-dependencies]
+# Re-enable auto-initialize for tests so they don't each need to call
+# breezyshim::init(); the binaries initialize Breezy explicitly instead.
+breezyshim = { version = "0.7.22", features = ["auto-initialize"] }
 lazy_static = "1.5"
 test-log = "0.2"
 criterion = { version = ">=0.5, <0.9", features = ["html_reports"] }
