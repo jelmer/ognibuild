@@ -651,28 +651,59 @@ impl Session for UnshareSession {
 
 #[cfg(test)]
 lazy_static::lazy_static! {
-    static ref TEST_SESSION: std::sync::Mutex<UnshareSession> = std::sync::Mutex::new(
-        create_debian_session_for_testing("sid", false)
-            .expect("Failed to create test session. This requires network access.\nYou can avoid this by:\n  - Pre-caching with: ogni cache-env sid\n  - Setting: OGNIBUILD_DEBIAN_TEST_TARBALL=/path/to/tarball.tar.xz")
-    );
+    // Serializes access to the process-global OGNIBUILD_DEBIAN_TEST_TARBALL
+    // environment variable so that tests mutating it cannot race with the shared
+    // session initializer (which also reads it).
+    pub(crate) static ref TEST_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    // None when no cached image or test tarball is available, so tests can skip
+    // gracefully rather than the lazy initializer panicking on first access.
+    static ref TEST_SESSION: std::sync::Mutex<Option<UnshareSession>> = std::sync::Mutex::new({
+        let _guard = TEST_ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        create_debian_session_for_testing("sid", false).ok()
+    });
+}
+
+/// A locked, available [`UnshareSession`] for use in tests.
+///
+/// Derefs to the session so existing call sites can use it directly. Only
+/// constructed when the underlying session is present.
+#[cfg(test)]
+pub(crate) struct TestSession(std::sync::MutexGuard<'static, Option<UnshareSession>>);
+
+#[cfg(test)]
+impl std::ops::Deref for TestSession {
+    type Target = UnshareSession;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref().expect("test session present")
+    }
 }
 
 #[cfg(test)]
-pub(crate) fn test_session() -> Option<std::sync::MutexGuard<'static, UnshareSession>> {
+impl std::ops::DerefMut for TestSession {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.as_mut().expect("test session present")
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn test_session() -> Option<TestSession> {
     // Don't run tests if we're in github actions (CI environment restrictions)
     if std::env::var("GITHUB_ACTIONS").is_ok() {
         return None;
     }
     // Handle poisoned mutex: if a previous test panicked while holding the lock,
-    // we recover the guard to allow tests to continue
-    match TEST_SESSION.lock() {
-        Ok(guard) => Some(guard),
-        Err(poisoned) => {
-            // Recover from poisoned mutex - this is safe because UnshareSession
-            // doesn't have invalid states that could cause issues after a panic
-            Some(poisoned.into_inner())
-        }
+    // we recover the guard to allow tests to continue.
+    let guard = match TEST_SESSION.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    // Skip gracefully when no cached image or test tarball is available.
+    if guard.is_none() {
+        return None;
     }
+    Some(TestSession(guard))
 }
 
 #[cfg(test)]
@@ -933,6 +964,7 @@ mod tests {
     #[test]
     fn test_create_debian_session_with_env_var() {
         // Test that create_debian_session_for_testing respects OGNIBUILD_DEBIAN_TEST_TARBALL
+        let _env_guard = TEST_ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let temp_dir = tempfile::tempdir().unwrap();
         let tarball_path = temp_dir.path().join("test.tar.xz");
 
@@ -967,6 +999,7 @@ mod tests {
     #[test]
     fn test_create_debian_session_nonexistent_tarball() {
         // Test that pointing to a non-existent tarball gives the right error
+        let _env_guard = TEST_ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         std::env::set_var(
             "OGNIBUILD_DEBIAN_TEST_TARBALL",
             "/nonexistent/path/tarball.tar.xz",

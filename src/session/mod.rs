@@ -777,28 +777,51 @@ pub fn run_with_tee(
 /// * `Err(Error)` if creating the home directory fails
 pub fn create_home(session: &impl Session) -> Result<(), Error> {
     let cwd = std::path::Path::new("/");
-    let home = String::from_utf8(session.check_output(
-        vec!["sh", "-c", "echo $HOME"],
-        Some(cwd),
-        None,
-        None,
-    )?)
-    .unwrap()
-    .trim_end_matches('\n')
-    .to_string();
-    let user = String::from_utf8(session.check_output(
-        vec!["sh", "-c", "echo $LOGNAME"],
-        Some(cwd),
-        None,
-        None,
-    )?)
-    .unwrap()
-    .trim_end_matches('\n')
-    .to_string();
-    log::info!("Creating directory {} in schroot session.", home);
+
+    // Resolve the home directory and ownership from the session's own user
+    // database rather than the inherited $HOME/$LOGNAME, which leak in from the
+    // host and may not match the user inside the session (e.g. an unshare
+    // session whose uid maps to a different name in /etc/passwd). Fall back to
+    // $HOME only if the passwd entry has no home field.
+    let uid = run_single_line(session, cwd, "id -u", "determine current uid in session")?;
+    let gid = run_single_line(session, cwd, "id -g", "determine current gid in session")?;
+    let home = run_single_line(
+        session,
+        cwd,
+        "getent passwd \"$(id -u)\" | cut -d: -f6 || true",
+        "determine home directory in session",
+    )?;
+    let home = if home.is_empty() {
+        run_single_line(session, cwd, "echo \"$HOME\"", "determine $HOME in session")?
+    } else {
+        home
+    };
+
+    log::info!("Creating home directory {} in session.", home);
     session.check_call(vec!["mkdir", "-p", &home], Some(cwd), Some("root"), None)?;
-    session.check_call(vec!["chown", &user, &home], Some(cwd), Some("root"), None)?;
+    // Chown by numeric uid:gid, which always exists, rather than a username that
+    // may not be present in the session's passwd database.
+    let owner = format!("{}:{}", uid, gid);
+    session.check_call(vec!["chown", &owner, &home], Some(cwd), Some("root"), None)?;
     Ok(())
+}
+
+/// Run a shell snippet in the session and return its trimmed single-line output.
+fn run_single_line(
+    session: &impl Session,
+    cwd: &std::path::Path,
+    script: &str,
+    what: &str,
+) -> Result<String, Error> {
+    let out = session.check_output(vec!["sh", "-c", script], Some(cwd), None, None)?;
+    String::from_utf8(out)
+        .map_err(|e| {
+            Error::SetupFailure(
+                format!("Failed to {}", what),
+                format!("non-UTF-8 output: {}", e),
+            )
+        })
+        .map(|s| s.trim().to_string())
 }
 
 #[cfg(test)]
