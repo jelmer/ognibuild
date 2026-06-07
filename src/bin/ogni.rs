@@ -540,6 +540,12 @@ fn main() -> Result<(), i32> {
     })?;
 
     #[cfg(feature = "breezy")]
+    if let Err(e) = breezyshim::try_init() {
+        log::error!("Unable to initialize Breezy: {}", e);
+        return Err(1);
+    }
+
+    #[cfg(feature = "breezy")]
     let url = if let Ok(url) = args.directory.parse::<url::Url>() {
         url
     } else {

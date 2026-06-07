@@ -397,6 +397,7 @@ mod tests {
         #[cfg(target_os = "linux")]
         crate::session::unshare::test_session();
         use breezyshim::tree::MutableTree;
+        breezyshim::init();
         let env = breezyshim::testing::TestEnv::new();
         let session = PlainSession::new();
 

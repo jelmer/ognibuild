@@ -624,6 +624,7 @@ mod tests {
     fn test_build_fails_with_invalid_command() {
         // Set up a test environment
         let td = tempdir().unwrap();
+        breezyshim::init();
         let tree = breezyshim::controldir::create_standalone_workingtree(
             td.path(),
             &breezyshim::controldir::ControlDirFormat::default(),
@@ -662,6 +663,7 @@ mod tests {
         // Test conversion between BuildFailedError and BuildOnceError
         // Set up a test environment
         let td = tempdir().unwrap();
+        breezyshim::init();
         let tree = breezyshim::controldir::create_standalone_workingtree(
             td.path(),
             &breezyshim::controldir::ControlDirFormat::default(),
@@ -739,6 +741,7 @@ mod tests {
     #[test]
     fn test_control_files_not_in_root() {
         let td = tempfile::tempdir().unwrap();
+        breezyshim::init();
         let tree = breezyshim::controldir::create_standalone_workingtree(
             td.path(),
             &breezyshim::controldir::ControlDirFormat::default(),
@@ -757,6 +760,7 @@ mod tests {
     #[test]
     fn test_control_files_in_root() {
         let td = tempfile::tempdir().unwrap();
+        breezyshim::init();
         let tree = breezyshim::controldir::create_standalone_workingtree(
             td.path(),
             &breezyshim::controldir::ControlDirFormat::default(),
@@ -814,6 +818,7 @@ mod tests {
         #[test]
         fn test_simple() {
             let td = tempfile::tempdir().unwrap();
+            breezyshim::init();
             let tree = breezyshim::controldir::create_standalone_workingtree(
                 td.path(),
                 &breezyshim::controldir::ControlDirFormat::default(),
@@ -862,6 +867,7 @@ mod tests {
         #[test]
         fn test_native() {
             let td = tempfile::tempdir().unwrap();
+            breezyshim::init();
             let tree = breezyshim::controldir::create_standalone_workingtree(
                 td.path(),
                 &breezyshim::controldir::ControlDirFormat::default(),
@@ -910,6 +916,7 @@ mod tests {
         #[test]
         fn test_exists() {
             let td = tempfile::tempdir().unwrap();
+            breezyshim::init();
             let tree = breezyshim::controldir::create_standalone_workingtree(
                 td.path(),
                 &breezyshim::controldir::ControlDirFormat::default(),
