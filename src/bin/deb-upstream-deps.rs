@@ -37,6 +37,11 @@ fn main() -> Result<(), i8> {
         )
         .init();
 
+    if let Err(e) = breezyshim::try_init() {
+        log::error!("Unable to initialize Breezy: {}", e);
+        return Err(1);
+    }
+
     let (wt, subpath) = match workingtree::open_containing(&args.directory) {
         Ok((wt, subpath)) => (wt, subpath),
         Err(e @ BrzError::NotBranchError { .. }) => {

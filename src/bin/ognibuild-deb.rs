@@ -28,10 +28,14 @@ struct Args {
 pub fn main() -> Result<(), i32> {
     let args = Args::parse();
     let dir = args.directory;
-    let (wt, subpath) = breezyshim::workingtree::open_containing(&dir).unwrap();
 
-    breezyshim::init();
+    if let Err(e) = breezyshim::try_init() {
+        eprintln!("Unable to initialize Breezy: {}", e);
+        return Err(1);
+    }
     breezyshim::plugin::load_plugins();
+
+    let (wt, subpath) = breezyshim::workingtree::open_containing(&dir).unwrap();
 
     env_logger::builder()
         .format(|buf, record| writeln!(buf, "{}", record.args()))

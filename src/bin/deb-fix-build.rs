@@ -99,6 +99,11 @@ fn main() -> Result<(), i32> {
         temp_output_dir.as_ref().unwrap().path().to_path_buf()
     };
 
+    if let Err(e) = breezyshim::try_init() {
+        log::error!("Unable to initialize Breezy: {}", e);
+        return Err(1);
+    }
+
     let (tree, subpath) = breezyshim::workingtree::open_containing(&args.directory).unwrap();
 
     #[cfg(target_os = "linux")]

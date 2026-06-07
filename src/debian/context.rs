@@ -373,6 +373,7 @@ mod tests {
     use breezyshim::controldir::{create_standalone_workingtree, ControlDirFormat};
     pub const COMMITTER: &str = "ognibuild <ognibuild@example.com>";
     fn setup(path: &Path) -> DebianPackagingContext {
+        breezyshim::init();
         let tree = create_standalone_workingtree(path, &ControlDirFormat::default()).unwrap();
         std::fs::create_dir_all(path.join("debian")).unwrap();
         std::fs::write(
