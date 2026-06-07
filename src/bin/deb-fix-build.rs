@@ -1,9 +1,6 @@
 use clap::Parser;
 use ognibuild::debian::fix_build::{rescue_build_log, IterateBuildError};
-use ognibuild::session::plain::PlainSession;
-#[cfg(target_os = "linux")]
-use ognibuild::session::schroot::SchrootSession;
-use ognibuild::session::Session;
+use ognibuild::session::{Session, SessionKind};
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::PathBuf;
@@ -11,7 +8,7 @@ use std::path::PathBuf;
 #[derive(Parser)]
 struct Args {
     /// Suffix to use for test builds
-    #[clap(short, long, default_value = "fixbuild1")]
+    #[clap(long, default_value = "fixbuild1")]
     suffix: String,
 
     /// Suite to target
@@ -43,12 +40,16 @@ struct Args {
     max_iterations: usize,
 
     #[cfg(target_os = "linux")]
-    /// chroot to use.
-    #[clap(short, long)]
+    /// schroot chroot to run in (shorthand for --session schroot:<name>)
+    #[clap(long)]
     schroot: Option<String>,
 
+    /// Session backend to run in: "plain", "schroot:<name>", or "unshare:<suite>"
+    #[clap(long)]
+    session: Option<SessionKind>,
+
     /// ognibuild dep server to use
-    #[clap(short, long, env = "OGNIBUILD_DEPS")]
+    #[clap(long, env = "OGNIBUILD_DEPS")]
     dep_server_url: Option<String>,
 
     /// Be verbose
@@ -101,14 +102,16 @@ fn main() -> Result<(), i32> {
     let (tree, subpath) = breezyshim::workingtree::open_containing(&args.directory).unwrap();
 
     #[cfg(target_os = "linux")]
-    let session = if let Some(schroot) = &args.schroot {
-        Box::new(SchrootSession::new(schroot, Some("deb-fix-build")).unwrap()) as Box<dyn Session>
-    } else {
-        Box::new(PlainSession::new())
-    };
-
+    let schroot = args.schroot.clone();
     #[cfg(not(target_os = "linux"))]
-    let session = Box::new(PlainSession::new());
+    let schroot = None;
+    let session_kind = ognibuild::session::resolve_session_kind(args.session.clone(), schroot)
+        .unwrap_or_else(|e| {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        });
+
+    let session: Box<dyn Session> = session_kind.build(Some("deb-fix-build")).unwrap();
 
     let apt = ognibuild::debian::apt::AptManager::new(session.as_ref(), None);
 

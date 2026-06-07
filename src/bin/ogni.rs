@@ -11,7 +11,7 @@ use ognibuild::installer::{
     auto_installer, select_installers, Error as InstallerError, Explanation, InstallationScope,
     Installer,
 };
-use ognibuild::session::Session;
+use ognibuild::session::{Session, SessionKind};
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
@@ -139,7 +139,12 @@ struct Args {
 
     #[cfg(target_os = "linux")]
     #[clap(long)]
+    /// schroot chroot to run in (shorthand for --session schroot:<name>)
     schroot: Option<String>,
+
+    #[clap(long)]
+    /// Session backend to run in: "plain", "schroot:<name>", or "unshare:<suite>"
+    session: Option<SessionKind>,
 
     #[clap(long, short, default_value = "auto", use_value_delimiter = true)]
     installer: Vec<String>,
@@ -518,14 +523,21 @@ fn main() -> Result<(), i32> {
     }
 
     #[cfg(target_os = "linux")]
-    let mut session: Box<dyn Session> = if let Some(schroot) = args.schroot.as_ref() {
-        Box::new(ognibuild::session::schroot::SchrootSession::new(schroot, None).unwrap())
-    } else {
-        Box::new(ognibuild::session::plain::PlainSession::new())
-    };
-
+    let schroot = args.schroot.clone();
     #[cfg(not(target_os = "linux"))]
-    let mut session: Box<dyn Session> = Box::new(ognibuild::session::plain::PlainSession::new());
+    let schroot = None;
+    let session_kind = match ognibuild::session::resolve_session_kind(args.session.clone(), schroot)
+    {
+        Ok(kind) => kind,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            return Err(1);
+        }
+    };
+    let mut session: Box<dyn Session> = session_kind.build(None).map_err(|e| {
+        eprintln!("Error: Failed to set up session: {}", e);
+        1
+    })?;
 
     #[cfg(feature = "breezy")]
     let url = if let Ok(url) = args.directory.parse::<url::Url>() {

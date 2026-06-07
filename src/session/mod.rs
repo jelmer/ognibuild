@@ -98,6 +98,91 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// Which session backend to run commands in.
+///
+/// Parsed from a command-line string (see [`SessionKind::from_str`]) and turned
+/// into a live [`Session`] with [`SessionKind::build`]. This is the shared way
+/// for the command-line tools to select a session backend.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub enum SessionKind {
+    /// Run directly on the host.
+    #[default]
+    Plain,
+    /// Run inside the named schroot chroot.
+    Schroot(String),
+    /// Run inside an unshare session bootstrapped from a cached Debian image of
+    /// the given suite.
+    Unshare(String),
+}
+
+impl std::str::FromStr for SessionKind {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.split_once(':') {
+            None if s == "plain" => Ok(SessionKind::Plain),
+            None if s == "unshare" => Ok(SessionKind::Unshare("sid".to_string())),
+            None => Err(format!(
+                "unknown session kind {s:?}; expected \"plain\", \"schroot:<name>\", or \"unshare:<suite>\""
+            )),
+            Some(("schroot", name)) if !name.is_empty() => {
+                Ok(SessionKind::Schroot(name.to_string()))
+            }
+            Some(("schroot", _)) => Err("schroot session requires a chroot name".to_string()),
+            Some(("unshare", suite)) if !suite.is_empty() => {
+                Ok(SessionKind::Unshare(suite.to_string()))
+            }
+            Some(("unshare", _)) => Err("unshare session requires a suite".to_string()),
+            Some((kind, _)) => Err(format!(
+                "unknown session kind {kind:?}; expected \"plain\", \"schroot:<name>\", or \"unshare:<suite>\""
+            )),
+        }
+    }
+}
+
+/// Reconcile the `--session` and `--schroot` command-line options into a single
+/// [`SessionKind`].
+///
+/// `--schroot <name>` is shorthand for `--session schroot:<name>`. Supplying both
+/// is an error.
+pub fn resolve_session_kind(
+    session: Option<SessionKind>,
+    schroot: Option<String>,
+) -> Result<SessionKind, String> {
+    match (session, schroot) {
+        (Some(_), Some(_)) => Err("--schroot and --session are mutually exclusive".to_string()),
+        (Some(kind), None) => Ok(kind),
+        (None, Some(chroot)) => Ok(SessionKind::Schroot(chroot)),
+        (None, None) => Ok(SessionKind::default()),
+    }
+}
+
+impl SessionKind {
+    /// Build a live session from this kind.
+    ///
+    /// `session_prefix` is used to label schroot sessions (e.g. the name of the
+    /// invoking tool); it is ignored by the other backends.
+    pub fn build(&self, session_prefix: Option<&str>) -> Result<Box<dyn Session>, Error> {
+        match self {
+            SessionKind::Plain => Ok(Box::new(plain::PlainSession::new())),
+            #[cfg(target_os = "linux")]
+            SessionKind::Schroot(chroot) => Ok(Box::new(schroot::SchrootSession::new(
+                chroot,
+                session_prefix,
+            )?)),
+            #[cfg(target_os = "linux")]
+            SessionKind::Unshare(suite) => Ok(Box::new(
+                unshare::UnshareSession::cached_debian_session(suite)?,
+            )),
+            #[cfg(not(target_os = "linux"))]
+            SessionKind::Schroot(_) | SessionKind::Unshare(_) => Err(Error::SetupFailure(
+                "unsupported session backend".to_string(),
+                "schroot and unshare sessions are only available on Linux".to_string(),
+            )),
+        }
+    }
+}
+
 /// Session interface for running commands in different environments.
 ///
 /// This trait defines the interface for running commands in different environments,
@@ -781,28 +866,51 @@ pub fn run_with_tee(
 /// * `Err(Error)` if creating the home directory fails
 pub fn create_home(session: &impl Session) -> Result<(), Error> {
     let cwd = std::path::Path::new("/");
-    let home = String::from_utf8(session.check_output(
-        vec!["sh", "-c", "echo $HOME"],
-        Some(cwd),
-        None,
-        None,
-    )?)
-    .unwrap()
-    .trim_end_matches('\n')
-    .to_string();
-    let user = String::from_utf8(session.check_output(
-        vec!["sh", "-c", "echo $LOGNAME"],
-        Some(cwd),
-        None,
-        None,
-    )?)
-    .unwrap()
-    .trim_end_matches('\n')
-    .to_string();
-    log::info!("Creating directory {} in schroot session.", home);
+
+    // Resolve the home directory and ownership from the session's own user
+    // database rather than the inherited $HOME/$LOGNAME, which leak in from the
+    // host and may not match the user inside the session (e.g. an unshare
+    // session whose uid maps to a different name in /etc/passwd). Fall back to
+    // $HOME only if the passwd entry has no home field.
+    let uid = run_single_line(session, cwd, "id -u", "determine current uid in session")?;
+    let gid = run_single_line(session, cwd, "id -g", "determine current gid in session")?;
+    let home = run_single_line(
+        session,
+        cwd,
+        "getent passwd \"$(id -u)\" | cut -d: -f6 || true",
+        "determine home directory in session",
+    )?;
+    let home = if home.is_empty() {
+        run_single_line(session, cwd, "echo \"$HOME\"", "determine $HOME in session")?
+    } else {
+        home
+    };
+
+    log::info!("Creating home directory {} in session.", home);
     session.check_call(vec!["mkdir", "-p", &home], Some(cwd), Some("root"), None)?;
-    session.check_call(vec!["chown", &user, &home], Some(cwd), Some("root"), None)?;
+    // Chown by numeric uid:gid, which always exists, rather than a username that
+    // may not be present in the session's passwd database.
+    let owner = format!("{}:{}", uid, gid);
+    session.check_call(vec!["chown", &owner, &home], Some(cwd), Some("root"), None)?;
     Ok(())
+}
+
+/// Run a shell snippet in the session and return its trimmed single-line output.
+fn run_single_line(
+    session: &impl Session,
+    cwd: &std::path::Path,
+    script: &str,
+    what: &str,
+) -> Result<String, Error> {
+    let out = session.check_output(vec!["sh", "-c", script], Some(cwd), None, None)?;
+    String::from_utf8(out)
+        .map_err(|e| {
+            Error::SetupFailure(
+                format!("Failed to {}", what),
+                format!("non-UTF-8 output: {}", e),
+            )
+        })
+        .map(|s| s.trim().to_string())
 }
 
 #[cfg(test)]
@@ -829,6 +937,50 @@ mod tests {
         let session = super::plain::PlainSession::new();
         let which = super::which(&session, "ls");
         assert!(which.unwrap().ends_with("/ls"));
+    }
+
+    #[test]
+    fn test_session_kind_from_str() {
+        use super::SessionKind;
+        use std::str::FromStr;
+        assert_eq!(SessionKind::from_str("plain"), Ok(SessionKind::Plain));
+        assert_eq!(
+            SessionKind::from_str("schroot:sid"),
+            Ok(SessionKind::Schroot("sid".to_string()))
+        );
+        assert_eq!(
+            SessionKind::from_str("unshare:bookworm"),
+            Ok(SessionKind::Unshare("bookworm".to_string()))
+        );
+        assert_eq!(
+            SessionKind::from_str("unshare"),
+            Ok(SessionKind::Unshare("sid".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_session_kind_from_str_errors() {
+        use super::SessionKind;
+        use std::str::FromStr;
+        assert!(SessionKind::from_str("bogus").is_err());
+        assert!(SessionKind::from_str("schroot:").is_err());
+        assert!(SessionKind::from_str("unshare:").is_err());
+        assert!(SessionKind::from_str("docker:foo").is_err());
+    }
+
+    #[test]
+    fn test_resolve_session_kind() {
+        use super::{resolve_session_kind, SessionKind};
+        assert_eq!(resolve_session_kind(None, None), Ok(SessionKind::Plain));
+        assert_eq!(
+            resolve_session_kind(Some(SessionKind::Unshare("sid".to_string())), None),
+            Ok(SessionKind::Unshare("sid".to_string()))
+        );
+        assert_eq!(
+            resolve_session_kind(None, Some("foo".to_string())),
+            Ok(SessionKind::Schroot("foo".to_string()))
+        );
+        assert!(resolve_session_kind(Some(SessionKind::Plain), Some("foo".to_string())).is_err());
     }
 
     #[test]

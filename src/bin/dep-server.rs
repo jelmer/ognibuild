@@ -1,9 +1,7 @@
 use axum::{routing::get, Router};
 use clap::Parser;
 use ognibuild::debian::apt::AptManager;
-#[cfg(target_os = "linux")]
-use ognibuild::session::schroot::SchrootSession;
-use ognibuild::session::{plain::PlainSession, Session};
+use ognibuild::session::{Session, SessionKind};
 use std::io::Write;
 
 #[derive(Parser)]
@@ -16,7 +14,12 @@ struct Args {
 
     #[cfg(target_os = "linux")]
     #[clap(short, long)]
+    /// schroot chroot to run in (shorthand for --session schroot:<name>)
     schroot: Option<String>,
+
+    #[clap(long)]
+    /// Session backend to run in: "plain", "schroot:<name>", or "unshare:<suite>"
+    session: Option<SessionKind>,
 
     #[clap(short, long)]
     debug: bool,
@@ -39,14 +42,16 @@ async fn main() -> Result<(), i8> {
         .init();
 
     #[cfg(target_os = "linux")]
-    let session: Box<dyn Session> = if let Some(schroot) = args.schroot {
-        Box::new(SchrootSession::new(&schroot, None).unwrap())
-    } else {
-        Box::new(PlainSession::new())
-    };
-
+    let schroot = args.schroot;
     #[cfg(not(target_os = "linux"))]
-    let session: Box<dyn Session> = Box::new(PlainSession::new());
+    let schroot = None;
+    let session_kind = ognibuild::session::resolve_session_kind(args.session, schroot)
+        .unwrap_or_else(|e| {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        });
+
+    let session: Box<dyn Session> = session_kind.build(None).unwrap();
 
     let _apt_mgr = AptManager::from_session(session.as_ref());
 
