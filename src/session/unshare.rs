@@ -118,7 +118,10 @@ impl UnshareSession {
             .arg(root)
             .arg("--")
             .arg("tar")
-            .arg("x")
+            // -p preserves special permission bits (notably the sticky bit on
+            // /tmp). Without it tar applies the umask and drops them, leaving
+            // /tmp non-sticky and unwritable by apt's _apt sandbox user.
+            .arg("xp")
             .arg(compression_flag(path)?.unwrap_or("--"))
             .stdin(std::process::Stdio::from(f))
             .stderr(std::process::Stdio::piped())
