@@ -90,6 +90,10 @@ struct CacheEnvArgs {
     /// Force re-download even if cached
     #[clap(long)]
     force: bool,
+
+    /// Refresh an existing cached image by running apt upgrade inside it
+    #[clap(long, conflicts_with = "force")]
+    update: bool,
 }
 
 #[derive(Subcommand)]
@@ -519,7 +523,7 @@ fn main() -> Result<(), i32> {
 
     // Handle cache-env command separately as it doesn't need a session
     if let Some(Command::CacheEnv(ref cache_args)) = args.command {
-        return cache_debian_image(&cache_args.suite, cache_args.force);
+        return cache_debian_image(&cache_args.suite, cache_args.force, cache_args.update);
     }
 
     #[cfg(target_os = "linux")]
@@ -693,10 +697,10 @@ fn main() -> Result<(), i32> {
 }
 
 #[cfg(target_os = "linux")]
-fn cache_debian_image(suite: &str, force: bool) -> Result<(), i32> {
+fn cache_debian_image(suite: &str, force: bool, update: bool) -> Result<(), i32> {
     if is_network_disabled() {
         eprintln!("Error: Network access is disabled (OGNIBUILD_DISABLE_NET is set)");
-        eprintln!("Cannot download Debian image without network access.");
+        eprintln!("Cannot download or update a Debian image without network access.");
         return Err(1);
     }
 
@@ -726,50 +730,118 @@ fn cache_debian_image(suite: &str, force: bool) -> Result<(), i32> {
     let tarball_name = format!("debian-{}-{}.tar.gz", suite, arch_name);
     let tarball_path = cache_dir.join(&tarball_name);
 
+    if update {
+        if !tarball_path.exists() {
+            eprintln!(
+                "No cached Debian {} image at {} to update.",
+                suite,
+                tarball_path.display()
+            );
+            eprintln!("Run 'ogni cache-env {}' to create one first.", suite);
+            return Err(1);
+        }
+        return update_debian_image(suite, &tarball_path);
+    }
+
     if tarball_path.exists() && !force {
         log::info!(
             "Debian {} image already cached at {}",
             suite,
             tarball_path.display()
         );
-        log::info!("Use --force to re-download.");
+        log::info!("Use --force to re-download, or --update to apt upgrade in place.");
         return Ok(());
     }
 
     // Bootstrap a Debian session using mmdebstrap and save it
     log::info!("Bootstrapping Debian {} image using mmdebstrap...", suite);
-    match ognibuild::session::unshare::bootstrap_debian_tarball(suite, true) {
-        Ok(session) => {
-            // Save the bootstrapped session to the cache
-            log::info!("Saving to cache: {}", tarball_path.display());
-            match session.save_to_tarball(&tarball_path) {
-                Ok(_) => {
-                    log::info!(
-                        "Successfully cached Debian {} image at {}",
-                        suite,
-                        tarball_path.display()
-                    );
-                    log::info!("");
-                    log::info!("This cached image will now be used automatically by tests.");
-                    log::info!("You can also explicitly use it by setting:");
-                    log::info!("  OGNIBUILD_DEBIAN_TEST_TARBALL={}", tarball_path.display());
-                    Ok(())
-                }
-                Err(e) => {
-                    eprintln!("Failed to save tarball: {}", e);
-                    Err(1)
-                }
-            }
-        }
+    let session = match ognibuild::session::unshare::bootstrap_debian_tarball(suite, true) {
+        Ok(session) => session,
         Err(e) => {
             eprintln!("Failed to bootstrap image: {}", e);
+            return Err(1);
+        }
+    };
+
+    save_cached_image(suite, &session, &tarball_path)
+}
+
+#[cfg(target_os = "linux")]
+fn update_debian_image(suite: &str, tarball_path: &Path) -> Result<(), i32> {
+    use ognibuild::session::unshare::UnshareSession;
+
+    log::info!("Loading cached Debian {} image for update...", suite);
+    let mut session = match UnshareSession::from_tarball(tarball_path) {
+        Ok(session) => session,
+        Err(e) => {
+            eprintln!("Failed to load cached image: {}", e);
+            return Err(1);
+        }
+    };
+
+    // apt needs network access to reach the Debian mirrors.
+    session.set_isolate_network(false);
+
+    let mut env = std::collections::HashMap::new();
+    env.insert("DEBIAN_FRONTEND".to_string(), "noninteractive".to_string());
+
+    // Error-Mode=any turns a failed index fetch into a non-zero exit, since
+    // apt-get update otherwise reports success and silently falls back to the
+    // stale lists.
+    log::info!("Running apt-get update...");
+    if let Err(e) = session.check_call(
+        vec!["apt-get", "-o", "APT::Update::Error-Mode=any", "update"],
+        Some(Path::new("/")),
+        Some("root"),
+        Some(env.clone()),
+    ) {
+        eprintln!("apt-get update failed: {}", e);
+        return Err(1);
+    }
+
+    log::info!("Running apt-get full-upgrade...");
+    if let Err(e) = session.check_call(
+        vec!["apt-get", "full-upgrade", "--yes"],
+        Some(Path::new("/")),
+        Some("root"),
+        Some(env),
+    ) {
+        eprintln!("apt-get full-upgrade failed: {}", e);
+        return Err(1);
+    }
+
+    save_cached_image(suite, &session, tarball_path)
+}
+
+#[cfg(target_os = "linux")]
+fn save_cached_image(
+    suite: &str,
+    session: &ognibuild::session::unshare::UnshareSession,
+    tarball_path: &Path,
+) -> Result<(), i32> {
+    log::info!("Saving to cache: {}", tarball_path.display());
+    match session.save_to_tarball(tarball_path) {
+        Ok(_) => {
+            log::info!(
+                "Successfully cached Debian {} image at {}",
+                suite,
+                tarball_path.display()
+            );
+            log::info!("");
+            log::info!("This cached image will now be used automatically by tests.");
+            log::info!("You can also explicitly use it by setting:");
+            log::info!("  OGNIBUILD_DEBIAN_TEST_TARBALL={}", tarball_path.display());
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("Failed to save tarball: {}", e);
             Err(1)
         }
     }
 }
 
 #[cfg(not(target_os = "linux"))]
-fn cache_debian_image(_suite: &str, _force: bool) -> Result<(), i32> {
+fn cache_debian_image(_suite: &str, _force: bool, _update: bool) -> Result<(), i32> {
     eprintln!("Error: cache-env command is only available on Linux");
     Err(1)
 }
