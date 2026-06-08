@@ -396,8 +396,11 @@ fn download_and_cache_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
 /// Convert a URI into a safe filename. It quotes all unsafe characters and converts / to _ and removes the scheme identifier.
 pub fn uri_to_filename(url: &url::Url) -> String {
     let mut url = url.clone();
-    url.set_username("").unwrap();
-    url.set_password(None).unwrap();
+    // Strip any credentials from the URL. These setters return Err for URLs
+    // that cannot carry credentials (e.g. host-less file:/cdrom: URIs), in
+    // which case there is nothing to strip.
+    let _ = url.set_username("");
+    let _ = url.set_password(None);
 
     use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 
@@ -1242,6 +1245,24 @@ mod tests {
         assert_eq!(
             uri_to_filename(&"http://example.com/foo/bar".parse().unwrap()),
             "example.com_foo_bar"
+        );
+    }
+
+    #[test]
+    fn test_uri_to_filename_with_credentials() {
+        assert_eq!(
+            uri_to_filename(&"http://user:pass@example.com/foo/bar".parse().unwrap()),
+            "example.com_foo_bar"
+        );
+    }
+
+    #[test]
+    fn test_uri_to_filename_host_less() {
+        // Host-less URIs (e.g. file:/cdrom:) cannot carry credentials; stripping
+        // them must not panic.
+        assert_eq!(
+            uri_to_filename(&"file:///var/lib/foo/dists/sid/InRelease".parse().unwrap()),
+            "_var_lib_foo_dists_sid_InRelease"
         );
     }
 

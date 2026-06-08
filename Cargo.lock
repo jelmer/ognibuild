@@ -114,9 +114,9 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "apt-sources"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd83b777b4989bd4c404af8e36fed5640f6e7e2d8c60b6e65bdea13ad719c79f"
+checksum = "d2cf430adf5a32e15508aff9205a9b50d5ccc62f4a8ed731428d4f7f0be28310"
 dependencies = [
  "colored",
  "deb822-fast",
