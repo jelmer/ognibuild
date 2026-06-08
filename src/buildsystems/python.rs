@@ -23,7 +23,8 @@ use std::io::Seek;
 use std::path::{Path, PathBuf};
 use toml;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
+#[serde(default)]
 #[allow(dead_code)]
 struct Distribution {
     name: Option<String>,
@@ -221,11 +222,20 @@ try:
     import setuptools
 except ImportError:
     pass
-import distutils
-from distutils import core
-import sys
-
 import os
+import json
+
+# distutils was removed from the standard library in Python 3.12+. It is only
+# needed to introspect setup.py metadata, which is best-effort, so if it is
+# unavailable skip extraction and emit empty metadata rather than failing.
+try:
+    from distutils import core
+except ImportError:
+    with open(%(output_path)s, 'w') as f:
+        json.dump({}, f)
+    raise SystemExit(0)
+
+import sys
 script_name = "%(script_name)s"
 os.chdir(os.path.dirname(script_name))
 
@@ -260,8 +270,6 @@ r = {
     'packages': getattr(d, "packages", []) or [],
     'requires': d.get_requires() or [],
     }
-import os
-import json
 with open(%(output_path)s, 'w') as f:
     json.dump(r, f)
 """#;
