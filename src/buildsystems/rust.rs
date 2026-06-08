@@ -357,8 +357,7 @@ impl BuildSystem for Cargo {
         if let Some(fixers) = fixers {
             session
                 .command(vec!["cargo", "fetch"])
-                .run_fixing_problems::<_, Error>(fixers)
-                .unwrap();
+                .run_fixing_problems::<_, Error>(fixers)?;
         } else {
             session
                 .command(vec!["cargo", "fetch"])
