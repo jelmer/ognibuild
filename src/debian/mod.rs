@@ -53,7 +53,38 @@ pub fn satisfy_build_deps(
 
     let control: debian_control::Control = String::from_utf8(f).unwrap().parse().unwrap();
 
-    let source = control.source().unwrap();
+    let apt_mgr = apt::AptManager::new(session, None);
+    apt_mgr.satisfy(build_dep_entries(&control))
+}
+
+/// Satisfy build dependencies parsed from a debian/control file on disk.
+///
+/// Unlike [`satisfy_build_deps`], this reads the control file directly from the
+/// filesystem rather than from a VCS tree, which is useful when indexing an
+/// unpacked source package that has no version control metadata. Dependencies
+/// are satisfied in `session` via apt.
+///
+/// # Arguments
+/// * `session` - Session to run apt in
+/// * `control_path` - Path to the debian/control file (on the host filesystem)
+pub fn satisfy_build_deps_from_control(
+    session: &dyn Session,
+    control_path: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let text = std::fs::read_to_string(control_path)?;
+    let control: debian_control::Control = text.parse()?;
+    let apt_mgr = apt::AptManager::new(session, None);
+    apt_mgr
+        .satisfy(build_dep_entries(&control))
+        .map_err(|e| format!("Failed to satisfy build dependencies: {:?}", e).into())
+}
+
+/// Collect the build dependencies and conflicts from a parsed control file as
+/// apt satisfy entries.
+fn build_dep_entries(control: &debian_control::Control) -> Vec<apt::SatisfyEntry> {
+    let Some(source) = control.source() else {
+        return vec![];
+    };
 
     let mut deps = vec![];
 
@@ -75,6 +106,50 @@ pub fn satisfy_build_deps(
         deps.push(apt::SatisfyEntry::Conflict(dep.to_string()));
     }
 
-    let apt_mgr = apt::AptManager::new(session, None);
-    apt_mgr.satisfy(deps)
+    deps
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn classify(entries: &[apt::SatisfyEntry]) -> (Vec<&str>, Vec<&str>) {
+        let mut required = vec![];
+        let mut conflicts = vec![];
+        for entry in entries {
+            match entry {
+                apt::SatisfyEntry::Required(s) => required.push(s.as_str()),
+                apt::SatisfyEntry::Conflict(s) => conflicts.push(s.as_str()),
+            }
+        }
+        (required, conflicts)
+    }
+
+    #[test]
+    fn test_build_dep_entries() {
+        let control: debian_control::Control = "Source: dulwich\n\
+            Build-Depends: debhelper-compat (= 13), dh-python\n\
+            Build-Depends-Indep: python3-sphinx\n\
+            Build-Conflicts: python3-broken\n\n\
+            Package: python3-dulwich\n\
+            Architecture: any\n"
+            .parse()
+            .unwrap();
+        let entries = build_dep_entries(&control);
+        let (required, conflicts) = classify(&entries);
+        // Each field is emitted as a single comma-separated relation string,
+        // which is what "apt satisfy" expects.
+        assert_eq!(
+            required,
+            vec!["debhelper-compat (= 13), dh-python", "python3-sphinx"]
+        );
+        assert_eq!(conflicts, vec!["python3-broken"]);
+    }
+
+    #[test]
+    fn test_build_dep_entries_no_source() {
+        let control: debian_control::Control =
+            "Package: python3-dulwich\nArchitecture: any\n".parse().unwrap();
+        assert!(build_dep_entries(&control).is_empty());
+    }
 }
