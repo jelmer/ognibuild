@@ -299,6 +299,18 @@ pub fn run_scip(
     Err(Error::NoBuildSystemDetected)
 }
 
+/// Create a fresh temporary directory inside the session and return its path.
+fn session_tempdir(session: &dyn Session) -> Result<std::path::PathBuf, Error> {
+    let output = session
+        .command(vec!["mktemp", "-d"])
+        .quiet(true)
+        .check_output()
+        .map_err(|e| Error::Other(format!("Failed to create staging directory: {}", e)))?;
+    let path = String::from_utf8(output)
+        .map_err(|e| Error::Other(format!("mktemp output is not valid UTF-8: {}", e)))?;
+    Ok(std::path::PathBuf::from(path.trim_end()))
+}
+
 /// File name (within the output directory) for a SCIP index.
 ///
 /// Indexes are named after the language they cover (e.g. `python.scip`). When
@@ -347,14 +359,19 @@ pub fn run_scip_multi(
 ) -> Result<(), Error> {
     session.create_home()?;
 
-    if !session.exists(output_dir) {
-        session.mkdir(output_dir)?;
-    }
+    // `output_dir` is a host path; in an isolated session (e.g. unshare) it does
+    // not exist inside the session. So index into a session-internal staging
+    // directory (kept out of the project tree so the indexers do not see their
+    // own output) and copy the results out onto the host afterwards via
+    // `external_path`, which maps a session path to its host location for any
+    // session kind (for a plain session the two coincide).
+    let staging = session_tempdir(session)?;
 
     let mut indexed = 0;
     let mut attempted = 0;
     let mut last_error = None;
     let mut taken = HashSet::new();
+    let mut written = Vec::new();
     for buildsystem in buildsystems {
         let name = buildsystem.name();
         let Some(indexer) = indexer_for(name) else {
@@ -364,7 +381,7 @@ pub fn run_scip_multi(
 
         let file_name = index_file_name(indexer.language, name, &taken);
         taken.insert(file_name.clone());
-        let output = output_dir.join(&file_name);
+        let output = staging.join(&file_name);
 
         log::info!(
             "Generating SCIP index for {} using {}",
@@ -379,6 +396,7 @@ pub fn run_scip_multi(
         match run_indexer(&indexer, session, installer, fixers, &output) {
             Ok(()) => {
                 log::info!("Wrote SCIP index to {}", output.display());
+                written.push(file_name);
                 indexed += 1;
             }
             Err(e) => {
@@ -391,6 +409,30 @@ pub fn run_scip_multi(
                 last_error = Some(e);
             }
         }
+    }
+
+    // Copy the indexes out of the session onto the host. `output_dir` is a host
+    // path outside the session, so it is created here rather than via the
+    // session; `external_path` resolves where the session wrote each file.
+    if !written.is_empty() {
+        std::fs::create_dir_all(output_dir)?;
+        for file_name in &written {
+            let src = session.external_path(&staging.join(file_name));
+            let dest = output_dir.join(file_name);
+            std::fs::copy(&src, &dest).map_err(|e| {
+                Error::Other(format!(
+                    "Failed to copy SCIP index {} to {}: {}",
+                    src.display(),
+                    dest.display(),
+                    e
+                ))
+            })?;
+        }
+    }
+
+    // Remove the staging directory; the indexes now live in `output_dir`.
+    if session.exists(&staging) {
+        session.rmtree(&staging)?;
     }
 
     if attempted == 0 {
