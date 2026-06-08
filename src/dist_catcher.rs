@@ -16,9 +16,13 @@ pub const SUPPORTED_DIST_EXTENSIONS: &[&str] = &[
 
 /// Check if a file has a supported distribution extension.
 pub fn supported_dist_file(file: &Path) -> bool {
+    let name = match file.file_name().and_then(|n| n.to_str()) {
+        Some(name) => name,
+        None => return false,
+    };
     SUPPORTED_DIST_EXTENSIONS
         .iter()
-        .any(|&ext| file.ends_with(ext))
+        .any(|&ext| name.ends_with(ext))
 }
 
 /// Utility to detect and collect distribution files created by build systems.
@@ -147,5 +151,111 @@ impl DistCatcher {
             std::io::ErrorKind::NotFound,
             "No tarball found",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_supported_dist_file() {
+        assert!(supported_dist_file(Path::new("foo.tar.gz")));
+        assert!(supported_dist_file(Path::new("/tmp/foo.tar.gz")));
+        assert!(supported_dist_file(Path::new("/tmp/foo.zip")));
+        assert!(supported_dist_file(Path::new("/tmp/foo.tgz")));
+        assert!(!supported_dist_file(Path::new("/tmp/foo.txt")));
+        assert!(!supported_dist_file(Path::new("/tmp/README")));
+    }
+
+    fn touch(path: &Path) {
+        std::fs::write(path, b"data").unwrap();
+    }
+
+    #[test]
+    fn test_find_files_detects_new_tarball() {
+        let td = tempfile::tempdir().unwrap();
+        let mut catcher = DistCatcher::new(vec![td.path().to_path_buf()]);
+        catcher.start();
+        let tarball = td.path().join("project-1.0.tar.gz");
+        touch(&tarball);
+
+        let found = catcher.find_files();
+        assert_eq!(found, Some(tarball.canonicalize().unwrap()));
+    }
+
+    #[test]
+    fn test_find_files_ignores_unsupported_extension() {
+        let td = tempfile::tempdir().unwrap();
+        let mut catcher = DistCatcher::new(vec![td.path().to_path_buf()]);
+        catcher.start();
+        touch(&td.path().join("notes.txt"));
+
+        assert_eq!(catcher.find_files(), None);
+    }
+
+    #[test]
+    fn test_find_files_ignores_preexisting_file() {
+        let td = tempfile::tempdir().unwrap();
+        touch(&td.path().join("old.tar.gz"));
+        let mut catcher = DistCatcher::new(vec![td.path().to_path_buf()]);
+        catcher.start();
+
+        assert_eq!(catcher.find_files(), None);
+    }
+
+    #[test]
+    fn test_find_files_multiple_new_returns_first_and_records_all() {
+        let td = tempfile::tempdir().unwrap();
+        let mut catcher = DistCatcher::new(vec![td.path().to_path_buf()]);
+        catcher.start();
+        touch(&td.path().join("a.tar.gz"));
+        touch(&td.path().join("b.tar.gz"));
+
+        let found = catcher.find_files();
+        assert!(found.is_some());
+        assert_eq!(catcher.files.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_find_files_detects_updated_tarball() {
+        let td = tempfile::tempdir().unwrap();
+        // Construct first so start_time predates the tarball's mtime.
+        let mut catcher = DistCatcher::new(vec![td.path().to_path_buf()]);
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let tarball = td.path().join("project-1.0.tar.gz");
+        touch(&tarball);
+        // The file already exists when we snapshot, so it counts as updated
+        // rather than new.
+        catcher.start();
+
+        let found = catcher.find_files();
+        assert_eq!(found, Some(tarball.canonicalize().unwrap()));
+    }
+
+    #[test]
+    fn test_copy_single_copies_recorded_file() {
+        let td = tempfile::tempdir().unwrap();
+        let mut catcher = DistCatcher::new(vec![td.path().to_path_buf()]);
+        catcher.start();
+        let tarball = td.path().join("project-1.0.tar.gz");
+        touch(&tarball);
+        catcher.find_files();
+
+        let target = tempfile::tempdir().unwrap();
+        let copied = catcher.copy_single(target.path()).unwrap();
+        assert_eq!(copied, Some(OsString::from("project-1.0.tar.gz")));
+        assert!(target.path().join("project-1.0.tar.gz").exists());
+    }
+
+    #[test]
+    fn test_copy_single_no_files_is_not_found() {
+        let td = tempfile::tempdir().unwrap();
+        let mut catcher = DistCatcher::new(vec![td.path().to_path_buf()]);
+        catcher.start();
+
+        let target = tempfile::tempdir().unwrap();
+        let err = catcher.copy_single(target.path()).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
     }
 }

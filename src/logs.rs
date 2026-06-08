@@ -235,3 +235,50 @@ impl LogManager for NoLogManager {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rotate_logfile_missing_source_is_noop() {
+        let td = tempfile::tempdir().unwrap();
+        let source = td.path().join("build.log");
+        rotate_logfile(&source).unwrap();
+        assert!(!source.exists());
+        assert!(!source.with_extension("log.1").exists());
+    }
+
+    #[test]
+    fn test_rotate_logfile_renames_to_numbered_suffix() {
+        let td = tempfile::tempdir().unwrap();
+        let source = td.path().join("build.log");
+        fs::write(&source, "first").unwrap();
+
+        rotate_logfile(&source).unwrap();
+
+        assert!(!source.exists());
+        let rotated = td.path().join("build.log.1");
+        assert_eq!(fs::read_to_string(&rotated).unwrap(), "first");
+    }
+
+    #[test]
+    fn test_rotate_logfile_increments_when_suffix_taken() {
+        let td = tempfile::tempdir().unwrap();
+        let source = td.path().join("build.log");
+        fs::write(&source, "second").unwrap();
+        fs::write(td.path().join("build.log.1"), "old").unwrap();
+
+        rotate_logfile(&source).unwrap();
+
+        assert!(!source.exists());
+        assert_eq!(
+            fs::read_to_string(td.path().join("build.log.1")).unwrap(),
+            "old"
+        );
+        assert_eq!(
+            fs::read_to_string(td.path().join("build.log.2")).unwrap(),
+            "second"
+        );
+    }
+}

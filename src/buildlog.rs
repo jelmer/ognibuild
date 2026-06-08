@@ -101,3 +101,33 @@ pub fn problem_to_dependency(problem: &dyn Problem) -> Option<Box<dyn Dependency
 
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use buildlog_consultant::problems::common::{MissingCommand, MissingFile};
+
+    #[test]
+    fn test_missing_command_to_dependency() {
+        let problem = MissingCommand("gcc".to_string());
+        let dep = problem_to_dependency(&problem).unwrap();
+        assert_eq!(dep.family(), "binary");
+    }
+
+    #[test]
+    fn test_missing_file_to_dependency() {
+        let problem = MissingFile {
+            path: "/usr/share/foo".into(),
+        };
+        let dep = problem_to_dependency(&problem).unwrap();
+        assert_eq!(dep.family(), "path");
+    }
+
+    #[test]
+    fn test_unrecognized_problem_returns_none() {
+        // MissingPostgresExtension is not in the dispatch table.
+        let problem =
+            buildlog_consultant::problems::common::MissingPostgresExtension("postgis".to_string());
+        assert!(problem_to_dependency(&problem).is_none());
+    }
+}

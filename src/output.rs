@@ -110,3 +110,39 @@ impl Output for RPackageOutput {
         vec![]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_binary_output() {
+        let output = BinaryOutput::new("mybin");
+        assert_eq!(output.0, "mybin");
+        assert_eq!(output.family(), "binary");
+        assert_eq!(output.get_declared_dependencies(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_python_package_output() {
+        let output = PythonPackageOutput::new("requests", Some("2.0"));
+        assert_eq!(output.name, "requests");
+        assert_eq!(output.version.as_deref(), Some("2.0"));
+        assert_eq!(output.family(), "python-package");
+        assert_eq!(output.get_declared_dependencies(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_python_package_output_without_version() {
+        let output = PythonPackageOutput::new("requests", None);
+        assert_eq!(output.version, None);
+    }
+
+    #[test]
+    fn test_r_package_output() {
+        let output = RPackageOutput::new("ggplot2");
+        assert_eq!(output.name, "ggplot2");
+        assert_eq!(output.family(), "r-package");
+        assert_eq!(output.get_declared_dependencies(), Vec::<String>::new());
+    }
+}
