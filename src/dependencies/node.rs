@@ -224,6 +224,8 @@ fn command_package(command: &str) -> Option<&str> {
         "babel-cli" => Some("babel"),
         "c8" => Some("c8"),
         "prettier-standard" => Some("prettier-standard"),
+        "scip-python" => Some("@sourcegraph/scip-python"),
+        "scip-typescript" => Some("@sourcegraph/scip-typescript"),
         _ => None,
     }
 }
