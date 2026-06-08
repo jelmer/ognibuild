@@ -72,6 +72,14 @@ struct ScipArgs {
     /// each named after the indexed language (e.g. python.scip)
     #[clap(long)]
     output_all: Option<PathBuf>,
+
+    /// Before indexing, install the Debian source package's Build-Depends
+    /// (from debian/control) via apt. These resolve to concrete packages,
+    /// unlike the build system's own declared dependencies, so indexers that
+    /// need the build environment present (e.g. scip-python reading setup.py
+    /// metadata) work. Requires a session where apt can install packages.
+    #[clap(long)]
+    apt_build_deps: bool,
 }
 
 #[derive(Parser)]
@@ -354,6 +362,23 @@ fn run_action(
         Command::Exec(..) => unreachable!(),
         Command::CacheEnv(..) => unreachable!(),
         Command::Scip(scip_args) => {
+            if scip_args.apt_build_deps {
+                #[cfg(feature = "debian")]
+                {
+                    let control = external_dir.join("debian/control");
+                    if control.exists() {
+                        log::info!("Installing Debian Build-Depends from {}", control.display());
+                        ognibuild::debian::satisfy_build_deps_from_control(session, &control)
+                            .map_err(|e| Error::Other(e.to_string()))?;
+                    } else {
+                        log::info!("--apt-build-deps given but no debian/control found; skipping");
+                    }
+                }
+                #[cfg(not(feature = "debian"))]
+                return Err(Error::Other(
+                    "--apt-build-deps requires ogni built with the 'debian' feature".to_string(),
+                ));
+            }
             let bss = bss.iter().map(|bs| bs.as_ref()).collect::<Vec<_>>();
             if let Some(output_dir) = scip_args.output_all.as_ref() {
                 ognibuild::actions::scip::run_scip_multi(
