@@ -5,147 +5,222 @@ use crate::session::Session;
 use std::collections::HashSet;
 use std::path::Path;
 
-/// Substituted with the (UTF-8) output path in indexer arguments.
-const OUTPUT_PLACEHOLDER: &str = "%OUTPUT%";
-
-/// A preparation step run before invoking the SCIP indexer.
+/// Run the SCIP indexer for `buildsystem`, writing the index to `output`.
 ///
-/// Most language indexers (cargo, go, ...) read source directly and need no
-/// preparation. C/C++ indexing via `scip-clang` is different: it consumes a
-/// `compile_commands.json` produced by the build, so the build must run first.
-enum ScipPrep {
-    /// No preparation step; the indexer reads sources directly.
-    None,
-    /// Configure with CMake (`-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`) and build,
-    /// producing `build/compile_commands.json`.
-    CMakeCompileCommands,
-    /// Configure with Meson and build with ninja; meson always emits
-    /// `build/compile_commands.json`.
-    MesonCompileCommands,
-    /// Wrap `make` in `bear --` to intercept compiler invocations and produce
-    /// `./compile_commands.json`.
-    BearMake,
-}
-
-/// A SCIP indexer that can be invoked for a particular build system.
-struct ScipIndexer {
-    /// Optional preparation step (e.g. running the build to produce
-    /// `compile_commands.json`).
-    prep: ScipPrep,
-    /// The binary that produces the SCIP index.
-    binary: &'static str,
-    /// Arguments to the indexer binary. Any occurrence of `OUTPUT_PLACEHOLDER`
-    /// is substituted with the resolved output path.
-    args: &'static [&'static str],
-    /// Language indexed, used to name the output file (e.g. `python`).
-    /// Several build systems may share a language (e.g. cmake/meson/make all
-    /// produce `cpp`).
-    language: &'static str,
-}
-
-/// Look up the SCIP indexer that should be used for a given build system name.
-///
-/// Returns None when no indexer is known for this build system. The mapping is
-/// based on the public SCIP indexers maintained by Sourcegraph:
-///   - cargo:        rust-analyzer scip
-///   - setup.py:     scip-python
-///   - golang:       scip-go
-///   - maven/gradle: scip-java
-///   - node:         scip-typescript
-///   - gem:          scip-ruby
-///   - cmake/meson/make: scip-clang (driven by compile_commands.json)
-fn indexer_for(buildsystem: &str) -> Option<ScipIndexer> {
-    match buildsystem {
-        "cargo" => Some(ScipIndexer {
-            prep: ScipPrep::None,
-            binary: "rust-analyzer",
-            args: &["scip", ".", "--output", OUTPUT_PLACEHOLDER],
-            language: "rust",
-        }),
-        "setup.py" => Some(ScipIndexer {
-            prep: ScipPrep::None,
-            binary: "scip-python",
-            args: &["index", "--output", OUTPUT_PLACEHOLDER],
-            language: "python",
-        }),
-        "golang" => Some(ScipIndexer {
-            prep: ScipPrep::None,
-            binary: "scip-go",
-            args: &["--output", OUTPUT_PLACEHOLDER],
-            language: "go",
-        }),
-        "maven" | "gradle" => Some(ScipIndexer {
-            prep: ScipPrep::None,
-            binary: "scip-java",
-            args: &["index", "--output", OUTPUT_PLACEHOLDER],
-            language: "java",
-        }),
-        "node" => Some(ScipIndexer {
-            prep: ScipPrep::None,
-            binary: "scip-typescript",
-            args: &["index", "--output", OUTPUT_PLACEHOLDER],
-            language: "typescript",
-        }),
-        // scip-ruby reads sorbet/config when present, otherwise the trailing `.`
-        // tells it to index every file in the project.
-        "gem" => Some(ScipIndexer {
-            prep: ScipPrep::None,
-            binary: "scip-ruby",
-            args: &["--index-file", OUTPUT_PLACEHOLDER, "."],
-            language: "ruby",
-        }),
-        "cmake" => Some(ScipIndexer {
-            prep: ScipPrep::CMakeCompileCommands,
-            binary: "scip-clang",
-            args: &[
-                "--compdb-path",
-                "build/compile_commands.json",
-                "-o",
-                OUTPUT_PLACEHOLDER,
-            ],
-            language: "cpp",
-        }),
-        "meson" => Some(ScipIndexer {
-            prep: ScipPrep::MesonCompileCommands,
-            binary: "scip-clang",
-            args: &[
-                "--compdb-path",
-                "build/compile_commands.json",
-                "-o",
-                OUTPUT_PLACEHOLDER,
-            ],
-            language: "cpp",
-        }),
-        "make" => Some(ScipIndexer {
-            prep: ScipPrep::BearMake,
-            binary: "scip-clang",
-            args: &[
-                "--compdb-path",
-                "compile_commands.json",
-                "-o",
-                OUTPUT_PLACEHOLDER,
-            ],
-            language: "cpp",
-        }),
-        _ => None,
-    }
-}
-
-/// Run the preparation step required by the indexer (typically to produce a
-/// `compile_commands.json`).
-///
-/// The prep commands shell out to the project's own build tooling, which can
-/// hit missing dependencies the same way an ordinary build does, so they run
-/// through `run_fixing_problems` to resolve and retry rather than aborting.
-fn run_prep(
-    prep: &ScipPrep,
+/// Each build system gets its own indexer function that does whatever that
+/// indexer needs: running a build first to produce a `compile_commands.json`,
+/// resolving project metadata, and so on. Returns the indexed language (used to
+/// name the output file, e.g. `python`), or `None` when no indexer is known for
+/// the build system. Several build systems may share a language (e.g.
+/// cmake/meson/make all produce `cpp`).
+fn run_indexer(
+    buildsystem: &str,
     session: &dyn Session,
     installer: &dyn Installer,
     fixers: &[&dyn BuildFixer<InstallerError>],
+    output: &Path,
+) -> Result<Option<&'static str>, Error> {
+    let output = output.to_str().ok_or_else(|| {
+        Error::Other(format!(
+            "Output path is not valid UTF-8: {}",
+            output.display()
+        ))
+    })?;
+    let language = match buildsystem {
+        "cargo" => {
+            index_cargo(session, installer, fixers, output)?;
+            "rust"
+        }
+        "setup.py" => {
+            index_python(session, installer, fixers, output)?;
+            "python"
+        }
+        "golang" => {
+            index_golang(session, installer, fixers, output)?;
+            "go"
+        }
+        "maven" | "gradle" => {
+            index_java(session, installer, fixers, output)?;
+            "java"
+        }
+        "node" => {
+            index_node(session, installer, fixers, output)?;
+            "typescript"
+        }
+        "gem" => {
+            index_ruby(session, installer, fixers, output)?;
+            "ruby"
+        }
+        "cmake" => {
+            index_clang(session, installer, fixers, output, Cpp::CMake)?;
+            "cpp"
+        }
+        "meson" => {
+            index_clang(session, installer, fixers, output, Cpp::Meson)?;
+            "cpp"
+        }
+        "make" => {
+            index_clang(session, installer, fixers, output, Cpp::Make)?;
+            "cpp"
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(language))
+}
+
+/// Run an indexer binary, resolving missing dependencies as it goes.
+fn run_index_command(
+    session: &dyn Session,
+    installer: &dyn Installer,
+    fixers: &[&dyn BuildFixer<InstallerError>],
+    binary: &str,
+    args: &[&str],
 ) -> Result<(), Error> {
-    match prep {
-        ScipPrep::None => Ok(()),
-        ScipPrep::CMakeCompileCommands => {
+    let binary_path = guaranteed_which(session, installer, binary)?;
+    let mut argv = vec![binary_path.to_str().unwrap()];
+    argv.extend_from_slice(args);
+    run_fixing_problems::<_, Error>(fixers, None, session, &argv, false, None, None, None)?;
+    Ok(())
+}
+
+fn index_cargo(
+    session: &dyn Session,
+    installer: &dyn Installer,
+    fixers: &[&dyn BuildFixer<InstallerError>],
+    output: &str,
+) -> Result<(), Error> {
+    run_index_command(
+        session,
+        installer,
+        fixers,
+        "rust-analyzer",
+        &["scip", ".", "--output", output],
+    )
+}
+
+fn index_golang(
+    session: &dyn Session,
+    installer: &dyn Installer,
+    fixers: &[&dyn BuildFixer<InstallerError>],
+    output: &str,
+) -> Result<(), Error> {
+    run_index_command(session, installer, fixers, "scip-go", &["--output", output])
+}
+
+fn index_java(
+    session: &dyn Session,
+    installer: &dyn Installer,
+    fixers: &[&dyn BuildFixer<InstallerError>],
+    output: &str,
+) -> Result<(), Error> {
+    run_index_command(
+        session,
+        installer,
+        fixers,
+        "scip-java",
+        &["index", "--output", output],
+    )
+}
+
+fn index_node(
+    session: &dyn Session,
+    installer: &dyn Installer,
+    fixers: &[&dyn BuildFixer<InstallerError>],
+    output: &str,
+) -> Result<(), Error> {
+    run_index_command(
+        session,
+        installer,
+        fixers,
+        "scip-typescript",
+        &["index", "--output", output],
+    )
+}
+
+fn index_ruby(
+    session: &dyn Session,
+    installer: &dyn Installer,
+    fixers: &[&dyn BuildFixer<InstallerError>],
+    output: &str,
+) -> Result<(), Error> {
+    // scip-ruby reads sorbet/config when present, otherwise the trailing `.`
+    // tells it to index every file in the project.
+    run_index_command(
+        session,
+        installer,
+        fixers,
+        "scip-ruby",
+        &["--index-file", output, "."],
+    )
+}
+
+fn index_python(
+    session: &dyn Session,
+    installer: &dyn Installer,
+    fixers: &[&dyn BuildFixer<InstallerError>],
+    output: &str,
+) -> Result<(), Error> {
+    // scip-python crashes when it cannot determine the project name and version
+    // itself (e.g. a dynamic version with no VCS metadata), so resolve them up
+    // front via the project's PEP 517 wheel metadata and pass them explicitly.
+    let mut args = vec!["index", "--output", output];
+    let metadata = python_project_name_version(session);
+    if let Some((name, version)) = metadata.as_ref() {
+        args.extend(["--project-name", name, "--project-version", version]);
+    } else {
+        log::warn!(
+            "Could not resolve Python project name/version; \
+             scip-python may fail to determine them itself"
+        );
+    }
+    run_index_command(session, installer, fixers, "scip-python", &args)
+}
+
+/// Resolve a Python project's name and version via its PEP 517 wheel metadata.
+///
+/// The build backend is run without build isolation (relying on the build
+/// dependencies already being installed in the session), which yields the
+/// resolved name and version for any backend (setuptools, poetry, flit, ...),
+/// including dynamic versions. Returns None if the metadata cannot be produced
+/// (e.g. python3-build is missing).
+fn python_project_name_version(session: &dyn Session) -> Option<(String, String)> {
+    const SNIPPET: &str = "import build.util\n\
+        m = build.util.project_wheel_metadata('.', isolated=False)\n\
+        print(m['Name'])\n\
+        print(m['Version'])\n";
+    let output = session
+        .command(vec!["python3", "-c", SNIPPET])
+        .quiet(true)
+        .check_output()
+        .ok()?;
+    let text = String::from_utf8(output).ok()?;
+    let mut lines = text.lines();
+    let name = lines.next()?.trim().to_string();
+    let version = lines.next()?.trim().to_string();
+    if name.is_empty() || version.is_empty() {
+        return None;
+    }
+    Some((name, version))
+}
+
+/// Which C/C++ build drives the `compile_commands.json` that scip-clang reads.
+enum Cpp {
+    CMake,
+    Meson,
+    Make,
+}
+
+fn index_clang(
+    session: &dyn Session,
+    installer: &dyn Installer,
+    fixers: &[&dyn BuildFixer<InstallerError>],
+    output: &str,
+    build: Cpp,
+) -> Result<(), Error> {
+    // scip-clang consumes a `compile_commands.json` produced by the build, so
+    // run the build first to generate one.
+    let compdb = match build {
+        Cpp::CMake => {
             let cmake = guaranteed_which(session, installer, "cmake")?;
             let cmake = cmake.to_str().unwrap();
             if !session.exists(Path::new("build")) {
@@ -171,9 +246,9 @@ fn run_prep(
                 None,
                 None,
             )?;
-            Ok(())
+            "build/compile_commands.json"
         }
-        ScipPrep::MesonCompileCommands => {
+        Cpp::Meson => {
             let meson = guaranteed_which(session, installer, "meson")?;
             let ninja = guaranteed_which(session, installer, "ninja")?;
             if !session.exists(Path::new("build")) {
@@ -198,9 +273,11 @@ fn run_prep(
                 None,
                 None,
             )?;
-            Ok(())
+            "build/compile_commands.json"
         }
-        ScipPrep::BearMake => {
+        Cpp::Make => {
+            // Wrap make in `bear --` to intercept compiler invocations and
+            // produce ./compile_commands.json.
             let bear = guaranteed_which(session, installer, "bear")?;
             let make = guaranteed_which(session, installer, "make")?;
             run_fixing_problems::<_, Error>(
@@ -213,42 +290,16 @@ fn run_prep(
                 None,
                 None,
             )?;
-            Ok(())
+            "compile_commands.json"
         }
-    }
-}
-
-/// Run a single indexer to produce a SCIP index at `output`.
-fn run_indexer(
-    indexer: &ScipIndexer,
-    session: &dyn Session,
-    installer: &dyn Installer,
-    fixers: &[&dyn BuildFixer<InstallerError>],
-    output: &Path,
-) -> Result<(), Error> {
-    run_prep(&indexer.prep, session, installer, fixers)?;
-
-    let binary_path = guaranteed_which(session, installer, indexer.binary)?;
-
-    let output_str = output.to_str().ok_or_else(|| {
-        Error::Other(format!(
-            "Output path is not valid UTF-8: {}",
-            output.display()
-        ))
-    })?;
-
-    let mut argv: Vec<&str> = Vec::with_capacity(indexer.args.len() + 1);
-    argv.push(binary_path.to_str().unwrap());
-    for arg in indexer.args {
-        argv.push(if *arg == OUTPUT_PLACEHOLDER {
-            output_str
-        } else {
-            *arg
-        });
-    }
-
-    run_fixing_problems::<_, Error>(fixers, None, session, &argv, false, None, None, None)?;
-    Ok(())
+    };
+    run_index_command(
+        session,
+        installer,
+        fixers,
+        "scip-clang",
+        &["--compdb-path", compdb, "-o", output],
+    )
 }
 
 /// Generate a SCIP index file for the project.
@@ -279,21 +330,12 @@ pub fn run_scip(
 
     for buildsystem in buildsystems {
         let name = buildsystem.name();
-        let Some(indexer) = indexer_for(name) else {
-            log::debug!("No SCIP indexer known for build system {}", name);
-            continue;
-        };
-
-        log::info!(
-            "Generating SCIP index for {} using {}",
-            name,
-            indexer.binary
-        );
-
-        run_indexer(&indexer, session, installer, fixers, output)?;
-
-        log::info!("Wrote SCIP index to {}", output.display());
-        return Ok(());
+        log::info!("Generating SCIP index for {}", name);
+        if run_indexer(name, session, installer, fixers, output)?.is_some() {
+            log::info!("Wrote SCIP index to {}", output.display());
+            return Ok(());
+        }
+        log::debug!("No SCIP indexer known for build system {}", name);
     }
 
     Err(Error::NoBuildSystemDetected)
@@ -367,58 +409,54 @@ pub fn run_scip_multi(
     // session kind (for a plain session the two coincide).
     let staging = session_tempdir(session)?;
 
-    let mut indexed = 0;
     let mut attempted = 0;
     let mut last_error = None;
-    let mut taken = HashSet::new();
+    // Indexes that succeeded, as (staging path, language, build system name).
+    // The final per-language file name is resolved after the loop, once every
+    // language that occurs is known.
     let mut written = Vec::new();
-    for buildsystem in buildsystems {
+    for (i, buildsystem) in buildsystems.iter().enumerate() {
         let name = buildsystem.name();
-        let Some(indexer) = indexer_for(name) else {
-            log::debug!("No SCIP indexer known for build system {}", name);
-            continue;
-        };
 
-        let file_name = index_file_name(indexer.language, name, &taken);
-        taken.insert(file_name.clone());
-        let output = staging.join(&file_name);
+        // Stage each index under a unique name so two build systems never write
+        // to the same staging path; the language-based output name is resolved
+        // when copying out.
+        let staged = staging.join(format!("{}.scip", i));
 
-        log::info!(
-            "Generating SCIP index for {} using {}",
-            name,
-            indexer.binary
-        );
+        log::info!("Generating SCIP index for {}", name);
 
         // Index every build system on a best-effort basis: a failure for one
         // (e.g. a project that ships a convenience Makefile alongside its real
         // build system) must not discard the indexes that did succeed.
-        attempted += 1;
-        match run_indexer(&indexer, session, installer, fixers, &output) {
-            Ok(()) => {
-                log::info!("Wrote SCIP index to {}", output.display());
-                written.push(file_name);
-                indexed += 1;
+        match run_indexer(name, session, installer, fixers, &staged) {
+            Ok(None) => {
+                log::debug!("No SCIP indexer known for build system {}", name);
+            }
+            Ok(Some(language)) => {
+                attempted += 1;
+                log::info!("Wrote SCIP index to {}", staged.display());
+                written.push((staged, language, name));
             }
             Err(e) => {
-                log::warn!(
-                    "Failed to generate SCIP index for {} using {}: {}",
-                    name,
-                    indexer.binary,
-                    e
-                );
+                attempted += 1;
+                log::warn!("Failed to generate SCIP index for {}: {}", name, e);
                 last_error = Some(e);
             }
         }
     }
+    let indexed = written.len();
 
     // Copy the indexes out of the session onto the host. `output_dir` is a host
     // path outside the session, so it is created here rather than via the
     // session; `external_path` resolves where the session wrote each file.
     if !written.is_empty() {
         std::fs::create_dir_all(output_dir)?;
-        for file_name in &written {
-            let src = session.external_path(&staging.join(file_name));
-            let dest = output_dir.join(file_name);
+        let mut taken = HashSet::new();
+        for (staged, language, name) in &written {
+            let file_name = index_file_name(language, name, &taken);
+            taken.insert(file_name.clone());
+            let src = session.external_path(staged);
+            let dest = output_dir.join(&file_name);
             std::fs::copy(&src, &dest).map_err(|e| {
                 Error::Other(format!(
                     "Failed to copy SCIP index {} to {}: {}",
@@ -471,25 +509,5 @@ mod tests {
         assert_eq!(index_file_name("cpp", "cmake", &taken), "cpp.scip");
         taken.insert("cpp.scip".to_string());
         assert_eq!(index_file_name("cpp", "meson", &taken), "cpp-meson.scip");
-    }
-
-    #[test]
-    fn test_indexer_known_and_unknown() {
-        assert!(indexer_for("cargo").is_some());
-        assert!(indexer_for("unknown").is_none());
-    }
-
-    #[test]
-    fn test_indexer_golang_matches_build_system_name() {
-        // The Go build system reports its name as "golang", not "go".
-        assert_eq!(indexer_for("golang").map(|i| i.binary), Some("scip-go"));
-        assert!(indexer_for("go").is_none());
-    }
-
-    #[test]
-    fn test_indexer_gem_matches_build_system_name() {
-        // The Ruby build system reports its name as "gem".
-        assert_eq!(indexer_for("gem").map(|i| i.binary), Some("scip-ruby"));
-        assert_eq!(indexer_for("gem").map(|i| i.language), Some("ruby"));
     }
 }
