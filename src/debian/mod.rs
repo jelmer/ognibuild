@@ -148,8 +148,9 @@ mod tests {
 
     #[test]
     fn test_build_dep_entries_no_source() {
-        let control: debian_control::Control =
-            "Package: python3-dulwich\nArchitecture: any\n".parse().unwrap();
+        let control: debian_control::Control = "Package: python3-dulwich\nArchitecture: any\n"
+            .parse()
+            .unwrap();
         assert!(build_dep_entries(&control).is_empty());
     }
 }
