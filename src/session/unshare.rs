@@ -194,7 +194,7 @@ impl UnshareSession {
 
     /// Bootstrap the session environment with Debian sid
     pub fn bootstrap() -> Result<Self, crate::session::Error> {
-        bootstrap_debian_tarball("sid", true)
+        bootstrap_debian_tarball("sid", true, &[])
     }
 
     /// Verify that the current user has an account in the session
@@ -385,7 +385,7 @@ pub fn create_debian_session_for_testing(
         "No cached image found, bootstrapping Debian {} test session from network using mmdebstrap",
         suite
     );
-    bootstrap_debian_tarball(suite, true)
+    bootstrap_debian_tarball(suite, true, &[])
 }
 
 /// Bootstrap a Debian system using mmdebstrap and create a tarball
@@ -393,9 +393,11 @@ pub fn create_debian_session_for_testing(
 /// # Arguments
 /// * `suite` - The Debian suite to use (e.g., "sid", "unstable", "bookworm", "stable")
 /// * `setup_apt_file` - Whether to install and configure apt-file during bootstrap (requires network)
+/// * `extra_packages` - Additional packages to install into the bootstrapped image
 pub fn bootstrap_debian_tarball(
     suite: &str,
     setup_apt_file: bool,
+    extra_packages: &[&str],
 ) -> Result<UnshareSession, crate::session::Error> {
     let td = tempfile::tempdir().map_err(|e| {
         crate::session::Error::SetupFailure("tempdir failed".to_string(), e.to_string())
@@ -409,12 +411,32 @@ pub fn bootstrap_debian_tarball(
         .arg("--mode=unshare")
         .arg("--variant=minbase");
 
-    // Conditionally add apt-file setup if requested
+    if !extra_packages.is_empty() {
+        cmd.arg(format!("--include={}", extra_packages.join(",")));
+    }
+
+    // The customizations below need network access to download indexes, so they
+    // are gated on the same flag as apt-file setup.
     if setup_apt_file {
-        log::info!("Including apt-file in bootstrap (this requires network access)");
-        cmd.arg("--include=apt-file") // Install apt-file package during bootstrap
-            .arg("--customize-hook=chroot \"$1\" apt-file update") // Download Contents files
-            .arg("--skip=cleanup/apt/lists"); // Preserve apt lists (Contents files) for apt-file
+        log::info!(
+            "Setting up apt-file and the Sources index in bootstrap (this requires network access)"
+        );
+        cmd.arg("--include=apt-file")
+            // Add a deb-src entry and fetch the Sources index. ognibuild's
+            // build-dependency tie-breaker counts how often each candidate
+            // package is build-depended on across all source packages; without
+            // the Sources index every count is zero and ties are broken
+            // arbitrarily (e.g. picking the unusable "rustup" over "cargo").
+            .arg(format!(
+                "--customize-hook=echo 'deb-src http://deb.debian.org/debian/ {} main' >> \"$1\"/etc/apt/sources.list",
+                suite
+            ))
+            .arg("--customize-hook=chroot \"$1\" apt-get update")
+            // Download apt-file Contents files (used to map files to packages).
+            .arg("--customize-hook=chroot \"$1\" apt-file update")
+            // Preserve apt lists (Sources + Contents) for the tie-breaker and
+            // apt-file inside the session.
+            .arg("--skip=cleanup/apt/lists");
     }
 
     cmd.arg("--quiet")
@@ -649,6 +671,10 @@ impl Session for UnshareSession {
             .map_err(Error::IoError)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(Error::IoError)
+    }
+
+    fn set_isolate_network(&mut self, isolate: bool) {
+        self.isolate_network = isolate;
     }
 }
 

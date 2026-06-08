@@ -334,6 +334,15 @@ pub trait Session {
     /// * `Ok(Vec<DirEntry>)` - The directory entries if successful
     /// * `Err(Error)` - If reading the directory fails
     fn read_dir(&self, path: &std::path::Path) -> Result<Vec<std::fs::DirEntry>, Error>;
+
+    /// Control whether commands run in this session are isolated from the
+    /// network.
+    ///
+    /// Only sessions that can isolate the network (currently the unshare
+    /// session) act on this; for others it is a no-op. Sessions that isolate by
+    /// default need this to be turned off when a command must reach the network
+    /// (e.g. installing build dependencies via apt).
+    fn set_isolate_network(&mut self, _isolate: bool) {}
 }
 
 /// Represents a project in a session, either as a temporary copy or a direct reference.

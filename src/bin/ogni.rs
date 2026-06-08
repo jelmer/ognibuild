@@ -80,6 +80,12 @@ struct ScipArgs {
     /// metadata) work. Requires a session where apt can install packages.
     #[clap(long)]
     apt_build_deps: bool,
+
+    /// Isolate the session from the network while indexing. Indexing normally
+    /// needs the network (e.g. to install build dependencies), so it is
+    /// allowed by default; pass this to cut it off.
+    #[clap(long)]
+    offline: bool,
 }
 
 #[derive(Parser)]
@@ -102,6 +108,11 @@ struct CacheEnvArgs {
     /// Refresh an existing cached image by running apt upgrade inside it
     #[clap(long, conflicts_with = "force")]
     update: bool,
+
+    /// Additional packages to install into the cached image (repeatable or
+    /// comma-separated), e.g. to provide tools the indexers need in-session.
+    #[clap(long = "include", value_delimiter = ',')]
+    include: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -548,7 +559,17 @@ fn main() -> Result<(), i32> {
 
     // Handle cache-env command separately as it doesn't need a session
     if let Some(Command::CacheEnv(ref cache_args)) = args.command {
-        return cache_debian_image(&cache_args.suite, cache_args.force, cache_args.update);
+        let include = cache_args
+            .include
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>();
+        return cache_debian_image(
+            &cache_args.suite,
+            cache_args.force,
+            cache_args.update,
+            &include,
+        );
     }
 
     #[cfg(target_os = "linux")]
@@ -567,6 +588,13 @@ fn main() -> Result<(), i32> {
         eprintln!("Error: Failed to set up session: {}", e);
         1
     })?;
+
+    // Indexing needs the network (to install build dependencies), so allow it
+    // unless explicitly asked to stay offline. Only sessions that isolate the
+    // network (unshare) act on this.
+    if let Some(Command::Scip(scip_args)) = args.command.as_ref() {
+        session.set_isolate_network(scip_args.offline);
+    }
 
     #[cfg(feature = "breezy")]
     if let Err(e) = breezyshim::try_init() {
@@ -722,7 +750,7 @@ fn main() -> Result<(), i32> {
 }
 
 #[cfg(target_os = "linux")]
-fn cache_debian_image(suite: &str, force: bool, update: bool) -> Result<(), i32> {
+fn cache_debian_image(suite: &str, force: bool, update: bool, include: &[&str]) -> Result<(), i32> {
     if is_network_disabled() {
         eprintln!("Error: Network access is disabled (OGNIBUILD_DISABLE_NET is set)");
         eprintln!("Cannot download or update a Debian image without network access.");
@@ -780,7 +808,7 @@ fn cache_debian_image(suite: &str, force: bool, update: bool) -> Result<(), i32>
 
     // Bootstrap a Debian session using mmdebstrap and save it
     log::info!("Bootstrapping Debian {} image using mmdebstrap...", suite);
-    let session = match ognibuild::session::unshare::bootstrap_debian_tarball(suite, true) {
+    let session = match ognibuild::session::unshare::bootstrap_debian_tarball(suite, true, include) {
         Ok(session) => session,
         Err(e) => {
             eprintln!("Failed to bootstrap image: {}", e);
@@ -866,7 +894,12 @@ fn save_cached_image(
 }
 
 #[cfg(not(target_os = "linux"))]
-fn cache_debian_image(_suite: &str, _force: bool, _update: bool) -> Result<(), i32> {
+fn cache_debian_image(
+    _suite: &str,
+    _force: bool,
+    _update: bool,
+    _include: &[&str],
+) -> Result<(), i32> {
     eprintln!("Error: cache-env command is only available on Linux");
     Err(1)
 }
