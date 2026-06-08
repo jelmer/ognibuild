@@ -52,6 +52,7 @@ struct ScipIndexer {
 ///   - golang:       scip-go
 ///   - maven/gradle: scip-java
 ///   - node:         scip-typescript
+///   - gem:          scip-ruby
 ///   - cmake/meson/make: scip-clang (driven by compile_commands.json)
 fn indexer_for(buildsystem: &str) -> Option<ScipIndexer> {
     match buildsystem {
@@ -84,6 +85,14 @@ fn indexer_for(buildsystem: &str) -> Option<ScipIndexer> {
             binary: "scip-typescript",
             args: &["index", "--output", OUTPUT_PLACEHOLDER],
             language: "typescript",
+        }),
+        // scip-ruby reads sorbet/config when present, otherwise the trailing `.`
+        // tells it to index every file in the project.
+        "gem" => Some(ScipIndexer {
+            prep: ScipPrep::None,
+            binary: "scip-ruby",
+            args: &["--index-file", OUTPUT_PLACEHOLDER, "."],
+            language: "ruby",
         }),
         "cmake" => Some(ScipIndexer {
             prep: ScipPrep::CMakeCompileCommands,
@@ -433,5 +442,12 @@ mod tests {
         // The Go build system reports its name as "golang", not "go".
         assert_eq!(indexer_for("golang").map(|i| i.binary), Some("scip-go"));
         assert!(indexer_for("go").is_none());
+    }
+
+    #[test]
+    fn test_indexer_gem_matches_build_system_name() {
+        // The Ruby build system reports its name as "gem".
+        assert_eq!(indexer_for("gem").map(|i| i.binary), Some("scip-ruby"));
+        assert_eq!(indexer_for("gem").map(|i| i.language), Some("ruby"));
     }
 }
