@@ -32,6 +32,7 @@ jobs:
       - name: Install system breezy and libapt-pkg-dev
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get install -y brz libapt-pkg-dev libpcre3-dev
+            clang libclang-dev pkg-config nettle-dev
       - name: Install breezy
         run: pip install breezy
       - name: Install breezy and brz-debian

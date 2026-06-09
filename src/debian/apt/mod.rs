@@ -4,6 +4,11 @@
 //! using the APT package manager, as well as utilities for converting
 //! generic dependencies to Debian package dependencies.
 
+/// Deriving Contents-file URLs from APT repository metadata.
+pub mod repository;
+/// Verification of APT Release signatures.
+pub mod verify;
+
 use crate::dependencies::debian::{
     default_tie_breakers, DebianDependency, IntoDebianDependency, TieBreaker,
 };
@@ -38,7 +43,7 @@ pub enum Error {
     /// An error occurred in the session.
     Session(crate::session::Error),
     /// An error occurred in file search operations.
-    FileSearch(crate::debian::file_search::Error),
+    FileSearch(crate::debian::apt::repository::Error),
 }
 
 impl std::fmt::Debug for Error {
@@ -83,8 +88,8 @@ impl From<crate::session::Error> for Error {
     }
 }
 
-impl From<crate::debian::file_search::Error> for Error {
-    fn from(error: crate::debian::file_search::Error) -> Self {
+impl From<crate::debian::apt::repository::Error> for Error {
+    fn from(error: crate::debian::apt::repository::Error) -> Self {
         Error::FileSearch(error)
     }
 }
