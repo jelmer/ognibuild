@@ -52,6 +52,21 @@ fn is_network_disabled() -> bool {
 
 #[derive(Parser)]
 struct ExecArgs {
+    /// Before running the command, install the Debian source package's
+    /// Build-Depends (from debian/control) via apt, as for "scip". Lets the
+    /// command run with the build environment present without ognibuild's own
+    /// build-system dependency detection.
+    #[clap(long)]
+    apt_build_deps: bool,
+
+    /// After the command, copy a file produced inside the session out to the
+    /// host, given as "SESSION_PATH:HOST_PATH" (repeatable). A relative
+    /// SESSION_PATH is taken relative to the session's working directory. Useful
+    /// for retrieving output (e.g. a SCIP index) from a session that is
+    /// otherwise isolated from the host filesystem.
+    #[clap(long = "copy-out", value_name = "SESSION_PATH:HOST_PATH")]
+    copy_out: Vec<String>,
+
     #[clap(name = "subargv", trailing_var_arg = true)]
     subargv: Vec<String>,
 }
@@ -274,6 +289,58 @@ fn install_necessary_declared_dependencies(
     Ok(())
 }
 
+/// Install the source package's Debian Build-Depends (from debian/control) via
+/// apt, shared by the `scip` and `exec` `--apt-build-deps` options.
+fn install_apt_build_deps(
+    #[allow(unused_variables)] session: &dyn Session,
+    #[allow(unused_variables)] external_dir: &Path,
+) -> Result<(), Error> {
+    #[cfg(feature = "debian")]
+    {
+        let control = external_dir.join("debian/control");
+        if control.exists() {
+            log::info!("Installing Debian Build-Depends from {}", control.display());
+            ognibuild::debian::satisfy_build_deps_from_control(session, &control)
+                .map_err(|e| Error::Other(e.to_string()))?;
+        } else {
+            log::info!("--apt-build-deps given but no debian/control found; skipping");
+        }
+        Ok(())
+    }
+    #[cfg(not(feature = "debian"))]
+    Err(Error::Other(
+        "--apt-build-deps requires ogni built with the 'debian' feature".to_string(),
+    ))
+}
+
+/// Copy a file produced inside the session out to the host, given a
+/// "SESSION_PATH:HOST_PATH" spec. A relative SESSION_PATH is resolved against
+/// the session's working directory.
+fn copy_out_of_session(session: &dyn Session, spec: &str) -> Result<(), Error> {
+    let (session_path, host_path) = spec.split_once(':').ok_or_else(|| {
+        Error::Other(format!(
+            "--copy-out expects SESSION_PATH:HOST_PATH, got {:?}",
+            spec
+        ))
+    })?;
+    let session_path = Path::new(session_path);
+    let in_session = if session_path.is_absolute() {
+        session_path.to_path_buf()
+    } else {
+        session.pwd().join(session_path)
+    };
+    let src = session.external_path(&in_session);
+    std::fs::copy(&src, host_path).map_err(|e| {
+        Error::Other(format!(
+            "Failed to copy {} out of the session to {}: {}",
+            src.display(),
+            host_path,
+            e
+        ))
+    })?;
+    Ok(())
+}
+
 fn run_action(
     session: &dyn Session,
     scope: InstallationScope,
@@ -282,7 +349,15 @@ fn run_action(
     fixers: &[&dyn BuildFixer<InstallerError>],
     args: &Args,
 ) -> Result<(), Error> {
-    if let Some(Command::Exec(ExecArgs { subargv })) = &args.command {
+    if let Some(Command::Exec(ExecArgs {
+        subargv,
+        apt_build_deps,
+        copy_out,
+    })) = &args.command
+    {
+        if *apt_build_deps {
+            install_apt_build_deps(session, external_dir)?;
+        }
         ognibuild::fix_build::run_fixing_problems::<_, Error>(
             fixers,
             None,
@@ -297,6 +372,9 @@ fn run_action(
             None,
             None,
         )?;
+        for spec in copy_out {
+            copy_out_of_session(session, spec)?;
+        }
         return Ok(());
     }
     let mut log_manager = ognibuild::logs::NoLogManager;
@@ -383,21 +461,7 @@ fn run_action(
         Command::CacheEnv(..) => unreachable!(),
         Command::Scip(scip_args) => {
             if scip_args.apt_build_deps {
-                #[cfg(feature = "debian")]
-                {
-                    let control = external_dir.join("debian/control");
-                    if control.exists() {
-                        log::info!("Installing Debian Build-Depends from {}", control.display());
-                        ognibuild::debian::satisfy_build_deps_from_control(session, &control)
-                            .map_err(|e| Error::Other(e.to_string()))?;
-                    } else {
-                        log::info!("--apt-build-deps given but no debian/control found; skipping");
-                    }
-                }
-                #[cfg(not(feature = "debian"))]
-                return Err(Error::Other(
-                    "--apt-build-deps requires ogni built with the 'debian' feature".to_string(),
-                ));
+                install_apt_build_deps(session, external_dir)?;
             }
             let bss = bss.iter().map(|bs| bs.as_ref()).collect::<Vec<_>>();
             if let Some(output_dir) = scip_args.output_all.as_ref() {
