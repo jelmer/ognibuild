@@ -93,6 +93,29 @@ pub fn satisfy_build_deps_from_control(
     Ok(())
 }
 
+/// Clean apt-satisfy strings for each entry of a Build-Depends-style relation
+/// field, one per comma-separated entry (preserving `|` alternations).
+///
+/// The lossless `Relations`/`Entry` Display reproduces the raw field text,
+/// including comments and line continuations, which `apt satisfy` cannot parse
+/// (e.g. rustc's heavily commented Build-Depends). Convert each entry to its
+/// lossy relations, whose Display reconstructs the relation from its parsed
+/// components (name, version, architecture and profile restrictions) without
+/// comments.
+fn relation_entries(relations: &debian_control::lossless::relations::Relations) -> Vec<String> {
+    relations
+        .entries()
+        .map(|entry| {
+            let alternatives: Vec<debian_control::lossy::Relation> = entry.into();
+            alternatives
+                .iter()
+                .map(|relation| relation.to_string())
+                .collect::<Vec<_>>()
+                .join(" | ")
+        })
+        .collect()
+}
+
 /// Collect the build dependencies and conflicts from a parsed control file as
 /// apt satisfy entries.
 fn build_dep_entries(control: &debian_control::Control) -> Vec<apt::SatisfyEntry> {
@@ -102,22 +125,26 @@ fn build_dep_entries(control: &debian_control::Control) -> Vec<apt::SatisfyEntry
 
     let mut deps = vec![];
 
-    for dep in source
+    for relations in source
         .build_depends()
         .iter()
         .chain(source.build_depends_indep().iter())
         .chain(source.build_depends_arch().iter())
     {
-        deps.push(apt::SatisfyEntry::Required(dep.to_string()));
+        for entry in relation_entries(relations) {
+            deps.push(apt::SatisfyEntry::Required(entry));
+        }
     }
 
-    for dep in source
+    for relations in source
         .build_conflicts()
         .iter()
         .chain(source.build_conflicts_indep().iter())
         .chain(source.build_conflicts_arch().iter())
     {
-        deps.push(apt::SatisfyEntry::Conflict(dep.to_string()));
+        for entry in relation_entries(relations) {
+            deps.push(apt::SatisfyEntry::Conflict(entry));
+        }
     }
 
     deps
@@ -151,11 +178,10 @@ mod tests {
             .unwrap();
         let entries = build_dep_entries(&control);
         let (required, conflicts) = classify(&entries);
-        // Each field is emitted as a single comma-separated relation string,
-        // which is what "apt satisfy" expects.
+        // One apt satisfy entry per comma-separated relation.
         assert_eq!(
             required,
-            vec!["debhelper-compat (= 13), dh-python", "python3-sphinx"]
+            vec!["debhelper-compat (= 13)", "dh-python", "python3-sphinx"]
         );
         assert_eq!(conflicts, vec!["python3-broken"]);
     }
@@ -166,5 +192,36 @@ mod tests {
             .parse()
             .unwrap();
         assert!(build_dep_entries(&control).is_empty());
+    }
+
+    #[test]
+    fn test_build_dep_entries_strips_comments_and_continuations() {
+        // A Build-Depends field with embedded comments, line continuations,
+        // an alternation and a build profile, as in rustc's debian/control.
+        // The raw field text would not parse as an apt dependency; the entries
+        // must come out clean.
+        let control_text = concat!(
+            "Source: rustc\n",
+            "Build-Depends: debhelper-compat (= 13),\n",
+            "# needed by some vendor crates\n",
+            " pkgconf:native,\n",
+            " libcurl4-openssl-dev | libcurl4-gnutls-dev,\n",
+            " git <!nocheck>\n",
+            "\n",
+            "Package: rustc\n",
+            "Architecture: any\n",
+        );
+        let control: debian_control::Control = control_text.parse().unwrap();
+        let entries = build_dep_entries(&control);
+        let (required, _) = classify(&entries);
+        assert_eq!(
+            required,
+            vec![
+                "debhelper-compat (= 13)",
+                "pkgconf:native",
+                "libcurl4-openssl-dev | libcurl4-gnutls-dev",
+                "git <!nocheck>",
+            ]
+        );
     }
 }
