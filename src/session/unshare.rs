@@ -6,8 +6,12 @@ pub struct UnshareSession {
     root: PathBuf,
     _tempdir: Option<tempfile::TempDir>,
     cwd: PathBuf,
-    /// Whether to isolate the network namespace (deny network access)
-    isolate_network: bool,
+    /// Whether to isolate the network namespace (deny network access).
+    ///
+    /// Held in a `Cell` so it can be toggled through a shared reference: the
+    /// network needs to be turned on and off around individual install steps
+    /// while the session is borrowed immutably elsewhere (e.g. by an installer).
+    isolate_network: std::cell::Cell<bool>,
 }
 
 fn compression_flag(path: &Path) -> Result<Option<&str>, crate::session::Error> {
@@ -53,8 +57,8 @@ impl UnshareSession {
     ///
     /// When true (the default), the session will have no network access.
     /// When false, the session shares the host's network namespace.
-    pub fn set_isolate_network(&mut self, isolate: bool) {
-        self.isolate_network = isolate;
+    pub fn set_isolate_network(&self, isolate: bool) {
+        self.isolate_network.set(isolate);
     }
 
     /// Create a cached Debian session from a cloud image
@@ -139,7 +143,7 @@ impl UnshareSession {
             root: root.to_path_buf(),
             _tempdir: Some(td),
             cwd: std::path::PathBuf::from("/"),
-            isolate_network: true,
+            isolate_network: std::cell::Cell::new(true),
         };
 
         s.ensure_current_user()?;
@@ -277,7 +281,7 @@ impl UnshareSession {
             "--pid",
             "--mount-proc",
         ];
-        if self.isolate_network {
+        if self.isolate_network.get() {
             ret.push("--net");
         }
         ret.extend([
@@ -462,7 +466,7 @@ pub fn bootstrap_debian_tarball(
         root: root.to_path_buf(),
         _tempdir: Some(td),
         cwd: std::path::PathBuf::from("/"),
-        isolate_network: true,
+        isolate_network: std::cell::Cell::new(true),
     };
 
     s.ensure_current_user()?;
@@ -673,8 +677,12 @@ impl Session for UnshareSession {
             .map_err(Error::IoError)
     }
 
-    fn set_isolate_network(&mut self, isolate: bool) {
-        self.isolate_network = isolate;
+    fn set_isolate_network(&self, isolate: bool) {
+        self.isolate_network.set(isolate);
+    }
+
+    fn is_network_isolated(&self) -> bool {
+        self.isolate_network.get()
     }
 }
 
@@ -1103,11 +1111,11 @@ mod tests {
 
     #[test]
     fn test_set_isolate_network() {
-        let mut session = UnshareSession {
+        let session = UnshareSession {
             root: std::path::PathBuf::from("/fakechroot"),
             _tempdir: None,
             cwd: std::path::PathBuf::from("/"),
-            isolate_network: true,
+            isolate_network: std::cell::Cell::new(true),
         };
         let argv = session.run_argv(vec!["true"], Some(std::path::Path::new("/")), None);
         assert!(argv.contains(&"--net"));
@@ -1119,6 +1127,20 @@ mod tests {
         session.set_isolate_network(true);
         let argv = session.run_argv(vec!["true"], Some(std::path::Path::new("/")), None);
         assert!(argv.contains(&"--net"));
+    }
+
+    #[test]
+    fn test_with_network_restores_isolation() {
+        let session = UnshareSession {
+            root: std::path::PathBuf::from("/fakechroot"),
+            _tempdir: None,
+            cwd: std::path::PathBuf::from("/"),
+            isolate_network: std::cell::Cell::new(true),
+        };
+
+        let inside = crate::session::with_network(&session, || session.isolate_network.get());
+        assert!(!inside);
+        assert!(session.isolate_network.get());
     }
 
     #[test]

@@ -64,6 +64,10 @@ pub fn satisfy_build_deps(
 /// unpacked source package that has no version control metadata. Dependencies
 /// are satisfied in `session` via apt.
 ///
+/// The packages are downloaded with network access enabled and then installed
+/// under the session's current network policy, so the install step can run in
+/// an otherwise network-isolated session (e.g. while indexing offline).
+///
 /// # Arguments
 /// * `session` - Session to run apt in
 /// * `control_path` - Path to the debian/control file (on the host filesystem)
@@ -74,9 +78,19 @@ pub fn satisfy_build_deps_from_control(
     let text = std::fs::read_to_string(control_path)?;
     let control: debian_control::Control = text.parse()?;
     let apt_mgr = apt::AptManager::new(session, None);
+    let deps = build_dep_entries(&control);
+
+    // apt needs the network to fetch the packages; download them with network
+    // access enabled, then install from the local cache under whatever network
+    // policy the session is configured with.
+    crate::session::with_network(session, || {
+        apt_mgr.satisfy_phase(deps.clone(), apt::SatisfyPhase::Download)
+    })
+    .map_err(|e| format!("Failed to download build dependencies: {:?}", e))?;
     apt_mgr
-        .satisfy(build_dep_entries(&control))
-        .map_err(|e| format!("Failed to satisfy build dependencies: {:?}", e).into())
+        .satisfy_phase(deps, apt::SatisfyPhase::Install)
+        .map_err(|e| format!("Failed to install build dependencies: {:?}", e))?;
+    Ok(())
 }
 
 /// Collect the build dependencies and conflicts from a parsed control file as

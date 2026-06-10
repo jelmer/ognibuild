@@ -834,7 +834,7 @@ fn update_debian_image(suite: &str, tarball_path: &Path) -> Result<(), i32> {
     use ognibuild::session::unshare::UnshareSession;
 
     log::info!("Loading cached Debian {} image for update...", suite);
-    let mut session = match UnshareSession::from_tarball(tarball_path) {
+    let session = match UnshareSession::from_tarball(tarball_path) {
         Ok(session) => session,
         Err(e) => {
             eprintln!("Failed to load cached image: {}", e);
