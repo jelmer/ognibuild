@@ -341,8 +341,27 @@ pub trait Session {
     /// Only sessions that can isolate the network (currently the unshare
     /// session) act on this; for others it is a no-op. Sessions that isolate by
     /// default need this to be turned off when a command must reach the network
-    /// (e.g. installing build dependencies via apt).
-    fn set_isolate_network(&mut self, _isolate: bool) {}
+    /// (e.g. installing a build system's declared dependencies from PyPI or npm).
+    fn set_isolate_network(&self, _isolate: bool) {}
+
+    /// Whether commands run in this session are currently isolated from the
+    /// network. Sessions that cannot isolate the network always report `false`.
+    fn is_network_isolated(&self) -> bool {
+        false
+    }
+}
+
+/// Run `f` with the session's network access enabled, restoring the previous
+/// isolation state afterwards.
+///
+/// Use this around steps that need to reach the network (e.g. apt downloading
+/// packages) while the surrounding run is otherwise isolated.
+pub fn with_network<T>(session: &dyn Session, f: impl FnOnce() -> T) -> T {
+    let was_isolated = session.is_network_isolated();
+    session.set_isolate_network(false);
+    let result = f();
+    session.set_isolate_network(was_isolated);
+    result
 }
 
 /// Represents a project in a session, either as a temporary copy or a direct reference.

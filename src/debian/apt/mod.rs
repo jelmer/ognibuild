@@ -148,11 +148,34 @@ pub struct AptManager<'a> {
 /// Entry for APT satisfy command.
 ///
 /// Represents either a required package or a package conflict.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SatisfyEntry {
     /// A required package dependency.
     Required(String),
     /// A package that conflicts with installation.
     Conflict(String),
+}
+
+/// Which phase(s) of an apt satisfy/install run to perform.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SatisfyPhase {
+    /// Download the packages without installing them (`--download-only`).
+    Download,
+    /// Install already-downloaded packages without fetching (`--no-download`).
+    Install,
+    /// Download and install in a single run (the default).
+    Both,
+}
+
+impl SatisfyPhase {
+    /// The apt flag for this phase, if any.
+    fn flag(self) -> Option<&'static str> {
+        match self {
+            SatisfyPhase::Download => Some("--download-only"),
+            SatisfyPhase::Install => Some("--no-download"),
+            SatisfyPhase::Both => None,
+        }
+    }
 }
 
 impl<'a> AptManager<'a> {
@@ -232,7 +255,24 @@ impl<'a> AptManager<'a> {
     /// # Returns
     /// Ok on success, Error if dependencies cannot be satisfied
     pub fn satisfy(&self, deps: Vec<SatisfyEntry>) -> Result<(), Error> {
+        self.satisfy_phase(deps, SatisfyPhase::Both)
+    }
+
+    /// Satisfy package dependencies using APT, running only the given phase.
+    ///
+    /// Splitting the download and install phases lets the caller fetch the
+    /// packages with network access enabled (`SatisfyPhase::Download`) and then
+    /// install them under a stricter network policy (`SatisfyPhase::Install`,
+    /// which works from the local package cache).
+    ///
+    /// # Arguments
+    /// * `deps` - List of dependencies to satisfy (required or conflicts)
+    /// * `phase` - Which apt phase(s) to run
+    pub fn satisfy_phase(&self, deps: Vec<SatisfyEntry>, phase: SatisfyPhase) -> Result<(), Error> {
         let mut args = vec!["satisfy".to_string()];
+        if let Some(flag) = phase.flag() {
+            args.push(flag.to_string());
+        }
         args.extend(deps.iter().map(|dep| match dep {
             SatisfyEntry::Required(s) => s.clone(),
             SatisfyEntry::Conflict(s) => format!("Conflict: {}", s),
@@ -724,6 +764,13 @@ impl<'a> Installer for AptInstaller<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_satisfy_phase_flag() {
+        assert_eq!(SatisfyPhase::Download.flag(), Some("--download-only"));
+        assert_eq!(SatisfyPhase::Install.flag(), Some("--no-download"));
+        assert_eq!(SatisfyPhase::Both.flag(), None);
+    }
 
     #[test]
     fn test_pick_best_deb_dependency() {
