@@ -301,7 +301,16 @@ fn run_action(
     }
     let mut log_manager = ognibuild::logs::NoLogManager;
     let bss = detect_buildsystems(external_dir);
-    if !args.ignore_declared_dependencies {
+    // "scip --apt-build-deps" installs the Debian source package's Build-Depends
+    // from debian/control, which are then the authoritative set. Installing the
+    // build systems' own declared dependencies on top is redundant and can fail
+    // for reasons irrelevant to indexing (e.g. a JS build system pulling in
+    // puppeteer, which downloads a browser), so skip that step in this case.
+    let apt_build_deps = matches!(
+        args.command.as_ref(),
+        Some(Command::Scip(scip_args)) if scip_args.apt_build_deps
+    );
+    if !args.ignore_declared_dependencies && !apt_build_deps {
         let categories = match args.command.as_ref().unwrap() {
             Command::Dist => vec![],
             Command::Build => vec![DependencyCategory::Universal, DependencyCategory::Build],
@@ -808,7 +817,8 @@ fn cache_debian_image(suite: &str, force: bool, update: bool, include: &[&str]) 
 
     // Bootstrap a Debian session using mmdebstrap and save it
     log::info!("Bootstrapping Debian {} image using mmdebstrap...", suite);
-    let session = match ognibuild::session::unshare::bootstrap_debian_tarball(suite, true, include) {
+    let session = match ognibuild::session::unshare::bootstrap_debian_tarball(suite, true, include)
+    {
         Ok(session) => session,
         Err(e) => {
             eprintln!("Failed to bootstrap image: {}", e);
