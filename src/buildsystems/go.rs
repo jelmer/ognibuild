@@ -202,7 +202,7 @@ fn parse_go_mod<R: std::io::Read>(f: R) -> Vec<GoModEntry> {
     let lines = f
         .lines()
         .map(|l| l.unwrap())
-        .filter(|l| !l.ends_with("indirect"))
+        .filter(|l| !l.contains("//"))
         .collect::<Vec<_>>();
     let mut line_iter = lines.iter();
     while let Some(mut line) = line_iter.next() {
