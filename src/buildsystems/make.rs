@@ -67,27 +67,35 @@ impl Make {
         _installer: &dyn Installer,
         prefix: Option<&Path>,
     ) -> Result<(), Error> {
+        // `self.path` is the project's host-side path (detection runs on the
+        // external dir), used for host filesystem reads like `shebang_binary`.
+        // Commands and `session.exists`/`read_dir` operate inside the session,
+        // which is already chdir'd to the project, so they use the session's cwd
+        // (its in-session project dir) rather than the host path; under an
+        // unshare session the two differ and mixing them silently skips the
+        // configure steps (and panics in the qmake `read_dir`).
+        let sdir = session.pwd().to_path_buf();
         if self.kind == Kind::MakefilePL && !makefile_exists(session) {
             session
                 .command(vec!["perl", "Makefile.PL"])
-                .cwd(&self.path)
+                .cwd(&sdir)
                 .run_detecting_problems()?;
         }
 
-        if !makefile_exists(session) && !session.exists(&self.path.join("configure")) {
-            if session.exists(&self.path.join("autogen.sh")) {
+        if !makefile_exists(session) && !session.exists(&sdir.join("configure")) {
+            if session.exists(&sdir.join("autogen.sh")) {
                 if shebang_binary(&self.path.join("autogen.sh"))
                     .unwrap()
                     .is_none()
                 {
                     session
                         .command(vec!["/bin/sh", "./autogen.sh"])
-                        .cwd(&self.path)
+                        .cwd(&sdir)
                         .run_detecting_problems()?;
                 }
                 match session
                     .command(vec!["./autogen.sh"])
-                    .cwd(&self.path)
+                    .cwd(&sdir)
                     .run_detecting_problems()
                 {
                     Err(AnalyzedError::Unidentified { lines, .. })
@@ -97,26 +105,26 @@ impl Make {
                     {
                         session
                             .command(vec!["./bootstrap"])
-                            .cwd(&self.path)
+                            .cwd(&sdir)
                             .run_detecting_problems()?;
                         session
                             .command(vec!["./autogen.sh"])
-                            .cwd(&self.path)
+                            .cwd(&sdir)
                             .run_detecting_problems()
                     }
                     other => other,
                 }?;
-            } else if session.exists(&self.path.join("configure.ac"))
-                || session.exists(&self.path.join("configure.in"))
+            } else if session.exists(&sdir.join("configure.ac"))
+                || session.exists(&sdir.join("configure.in"))
             {
                 session
                     .command(vec!["autoreconf", "-i"])
-                    .cwd(&self.path)
+                    .cwd(&sdir)
                     .run_detecting_problems()?;
             }
         }
 
-        if !makefile_exists(session) && session.exists(&self.path.join("configure")) {
+        if !makefile_exists(session) && session.exists(&sdir.join("configure")) {
             let args = [
                 vec!["./configure".to_string()],
                 if let Some(p) = prefix {
@@ -128,24 +136,35 @@ impl Make {
             .concat();
             session
                 .command(args.iter().map(|s| s.as_str()).collect())
-                .cwd(&self.path)
+                .cwd(&sdir)
                 .run_detecting_problems()?;
         }
 
         if !makefile_exists(session)
             && session
-                .read_dir(&self.path)
+                .read_dir(&sdir)
                 .unwrap()
                 .iter()
                 .any(|n| n.file_name().to_str().unwrap().ends_with(".pro"))
         {
             session
                 .command(vec!["qmake"])
-                .cwd(&self.path)
+                .cwd(&sdir)
                 .run_detecting_problems()?;
         }
 
         Ok(())
+    }
+
+    /// Run the configure step (autogen.sh/autoreconf, then ./configure) so that a
+    /// Makefile exists, without building anything.
+    ///
+    /// Autotools source trees ship only `configure.ac`/`Makefile.am` and have no
+    /// `Makefile` until configured, so a bare `make` fails. Callers that drive
+    /// `make` directly (e.g. the SCIP indexer wrapping it in `bear`) use this to
+    /// prepare the tree first. No-op once a Makefile is present.
+    pub fn configure(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
+        self.setup(session, installer, None)
     }
 
     fn run_make(
@@ -643,5 +662,29 @@ check:
             .unwrap();
 
         std::mem::drop(td);
+    }
+
+    /// An autotools tree (configure.ac, no Makefile) is detected as Autoconf.
+    /// This is the case the SCIP indexer must configure before running `make`;
+    /// before that fix a bare `make` failed with "no makefile found".
+    #[test]
+    fn test_configure_ac_detected_as_autoconf() {
+        let td = tempfile::tempdir().unwrap();
+        std::fs::write(td.path().join("configure.ac"), b"AC_INIT([x],[1])\n").unwrap();
+        std::fs::write(td.path().join("Makefile.am"), b"").unwrap();
+        assert_eq!(Make::new(td.path()).kind, Kind::Automake);
+    }
+
+    /// configure() is a no-op when a Makefile is already present, so it does not
+    /// require any autotools toolchain in that case.
+    #[test]
+    fn test_configure_noop_with_makefile() {
+        let mut session = crate::session::plain::PlainSession::new();
+        let td = tempfile::tempdir().unwrap();
+        session.chdir(td.path()).unwrap();
+        std::fs::write(td.path().join("Makefile"), b"all:\n").unwrap();
+        Make::new(td.path())
+            .configure(&session, &crate::installer::NullInstaller)
+            .unwrap();
     }
 }

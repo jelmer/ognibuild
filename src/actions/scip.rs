@@ -14,7 +14,7 @@ use std::path::Path;
 /// the build system. Several build systems may share a language (e.g.
 /// cmake/meson/make all produce `cpp`).
 fn run_indexer(
-    buildsystem: &str,
+    buildsystem: &dyn BuildSystem,
     session: &dyn Session,
     installer: &dyn Installer,
     fixers: &[&dyn BuildFixer<InstallerError>],
@@ -26,7 +26,7 @@ fn run_indexer(
             output.display()
         ))
     })?;
-    let language = match buildsystem {
+    let language = match buildsystem.name() {
         "cargo" => {
             index_cargo(session, installer, fixers, output)?;
             "rust"
@@ -60,7 +60,7 @@ fn run_indexer(
             "cpp"
         }
         "make" => {
-            index_clang(session, installer, fixers, output, Cpp::Make)?;
+            index_clang(session, installer, fixers, output, Cpp::Make(buildsystem))?;
             "cpp"
         }
         _ => return Ok(None),
@@ -204,10 +204,12 @@ fn python_project_name_version(session: &dyn Session) -> Option<(String, String)
 }
 
 /// Which C/C++ build drives the `compile_commands.json` that scip-clang reads.
-enum Cpp {
+enum Cpp<'a> {
     CMake,
     Meson,
-    Make,
+    /// Plain `make`, carrying the detected build system so an autotools tree can
+    /// be configured before `make` runs.
+    Make(&'a dyn BuildSystem),
 }
 
 fn index_clang(
@@ -215,7 +217,7 @@ fn index_clang(
     installer: &dyn Installer,
     fixers: &[&dyn BuildFixer<InstallerError>],
     output: &str,
-    build: Cpp,
+    build: Cpp<'_>,
 ) -> Result<(), Error> {
     // scip-clang consumes a `compile_commands.json` produced by the build, so
     // run the build first to generate one.
@@ -275,7 +277,17 @@ fn index_clang(
             )?;
             "build/compile_commands.json"
         }
-        Cpp::Make => {
+        Cpp::Make(buildsystem) => {
+            // Autotools trees ship only configure.ac/Makefile.am and have no
+            // Makefile until configured, so configure first; otherwise the bare
+            // `make` below fails with "No targets specified and no makefile
+            // found" and scip-clang gets no compile_commands.json.
+            if let Some(make) = buildsystem
+                .as_any()
+                .downcast_ref::<crate::buildsystems::make::Make>()
+            {
+                make.configure(session, installer)?;
+            }
             // Wrap make in `bear --` to intercept compiler invocations and
             // produce ./compile_commands.json.
             let bear = guaranteed_which(session, installer, "bear")?;
@@ -331,7 +343,7 @@ pub fn run_scip(
     for buildsystem in buildsystems {
         let name = buildsystem.name();
         log::info!("Generating SCIP index for {}", name);
-        if run_indexer(name, session, installer, fixers, output)?.is_some() {
+        if run_indexer(*buildsystem, session, installer, fixers, output)?.is_some() {
             log::info!("Wrote SCIP index to {}", output.display());
             return Ok(());
         }
@@ -428,7 +440,7 @@ pub fn run_scip_multi(
         // Index every build system on a best-effort basis: a failure for one
         // (e.g. a project that ships a convenience Makefile alongside its real
         // build system) must not discard the indexes that did succeed.
-        match run_indexer(name, session, installer, fixers, &staged) {
+        match run_indexer(*buildsystem, session, installer, fixers, &staged) {
             Ok(None) => {
                 log::debug!("No SCIP indexer known for build system {}", name);
             }
