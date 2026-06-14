@@ -11,14 +11,41 @@ use std::path::{Path, PathBuf};
 /// This build system handles Ruby gems for distribution and installation.
 #[derive(Debug)]
 pub struct Gem {
+    /// The project directory.
     path: PathBuf,
+}
+
+/// Whether a directory looks like a Ruby gem project.
+///
+/// A packaged `.gem` is the original signal, but Debian source packages (and
+/// upstream source trees generally) ship the unpacked sources instead: a
+/// `*.gemspec` and/or a `Gemfile` at the root, with the library under `lib/`.
+/// Detecting those lets the SCIP indexer run on source trees that never carry a
+/// built `.gem`.
+fn has_gem_markers(path: &Path) -> bool {
+    let entries = match std::fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(_) => return false,
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let p = entry.path();
+        if p.extension().unwrap_or_default() == "gem"
+            || p.extension().unwrap_or_default() == "gemspec"
+        {
+            return true;
+        }
+        if p.file_name().map(|n| n == "Gemfile").unwrap_or(false) {
+            return true;
+        }
+    }
+    false
 }
 
 impl Gem {
     /// Create a new Ruby gem build system.
     ///
     /// # Arguments
-    /// * `path` - Path to the gem file
+    /// * `path` - Path to the project directory
     ///
     /// # Returns
     /// A new Gem instance
@@ -26,21 +53,19 @@ impl Gem {
         Self { path }
     }
 
-    /// Probe a directory to check if it contains Ruby gem files.
+    /// Probe a directory to check if it contains a Ruby gem project.
+    ///
+    /// Matches either a packaged `.gem` or an unpacked source tree (a
+    /// `*.gemspec` or `Gemfile`).
     ///
     /// # Arguments
-    /// * `path` - Path to check for gem files
+    /// * `path` - Path to check
     ///
     /// # Returns
-    /// Some(BuildSystem) if gem files are found, None otherwise
+    /// Some(BuildSystem) if the directory looks like a gem project, None otherwise
     pub fn probe(path: &Path) -> Option<Box<dyn BuildSystem>> {
-        let mut gemfiles = std::fs::read_dir(path)
-            .unwrap()
-            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-            .filter(|path| path.extension().unwrap_or_default() == "gem")
-            .collect::<Vec<_>>();
-        if !gemfiles.is_empty() {
-            Some(Box::new(Self::new(gemfiles.remove(0))))
+        if has_gem_markers(path) {
+            Some(Box::new(Self::new(path.to_path_buf())))
         } else {
             None
         }
@@ -79,7 +104,11 @@ impl BuildSystem for Gem {
             .filter_map(|entry| entry.ok().map(|entry| entry.path()))
             .filter(|path| path.extension().unwrap_or_default() == "gem")
             .collect::<Vec<_>>();
-        assert!(!gemfiles.is_empty());
+        if gemfiles.is_empty() {
+            // The project was detected from a source tree (gemspec/Gemfile) with
+            // no packaged .gem; building one from source is not implemented.
+            return Err(Error::Unimplemented);
+        }
         if gemfiles.len() > 1 {
             log::warn!("More than one gemfile. Trying the first?");
         }
@@ -206,5 +235,44 @@ impl BuildSystem for Gem {
     /// Reference to self as Any
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_probe_gemspec() {
+        let td = tempfile::tempdir().unwrap();
+        std::fs::write(td.path().join("asciidoctor.gemspec"), b"").unwrap();
+        let bs = Gem::probe(td.path()).expect("gemspec should be detected");
+        assert_eq!(bs.name(), "gem");
+    }
+
+    #[test]
+    fn test_probe_gemfile() {
+        let td = tempfile::tempdir().unwrap();
+        std::fs::write(
+            td.path().join("Gemfile"),
+            b"source 'https://rubygems.org'\n",
+        )
+        .unwrap();
+        let bs = Gem::probe(td.path()).expect("Gemfile should be detected");
+        assert_eq!(bs.name(), "gem");
+    }
+
+    #[test]
+    fn test_probe_packaged_gem() {
+        let td = tempfile::tempdir().unwrap();
+        std::fs::write(td.path().join("foo-1.0.gem"), b"").unwrap();
+        assert!(Gem::probe(td.path()).is_some());
+    }
+
+    #[test]
+    fn test_probe_no_markers() {
+        let td = tempfile::tempdir().unwrap();
+        std::fs::write(td.path().join("README"), b"").unwrap();
+        assert!(Gem::probe(td.path()).is_none());
     }
 }
