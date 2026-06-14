@@ -1169,6 +1169,96 @@ impl crate::upstream::FindUpstream for RubyGemDependency {
     }
 }
 
+/// Map a binary command to the Ruby gem that provides it.
+///
+/// Some indexers and tools ship as gems whose executable name differs from
+/// nothing useful in apt; resolving them via RubyGems lets ognibuild install
+/// them into the session itself, the same way [`node::command_package`] handles
+/// npm-distributed tools.
+fn gem_command_package(command: &str) -> Option<&'static str> {
+    match command {
+        "scip-ruby" => Some("scip-ruby"),
+        _ => None,
+    }
+}
+
+/// Resolve a dependency to the Ruby gem that provides it, if any.
+fn to_ruby_gem_req(requirement: &dyn Dependency) -> Option<RubyGemDependency> {
+    if let Some(requirement) = requirement.as_any().downcast_ref::<RubyGemDependency>() {
+        Some(requirement.clone())
+    } else if let Some(requirement) = requirement.as_any().downcast_ref::<BinaryDependency>() {
+        gem_command_package(&requirement.binary_name).map(RubyGemDependency::simple)
+    } else {
+        None
+    }
+}
+
+/// A resolver that installs Ruby gems via the `gem` command.
+pub struct GemResolver<'a> {
+    session: &'a dyn Session,
+}
+
+impl<'a> GemResolver<'a> {
+    /// Create a new GemResolver.
+    pub fn new(session: &'a dyn Session) -> Self {
+        Self { session }
+    }
+
+    fn cmd(
+        &self,
+        req: &RubyGemDependency,
+        scope: crate::installer::InstallationScope,
+    ) -> Result<Vec<String>, crate::installer::Error> {
+        let mut cmd = vec!["gem".to_string(), "install".to_string()];
+        match scope {
+            crate::installer::InstallationScope::Global => {}
+            crate::installer::InstallationScope::User => cmd.push("--user-install".to_string()),
+            crate::installer::InstallationScope::Vendor => {
+                return Err(crate::installer::Error::UnsupportedScope(scope));
+            }
+        }
+        if let Some(minimum_version) = req.minimum_version.as_ref() {
+            cmd.push("--version".to_string());
+            cmd.push(format!(">={}", minimum_version));
+        }
+        cmd.push(req.gem.clone());
+        Ok(cmd)
+    }
+}
+
+impl crate::installer::Installer for GemResolver<'_> {
+    fn explain(
+        &self,
+        requirement: &dyn Dependency,
+        scope: crate::installer::InstallationScope,
+    ) -> Result<crate::installer::Explanation, crate::installer::Error> {
+        let req =
+            to_ruby_gem_req(requirement).ok_or(crate::installer::Error::UnknownDependencyFamily)?;
+        Ok(crate::installer::Explanation {
+            message: format!("install ruby gem {}", req.gem),
+            command: Some(self.cmd(&req, scope)?),
+        })
+    }
+
+    fn install(
+        &self,
+        requirement: &dyn Dependency,
+        scope: crate::installer::InstallationScope,
+    ) -> Result<(), crate::installer::Error> {
+        let req =
+            to_ruby_gem_req(requirement).ok_or(crate::installer::Error::UnknownDependencyFamily)?;
+        let args = self.cmd(&req, scope)?;
+        let mut cmd = self
+            .session
+            .command(args.iter().map(|s| s.as_str()).collect());
+        if scope == crate::installer::InstallationScope::Global {
+            cmd = cmd.user("root");
+        }
+        cmd.run_detecting_problems()?;
+        Ok(())
+    }
+}
+
 /// Dependency on a Debian debhelper addon.
 ///
 /// This represents a dependency on a debhelper addon that can be used
@@ -2592,5 +2682,29 @@ impl ToDependency for buildlog_consultant::problems::common::MissingXfceDependen
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gem_command_package() {
+        assert_eq!(gem_command_package("scip-ruby"), Some("scip-ruby"));
+        assert_eq!(gem_command_package("rubocop"), None);
+    }
+
+    #[test]
+    fn test_binary_dependency_maps_to_gem() {
+        let dep = BinaryDependency::new("scip-ruby");
+        let req = to_ruby_gem_req(&dep).expect("scip-ruby binary should resolve to a gem");
+        assert_eq!(req.gem, "scip-ruby");
+    }
+
+    #[test]
+    fn test_unknown_binary_does_not_map() {
+        let dep = BinaryDependency::new("definitely-not-a-gem");
+        assert!(to_ruby_gem_req(&dep).is_none());
     }
 }
