@@ -68,6 +68,201 @@ fn run_indexer(
     Ok(Some(language))
 }
 
+/// How a standalone release-binary indexer is packaged for download.
+enum ReleaseArtifact {
+    /// A bare executable; the asset is the binary itself.
+    Binary,
+    /// A gzipped tarball; download it and extract `member` from it.
+    Tarball { member: &'static str },
+}
+
+/// A standalone release-binary indexer hosted as a GitHub release.
+struct ReleaseIndexer {
+    /// The session binary name this provides (and the key callers look up by).
+    binary: &'static str,
+    /// The GitHub `owner/repo` whose latest release is downloaded.
+    repo: &'static str,
+    /// The release asset to download, relative to the release. `{tag}` is
+    /// replaced with the resolved release tag (e.g. `v0.12.3`) for projects
+    /// that embed the version in the asset name. `{arch}` and `{goarch}` are
+    /// replaced with the host architecture in the relevant naming style (e.g.
+    /// `x86_64`/`aarch64` and `amd64`/`arm64`).
+    asset: &'static str,
+    artifact: ReleaseArtifact,
+}
+
+/// The host architecture in `x86_64`/`aarch64`-style naming (Rust's
+/// `std::env::consts::ARCH`), as used by e.g. scip-clang assets.
+fn host_arch() -> &'static str {
+    std::env::consts::ARCH
+}
+
+/// The host architecture in Go's `GOARCH` naming (`amd64`/`arm64`), as used by
+/// e.g. scip-go assets.
+fn host_goarch() -> Result<&'static str, Error> {
+    match std::env::consts::ARCH {
+        "x86_64" => Ok("amd64"),
+        "aarch64" => Ok("arm64"),
+        other => Err(Error::Other(format!(
+            "Unsupported architecture for release-binary indexer: {}",
+            other
+        ))),
+    }
+}
+
+impl ReleaseIndexer {
+    /// Build the download URL for the resolved release `tag`.
+    fn download_url(&self, tag: &str) -> Result<String, Error> {
+        let mut asset = self.asset.replace("{tag}", tag);
+        if asset.contains("{arch}") {
+            asset = asset.replace("{arch}", host_arch());
+        }
+        if asset.contains("{goarch}") {
+            asset = asset.replace("{goarch}", host_goarch()?);
+        }
+        Ok(format!(
+            "https://github.com/{}/releases/download/{}/{}",
+            self.repo, tag, asset
+        ))
+    }
+}
+
+/// Indexers distributed only as a standalone release artifact (no apt, npm or
+/// gem package). They are downloaded into the session on demand; baking them
+/// into the image would not help, since an isolated session (e.g. unshare,
+/// which chroots into a fresh Debian root) cannot see the host's binaries.
+///
+/// The release tag is resolved from the GitHub API at download time rather than
+/// pinned here, so a session always gets the latest published indexer.
+const RELEASE_BINARY_INDEXERS: &[ReleaseIndexer] = &[
+    ReleaseIndexer {
+        binary: "scip-clang",
+        repo: "sourcegraph/scip-clang",
+        asset: "scip-clang-{arch}-linux",
+        artifact: ReleaseArtifact::Binary,
+    },
+    ReleaseIndexer {
+        binary: "scip-go",
+        repo: "sourcegraph/scip-go",
+        asset: "scip-go-linux-{goarch}.tar.gz",
+        artifact: ReleaseArtifact::Tarball { member: "scip-go" },
+    },
+    ReleaseIndexer {
+        binary: "scip-java",
+        repo: "sourcegraph/scip-java",
+        asset: "scip-java-{tag}",
+        artifact: ReleaseArtifact::Binary,
+    },
+];
+
+/// Resolve the latest release tag for a GitHub `owner/repo` via the API.
+///
+/// A `GITHUB_TOKEN` in the environment is sent as a bearer token, raising the
+/// API rate limit from 60 to 5000 requests/hour.
+fn latest_release_tag(repo: &str) -> Result<String, Error> {
+    let url = format!("https://api.github.com/repos/{}/releases/latest", repo);
+    let mut request = reqwest::blocking::Client::new()
+        .get(&url)
+        .header(reqwest::header::USER_AGENT, "ognibuild")
+        .header(reqwest::header::ACCEPT, "application/vnd.github+json");
+    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+        if !token.is_empty() {
+            request = request.bearer_auth(token);
+        }
+    }
+    let release: serde_json::Value = request
+        .send()
+        .and_then(reqwest::blocking::Response::error_for_status)
+        .and_then(reqwest::blocking::Response::json)
+        .map_err(|e| {
+            Error::Other(format!(
+                "Failed to query latest release for {}: {}",
+                repo, e
+            ))
+        })?;
+    release["tag_name"]
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| Error::Other(format!("No tag_name in latest release for {}", repo)))
+}
+
+/// Fetch a URL and return its body bytes.
+fn http_get_bytes(url: &str) -> Result<Vec<u8>, Error> {
+    reqwest::blocking::Client::new()
+        .get(url)
+        .header(reqwest::header::USER_AGENT, "ognibuild")
+        .send()
+        .and_then(reqwest::blocking::Response::error_for_status)
+        .and_then(reqwest::blocking::Response::bytes)
+        .map(|b| b.to_vec())
+        .map_err(|e| Error::Other(format!("Failed to download {}: {}", url, e)))
+}
+
+/// Extract a single member from a gzipped tar archive.
+fn extract_tar_member(archive: &[u8], member: &str) -> Result<Vec<u8>, Error> {
+    let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(archive));
+    let entries = tar
+        .entries()
+        .map_err(|e| Error::Other(format!("Failed to read tar archive: {}", e)))?;
+    for entry in entries {
+        let mut entry =
+            entry.map_err(|e| Error::Other(format!("Failed to read tar entry: {}", e)))?;
+        let path = entry
+            .path()
+            .map_err(|e| Error::Other(format!("Failed to read tar entry path: {}", e)))?;
+        if path.as_os_str() == member {
+            let mut buf = Vec::new();
+            std::io::Read::read_to_end(&mut entry, &mut buf)
+                .map_err(|e| Error::Other(format!("Failed to extract {}: {}", member, e)))?;
+            return Ok(buf);
+        }
+    }
+    Err(Error::Other(format!(
+        "Member {} not found in tar archive",
+        member
+    )))
+}
+
+/// Download a standalone release-binary indexer into the session if it is not
+/// already on the session's PATH. No-op for any other binary (those are
+/// resolved via apt/npm/gem by the installer).
+///
+/// The indexer is fetched over HTTP host-side and written straight into the
+/// session via `external_path`, so the session base needs no download tooling.
+fn provide_release_indexer(session: &dyn Session, binary: &str) -> Result<(), Error> {
+    let Some(indexer) = RELEASE_BINARY_INDEXERS
+        .iter()
+        .find(|indexer| indexer.binary == binary)
+    else {
+        return Ok(());
+    };
+    if crate::session::which(session, binary).is_some() {
+        return Ok(());
+    }
+    if !session.exists(Path::new("/usr/local/bin")) {
+        session.mkdir(Path::new("/usr/local/bin"))?;
+    }
+    // Resolve the latest release tag from the GitHub API and build the download
+    // URL from it.
+    let tag = latest_release_tag(indexer.repo)?;
+    let url = indexer.download_url(&tag)?;
+    log::info!("Downloading {} from {}", binary, url);
+    let payload = http_get_bytes(&url)?;
+    let bytes = match indexer.artifact {
+        ReleaseArtifact::Binary => payload,
+        ReleaseArtifact::Tarball { member } => extract_tar_member(&payload, member)?,
+    };
+    // Write the binary into the session and mark it executable. `external_path`
+    // maps the session path to its host location for any session kind.
+    let dest = session.external_path(&Path::new("/usr/local/bin").join(binary));
+    std::fs::write(&dest, &bytes)
+        .map_err(|e| Error::Other(format!("Failed to write {}: {}", dest.display(), e)))?;
+    let mut perms = std::fs::metadata(&dest)?.permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o755);
+    std::fs::set_permissions(&dest, perms)?;
+    Ok(())
+}
+
 /// Run an indexer binary, resolving missing dependencies as it goes.
 fn run_index_command(
     session: &dyn Session,
@@ -76,6 +271,7 @@ fn run_index_command(
     binary: &str,
     args: &[&str],
 ) -> Result<(), Error> {
+    provide_release_indexer(session, binary)?;
     let binary_path = guaranteed_which(session, installer, binary)?;
     let mut argv = vec![binary_path.to_str().unwrap()];
     argv.extend_from_slice(args);
@@ -143,6 +339,10 @@ fn index_ruby(
     fixers: &[&dyn BuildFixer<InstallerError>],
     output: &str,
 ) -> Result<(), Error> {
+    // scip-ruby is installed via `gem install` (the GemResolver), so the `gem`
+    // command has to be present before resolving it; ensure it up front rather
+    // than letting the gem resolver fail on a missing `gem`.
+    guaranteed_which(session, installer, "gem")?;
     // scip-ruby reads sorbet/config when present, otherwise the trailing `.`
     // tells it to index every file in the project.
     run_index_command(
@@ -521,5 +721,53 @@ mod tests {
         assert_eq!(index_file_name("cpp", "cmake", &taken), "cpp.scip");
         taken.insert("cpp.scip".to_string());
         assert_eq!(index_file_name("cpp", "meson", &taken), "cpp-meson.scip");
+    }
+
+    #[test]
+    fn test_download_url() {
+        let find = |binary| {
+            RELEASE_BINARY_INDEXERS
+                .iter()
+                .find(|i| i.binary == binary)
+                .unwrap()
+        };
+        assert_eq!(
+            find("scip-clang").download_url("v0.4.0").unwrap(),
+            format!(
+                "https://github.com/sourcegraph/scip-clang/releases/download/v0.4.0/scip-clang-{}-linux",
+                host_arch()
+            )
+        );
+        assert_eq!(
+            find("scip-go").download_url("v0.2.7").unwrap(),
+            format!(
+                "https://github.com/sourcegraph/scip-go/releases/download/v0.2.7/scip-go-linux-{}.tar.gz",
+                host_goarch().unwrap()
+            )
+        );
+        // scip-java embeds the tag in the asset name.
+        assert_eq!(
+            find("scip-java").download_url("v0.12.3").unwrap(),
+            "https://github.com/sourcegraph/scip-java/releases/download/v0.12.3/scip-java-v0.12.3"
+        );
+    }
+
+    #[test]
+    fn test_extract_tar_member() {
+        let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(
+            Vec::new(),
+            flate2::Compression::default(),
+        ));
+        let payload = b"#!/bin/sh\necho hi\n";
+        let mut header = tar::Header::new_gnu();
+        header.set_size(payload.len() as u64);
+        header.set_mode(0o755);
+        header.set_cksum();
+        tar.append_data(&mut header, "scip-go", &payload[..])
+            .unwrap();
+        let gz = tar.into_inner().unwrap().finish().unwrap();
+
+        assert_eq!(extract_tar_member(&gz, "scip-go").unwrap(), payload);
+        assert!(extract_tar_member(&gz, "missing").is_err());
     }
 }
