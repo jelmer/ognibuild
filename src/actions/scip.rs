@@ -60,8 +60,23 @@ fn run_indexer(
             "cpp"
         }
         "make" => {
-            index_clang(session, installer, fixers, output, Cpp::Make(buildsystem))?;
-            "cpp"
+            // A Makefile.PL drives a Perl project (ExtUtils::MakeMaker), not a
+            // C/C++ one, so index it with scip-perl rather than scip-clang.
+            if buildsystem
+                .as_any()
+                .downcast_ref::<crate::buildsystems::make::Make>()
+                .is_some_and(crate::buildsystems::make::Make::is_makefile_pl)
+            {
+                index_perl(session, installer, fixers, output)?;
+                "perl"
+            } else {
+                index_clang(session, installer, fixers, output, Cpp::Make(buildsystem))?;
+                "cpp"
+            }
+        }
+        "Dist::Zilla" | "Module::Build::Tiny" => {
+            index_perl(session, installer, fixers, output)?;
+            "perl"
         }
         _ => return Ok(None),
     };
@@ -351,6 +366,30 @@ fn index_ruby(
         fixers,
         "scip-ruby",
         &["--index-file", output, "."],
+    )
+}
+
+fn index_perl(
+    session: &dyn Session,
+    installer: &dyn Installer,
+    fixers: &[&dyn BuildFixer<InstallerError>],
+    output: &str,
+) -> Result<(), Error> {
+    // scip-perl is installed via `cargo install` (the CargoResolver), so the
+    // `cargo` command has to be present before resolving it; ensure it up front
+    // rather than letting the cargo resolver fail on a missing `cargo`.
+    // TODO: the CargoResolver should ensure `cargo` itself, but it only holds a
+    // session and a bare `cargo` binary is resolved via apt, which the resolver
+    // cannot reach without the full installer stack the call site already has.
+    guaranteed_which(session, installer, "cargo")?;
+    // scip-perl indexes the Perl sources directly; the trailing `.` indexes
+    // every .pl/.pm/.t file in the project.
+    run_index_command(
+        session,
+        installer,
+        fixers,
+        "scip-perl",
+        &["-o", output, "."],
     )
 }
 
