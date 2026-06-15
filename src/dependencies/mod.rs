@@ -1169,6 +1169,198 @@ impl crate::upstream::FindUpstream for RubyGemDependency {
     }
 }
 
+/// Map a binary command to the Ruby gem that provides it.
+///
+/// Some indexers and tools ship as gems whose executable name differs from
+/// nothing useful in apt; resolving them via RubyGems lets ognibuild install
+/// them into the session itself, the same way [`node::command_package`] handles
+/// npm-distributed tools.
+fn gem_command_package(command: &str) -> Option<&'static str> {
+    match command {
+        "scip-ruby" => Some("scip-ruby"),
+        _ => None,
+    }
+}
+
+/// Resolve a dependency to the Ruby gem that provides it, if any.
+fn to_ruby_gem_req(requirement: &dyn Dependency) -> Option<RubyGemDependency> {
+    if let Some(requirement) = requirement.as_any().downcast_ref::<RubyGemDependency>() {
+        Some(requirement.clone())
+    } else if let Some(requirement) = requirement.as_any().downcast_ref::<BinaryDependency>() {
+        gem_command_package(&requirement.binary_name).map(RubyGemDependency::simple)
+    } else {
+        None
+    }
+}
+
+/// A resolver that installs Ruby gems via the `gem` command.
+pub struct GemResolver<'a> {
+    session: &'a dyn Session,
+}
+
+impl<'a> GemResolver<'a> {
+    /// Create a new GemResolver.
+    pub fn new(session: &'a dyn Session) -> Self {
+        Self { session }
+    }
+
+    fn cmd(
+        &self,
+        req: &RubyGemDependency,
+        scope: crate::installer::InstallationScope,
+    ) -> Result<Vec<String>, crate::installer::Error> {
+        let mut cmd = vec!["gem".to_string(), "install".to_string()];
+        match scope {
+            crate::installer::InstallationScope::Global => {}
+            crate::installer::InstallationScope::User => cmd.push("--user-install".to_string()),
+            crate::installer::InstallationScope::Vendor => {
+                return Err(crate::installer::Error::UnsupportedScope(scope));
+            }
+        }
+        if let Some(minimum_version) = req.minimum_version.as_ref() {
+            cmd.push("--version".to_string());
+            cmd.push(format!(">={}", minimum_version));
+        }
+        cmd.push(req.gem.clone());
+        Ok(cmd)
+    }
+}
+
+impl crate::installer::Installer for GemResolver<'_> {
+    fn explain(
+        &self,
+        requirement: &dyn Dependency,
+        scope: crate::installer::InstallationScope,
+    ) -> Result<crate::installer::Explanation, crate::installer::Error> {
+        let req =
+            to_ruby_gem_req(requirement).ok_or(crate::installer::Error::UnknownDependencyFamily)?;
+        Ok(crate::installer::Explanation {
+            message: format!("install ruby gem {}", req.gem),
+            command: Some(self.cmd(&req, scope)?),
+        })
+    }
+
+    fn install(
+        &self,
+        requirement: &dyn Dependency,
+        scope: crate::installer::InstallationScope,
+    ) -> Result<(), crate::installer::Error> {
+        let req =
+            to_ruby_gem_req(requirement).ok_or(crate::installer::Error::UnknownDependencyFamily)?;
+        let args = self.cmd(&req, scope)?;
+        let mut cmd = self
+            .session
+            .command(args.iter().map(|s| s.as_str()).collect());
+        if scope == crate::installer::InstallationScope::Global {
+            cmd = cmd.user("root");
+        }
+        cmd.run_detecting_problems()?;
+        Ok(())
+    }
+}
+
+/// Map a binary command to the crate that provides it.
+///
+/// Some tools ship only as a crate on crates.io with no apt/npm/gem package;
+/// resolving them via `cargo install` lets ognibuild install them into the
+/// session itself, the same way [`gem_command_package`] and
+/// [`node::command_package`] handle gem- and npm-distributed tools.
+fn cargo_command_package(command: &str) -> Option<&'static str> {
+    match command {
+        "scip-perl" => Some("scip-perl"),
+        _ => None,
+    }
+}
+
+/// Resolve a dependency to the crate that provides it, if any.
+fn to_cargo_crate_req(requirement: &dyn Dependency) -> Option<CargoCrateDependency> {
+    if let Some(requirement) = requirement.as_any().downcast_ref::<CargoCrateDependency>() {
+        Some(requirement.clone())
+    } else if let Some(requirement) = requirement.as_any().downcast_ref::<BinaryDependency>() {
+        cargo_command_package(&requirement.binary_name).map(CargoCrateDependency::simple)
+    } else {
+        None
+    }
+}
+
+/// A resolver that installs crates via `cargo install`.
+pub struct CargoResolver<'a> {
+    session: &'a dyn Session,
+}
+
+impl<'a> CargoResolver<'a> {
+    /// Create a new CargoResolver.
+    pub fn new(session: &'a dyn Session) -> Self {
+        Self { session }
+    }
+
+    fn cmd(
+        &self,
+        req: &CargoCrateDependency,
+        scope: crate::installer::InstallationScope,
+    ) -> Result<Vec<String>, crate::installer::Error> {
+        let mut cmd = vec!["cargo".to_string(), "install".to_string()];
+        match scope {
+            // cargo install always installs to $CARGO_HOME/bin; point it at
+            // /usr/local for a global install so the binary lands on PATH, and
+            // leave the default (~/.cargo/bin) for a user install.
+            crate::installer::InstallationScope::Global => {
+                cmd.push("--root".to_string());
+                cmd.push("/usr/local".to_string());
+            }
+            crate::installer::InstallationScope::User => {}
+            crate::installer::InstallationScope::Vendor => {
+                return Err(crate::installer::Error::UnsupportedScope(scope));
+            }
+        }
+        if let Some(features) = req.features.as_ref() {
+            if !features.is_empty() {
+                cmd.push("--features".to_string());
+                cmd.push(features.join(","));
+            }
+        }
+        if let Some(minimum_version) = req.minimum_version.as_ref() {
+            cmd.push("--version".to_string());
+            cmd.push(format!(">={}", minimum_version));
+        }
+        cmd.push(req.name.clone());
+        Ok(cmd)
+    }
+}
+
+impl crate::installer::Installer for CargoResolver<'_> {
+    fn explain(
+        &self,
+        requirement: &dyn Dependency,
+        scope: crate::installer::InstallationScope,
+    ) -> Result<crate::installer::Explanation, crate::installer::Error> {
+        let req = to_cargo_crate_req(requirement)
+            .ok_or(crate::installer::Error::UnknownDependencyFamily)?;
+        Ok(crate::installer::Explanation {
+            message: format!("install crate {}", req.name),
+            command: Some(self.cmd(&req, scope)?),
+        })
+    }
+
+    fn install(
+        &self,
+        requirement: &dyn Dependency,
+        scope: crate::installer::InstallationScope,
+    ) -> Result<(), crate::installer::Error> {
+        let req = to_cargo_crate_req(requirement)
+            .ok_or(crate::installer::Error::UnknownDependencyFamily)?;
+        let args = self.cmd(&req, scope)?;
+        let mut cmd = self
+            .session
+            .command(args.iter().map(|s| s.as_str()).collect());
+        if scope == crate::installer::InstallationScope::Global {
+            cmd = cmd.user("root");
+        }
+        cmd.run_detecting_problems()?;
+        Ok(())
+    }
+}
+
 /// Dependency on a Debian debhelper addon.
 ///
 /// This represents a dependency on a debhelper addon that can be used
@@ -2592,5 +2784,48 @@ impl ToDependency for buildlog_consultant::problems::common::MissingXfceDependen
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gem_command_package() {
+        assert_eq!(gem_command_package("scip-ruby"), Some("scip-ruby"));
+        assert_eq!(gem_command_package("rubocop"), None);
+    }
+
+    #[test]
+    fn test_binary_dependency_maps_to_gem() {
+        let dep = BinaryDependency::new("scip-ruby");
+        let req = to_ruby_gem_req(&dep).expect("scip-ruby binary should resolve to a gem");
+        assert_eq!(req.gem, "scip-ruby");
+    }
+
+    #[test]
+    fn test_unknown_binary_does_not_map() {
+        let dep = BinaryDependency::new("definitely-not-a-gem");
+        assert!(to_ruby_gem_req(&dep).is_none());
+    }
+
+    #[test]
+    fn test_cargo_command_package() {
+        assert_eq!(cargo_command_package("scip-perl"), Some("scip-perl"));
+        assert_eq!(cargo_command_package("ripgrep"), None);
+    }
+
+    #[test]
+    fn test_binary_dependency_maps_to_crate() {
+        let dep = BinaryDependency::new("scip-perl");
+        let req = to_cargo_crate_req(&dep).expect("scip-perl binary should resolve to a crate");
+        assert_eq!(req.name, "scip-perl");
+    }
+
+    #[test]
+    fn test_unknown_binary_does_not_map_to_crate() {
+        let dep = BinaryDependency::new("definitely-not-a-crate");
+        assert!(to_cargo_crate_req(&dep).is_none());
     }
 }

@@ -278,13 +278,25 @@ fn install_necessary_declared_dependencies(
     categories: &[DependencyCategory],
 ) -> Result<(), Error> {
     for buildsystem in buildsystems {
-        buildsystem.install_declared_dependencies(
+        match buildsystem.install_declared_dependencies(
             categories,
             scopes,
             session,
             installer,
             Some(fixers),
-        )?;
+        ) {
+            Ok(()) => {}
+            // A build system that can't enumerate its declared dependencies
+            // (e.g. a bare gemspec) simply has none to install here; the
+            // indexer still resolves what it needs on its own.
+            Err(Error::Unimplemented) => {
+                log::info!(
+                    "{} does not support declared dependency discovery; skipping",
+                    buildsystem.name()
+                );
+            }
+            Err(e) => return Err(e),
+        }
     }
     Ok(())
 }

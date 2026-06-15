@@ -167,6 +167,11 @@ impl Make {
         self.setup(session, installer, None)
     }
 
+    /// Whether this is a Perl project driven by a `Makefile.PL` (ExtUtils::MakeMaker).
+    pub fn is_makefile_pl(&self) -> bool {
+        self.kind == Kind::MakefilePL
+    }
+
     fn run_make(
         &self,
         session: &dyn Session,

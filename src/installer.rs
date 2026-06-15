@@ -294,6 +294,12 @@ pub fn installer_by_name<'a>(
         "npm" => Some(
             Box::new(crate::dependencies::node::NpmResolver::new(session)) as Box<dyn Installer>,
         ),
+        "gem" => {
+            Some(Box::new(crate::dependencies::GemResolver::new(session)) as Box<dyn Installer>)
+        }
+        "cargo" => {
+            Some(Box::new(crate::dependencies::CargoResolver::new(session)) as Box<dyn Installer>)
+        }
         "go" => {
             Some(Box::new(crate::dependencies::go::GoResolver::new(session)) as Box<dyn Installer>)
         }
@@ -332,6 +338,8 @@ pub fn native_installers<'a>(
         "ctan",
         "pypi",
         "npm",
+        "gem",
+        "cargo",
         "go",
         "hackage",
         "cran",
