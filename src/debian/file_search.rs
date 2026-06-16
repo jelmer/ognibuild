@@ -243,32 +243,41 @@ impl<'b> FileSearcher<'b> for AptFileFileSearcher<'b> {
 /// # Returns
 /// Ok(()) if setup was successful, Error otherwise
 pub fn setup_apt_file(session: &dyn Session) -> Result<(), Error> {
-    // Update APT package lists first
-    log::info!("Updating APT package lists...");
-    session
-        .command(vec!["apt-get", "update"])
-        .user("root")
-        .check_call()
-        .map_err(|e| Error::AptFileAccessError(format!("Failed to run apt-get update: {}", e)))?;
+    // Every step fetches from the network (package lists, the apt-file package
+    // itself, and the Contents indexes), so enable network access for the
+    // duration even if the session is otherwise network-isolated.
+    crate::session::with_network(session, || {
+        // Update APT package lists first
+        log::info!("Updating APT package lists...");
+        session
+            .command(vec!["apt-get", "update"])
+            .user("root")
+            .check_call()
+            .map_err(|e| {
+                Error::AptFileAccessError(format!("Failed to run apt-get update: {}", e))
+            })?;
 
-    // Install apt-file if not already installed
-    log::info!("Installing apt-file...");
-    session
-        .command(vec!["apt-get", "install", "-y", "apt-file"])
-        .user("root")
-        .check_call()
-        .map_err(|e| Error::AptFileAccessError(format!("Failed to install apt-file: {}", e)))?;
+        // Install apt-file if not already installed
+        log::info!("Installing apt-file...");
+        session
+            .command(vec!["apt-get", "install", "-y", "apt-file"])
+            .user("root")
+            .check_call()
+            .map_err(|e| Error::AptFileAccessError(format!("Failed to install apt-file: {}", e)))?;
 
-    // Update apt-file cache
-    log::info!("Updating apt-file cache...");
-    session
-        .command(vec!["apt-file", "update"])
-        .user("root")
-        .check_call()
-        .map_err(|e| Error::AptFileAccessError(format!("Failed to run apt-file update: {}", e)))?;
+        // Update apt-file cache
+        log::info!("Updating apt-file cache...");
+        session
+            .command(vec!["apt-file", "update"])
+            .user("root")
+            .check_call()
+            .map_err(|e| {
+                Error::AptFileAccessError(format!("Failed to run apt-file update: {}", e))
+            })?;
 
-    log::info!("apt-file setup complete");
-    Ok(())
+        log::info!("apt-file setup complete");
+        Ok(())
+    })
 }
 
 /// Get a file searcher that uses apt-file or remote contents.
@@ -919,19 +928,20 @@ mod tests {
             .expect("Failed to run apt-file --help");
         assert!(output.status.success(), "apt-file --help failed");
 
-        // Verify apt-file cache exists (Contents files should be downloaded)
-        let cache_check = session
-            .command(vec!["ls", "/var/cache/apt/apt-file/"])
-            .output()
-            .expect("Failed to check apt-file cache");
+        // Verify the apt-file cache is populated. Modern apt-file stores its
+        // Contents files alongside the regular APT lists, so rely on the
+        // project's own cache detection rather than a hardcoded directory.
         assert!(
-            cache_check.status.success(),
-            "apt-file cache directory not found"
+            AptFileFileSearcher::has_cache(&session).expect("Failed to check apt-file cache"),
+            "apt-file cache not populated"
         );
 
-        // Test that apt-file can actually search for a file
+        // Test that apt-file can actually search for a file. stdout must be
+        // piped explicitly: the session command builder inherits the parent's
+        // stdout otherwise, leaving output() with an empty captured buffer.
         let search_result = session
             .command(vec!["apt-file", "search", "bin/ls"])
+            .stdout(std::process::Stdio::piped())
             .output()
             .expect("Failed to run apt-file search");
         assert!(search_result.status.success(), "apt-file search failed");
