@@ -54,9 +54,10 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.150"
 serde_yaml = "0.9.34"
 shlex = "2.0.1"
-sqlx = { version = "0.8.6", optional = true, features = [
+sqlx = { version = ">=0.8.6,<0.10", optional = true, features = [
 	"postgres",
-	"runtime-tokio-native-tls",
+	"runtime-tokio",
+	"tls-native-tls",
 ] }
 stackdriver_logger = { version = "0.8.2", optional = true }
 tempfile = "3.26"
@@ -70,7 +71,17 @@ dirs = ">=5,<7"
 
 [features]
 default = ["cli", "upstream", "breezy", "dep-server"]
-debian = ["dep:debian-changelog", "dep:debversion", "dep:debian-control", "dep:apt-sources", "dep:sequoia-openpgp", "dep:lzma-rs", "dep:lz4_flex", "breezyshim/debian", "dep:debian-analyzer"]
+debian = [
+	"dep:debian-changelog",
+	"dep:debversion",
+	"dep:debian-control",
+	"dep:apt-sources",
+	"dep:sequoia-openpgp",
+	"dep:lzma-rs",
+	"dep:lz4_flex",
+	"breezyshim/debian",
+	"dep:debian-analyzer",
+]
 cli = ["dep:clap", "dep:env_logger"]
 udd = ["dep:sqlx", "dep:tokio", "debian"]
 dep-server = ["dep:axum", "dep:tokio"]
