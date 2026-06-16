@@ -36,13 +36,16 @@ fn targeted_python_versions(tree: &dyn Tree, subpath: &Path) -> Vec<String> {
     for entry in all.entries() {
         for relation in entry.relations() {
             let mut targeted = vec![];
-            if relation.name().starts_with("python3-") {
+            let Some(name) = relation.try_name() else {
+                continue;
+            };
+            if name.starts_with("python3-") {
                 targeted.push("python3".to_owned());
             }
-            if relation.name().starts_with("pypy") {
+            if name.starts_with("pypy") {
                 targeted.push("pypy".to_owned());
             }
-            if relation.name().starts_with("python-") {
+            if name.starts_with("python-") {
                 targeted.push("python".to_owned());
             }
         }

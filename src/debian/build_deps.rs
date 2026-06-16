@@ -74,8 +74,10 @@ impl BuildDependencyTieBreaker {
                 .for_each(|r| {
                     for e in r.entries() {
                         e.relations().for_each(|r| {
-                            let count = counts.entry(r.name().clone()).or_insert(0);
-                            *count += 1;
+                            if let Some(name) = r.try_name() {
+                                let count = counts.entry(name).or_insert(0);
+                                *count += 1;
+                            }
                         });
                     }
                 });

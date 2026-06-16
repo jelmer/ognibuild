@@ -583,12 +583,14 @@ pub fn add_dummy_changelog_entry(
 
     let version = version_add_suffix(&prev_version, suffix);
     log::debug!("Adding dummy changelog entry {} for build", &version);
-    let mut entry = cl.auto_add_change(
-        &[&format!("* {}", message)],
-        maintainer.unwrap_or_else(|| debian_changelog::get_maintainer().unwrap()),
-        timestamp.map(|t| t.into()),
-        Some(Urgency::Low),
-    );
+    let mut entry = cl
+        .try_auto_add_change(
+            &[&format!("* {}", message)],
+            maintainer.unwrap_or_else(|| debian_changelog::get_maintainer().unwrap()),
+            timestamp.map(|t| -> chrono::DateTime<chrono::FixedOffset> { t.into() }),
+            Some(Urgency::Low),
+        )
+        .unwrap();
     entry.set_version(&version);
     entry.set_distributions(vec![suite.to_string()]);
 
