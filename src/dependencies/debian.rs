@@ -102,7 +102,7 @@ impl DebianDependency {
     pub fn touches_package(&self, package: &str) -> bool {
         for entry in self.0.entries() {
             for relation in entry.relations() {
-                if relation.name() == package {
+                if relation.try_name().as_deref() == Some(package) {
                     return true;
                 }
             }
@@ -115,7 +115,9 @@ impl DebianDependency {
         let mut names = HashSet::new();
         for entry in self.0.entries() {
             for relation in entry.relations() {
-                names.insert(relation.name());
+                if let Some(name) = relation.try_name() {
+                    names.insert(name);
+                }
             }
         }
         names
@@ -127,7 +129,9 @@ impl DebianDependency {
         versions: &std::collections::HashMap<String, debversion::Version>,
     ) -> bool {
         let relation_satisfied = |relation: Relation| -> bool {
-            let name = relation.name();
+            let Some(name) = relation.try_name() else {
+                return false;
+            };
             let version = if let Some(version) = versions.get(&name) {
                 version
             } else {
@@ -322,7 +326,7 @@ pub fn extract_simple_exact_version(
         return None;
     }
 
-    let name = first_relation.name();
+    let name = first_relation.try_name()?;
     let version = match first_relation.version() {
         Some((VersionConstraint::Equal, v)) => Some(v),
         None => None,
@@ -351,7 +355,7 @@ pub fn extract_simple_min_version(
         return None;
     }
 
-    let name = first_relation.name();
+    let name = first_relation.try_name()?;
     let version = match first_relation.version() {
         Some((VersionConstraint::GreaterThanEqual, v)) => Some(v),
         None => None,

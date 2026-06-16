@@ -171,12 +171,13 @@ impl DebianPackagingContext {
         let r = if update_changelog {
             let mut cl = self
                 .edit_file::<debian_changelog::ChangeLog>(Path::new("debian/changelog"), false)?;
-            cl.auto_add_change(
+            cl.try_auto_add_change(
                 &[summary],
                 self.committer.clone(),
-                Some(chrono::Local::now().into()),
+                Some::<chrono::DateTime<chrono::FixedOffset>>(chrono::Local::now().into()),
                 None,
-            );
+            )
+            .unwrap();
             cl.commit()?;
 
             debcommit(
