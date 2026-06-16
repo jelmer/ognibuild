@@ -303,6 +303,16 @@ impl UnshareSession {
             ret.push("--map-current-user")
         }
         ret.push("--");
+        // The minbase root has no /dev/shm, which scip-clang needs for its
+        // driver/worker IPC. unshare mounts /proc but not this, and each command
+        // gets a fresh mount namespace, so mount a tmpfs per invocation before
+        // exec'ing the command (the user-namespace mapping grants CAP_SYS_ADMIN).
+        ret.extend([
+            "sh",
+            "-c",
+            "mountpoint -q /dev/shm || { mkdir -p /dev/shm && mount -t tmpfs tmpfs /dev/shm; }; exec \"$@\"",
+            "sh",
+        ]);
         ret.extend(argv);
         ret
     }
