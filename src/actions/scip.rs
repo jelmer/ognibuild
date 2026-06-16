@@ -549,8 +549,14 @@ fn index_clang(
         installer,
         fixers,
         "scip-clang",
-        &["--compdb-path", compdb, "-o", output],
+        &scip_clang_args(compdb, output),
     )
+}
+
+/// Build the scip-clang argument list. scip-clang names its output flag
+/// `--index-output-path` (not `-o`), so it lives in a helper that a test pins.
+fn scip_clang_args<'a>(compdb: &'a str, output: &'a str) -> [&'a str; 4] {
+    ["--compdb-path", compdb, "--index-output-path", output]
 }
 
 /// Generate a SCIP index file for the project.
@@ -746,6 +752,21 @@ pub fn run_scip_multi(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_scip_clang_args() {
+        // scip-clang takes --index-output-path, not -o; passing -o makes it
+        // abort with "unknown argument", which silently breaks all C/C++ indexing.
+        assert_eq!(
+            scip_clang_args("build/compile_commands.json", "/out/cpp.scip"),
+            [
+                "--compdb-path",
+                "build/compile_commands.json",
+                "--index-output-path",
+                "/out/cpp.scip"
+            ]
+        );
+    }
 
     #[test]
     fn test_index_file_name() {
