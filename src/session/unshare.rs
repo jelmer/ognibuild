@@ -28,6 +28,31 @@ fn compression_flag(path: &Path) -> Result<Option<&str>, crate::session::Error> 
     }
 }
 
+/// Ensure the session root has a usable `/dev/shm`.
+///
+/// minbase roots ship without `/dev/shm`, but scip-clang needs it for its
+/// driver/worker shared-memory IPC. Each command runs in a fresh mount
+/// namespace mapped as the calling (non-root) user, which holds no
+/// CAP_SYS_ADMIN, so an in-namespace `mount -t tmpfs` is not possible. The root
+/// is a real directory tree on the host, though, and POSIX `shm_open` is
+/// satisfied by a plain writable `/dev/shm` directory, so create one (mode 1777,
+/// matching the usual tmpfs permissions).
+fn ensure_dev_shm(root: &Path) -> Result<(), crate::session::Error> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let shm = root.join("dev").join("shm");
+    std::fs::create_dir_all(&shm).map_err(|e| {
+        crate::session::Error::SetupFailure("Failed to create /dev/shm".to_string(), e.to_string())
+    })?;
+    std::fs::set_permissions(&shm, std::fs::Permissions::from_mode(0o1777)).map_err(|e| {
+        crate::session::Error::SetupFailure(
+            "Failed to set /dev/shm permissions".to_string(),
+            e.to_string(),
+        )
+    })?;
+    Ok(())
+}
+
 /// Get the path to a cached Debian tarball if it exists
 ///
 /// # Arguments
@@ -138,6 +163,8 @@ impl UnshareSession {
                 stderr,
             ));
         }
+
+        ensure_dev_shm(root)?;
 
         let s = Self {
             root: root.to_path_buf(),
@@ -303,16 +330,6 @@ impl UnshareSession {
             ret.push("--map-current-user")
         }
         ret.push("--");
-        // The minbase root has no /dev/shm, which scip-clang needs for its
-        // driver/worker IPC. unshare mounts /proc but not this, and each command
-        // gets a fresh mount namespace, so mount a tmpfs per invocation before
-        // exec'ing the command (the user-namespace mapping grants CAP_SYS_ADMIN).
-        ret.extend([
-            "sh",
-            "-c",
-            "mountpoint -q /dev/shm || { mkdir -p /dev/shm && mount -t tmpfs tmpfs /dev/shm; }; exec \"$@\"",
-            "sh",
-        ]);
         ret.extend(argv);
         ret
     }
@@ -471,6 +488,8 @@ pub fn bootstrap_debian_tarball(
             format!("mmdebstrap exited with status: {}. This likely requires network access to http://deb.debian.org/debian/", status),
         ));
     }
+
+    ensure_dev_shm(root)?;
 
     let s = UnshareSession {
         root: root.to_path_buf(),
@@ -842,6 +861,33 @@ mod tests {
             .unwrap()
             .trim_end()
         );
+    }
+
+    #[test]
+    fn test_dev_shm_writable() {
+        let session = if let Some(session) = test_session() {
+            session
+        } else {
+            return;
+        };
+        // scip-clang relies on a writable /dev/shm as the calling user; verify a
+        // command run without an explicit user can create a file there.
+        session
+            .check_call(
+                vec!["touch", "/dev/shm/ognibuild-test"],
+                Some(std::path::Path::new("/")),
+                None,
+                None,
+            )
+            .unwrap();
+        session
+            .check_call(
+                vec!["rm", "/dev/shm/ognibuild-test"],
+                Some(std::path::Path::new("/")),
+                None,
+                None,
+            )
+            .unwrap();
     }
 
     #[test]
