@@ -59,6 +59,11 @@ impl BinaryDependency {
             binary_name: binary_name.to_string(),
         }
     }
+
+    /// The name of the binary executable.
+    pub fn binary_name(&self) -> &str {
+        &self.binary_name
+    }
 }
 
 impl Dependency for BinaryDependency {
@@ -94,34 +99,6 @@ impl ToDependency for buildlog_consultant::problems::common::MissingCommand {
 impl ToDependency for buildlog_consultant::problems::common::MissingCommandOrBuildFile {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(BinaryDependency::new(&self.filename)))
-    }
-}
-
-#[cfg(feature = "debian")]
-const BIN_PATHS: &[&str] = &["/usr/bin", "/bin"];
-
-#[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for BinaryDependency {
-    fn try_into_debian_dependency(
-        &self,
-        apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        let paths = if std::path::Path::new(&self.binary_name).is_absolute() {
-            vec![self.binary_name.clone()]
-        } else {
-            BIN_PATHS
-                .iter()
-                .map(|p| format!("{}/{}", p, self.binary_name))
-                .collect()
-        };
-        // TODO(jelmer): Check for binaries which use alternatives
-        Some(
-            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), false, false)
-                .unwrap()
-                .iter()
-                .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
-                .collect(),
-        )
     }
 }
 
