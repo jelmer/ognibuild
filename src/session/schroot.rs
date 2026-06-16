@@ -304,7 +304,12 @@ impl Session for SchrootSession {
         options.depth = 0; // Recursion depth (0 for unlimited depth)
 
         // Perform the copy operation
-        fs_extra::dir::copy(path, &export_directory, &options).unwrap();
+        fs_extra::dir::copy(path, &export_directory, &options).map_err(|e| {
+            Error::SetupFailure(
+                format!("failed to copy {} into session", path.display()),
+                e.to_string(),
+            )
+        })?;
 
         Ok(Project::Temporary {
             external_path: export_directory,
