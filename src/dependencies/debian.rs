@@ -366,6 +366,57 @@ pub fn valid_debian_package_name(name: &str) -> bool {
     lazy_regex::regex_is_match!("[a-z0-9][a-z0-9+-\\.]+", name)
 }
 
+/// Map an automake-versioned command to the unversioned binary apt ships.
+///
+/// A maintainer-mode autotools rebuild reruns the exact automake series baked
+/// into the shipped Makefile, e.g. `aclocal-1.16`/`automake-1.16`. apt only
+/// ships the unversioned `aclocal`/`automake` (plus whatever series is
+/// current), so a path search for `aclocal-1.16` finds nothing while the
+/// unversioned name resolves to the automake package. Returns `None` for any
+/// other command.
+pub fn unversioned_automake_binary(binary_name: &str) -> Option<&'static str> {
+    let (stem, version) = binary_name.split_once('-')?;
+    if version.is_empty() || !version.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return None;
+    }
+    match stem {
+        "aclocal" => Some("aclocal"),
+        "automake" => Some("automake"),
+        _ => None,
+    }
+}
+
+const BIN_PATHS: &[&str] = &["/usr/bin", "/bin"];
+
+impl IntoDebianDependency for super::BinaryDependency {
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> Option<Vec<DebianDependency>> {
+        // apt does not ship the version-stamped automake binaries a
+        // maintainer-mode rebuild asks for, so look them up unversioned.
+        let binary_name =
+            unversioned_automake_binary(self.binary_name()).unwrap_or(self.binary_name());
+
+        let paths = if std::path::Path::new(binary_name).is_absolute() {
+            vec![binary_name.to_string()]
+        } else {
+            BIN_PATHS
+                .iter()
+                .map(|p| format!("{}/{}", p, binary_name))
+                .collect()
+        };
+        // TODO(jelmer): Check for binaries which use alternatives
+        Some(
+            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), false, false)
+                .unwrap()
+                .iter()
+                .map(|p| DebianDependency::simple(p.as_str()))
+                .collect(),
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 /// Represents the category of a Debian dependency.
 pub enum DebianDependencyCategory {
@@ -393,6 +444,20 @@ mod tests {
         assert!(valid_debian_package_name("libssl1.1"));
         assert!(valid_debian_package_name("libssl1.1-dev"));
         assert!(valid_debian_package_name("libssl1.1-dev~foo"));
+    }
+
+    #[test]
+    fn test_unversioned_automake_binary() {
+        assert_eq!(unversioned_automake_binary("aclocal-1.16"), Some("aclocal"));
+        assert_eq!(
+            unversioned_automake_binary("automake-1.16"),
+            Some("automake")
+        );
+        // Already unversioned, or unrelated commands, are left alone.
+        assert_eq!(unversioned_automake_binary("aclocal"), None);
+        assert_eq!(unversioned_automake_binary("autoconf-2.71"), None);
+        assert_eq!(unversioned_automake_binary("gcc-13"), None);
+        assert_eq!(unversioned_automake_binary("automake-foreign"), None);
     }
 
     #[test]
