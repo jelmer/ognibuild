@@ -316,6 +316,10 @@ pub fn installer_by_name<'a>(
                 session,
             )) as Box<dyn Installer>,
         ),
+        // "yum" is accepted as an alias; the resolver uses dnf.
+        "dnf" | "yum" => Some(
+            Box::new(crate::dependencies::dnf::DnfResolver::new(session)) as Box<dyn Installer>,
+        ),
         "native" => {
             Some(Box::new(StackedInstaller::new(native_installers(session))) as Box<dyn Installer>)
         }
@@ -438,6 +442,15 @@ pub fn auto_installer<'a>(
             "Using global installation scope and apt-get is available, so using apt installer"
         );
         installers.push(apt_installer(session, dep_server_url));
+    }
+    if scope == InstallationScope::Global
+        && (crate::session::which(session, "dnf5").is_some()
+            || crate::session::which(session, "dnf").is_some())
+    {
+        log::info!("Using global installation scope and dnf is available, so using dnf installer");
+        installers.push(
+            Box::new(crate::dependencies::dnf::DnfResolver::new(session)) as Box<dyn Installer>,
+        );
     }
     installers.extend(native_installers(session));
     Box::new(StackedInstaller::new(installers))

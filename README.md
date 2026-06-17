@@ -153,9 +153,10 @@ The following "native" repositories are supported:
 - cran
 - golang\*
 
-As well one distribution repository:
+As well as distribution repositories:
 
 - apt
+- dnf
 
 ## License
 
