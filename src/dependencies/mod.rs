@@ -9,6 +9,8 @@ pub mod autoconf;
 #[cfg(feature = "debian")]
 /// Dependency handling for Debian packages.
 pub mod debian;
+/// Dependency resolution using dnf on RPM-based systems.
+pub mod dnf;
 /// Dependency handling for Go projects.
 pub mod go;
 /// Dependency handling for Haskell projects.
@@ -472,6 +474,11 @@ impl PkgConfigDependency {
             minimum_version: None,
         }
     }
+
+    /// The name of the pkg-config module.
+    pub fn module(&self) -> &str {
+        &self.module
+    }
 }
 
 impl Dependency for PkgConfigDependency {
@@ -612,6 +619,11 @@ impl PathDependency {
             path: PathBuf::from(path),
         }
     }
+
+    /// The required path.
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
 }
 
 impl Dependency for PathDependency {
@@ -682,6 +694,11 @@ impl CHeaderDependency {
         Self {
             header: header.to_string(),
         }
+    }
+
+    /// The name of the C header file.
+    pub fn header(&self) -> &str {
+        &self.header
     }
 }
 
@@ -1468,6 +1485,11 @@ impl LibraryDependency {
         Self {
             library: library.to_string(),
         }
+    }
+
+    /// The name of the library (without the lib prefix).
+    pub fn library(&self) -> &str {
+        &self.library
     }
 }
 
