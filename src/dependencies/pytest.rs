@@ -59,6 +59,7 @@ fn map_pytest_arguments_to_plugin(args: &[&str]) -> Option<&'static str> {
 fn map_pytest_config_option_to_plugin(name: &str) -> Option<&'static str> {
     match name {
         "asyncio_mode" => Some("asyncio"),
+        "pep8ignore" | "pep8maxlinelength" | "pep8select" => Some("pep8"),
         n => {
             log::warn!("Unknown pytest config option {}", n);
             None
@@ -232,6 +233,10 @@ mod tests {
         assert_eq!(
             map_pytest_config_option_to_plugin("asyncio_mode"),
             Some("asyncio")
+        );
+        assert_eq!(
+            map_pytest_config_option_to_plugin("pep8maxlinelength"),
+            Some("pep8")
         );
         assert_eq!(map_pytest_config_option_to_plugin("unknown_option"), None);
     }
