@@ -89,11 +89,23 @@ impl DebianDependency {
 
     /// Create a new dependency with a minimum version.
     pub fn new_with_min_version(name: &str, min_version: &Version) -> DebianDependency {
+        Self::new_with_version(name, VersionConstraint::GreaterThanEqual, min_version)
+    }
+
+    /// Create a new dependency with a version constraint.
+    pub fn new_with_version(
+        name: &str,
+        constraint: VersionConstraint,
+        version: &Version,
+    ) -> DebianDependency {
         DebianDependency(
-            format!("{} (>= {})", name, min_version)
+            format!("{} ({} {})", name, constraint, version)
                 .parse()
                 .unwrap_or_else(|_| {
-                    panic!("Failed to parse dependency: {} (>= {})", name, min_version)
+                    panic!(
+                        "Failed to parse dependency: {} ({} {})",
+                        name, constraint, version
+                    )
                 }),
         )
     }
@@ -469,6 +481,28 @@ mod tests {
         let dep = DebianDependency::new("libssl-dev");
         assert!(dep.touches_package("libssl-dev"));
         assert!(!dep.touches_package("libssl1.1"));
+    }
+
+    #[test]
+    fn test_new_with_version() {
+        let version: Version = "1.7-5".parse().unwrap();
+        let dep =
+            DebianDependency::new_with_version("r-cran-matrix", VersionConstraint::Equal, &version);
+        assert_eq!(dep.relation_string(), "r-cran-matrix (= 1.7-5)");
+
+        let dep = DebianDependency::new_with_version(
+            "r-cran-matrix",
+            VersionConstraint::GreaterThan,
+            &version,
+        );
+        assert_eq!(dep.relation_string(), "r-cran-matrix (>> 1.7-5)");
+    }
+
+    #[test]
+    fn test_new_with_min_version() {
+        let version: Version = "1.7-5".parse().unwrap();
+        let dep = DebianDependency::new_with_min_version("r-cran-matrix", &version);
+        assert_eq!(dep.relation_string(), "r-cran-matrix (>= 1.7-5)");
     }
 
     #[test]

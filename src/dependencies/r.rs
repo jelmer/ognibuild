@@ -7,8 +7,57 @@ use crate::dependency::Dependency;
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use r_description::lossy::Relation;
+use r_description::Version as RVersion;
 use r_description::VersionConstraint;
 use serde::{Deserialize, Serialize};
+
+/// Convert an R package version to a Debian (upstream) version.
+///
+/// Debian R packages (`r-cran-*`, `r-bioc-*`, ...) carry the R version through
+/// unchanged as their Debian upstream version: the CRAN package Matrix `1.7-4`
+/// is shipped as `r-cran-matrix` version `1.7-4-1`, where `1.7-4` is the
+/// upstream version and `-1` the Debian revision.
+///
+/// R treats `-` as an ordinary version component separator, so the whole R
+/// version (including any `-`) becomes the Debian upstream version, with no
+/// Debian revision. The version is built directly rather than parsed, because
+/// Debian's version parser would otherwise treat a trailing `-N` as the
+/// revision. Note that the result therefore cannot be round-tripped through a
+/// Debian relation string unambiguously: `r-cran-matrix (>= 1.7-4)` reparses as
+/// upstream `1.7` with revision `4`.
+#[cfg(feature = "debian")]
+pub fn r_version_to_debian(version: &RVersion) -> debversion::Version {
+    debversion::Version {
+        epoch: None,
+        upstream_version: version.to_string(),
+        debian_revision: None,
+    }
+}
+
+/// Convert a Debian version back to an R package version.
+///
+/// This is the inverse of [`r_version_to_debian`]. The upstream version is used
+/// directly; the epoch and Debian revision, which have no R equivalent, are
+/// dropped.
+#[cfg(feature = "debian")]
+pub fn debian_version_to_r(version: &debversion::Version) -> Result<RVersion, String> {
+    version.upstream_version.parse()
+}
+
+/// Convert an R version constraint to the equivalent Debian relation constraint.
+#[cfg(feature = "debian")]
+fn r_constraint_to_debian(
+    constraint: &VersionConstraint,
+) -> debian_control::relations::VersionConstraint {
+    use debian_control::relations::VersionConstraint as Deb;
+    match constraint {
+        VersionConstraint::GreaterThanEqual => Deb::GreaterThanEqual,
+        VersionConstraint::GreaterThan => Deb::GreaterThan,
+        VersionConstraint::LessThanEqual => Deb::LessThanEqual,
+        VersionConstraint::LessThan => Deb::LessThan,
+        VersionConstraint::Equal => Deb::Equal,
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A dependency on an R package.
@@ -132,10 +181,26 @@ impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
             return None;
         }
 
+        let version = self.0.version.as_ref().map(|(constraint, version)| {
+            (
+                r_constraint_to_debian(constraint),
+                r_version_to_debian(version),
+            )
+        });
+
         Some(
             names
                 .into_iter()
-                .map(|name| super::debian::DebianDependency::new(&name))
+                .map(|name| match &version {
+                    Some((constraint, version)) => {
+                        super::debian::DebianDependency::new_with_version(
+                            &name,
+                            constraint.clone(),
+                            version,
+                        )
+                    }
+                    None => super::debian::DebianDependency::new(&name),
+                })
                 .collect(),
         )
     }
@@ -347,5 +412,50 @@ mod tests {
         let session = crate::session::plain::PlainSession::new();
         let resolver = cran(&session);
         assert_eq!(resolver.repos, "https://cran.r-project.org");
+    }
+
+    #[cfg(feature = "debian")]
+    #[test]
+    fn test_r_version_to_debian() {
+        let cases = [
+            ("1.0.0", "1.0.0"),
+            ("1.7-5", "1.7-5"),
+            ("7.3-65", "7.3-65"),
+            ("3.1.169", "3.1.169"),
+        ];
+        for (r, deb) in cases {
+            let r_version: RVersion = r.parse().unwrap();
+            let debian = r_version_to_debian(&r_version);
+            assert_eq!(debian.to_string(), deb);
+        }
+    }
+
+    #[cfg(feature = "debian")]
+    #[test]
+    fn test_debian_version_to_r() {
+        // The R version is held whole in the upstream part.
+        let debian = debversion::Version {
+            epoch: None,
+            upstream_version: "1.7-5".to_string(),
+            debian_revision: None,
+        };
+        let r = debian_version_to_r(&debian).unwrap();
+        assert_eq!(r.to_string(), "1.7-5");
+
+        // The Debian revision and epoch have no R equivalent and are dropped.
+        let debian: debversion::Version = "2:3.1.169-1".parse().unwrap();
+        let r = debian_version_to_r(&debian).unwrap();
+        assert_eq!(r.to_string(), "3.1.169");
+    }
+
+    #[cfg(feature = "debian")]
+    #[test]
+    fn test_r_debian_version_round_trip() {
+        for r in ["1.0.0", "1.7-5", "7.3-65", "3.1.169"] {
+            let r_version: RVersion = r.parse().unwrap();
+            let debian = r_version_to_debian(&r_version);
+            let back = debian_version_to_r(&debian).unwrap();
+            assert_eq!(back, r_version);
+        }
     }
 }
