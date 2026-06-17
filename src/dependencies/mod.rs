@@ -1041,6 +1041,52 @@ impl Dependency for RubyGemDependency {
     }
 }
 
+/// Convert a Ruby gem version to a Debian upstream version.
+///
+/// Ruby gem versions are dot-separated segments where any segment containing a
+/// letter marks a prerelease (e.g. `1.0.0.beta1`, `2.0.0.rc.1`). Debian orders
+/// such versions differently: a trailing `.beta` would sort *after* the release
+/// rather than before it. To preserve ordering, the dot preceding the first
+/// letter-containing (prerelease) segment is replaced with `~`, which sorts
+/// before the empty string in Debian version comparison. So `1.0.0.beta1`
+/// becomes `1.0.0~beta1` and `2.0.0.rc.1` becomes `2.0.0~rc.1`.
+///
+/// Purely numeric versions such as `1.2.3` are returned unchanged.
+fn ruby_version_to_debian(version: &str) -> String {
+    let segments: Vec<&str> = version.split('.').collect();
+    let first_prerelease = segments
+        .iter()
+        .position(|s| s.chars().any(|c| c.is_ascii_alphabetic()));
+    match first_prerelease {
+        // No prerelease segment, or the version starts with one (nothing to
+        // separate with `~`): leave it untouched.
+        None | Some(0) => version.to_string(),
+        Some(idx) => format!(
+            "{}~{}",
+            segments[..idx].join("."),
+            segments[idx..].join(".")
+        ),
+    }
+}
+
+/// Convert a Debian upstream version back to a Ruby gem version.
+///
+/// Inverse of [`ruby_version_to_debian`]: each `~` is turned back into a `.`.
+/// In a Ruby gem version any dotted segment containing a letter is a
+/// prerelease, so `1.0~rc1` maps to `1.0.rc1` and keeps the same ordering
+/// relative to `1.0`. All `~` are translated, not just the first, since a real
+/// Debian version may carry several (e.g. `1.0~rc1~git5`) and a stray `~` is
+/// not a valid gem version character.
+///
+/// A Debian upstream version may also carry a `+` suffix that is purely a
+/// packaging artifact (e.g. `+dfsg1` for a repackaged tarball, `+git20200101`
+/// for a snapshot). These have no gem equivalent and `+` is not a valid gem
+/// version character, so everything from the first `+` is dropped.
+fn debian_version_to_ruby(version: &str) -> String {
+    let version = version.split('+').next().unwrap_or(version);
+    version.replace('~', ".")
+}
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for RubyGemDependency {
     /// Convert this dependency to a list of Debian package dependencies.
@@ -1072,14 +1118,33 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyGemDependency {
         if names.is_empty() {
             return None;
         }
+        // If the version does not translate to a valid Debian version, fall
+        // back to an unversioned dependency rather than dropping the packages
+        // we found: a too-loose constraint still installs the gem, whereas
+        // returning None would claim no Debian package provides it.
+        let min_version = match self.minimum_version.as_ref() {
+            Some(v) => match ruby_version_to_debian(v).parse() {
+                Ok(parsed) => Some(parsed),
+                Err(e) => {
+                    log::warn!(
+                        "dropping unparseable version {:?} for ruby gem {}: {}",
+                        v,
+                        self.gem,
+                        e
+                    );
+                    None
+                }
+            },
+            None => None,
+        };
         Some(
             names
                 .into_iter()
                 .map(|name| {
-                    if let Some(min_version) = self.minimum_version.as_ref() {
+                    if let Some(min_version) = min_version.as_ref() {
                         crate::dependencies::debian::DebianDependency::new_with_min_version(
                             &name,
-                            &min_version.parse().unwrap(),
+                            min_version,
                         )
                     } else {
                         crate::dependencies::debian::DebianDependency::simple(&name)
@@ -1112,7 +1177,7 @@ impl crate::dependencies::debian::FromDebianDependency for RubyGemDependency {
 
         Some(Box::new(Self {
             gem: name.to_string(),
-            minimum_version: min_version.map(|v| v.upstream_version.to_string()),
+            minimum_version: min_version.map(|v| debian_version_to_ruby(&v.upstream_version)),
         }))
     }
 }
@@ -2785,6 +2850,47 @@ mod tests {
     fn test_unknown_binary_does_not_map() {
         let dep = BinaryDependency::new("definitely-not-a-gem");
         assert!(to_ruby_gem_req(&dep).is_none());
+    }
+
+    #[test]
+    fn test_ruby_version_to_debian() {
+        assert_eq!(ruby_version_to_debian("1.2.3"), "1.2.3");
+        assert_eq!(ruby_version_to_debian("1.0.0.beta1"), "1.0.0~beta1");
+        assert_eq!(ruby_version_to_debian("2.0.0.rc1"), "2.0.0~rc1");
+        assert_eq!(ruby_version_to_debian("2.0.0.rc.1"), "2.0.0~rc.1");
+        assert_eq!(ruby_version_to_debian("1.0.0.alpha.2"), "1.0.0~alpha.2");
+        // A version that starts with a prerelease segment has nothing to
+        // separate, so it is left as-is.
+        assert_eq!(ruby_version_to_debian("beta"), "beta");
+    }
+
+    #[test]
+    fn test_debian_version_to_ruby() {
+        assert_eq!(debian_version_to_ruby("1.2.3"), "1.2.3");
+        assert_eq!(debian_version_to_ruby("1.0.0~beta1"), "1.0.0.beta1");
+        assert_eq!(debian_version_to_ruby("2.0.0~rc.1"), "2.0.0.rc.1");
+        // Multiple `~` (e.g. a snapshot of a prerelease) all become dots so no
+        // stray `~`, which is not a valid gem version character, is left behind.
+        assert_eq!(debian_version_to_ruby("1.0~rc1~git5"), "1.0.rc1.git5");
+        // Debian packaging `+` suffixes have no gem equivalent and are dropped.
+        assert_eq!(debian_version_to_ruby("1.0+dfsg1"), "1.0");
+        assert_eq!(debian_version_to_ruby("1.0~rc1+git5"), "1.0.rc1");
+    }
+
+    #[test]
+    fn test_ruby_version_roundtrip() {
+        for v in ["1.2.3", "1.0.0.beta1", "2.0.0.rc.1", "1.0.0.alpha.2"] {
+            assert_eq!(debian_version_to_ruby(&ruby_version_to_debian(v)), v);
+        }
+    }
+
+    #[cfg(feature = "debian")]
+    #[test]
+    fn test_ruby_prerelease_sorts_before_release() {
+        let prerelease: debversion::Version =
+            ruby_version_to_debian("1.0.0.beta1").parse().unwrap();
+        let release: debversion::Version = ruby_version_to_debian("1.0.0").parse().unwrap();
+        assert!(prerelease < release);
     }
 
     #[test]
