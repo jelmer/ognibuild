@@ -13,7 +13,7 @@ use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 #[cfg(feature = "debian")]
 use debian_control::{
-    lossless::relations::{Relation, Relations},
+    lossless::relations::{Entry, Relation, Relations},
     relations::VersionConstraint,
 };
 use pep508_rs::pep440_rs;
@@ -184,11 +184,20 @@ impl crate::dependencies::debian::FromDebianDependency for PythonPackageDependen
             Some(python_version.parse::<u32>().unwrap())
         };
 
+        // If a minimum version is present it must convert; otherwise we cannot
+        // faithfully represent the dependency, so give up rather than silently
+        // dropping the constraint.
+        let version_or_url = match min_version {
+            Some(v) => Some(min_version_as_version_or_url(
+                &debian_to_pep440_version(&v)?.to_string(),
+            )),
+            None => None,
+        };
+
         Some(Box::new(PythonPackageDependency::from(
             pep508_rs::Requirement {
                 name: pep508_rs::PackageName::new(name.to_owned()).unwrap(),
-                version_or_url: min_version
-                    .map(|x| min_version_as_version_or_url(&x.upstream_version)),
+                version_or_url,
                 marker: major_python_version
                     .map(major_python_version_as_marker)
                     .unwrap_or(pep508_rs::MarkerTree::TRUE),
@@ -461,6 +470,169 @@ impl<'a> Installer for PypiResolver<'a> {
 }
 
 #[cfg(feature = "debian")]
+/// Convert a PEP 440 version into a Debian version.
+///
+/// This mirrors the mapping dh-python's `_translate` applies in PEP 440 mode:
+/// the only marker rewritten is the pre-release tag (`a`/`b`/`rc`), which gets a
+/// leading `~` so that pre-releases sort before the final release. Dev releases
+/// (`.devN`), post-releases (`.postN`) and local versions (`+local`) are kept
+/// verbatim, matching dh-python. The PEP 440 epoch (`N!`) maps to the Debian
+/// epoch (`N:`); dh-python only sets epochs via separate uscan rules, but `N:`
+/// is the sole valid Debian rendering.
+///
+/// The version is rebuilt from the parsed components rather than by rewriting
+/// the version string, so it never corrupts `a`/`b`/`rc` letters that appear
+/// inside a local version segment (a known dh-python quirk).
+pub fn pep440_to_debian_version(version: &pep440_rs::Version) -> debversion::Version {
+    let mut upstream = version
+        .release()
+        .iter()
+        .map(|n| n.to_string())
+        .collect::<Vec<_>>()
+        .join(".");
+
+    if let Some(pre) = version.pre() {
+        upstream.push('~');
+        upstream.push_str(&pre.to_string());
+    }
+    if let Some(post) = version.post() {
+        upstream.push_str(&format!(".post{post}"));
+    }
+    if let Some(dev) = version.dev() {
+        upstream.push_str(&format!(".dev{dev}"));
+    }
+    let local = version.local();
+    if !local.is_empty() {
+        upstream.push('+');
+        upstream.push_str(
+            &local
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+                .join("."),
+        );
+    }
+
+    debversion::Version {
+        epoch: debian_epoch(version.epoch()),
+        upstream_version: upstream,
+        debian_revision: None,
+    }
+}
+
+#[cfg(feature = "debian")]
+/// Convert the upstream portion of a Debian version into a PEP 440 version.
+///
+/// This inverts [`pep440_to_debian_version`]: a `~` before a pre-release tag is
+/// dropped to recover the PEP 440 form. The Debian revision (if any) is ignored,
+/// since PEP 440 has no equivalent. Returns `None` if the result is not a valid
+/// PEP 440 version.
+pub fn debian_to_pep440_version(version: &debversion::Version) -> Option<pep440_rs::Version> {
+    use std::str::FromStr;
+    let mut s = String::new();
+    if let Some(epoch) = version.epoch {
+        s.push_str(&format!("{epoch}!"));
+    }
+    // Only '~' immediately followed by a pre-release tag (a/b/rc) is meaningful;
+    // it is dropped to recover the PEP 440 spelling. Any other '~' has no PEP 440
+    // equivalent and makes the conversion fail.
+    let upstream = &version.upstream_version;
+    let mut rest = upstream.as_str();
+    while let Some(idx) = rest.find('~') {
+        s.push_str(&rest[..idx]);
+        let after = &rest[idx + 1..];
+        if ["rc", "a", "b"].iter().any(|m| after.starts_with(m)) {
+            rest = after;
+        } else {
+            return None;
+        }
+    }
+    s.push_str(rest);
+    pep440_rs::Version::from_str(&s).ok()
+}
+
+#[cfg(feature = "debian")]
+/// Map a PEP 440 epoch onto a Debian epoch. PEP 440 epoch 0 has no Debian
+/// representation (epochs are omitted), so it maps to `None`.
+///
+/// PEP 440 epochs are `u64`; Debian epochs are `u32`. A value that does not fit
+/// is saturated to `u32::MAX` rather than silently wrapping. Such epochs do not
+/// occur in practice.
+fn debian_epoch(epoch: u64) -> Option<u32> {
+    match epoch {
+        0 => None,
+        e => Some(e.try_into().unwrap_or(u32::MAX)),
+    }
+}
+
+#[cfg(feature = "debian")]
+/// Increment the last run of ASCII digits in `s`, preserving any trailing
+/// non-digit text. Used to derive the exclusive upper bound for exact `==`
+/// constraints, matching dh-python's `(.*)(\d+)(\D*)$` substitution. If `s`
+/// contains no digits it is returned unchanged.
+fn bump_last_number(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let Some(end) = bytes.iter().rposition(|b| b.is_ascii_digit()) else {
+        return s.to_string();
+    };
+    let start = bytes[..end]
+        .iter()
+        .rposition(|b| !b.is_ascii_digit())
+        .map_or(0, |i| i + 1);
+    let n: u64 = s[start..=end]
+        .parse()
+        .expect("ASCII digit run parses as u64");
+    format!("{}{}{}", &s[..start], n.saturating_add(1), &s[end + 1..])
+}
+
+#[cfg(feature = "debian")]
+/// Build a Debian version from an epoch and a release segment slice.
+fn release_debian_version(epoch: u64, release: &[u64]) -> debversion::Version {
+    debversion::Version {
+        epoch: debian_epoch(epoch),
+        upstream_version: release
+            .iter()
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join("."),
+        debian_revision: None,
+    }
+}
+
+#[cfg(feature = "debian")]
+/// Build the Debian version that bumps the last release segment of `release`,
+/// keeping the other segments: `[1, 4]` -> `1.5`, `[1, 4, 5]` -> `1.4.6`. Used
+/// as the exclusive upper bound for `== V.*` / `!= V.*`.
+fn bumped_release(epoch: u64, release: &[u64]) -> debversion::Version {
+    let mut bumped = release.to_vec();
+    match bumped.last_mut() {
+        Some(last) => *last = last.saturating_add(1),
+        None => bumped.push(1),
+    }
+    release_debian_version(epoch, &bumped)
+}
+
+#[cfg(feature = "debian")]
+/// Return the maximum compatible release for a `~=` upper bound, as a Debian
+/// version.
+///
+/// This mirrors dh-python's `_max_compatible`: with three or more release
+/// segments the last is dropped and the new final segment bumped (`1.4.5` ->
+/// `1.5`); with fewer, everything after the first is dropped and the first
+/// bumped (`2.2` -> `3`, `1` -> `2`).
+fn max_compatible_release(epoch: u64, release: &[u64]) -> debversion::Version {
+    let keep = if release.len() >= 3 { 2 } else { 1 };
+    bumped_release(epoch, &release[..keep.min(release.len())])
+}
+
+#[cfg(feature = "debian")]
+/// Return the maximum version compatible with `version` under PEP 440's `~=`
+/// operator, as a Debian version.
+fn max_compatible_debian_version(version: &pep440_rs::Version) -> debversion::Version {
+    max_compatible_release(version.epoch(), version.release())
+}
+
+#[cfg(feature = "debian")]
 /// Convert Python version specifiers to Debian package version constraints.
 ///
 /// # Arguments
@@ -473,59 +645,84 @@ pub fn python_version_specifiers_to_debian(
     pkg_name: &str,
     version_specifiers: Option<&pep440_rs::VersionSpecifiers>,
 ) -> Relations {
-    // TODO(jelmer): Dealing with epoch, etc?
-    let mut rels: Vec<Relation> = vec![];
+    // Each Entry is ANDed with the others; the Relations within a single Entry
+    // are ORed. Most operators contribute one or more single-relation (ANDed)
+    // entries; `!=` needs an OR, which a multi-relation entry expresses.
+    let mut entries: Vec<Entry> = vec![];
+    let and = |entries: &mut Vec<Entry>, vc, v| {
+        entries.push(Relation::new(pkg_name, Some((vc, v))).into());
+    };
     if let Some(version_specifiers) = version_specifiers {
         for vs in version_specifiers.iter() {
-            let v = vs.version().to_string();
+            let version = vs.version();
             match vs.operator() {
-                pep440_rs::Operator::TildeEqual => {
-                    // PEP 440: For a given release identifier V.N , the compatible
-                    // release clause is approximately equivalent to the pair of
-                    // comparison clauses: >= V.N, == V.*
-                    let mut parts = v.split('.').map(|s| s.to_string()).collect::<Vec<String>>();
-                    parts.pop();
-                    let last: isize = parts.pop().unwrap().parse().unwrap();
-                    parts.push((last + 1).to_string());
-                    let next_maj_deb_version: debversion::Version =
-                        parts.join(".").parse().unwrap();
-                    let deb_version: debversion::Version = v.parse().unwrap();
-                    rels.push(Relation::new(
-                        pkg_name,
-                        Some((VersionConstraint::GreaterThanEqual, deb_version)),
-                    ));
-                    rels.push(Relation::new(
-                        pkg_name,
-                        Some((VersionConstraint::LessThan, next_maj_deb_version)),
-                    ));
-                }
                 pep440_rs::Operator::NotEqual => {
-                    let deb_version: debversion::Version = v.parse().unwrap();
-                    rels.push(Relation::new(
-                        pkg_name,
-                        Some((VersionConstraint::GreaterThan, deb_version.clone())),
-                    ));
-                    rels.push(Relation::new(
-                        pkg_name,
-                        Some((VersionConstraint::LessThan, deb_version)),
-                    ));
+                    // != V excludes exactly V: << V | >> V.
+                    let deb_version = pep440_to_debian_version(version);
+                    entries.push(
+                        vec![
+                            Relation::new(
+                                pkg_name,
+                                Some((VersionConstraint::LessThan, deb_version.clone())),
+                            ),
+                            Relation::new(
+                                pkg_name,
+                                Some((VersionConstraint::GreaterThan, deb_version)),
+                            ),
+                        ]
+                        .into(),
+                    );
                 }
-                pep440_rs::Operator::Equal if v.ends_with(".*") => {
-                    let mut parts = v.split('.').map(|s| s.to_string()).collect::<Vec<String>>();
-                    parts.pop();
-                    let last: isize = parts.pop().unwrap().parse().unwrap();
-                    parts.push((last + 1).to_string());
-                    let deb_version: debversion::Version = v.parse().unwrap();
-                    let next_maj_deb_version: debversion::Version =
-                        parts.join(".").parse().unwrap();
-                    rels.push(Relation::new(
-                        pkg_name,
-                        Some((VersionConstraint::GreaterThanEqual, deb_version)),
-                    ));
-                    rels.push(Relation::new(
-                        pkg_name,
-                        Some((VersionConstraint::LessThan, next_maj_deb_version)),
-                    ));
+                pep440_rs::Operator::NotEqualStar => {
+                    // != V.* excludes the whole [V, V.next) range: << V | >= V.next,
+                    // where V.next bumps V's last release segment.
+                    let lower = release_debian_version(version.epoch(), version.release());
+                    let upper = bumped_release(version.epoch(), version.release());
+                    entries.push(
+                        vec![
+                            Relation::new(pkg_name, Some((VersionConstraint::LessThan, lower))),
+                            Relation::new(
+                                pkg_name,
+                                Some((VersionConstraint::GreaterThanEqual, upper)),
+                            ),
+                        ]
+                        .into(),
+                    );
+                }
+                pep440_rs::Operator::TildeEqual => {
+                    // ~= V is >= V, << max_compatible(V).
+                    and(
+                        &mut entries,
+                        VersionConstraint::GreaterThanEqual,
+                        pep440_to_debian_version(version),
+                    );
+                    and(
+                        &mut entries,
+                        VersionConstraint::LessThan,
+                        max_compatible_debian_version(version),
+                    );
+                }
+                pep440_rs::Operator::EqualStar => {
+                    // == V.* matches the [V, V.next) range: >= V, << V.next, where
+                    // V.next bumps V's last release segment.
+                    let lower = release_debian_version(version.epoch(), version.release());
+                    let upper = bumped_release(version.epoch(), version.release());
+                    and(&mut entries, VersionConstraint::GreaterThanEqual, lower);
+                    and(&mut entries, VersionConstraint::LessThan, upper);
+                }
+                pep440_rs::Operator::Equal => {
+                    // dh-python loosens an exact `==` to tolerate Debian revisions:
+                    // >= V, << (V with its last number bumped and a trailing `~`).
+                    let deb_version = pep440_to_debian_version(version);
+                    let mut upper = deb_version.clone();
+                    upper.upstream_version =
+                        format!("{}~", bump_last_number(&upper.upstream_version));
+                    and(
+                        &mut entries,
+                        VersionConstraint::GreaterThanEqual,
+                        deb_version,
+                    );
+                    and(&mut entries, VersionConstraint::LessThan, upper);
                 }
                 o => {
                     let vc = match o {
@@ -535,15 +732,20 @@ pub fn python_version_specifiers_to_debian(
                         pep440_rs::Operator::GreaterThan => VersionConstraint::GreaterThan,
                         pep440_rs::Operator::LessThanEqual => VersionConstraint::LessThanEqual,
                         pep440_rs::Operator::LessThan => VersionConstraint::LessThan,
-                        pep440_rs::Operator::Equal => VersionConstraint::Equal,
-                        _ => unimplemented!(),
+                        // ExactEqual (`===`) compares an arbitrary string; there is
+                        // no meaningful Debian translation.
+                        _ => continue,
                     };
-                    let v: debversion::Version = v.parse().unwrap();
-                    rels.push(Relation::new(pkg_name, Some((vc, v))));
+                    and(&mut entries, vc, pep440_to_debian_version(version));
                 }
             }
         }
-        Relations::from(rels.into_iter().map(|r| r.into()).collect::<Vec<_>>())
+        if entries.is_empty() {
+            // Every specifier was dropped (e.g. only `===`); fall back to an
+            // unversioned dependency on the package.
+            entries.push(Relation::new(pkg_name, None).into());
+        }
+        Relations::from(entries)
     } else {
         Relations::from(vec![Relation::new(pkg_name, None).into()])
     }
@@ -914,6 +1116,220 @@ mod python_dep_tests {
     }
 }
 
+#[cfg(all(test, feature = "debian"))]
+mod version_conversion_tests {
+    use super::*;
+    use std::str::FromStr;
+
+    fn pep440(s: &str) -> pep440_rs::Version {
+        pep440_rs::Version::from_str(s).unwrap()
+    }
+
+    fn deb(s: &str) -> debversion::Version {
+        s.parse().unwrap()
+    }
+
+    #[test]
+    fn test_plain_release() {
+        assert_eq!(deb("1.2.3"), pep440_to_debian_version(&pep440("1.2.3")));
+    }
+
+    #[test]
+    fn test_epoch() {
+        let v = pep440_to_debian_version(&pep440("1!2.0"));
+        assert_eq!(Some(1), v.epoch);
+        assert_eq!("2.0", v.upstream_version);
+    }
+
+    #[test]
+    fn test_prerelease() {
+        assert_eq!(
+            "1.0~a1",
+            pep440_to_debian_version(&pep440("1.0a1")).upstream_version
+        );
+        assert_eq!(
+            "1.0~b2",
+            pep440_to_debian_version(&pep440("1.0b2")).upstream_version
+        );
+        assert_eq!(
+            "1.0~rc3",
+            pep440_to_debian_version(&pep440("1.0rc3")).upstream_version
+        );
+    }
+
+    #[test]
+    fn test_dev_release() {
+        // dh-python's PEP 440 mode leaves dev releases verbatim.
+        assert_eq!(
+            "1.0.dev1",
+            pep440_to_debian_version(&pep440("1.0.dev1")).upstream_version
+        );
+    }
+
+    #[test]
+    fn test_post_release() {
+        assert_eq!(
+            "1.0.post1",
+            pep440_to_debian_version(&pep440("1.0.post1")).upstream_version
+        );
+    }
+
+    #[test]
+    fn test_local_version() {
+        // Structural output keeps the local segment intact, unlike dh-python's
+        // regex which would mangle the 'b' in 'ubuntu'.
+        assert_eq!(
+            "1.0+ubuntu.1",
+            pep440_to_debian_version(&pep440("1.0+ubuntu.1")).upstream_version
+        );
+    }
+
+    #[test]
+    fn test_dev_of_prerelease() {
+        // Only the pre-release tag gets the leading '~'; dev stays verbatim.
+        assert_eq!(
+            "1.0~a1.dev1",
+            pep440_to_debian_version(&pep440("1.0a1.dev1")).upstream_version
+        );
+    }
+
+    #[test]
+    fn test_prerelease_sorts_before_release() {
+        // The one ordering guarantee dh-python's mapping provides: a pre-release
+        // sorts before the final release, and a < b < rc.
+        let order = ["1.0~a1", "1.0~b1", "1.0~rc1", "1.0"];
+        let pre = ["1.0a1", "1.0b1", "1.0rc1", "1.0"]
+            .iter()
+            .map(|s| pep440_to_debian_version(&pep440(s)))
+            .collect::<Vec<_>>();
+        for (got, want) in pre.iter().zip(order) {
+            assert_eq!(want, got.upstream_version);
+        }
+        for pair in pre.windows(2) {
+            assert!(
+                pair[0] < pair[1],
+                "{:?} should sort before {:?}",
+                pair[0],
+                pair[1]
+            );
+        }
+    }
+
+    #[test]
+    fn test_roundtrip() {
+        for s in [
+            "1.2.3",
+            "1!2.0",
+            "1.0a1",
+            "1.0b2",
+            "1.0rc3",
+            "1.0.dev1",
+            "1.0a1.dev1",
+            "1.0.post1",
+        ] {
+            let deb = pep440_to_debian_version(&pep440(s));
+            let back = debian_to_pep440_version(&deb).unwrap();
+            assert_eq!(pep440(s), back, "roundtrip failed for {s}");
+        }
+    }
+
+    #[test]
+    fn test_debian_to_pep440_ignores_revision() {
+        assert_eq!(
+            pep440("1.2.3"),
+            debian_to_pep440_version(&deb("1.2.3-1")).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_debian_to_pep440_rejects_unknown_tilde() {
+        assert_eq!(None, debian_to_pep440_version(&deb("1.0~foo1")));
+    }
+
+    #[test]
+    fn test_specifiers_greater_than_equal() {
+        let specs = pep440_rs::VersionSpecifiers::from_str(">=1.0a1").unwrap();
+        let rels = python_version_specifiers_to_debian("foo", Some(&specs));
+        assert_eq!("foo (>= 1.0~a1)", rels.to_string());
+    }
+
+    #[test]
+    fn test_specifiers_tilde_equal() {
+        let specs = pep440_rs::VersionSpecifiers::from_str("~=1.4.5").unwrap();
+        let rels = python_version_specifiers_to_debian("foo", Some(&specs));
+        assert_eq!("foo (>= 1.4.5), foo (<< 1.5)", rels.to_string());
+    }
+
+    #[test]
+    fn test_specifiers_tilde_equal_two_segments() {
+        let specs = pep440_rs::VersionSpecifiers::from_str("~=2.2").unwrap();
+        let rels = python_version_specifiers_to_debian("foo", Some(&specs));
+        assert_eq!("foo (>= 2.2), foo (<< 3)", rels.to_string());
+    }
+
+    #[test]
+    fn test_specifiers_equal_star() {
+        // == 1.4.* matches [1.4, 1.5). The lower bound is the bare 1.4 so that
+        // version 1.4 itself matches (1.4 sorts before 1.4.0 in Debian).
+        let specs = pep440_rs::VersionSpecifiers::from_str("==1.4.*").unwrap();
+        let rels = python_version_specifiers_to_debian("foo", Some(&specs));
+        assert_eq!("foo (>= 1.4), foo (<< 1.5)", rels.to_string());
+    }
+
+    #[test]
+    fn test_specifiers_exact_equal_loosened() {
+        // dh-python loosens `== V` to a range so Debian revisions still match.
+        let specs = pep440_rs::VersionSpecifiers::from_str("==1.4").unwrap();
+        let rels = python_version_specifiers_to_debian("foo", Some(&specs));
+        assert_eq!("foo (>= 1.4), foo (<< 1.5~)", rels.to_string());
+    }
+
+    #[test]
+    fn test_specifiers_not_equal() {
+        // != V excludes exactly V, expressed as an OR.
+        let specs = pep440_rs::VersionSpecifiers::from_str("!=1.4").unwrap();
+        let rels = python_version_specifiers_to_debian("foo", Some(&specs));
+        assert_eq!("foo (<< 1.4) | foo (>> 1.4)", rels.to_string());
+    }
+
+    #[test]
+    fn test_specifiers_not_equal_star() {
+        // != V.* excludes [1.4, 1.5): << 1.4 | >= 1.5. The lower bound is the
+        // bare 1.4 so that 1.4 itself is excluded.
+        let specs = pep440_rs::VersionSpecifiers::from_str("!=1.4.*").unwrap();
+        let rels = python_version_specifiers_to_debian("foo", Some(&specs));
+        assert_eq!("foo (<< 1.4) | foo (>= 1.5)", rels.to_string());
+    }
+
+    #[test]
+    fn test_specifiers_combined_with_not_equal() {
+        // A `>=` AND a `!=` combine: the != becomes an ORed entry alongside it.
+        let specs = pep440_rs::VersionSpecifiers::from_str(">=1.0,!=1.4").unwrap();
+        let rels = python_version_specifiers_to_debian("foo", Some(&specs));
+        assert_eq!(
+            "foo (>= 1.0), foo (<< 1.4) | foo (>> 1.4)",
+            rels.to_string()
+        );
+    }
+
+    #[test]
+    fn test_bump_last_number() {
+        assert_eq!("1.5", bump_last_number("1.4"));
+        assert_eq!("1.4.6", bump_last_number("1.4.5"));
+        assert_eq!("1.0~a2", bump_last_number("1.0~a1"));
+        // No trailing digit run after the local segment: the release digit bumps.
+        assert_eq!("1.1+local", bump_last_number("1.0+local"));
+        // No digits at all: returned unchanged.
+        assert_eq!("abc", bump_last_number("abc"));
+    }
+
+    #[test]
+    fn test_specifiers_none() {
+        let rels = python_version_specifiers_to_debian("foo", None);
+        assert_eq!("foo", rels.to_string());
+    }
+}
+
 impl Dependency for PythonDependency {
     fn family(&self) -> &'static str {
         "python"
@@ -973,9 +1389,13 @@ impl crate::dependencies::debian::FromDebianDependency for PythonDependency {
         let (name, min_version) =
             crate::dependencies::debian::extract_simple_min_version(dependency)?;
         if name == "python" || name == "python3" {
-            Some(Box::new(PythonDependency {
-                min_version: min_version.map(|x| x.upstream_version.clone()),
-            }))
+            // A present-but-unconvertible version means we cannot faithfully
+            // represent the dependency; give up rather than dropping the bound.
+            let min_version = match min_version {
+                Some(v) => Some(debian_to_pep440_version(&v)?.to_string()),
+                None => None,
+            };
+            Some(Box::new(PythonDependency { min_version }))
         } else {
             None
         }
@@ -990,21 +1410,20 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonDependency {
     ) -> Option<Vec<DebianDependency>> {
         let mut deps = vec![];
         if let Some(min_version) = &self.min_version {
-            if min_version.starts_with("2") {
-                deps.push(
-                    crate::dependencies::debian::DebianDependency::new_with_min_version(
-                        "python",
-                        &min_version.parse::<debversion::Version>().unwrap(),
-                    ),
-                );
+            use std::str::FromStr;
+            let pep440 = pep440_rs::Version::from_str(min_version).ok()?;
+            let deb_version = pep440_to_debian_version(&pep440);
+            let pkg = if min_version.starts_with("2") {
+                "python"
             } else {
-                deps.push(
-                    crate::dependencies::debian::DebianDependency::new_with_min_version(
-                        "python3",
-                        &min_version.parse::<debversion::Version>().unwrap(),
-                    ),
-                );
-            }
+                "python3"
+            };
+            deps.push(
+                crate::dependencies::debian::DebianDependency::new_with_min_version(
+                    pkg,
+                    &deb_version,
+                ),
+            );
         } else {
             deps.push(crate::dependencies::debian::DebianDependency::simple(
                 "python3",
