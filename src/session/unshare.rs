@@ -393,7 +393,7 @@ pub fn create_debian_session_for_testing(
     // Try to use cached session first (without downloading if not present)
     match UnshareSession::cached_debian_session(suite) {
         Ok(session) => {
-            log::info!("Using cached Debian {} image", suite);
+            // cached_debian_session already logged which image is being used.
             return Ok(session);
         }
         Err(Error::ImageError(ImageError::NoCachedImage)) => {
