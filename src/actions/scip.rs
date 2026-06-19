@@ -528,19 +528,15 @@ fn index_clang(
                 make.configure(session, installer)?;
             }
             // Wrap make in `bear --` to intercept compiler invocations and
-            // produce ./compile_commands.json.
+            // produce ./compile_commands.json. This bypasses Make::run_make, so
+            // disable autotools regeneration here too (see NO_REGEN_MAKE_VARS):
+            // indexing builds the sources as shipped, and a stale tree would
+            // otherwise invoke a versioned aclocal/automake that is absent.
             let bear = guaranteed_which(session, installer, "bear")?;
             let make = guaranteed_which(session, installer, "make")?;
-            run_fixing_problems::<_, Error>(
-                fixers,
-                None,
-                session,
-                &[bear.to_str().unwrap(), "--", make.to_str().unwrap()],
-                false,
-                None,
-                None,
-                None,
-            )?;
+            let mut argv = vec![bear.to_str().unwrap(), "--", make.to_str().unwrap()];
+            argv.extend_from_slice(crate::buildsystems::make::NO_REGEN_MAKE_VARS);
+            run_fixing_problems::<_, Error>(fixers, None, session, &argv, false, None, None, None)?;
             "compile_commands.json"
         }
     };

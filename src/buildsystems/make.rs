@@ -6,6 +6,21 @@ use crate::session::Session;
 use crate::shebang::shebang_binary;
 use std::path::{Path, PathBuf};
 
+/// Make variable assignments that disable autotools regeneration.
+///
+/// A tree shipped with an older automake series bakes a versioned
+/// aclocal/automake into Makefile.in, and without AM_MAINTAINER_MODE the
+/// auto-regen rules fire on a bare make and invoke e.g. aclocal-1.16, which is
+/// not installed. We build the sources as shipped rather than regenerate the
+/// build system, so point the regen tools at a no-op.
+pub const NO_REGEN_MAKE_VARS: &[&str] = &[
+    "ACLOCAL=:",
+    "AUTOCONF=:",
+    "AUTOMAKE=:",
+    "AUTOHEADER=:",
+    "MAKEINFO=:",
+];
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum Kind {
     MakefilePL,
@@ -204,7 +219,7 @@ impl Make {
             &self.path
         };
 
-        let args = [vec!["make"], args].concat();
+        let args = [vec!["make"], args, NO_REGEN_MAKE_VARS.to_vec()].concat();
 
         match session
             .command(args.clone())
