@@ -162,11 +162,12 @@ impl BuildSystem for Golang {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 enum GoModEntry {
     Go(String),
     Require(String, String),
     Exclude(String, String),
-    Replace(String, String, String, String),
+    Replace(String, Option<String>, String, Option<String>),
     Retract(String, String),
     Toolchain(String),
     Module(String),
@@ -179,13 +180,20 @@ impl GoModEntry {
             "require" => GoModEntry::Require(args[0].to_string(), args[1].to_string()),
             "exclude" => GoModEntry::Exclude(args[0].to_string(), args[1].to_string()),
             "replace" => {
-                assert_eq!(args[2], "=>");
-                GoModEntry::Replace(
-                    args[0].to_string(),
-                    args[1].to_string(),
-                    args[3].to_string(),
-                    args[4].to_string(),
-                )
+                // replace old [v1] => new [v2]; the version on either side is
+                // optional, so locate the "=>" arrow rather than assuming a
+                // fixed position.
+                let arrow = args
+                    .iter()
+                    .position(|&a| a == "=>")
+                    .expect("replace directive without =>");
+                let (lhs, rhs) = args.split_at(arrow);
+                let rhs = &rhs[1..];
+                let old = lhs[0].to_string();
+                let old_version = lhs.get(1).map(|s| s.to_string());
+                let new = rhs[0].to_string();
+                let new_version = rhs.get(1).map(|s| s.to_string());
+                GoModEntry::Replace(old, old_version, new, new_version)
             }
             "retract" => GoModEntry::Retract(args[0].to_string(), args[1].to_string()),
             "toolchain" => GoModEntry::Toolchain(args[0].to_string()),
@@ -246,10 +254,73 @@ fn go_mod_dependencies<R: std::io::Read>(r: R) -> Vec<Box<dyn crate::dependency:
             GoModEntry::Module(_name) => {}
             GoModEntry::Retract(_name, _version) => {}
             GoModEntry::Toolchain(_name) => {}
-            GoModEntry::Replace(_n1, _v1, _n2, _v2) => {
+            GoModEntry::Replace(_old, _old_version, _new, _new_version) => {
                 // TODO(jelmer): do.. something?
             }
         }
     }
     ret
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_replace_no_versions() {
+        let entries = parse_go_mod(
+            "replace github.com/scip-code/scip/bindings/go/scip => ./bindings/go/scip\n".as_bytes(),
+        );
+        assert_eq!(
+            entries,
+            vec![GoModEntry::Replace(
+                "github.com/scip-code/scip/bindings/go/scip".to_string(),
+                None,
+                "./bindings/go/scip".to_string(),
+                None,
+            )]
+        );
+    }
+
+    #[test]
+    fn test_replace_with_versions() {
+        let entries =
+            parse_go_mod("replace example.com/old v1.2.3 => example.com/new v4.5.6\n".as_bytes());
+        assert_eq!(
+            entries,
+            vec![GoModEntry::Replace(
+                "example.com/old".to_string(),
+                Some("v1.2.3".to_string()),
+                "example.com/new".to_string(),
+                Some("v4.5.6".to_string()),
+            )]
+        );
+    }
+
+    #[test]
+    fn test_replace_new_version_only() {
+        let entries =
+            parse_go_mod("replace example.com/old => example.com/new v4.5.6\n".as_bytes());
+        assert_eq!(
+            entries,
+            vec![GoModEntry::Replace(
+                "example.com/old".to_string(),
+                None,
+                "example.com/new".to_string(),
+                Some("v4.5.6".to_string()),
+            )]
+        );
+    }
+
+    #[test]
+    fn test_require_and_go() {
+        let entries = parse_go_mod("go 1.21\n\nrequire example.com/dep v1.0.0\n".as_bytes());
+        assert_eq!(
+            entries,
+            vec![
+                GoModEntry::Go("1.21".to_string()),
+                GoModEntry::Require("example.com/dep".to_string(), "v1.0.0".to_string()),
+            ]
+        );
+    }
 }
