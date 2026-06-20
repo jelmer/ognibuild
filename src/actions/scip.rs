@@ -40,6 +40,11 @@ fn run_indexer(
             "go"
         }
         "maven" | "gradle" => {
+            // TODO(jelmer): Gradle indexing fails on Debian: scip-java's
+            // init-script uses TaskCollection.configureEach (Gradle 4.9+) but
+            // Debian ships gradle 4.4.1, so the build aborts before producing an
+            // index. Needs a newer Gradle provisioned in-session, or skipping
+            // Gradle until Debian catches up. Maven works.
             index_java(session, installer, fixers, output)?;
             "java"
         }
@@ -324,12 +329,35 @@ fn index_java(
     fixers: &[&dyn BuildFixer<InstallerError>],
     output: &str,
 ) -> Result<(), Error> {
+    // scip-java's default Maven command is `clean verify`, whose lifecycle runs
+    // gate plugins (enforcer, apache-rat, checkstyle, ...) that abort the build
+    // before any index is produced. Indexing only needs the sources compiled, so
+    // pass an explicit lighter build command after `--`: build to test-compile
+    // and skip the quality-gate plugins. scip-java still injects its
+    // instrumented javac into this command.
     run_index_command(
         session,
         installer,
         fixers,
         "scip-java",
-        &["index", "--output", output],
+        &[
+            "index",
+            "--output",
+            output,
+            "--",
+            "--batch-mode",
+            "clean",
+            "test-compile",
+            "-DskipTests",
+            "-Drat.skip=true",
+            "-Denforcer.skip=true",
+            "-Dcheckstyle.skip=true",
+            "-Dpmd.skip=true",
+            "-Dspotbugs.skip=true",
+            "-Danimal.sniffer.skip=true",
+            "-Dlicense.skip=true",
+            "-Dmaven.javadoc.skip=true",
+        ],
     )
 }
 
