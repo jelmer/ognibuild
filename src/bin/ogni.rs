@@ -728,14 +728,32 @@ fn main() -> Result<(), i32> {
             PathBuf::from(args.directory.clone())
         };
         log::info!("Preparing directory {}", directory.display());
-        session.project_from_directory(&directory, None).unwrap()
+        session
+            .project_from_directory(&directory, None)
+            .map_err(|e| {
+                eprintln!(
+                    "Error: Failed to prepare directory {}: {}",
+                    directory.display(),
+                    e
+                );
+                1
+            })?
     };
 
     #[cfg(not(feature = "breezy"))]
     let project = {
         let directory = PathBuf::from(args.directory.clone());
         log::info!("Preparing directory {}", directory.display());
-        session.project_from_directory(&directory, None).unwrap()
+        session
+            .project_from_directory(&directory, None)
+            .map_err(|e| {
+                eprintln!(
+                    "Error: Failed to prepare directory {}: {}",
+                    directory.display(),
+                    e
+                );
+                1
+            })?
     };
 
     session.chdir(project.internal_path()).unwrap();
