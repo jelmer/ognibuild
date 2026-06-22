@@ -61,8 +61,24 @@ fn run_indexer(
             "cpp"
         }
         "meson" => {
-            index_clang(session, installer, fixers, output, Cpp::Meson)?;
-            "cpp"
+            // A Meson project may build Vala or C/C++. Vala compiles down to C,
+            // so scip-clang on the generated C would not navigate the Vala
+            // sources; index those with scip-vala instead. Fall back to
+            // scip-clang for a plain C/C++ Meson project.
+            let meson = buildsystem
+                .as_any()
+                .downcast_ref::<crate::buildsystems::meson::Meson>()
+                .expect("meson build system should downcast to Meson");
+            let info = meson
+                .vala_index_info(session, Some(fixers))
+                .map_err(|e| Error::Other(format!("Failed to introspect Vala targets: {}", e)))?;
+            if info.sources.is_empty() {
+                index_clang(session, installer, fixers, output, Cpp::Meson)?;
+                "cpp"
+            } else {
+                index_vala(session, installer, fixers, output, &info)?;
+                "vala"
+            }
         }
         "make" => {
             // A Makefile.PL drives a Perl project (ExtUtils::MakeMaker), not a
@@ -421,6 +437,29 @@ fn index_perl(
     )
 }
 
+fn index_vala(
+    session: &dyn Session,
+    installer: &dyn Installer,
+    fixers: &[&dyn BuildFixer<InstallerError>],
+    output: &str,
+    info: &crate::buildsystems::meson::ValaIndexInfo,
+) -> Result<(), Error> {
+    // scip-vala is installed via `cargo install` (the CargoResolver), so the
+    // `cargo` command has to be present before resolving it; ensure it up front
+    // rather than letting the cargo resolver fail on a missing `cargo` (see the
+    // matching note in `index_perl`).
+    guaranteed_which(session, installer, "cargo")?;
+
+    let sources: Vec<String> = info
+        .sources
+        .iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+    let args = scip_vala_args(output, &info.packages, &sources);
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    run_index_command(session, installer, fixers, "scip-vala", &args)
+}
+
 fn index_python(
     session: &dyn Session,
     installer: &dyn Installer,
@@ -581,6 +620,20 @@ fn index_clang(
 /// `--index-output-path` (not `-o`), so it lives in a helper that a test pins.
 fn scip_clang_args<'a>(compdb: &'a str, output: &'a str) -> [&'a str; 4] {
     ["--compdb-path", compdb, "--index-output-path", output]
+}
+
+/// Build the scip-vala argument list: `-o OUTPUT [--pkg NAME...] SOURCE...`.
+///
+/// scip-vala takes an explicit source list rather than a project directory, and
+/// a repeated `--pkg` flag per external vapi to resolve references against.
+fn scip_vala_args(output: &str, packages: &[String], sources: &[String]) -> Vec<String> {
+    let mut args = vec!["-o".to_string(), output.to_string()];
+    for pkg in packages {
+        args.push("--pkg".to_string());
+        args.push(pkg.clone());
+    }
+    args.extend(sources.iter().cloned());
+    args
 }
 
 /// Generate a SCIP index file for the project.
@@ -789,6 +842,37 @@ mod tests {
                 "--index-output-path",
                 "/out/cpp.scip"
             ]
+        );
+    }
+
+    #[test]
+    fn test_scip_vala_args() {
+        // scip-vala takes -o for output, a repeated --pkg per vapi, then the
+        // source files as positional args.
+        assert_eq!(
+            scip_vala_args(
+                "/out/vala.scip",
+                &["glib-2.0".to_string(), "gtk+-3.0".to_string()],
+                &["src/main.vala".to_string(), "src/util.vala".to_string()],
+            ),
+            vec![
+                "-o",
+                "/out/vala.scip",
+                "--pkg",
+                "glib-2.0",
+                "--pkg",
+                "gtk+-3.0",
+                "src/main.vala",
+                "src/util.vala",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_scip_vala_args_no_packages() {
+        assert_eq!(
+            scip_vala_args("/out/vala.scip", &[], &["main.vala".to_string()]),
+            vec!["-o", "/out/vala.scip", "main.vala"]
         );
     }
 
