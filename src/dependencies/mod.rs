@@ -1327,6 +1327,7 @@ impl crate::installer::Installer for GemResolver<'_> {
 fn cargo_command_package(command: &str) -> Option<&'static str> {
     match command {
         "scip-perl" => Some("scip-perl"),
+        "scip-vala" => Some("scip-vala"),
         _ => None,
     }
 }
@@ -2918,6 +2919,7 @@ mod tests {
     #[test]
     fn test_cargo_command_package() {
         assert_eq!(cargo_command_package("scip-perl"), Some("scip-perl"));
+        assert_eq!(cargo_command_package("scip-vala"), Some("scip-vala"));
         assert_eq!(cargo_command_package("ripgrep"), None);
     }
 
