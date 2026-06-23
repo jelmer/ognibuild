@@ -8,8 +8,6 @@ pub mod dist;
 pub mod info;
 /// Installation action implementation.
 pub mod install;
-/// LSIF index generation action implementation.
-pub mod lsif;
 /// SCIP index generation action implementation.
 pub mod scip;
 /// Test action implementation.

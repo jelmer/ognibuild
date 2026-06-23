@@ -104,13 +104,6 @@ struct ScipArgs {
 }
 
 #[derive(Parser)]
-struct LsifArgs {
-    /// Path to write the LSIF index file to
-    #[clap(long, short, default_value = "dump.lsif")]
-    output: PathBuf,
-}
-
-#[derive(Parser)]
 struct CacheEnvArgs {
     /// Debian suite to cache (e.g., "sid", "bookworm", "stable")
     #[clap(default_value = "sid")]
@@ -162,9 +155,6 @@ enum Command {
     #[clap(name = "scip")]
     /// Generate a SCIP index file for the project
     Scip(ScipArgs),
-    #[clap(name = "lsif")]
-    /// Generate an LSIF index file for the project
-    Lsif(LsifArgs),
 }
 
 #[derive(Parser)]
@@ -420,7 +410,6 @@ fn run_action(
             Command::Exec(_) => vec![],
             Command::CacheEnv(_) => return Ok(()), // No dependencies needed
             Command::Scip(_) => vec![DependencyCategory::Universal, DependencyCategory::Build],
-            Command::Lsif(_) => vec![DependencyCategory::Universal, DependencyCategory::Build],
         };
         if !categories.is_empty() {
             log::info!("Checking that declared dependencies are present");
@@ -497,18 +486,6 @@ fn run_action(
                     output.as_path(),
                 )?;
             }
-        }
-        Command::Lsif(lsif_args) => {
-            ognibuild::actions::lsif::run_lsif(
-                session,
-                bss.iter()
-                    .map(|bs| bs.as_ref())
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-                installer,
-                fixers,
-                lsif_args.output.as_path(),
-            )?;
         }
         Command::Dist => {
             ognibuild::actions::dist::run_dist(
