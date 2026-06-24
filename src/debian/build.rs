@@ -392,15 +392,16 @@ fn get_last_changelog_entry(
     (e.package().unwrap(), e.version().unwrap())
 }
 
-/// Run gbp-dch to update the changelog.
+/// Run gbp dch to update the changelog.
 ///
 /// # Arguments
 /// * `path` - Path to the package directory
 ///
 /// # Returns
-/// Ok on success, Error if gbp-dch fails
+/// Ok on success, Error if gbp dch fails
 pub fn gbp_dch(path: &std::path::Path) -> Result<(), std::io::Error> {
-    let cmd = std::process::Command::new("gbp-dch")
+    let cmd = std::process::Command::new("gbp")
+        .arg("dch")
         .arg("--ignore-branch")
         .current_dir(path)
         .output()?;
@@ -480,7 +481,18 @@ pub fn attempt_build(
             .abspath(std::path::Path::new(".git"))
             .map_or(false, |p| std::path::Path::new(&p).exists())
     {
-        gbp_dch(&local_tree.abspath(subpath).unwrap()).unwrap();
+        match gbp_dch(&local_tree.abspath(subpath).unwrap()) {
+            Ok(_) => log::info!("successfully created orig tar using gbp"),
+            Err(e) => {
+                return Err(BuildOnceError::Unidentified {
+                    stage: None,
+                    phase: None,
+                    retcode: 1,
+                    command: vec!["gbp dch".to_string(), "--ignore-branch".to_string()],
+                    description: e.to_string(),
+                });
+            }
+        }
     }
     if let Some(build_changelog_entry) = build_changelog_entry {
         assert!(
