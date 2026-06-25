@@ -407,12 +407,16 @@ pub fn gbp_dch(path: &std::path::Path) -> Result<(), std::io::Error> {
         .output()?;
 
     if !cmd.status.success() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            String::from_utf8(cmd.stderr).unwrap()
-        ));
-    }else{
-        log::debug!("{}", String::from_utf8(cmd.stdout).unwrap())
+        if cmd.stderr.len() > 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                String::from_utf8(cmd.stderr).unwrap(),
+            ));
+        } else {
+            log::debug!(
+                "gbp:error: Either 'EMAIL' or 'DEBEMAIL' must be set in the environment for 'dch' to work"
+            );
+        }
     }
     Ok(())
 }
@@ -487,7 +491,6 @@ pub fn attempt_build(
         if let Err(e) = gbp_dch(&local_tree.abspath(subpath).unwrap()) {
             log::error!("Failed to run gbp due to: {}", e);
         }
-            
     }
     if let Some(build_changelog_entry) = build_changelog_entry {
         assert!(
