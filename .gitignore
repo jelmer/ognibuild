@@ -12,3 +12,4 @@ __pycache__
 target
 *.so
 .claude/settings.local.json
+.vscode

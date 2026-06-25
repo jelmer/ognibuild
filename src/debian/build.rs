@@ -392,23 +392,31 @@ fn get_last_changelog_entry(
     (e.package().unwrap(), e.version().unwrap())
 }
 
-/// Run gbp-dch to update the changelog.
+/// Run gbp dch to update the changelog.
 ///
 /// # Arguments
 /// * `path` - Path to the package directory
 ///
 /// # Returns
-/// Ok on success, Error if gbp-dch fails
+/// Ok on success, Error if gbp dch fails
 pub fn gbp_dch(path: &std::path::Path) -> Result<(), std::io::Error> {
-    let cmd = std::process::Command::new("gbp-dch")
+    let cmd = std::process::Command::new("gbp")
+        .arg("dch")
         .arg("--ignore-branch")
         .current_dir(path)
         .output()?;
+
     if !cmd.status.success() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "gbp-dch failed",
-        ));
+        if cmd.stderr.len() > 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                String::from_utf8(cmd.stderr).unwrap(),
+            ));
+        } else {
+            log::debug!(
+                "gbp:error: Either 'EMAIL' or 'DEBEMAIL' must be set in the environment for 'dch' to work"
+            );
+        }
     }
     Ok(())
 }
@@ -480,7 +488,9 @@ pub fn attempt_build(
             .abspath(std::path::Path::new(".git"))
             .map_or(false, |p| std::path::Path::new(&p).exists())
     {
-        gbp_dch(&local_tree.abspath(subpath).unwrap()).unwrap();
+        if let Err(e) = gbp_dch(&local_tree.abspath(subpath).unwrap()) {
+            log::error!("Failed to run gbp due to: {}", e);
+        }
     }
     if let Some(build_changelog_entry) = build_changelog_entry {
         assert!(
