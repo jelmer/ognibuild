@@ -405,11 +405,14 @@ pub fn gbp_dch(path: &std::path::Path) -> Result<(), std::io::Error> {
         .arg("--ignore-branch")
         .current_dir(path)
         .output()?;
+
     if !cmd.status.success() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::Other,
-            "gbp-dch failed",
+            String::from_utf8(cmd.stderr).unwrap()
         ));
+    }else{
+        log::debug!("{}", String::from_utf8(cmd.stdout).unwrap())
     }
     Ok(())
 }
@@ -481,18 +484,10 @@ pub fn attempt_build(
             .abspath(std::path::Path::new(".git"))
             .map_or(false, |p| std::path::Path::new(&p).exists())
     {
-        match gbp_dch(&local_tree.abspath(subpath).unwrap()) {
-            Ok(_) => log::info!("successfully created orig tar using gbp"),
-            Err(e) => {
-                return Err(BuildOnceError::Unidentified {
-                    stage: None,
-                    phase: None,
-                    retcode: 1,
-                    command: vec!["gbp dch".to_string(), "--ignore-branch".to_string()],
-                    description: e.to_string(),
-                });
-            }
+        if let Err(e) = gbp_dch(&local_tree.abspath(subpath).unwrap()) {
+            log::error!("Failed to run gbp due to: {}", e);
         }
+            
     }
     if let Some(build_changelog_entry) = build_changelog_entry {
         assert!(
