@@ -434,9 +434,9 @@ checksum = "36f64beae40a84da1b4b26ff2761a5b895c12adc41dc25aaee1c4f2bbfe97a6e"
 
 [[package]]
 name = "breezyshim"
-version = "0.7.24"
+version = "0.7.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57df6d06796a431cc07aa9f42ee9d5d259691a13dab49a3d7e0f4f894dbea27f"
+checksum = "5f98c4ea086b4c1e2a29800172ad26ff701e98ce2455a688654d6f462f1c0df7"
 dependencies = [
  "chrono",
  "ctor",
@@ -492,7 +492,7 @@ dependencies = [
  "clap",
  "debian-control",
  "debversion",
- "env_logger 0.11.10",
+ "env_logger 0.11.11",
  "fancy-regex",
  "inventory",
  "lazy-regex",
@@ -1422,9 +1422,9 @@ dependencies = [
 
 [[package]]
 name = "env_filter"
-version = "1.0.1"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32e90c2accc4b07a8456ea0debdc2e7587bdd890680d71173a15d4ae604f6eef"
+checksum = "900d271a03799a1ee8d1ca9b19893b48ca674a9284fefcfb85f05e74ed314217"
 dependencies = [
  "log",
  "regex",
@@ -1458,9 +1458,9 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.11.10"
+version = "0.11.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0621c04f2196ac3f488dd583365b9c09be011a4ab8b9f37248ffcc8f6198b56a"
+checksum = "de671bd27a75a797dc9ae289ba1e77276e75e2026408aab65185384e2d5cd3f6"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2937,9 +2937,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.32"
+version = "0.4.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "953f07c43838f8e6f9758cab68bf5bed85465e7587ebe0b823f1bcd81978ad3a"
+checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "lru-slab"
@@ -3300,7 +3300,7 @@ dependencies = [
  "debian-control",
  "debversion",
  "dirs",
- "env_logger 0.11.10",
+ "env_logger 0.11.11",
  "flate2",
  "fs_extra",
  "inventory",
@@ -3333,7 +3333,7 @@ dependencies = [
  "tempfile",
  "test-log",
  "tokio",
- "toml 0.9.12+spec-1.1.0",
+ "toml 1.1.2+spec-1.1.0",
  "toml_edit",
  "upstream-ontologist",
  "url",
@@ -5274,7 +5274,7 @@ version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b9c218384242b5c89b68303ab6f6fc53a312d923f0c14dc6bb860c6aeee40f1"
 dependencies = [
- "env_logger 0.11.10",
+ "env_logger 0.11.11",
  "test-log-macros",
  "tracing-subscriber",
 ]
@@ -5783,9 +5783,9 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "upstream-ontologist"
-version = "0.3.20"
+version = "0.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e112ca0967465fa4b5e6c81156fe590f36f8c49867a3adec35c3e249a9697e2a"
+checksum = "391a5a20829a1e5af116bbc75ad27fd74b9572c51f5d4ad360113c773a32289d"
 dependencies = [
  "async-trait",
  "base64",
