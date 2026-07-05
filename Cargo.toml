@@ -45,7 +45,7 @@ nix = { version = ">=0.27.0", features = ["user"] }
 pep508_rs = "0.9.1"
 percent-encoding = "2.3.2"
 pyproject-toml = "0.13.4"
-r-description = { version = "0.3.5", features = ["serde"] }
+r-description = { version = "0.4.0", features = ["serde"] }
 rand = "0.10.1"
 regex = "1.12"
 reqwest = { version = ">=0.12.10, <0.14", features = ["blocking", "json"] }

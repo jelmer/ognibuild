@@ -3317,7 +3317,7 @@ dependencies = [
  "percent-encoding",
  "pyo3",
  "pyproject-toml",
- "r-description",
+ "r-description 0.4.0",
  "rand 0.10.1",
  "regex",
  "reqwest",
@@ -4026,6 +4026,19 @@ name = "r-description"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f97b1f65f8b0a2687d665c2d16e866f69c5c2f0486ccf905b776badacb3ebb53"
+dependencies = [
+ "deb822-derive",
+ "deb822-fast",
+ "deb822-lossless",
+ "rowan",
+ "url",
+]
+
+[[package]]
+name = "r-description"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31a4cca5ad567b694e4fe874e0ee27aaa43cfb7540b3888fd134ac7774edc209"
 dependencies = [
  "deb822-derive",
  "deb822-fast",
@@ -5817,7 +5830,7 @@ dependencies = [
  "pyproject-toml",
  "python-pkginfo",
  "quote",
- "r-description",
+ "r-description 0.3.7",
  "regex",
  "reqwest",
  "rst_parser",

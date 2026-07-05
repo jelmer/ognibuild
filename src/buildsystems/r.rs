@@ -178,13 +178,13 @@ impl BuildSystem for R {
         for s in description.imports().unwrap_or_default().iter() {
             ret.push((
                 DependencyCategory::Build,
-                Box::new(RPackageDependency::from_str(s)),
+                Box::new(RPackageDependency::from(s)),
             ));
         }
-        for s in description.linking_to().unwrap_or_default() {
+        for s in description.linking_to().unwrap_or_default().iter() {
             ret.push((
                 DependencyCategory::Build,
-                Box::new(RPackageDependency::from_str(&s)),
+                Box::new(RPackageDependency::from(s)),
             ));
         }
         Ok(ret)

@@ -13,18 +13,10 @@ use serde::{Deserialize, Serialize};
 
 /// Convert an R package version to a Debian (upstream) version.
 ///
-/// Debian R packages (`r-cran-*`, `r-bioc-*`, ...) carry the R version through
-/// unchanged as their Debian upstream version: the CRAN package Matrix `1.7-4`
-/// is shipped as `r-cran-matrix` version `1.7-4-1`, where `1.7-4` is the
-/// upstream version and `-1` the Debian revision.
-///
-/// R treats `-` as an ordinary version component separator, so the whole R
-/// version (including any `-`) becomes the Debian upstream version, with no
-/// Debian revision. The version is built directly rather than parsed, because
-/// Debian's version parser would otherwise treat a trailing `-N` as the
-/// revision. Note that the result therefore cannot be round-tripped through a
-/// Debian relation string unambiguously: `r-cran-matrix (>= 1.7-4)` reparses as
-/// upstream `1.7` with revision `4`.
+/// R treats `.` and `-` as equivalent version component separators. The
+/// `r_description::Version` type normalizes both to `.` on display, so the
+/// resulting Debian upstream version always uses `.` — e.g. R `1.7-4` becomes
+/// upstream `1.7.4`, not `1.7-4`. The Debian revision is left empty.
 #[cfg(feature = "debian")]
 pub fn r_version_to_debian(version: &RVersion) -> debversion::Version {
     debversion::Version {
@@ -45,18 +37,21 @@ pub fn debian_version_to_r(version: &debversion::Version) -> Result<RVersion, St
 }
 
 /// Convert an R version constraint to the equivalent Debian relation constraint.
+///
+/// Returns `None` for R constraints that have no Debian equivalent (e.g. `!=`).
 #[cfg(feature = "debian")]
 fn r_constraint_to_debian(
     constraint: &VersionConstraint,
-) -> debian_control::relations::VersionConstraint {
+) -> Option<debian_control::relations::VersionConstraint> {
     use debian_control::relations::VersionConstraint as Deb;
-    match constraint {
+    Some(match constraint {
         VersionConstraint::GreaterThanEqual => Deb::GreaterThanEqual,
         VersionConstraint::GreaterThan => Deb::GreaterThan,
         VersionConstraint::LessThanEqual => Deb::LessThanEqual,
         VersionConstraint::LessThan => Deb::LessThan,
         VersionConstraint::Equal => Deb::Equal,
-    }
+        VersionConstraint::NotEqual => return None,
+    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -181,12 +176,13 @@ impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
             return None;
         }
 
-        let version = self.0.version.as_ref().map(|(constraint, version)| {
-            (
-                r_constraint_to_debian(constraint),
+        let version = match self.0.version.as_ref() {
+            Some((constraint, version)) => Some((
+                r_constraint_to_debian(constraint)?,
                 r_version_to_debian(version),
-            )
-        });
+            )),
+            None => None,
+        };
 
         Some(
             names
@@ -417,10 +413,11 @@ mod tests {
     #[cfg(feature = "debian")]
     #[test]
     fn test_r_version_to_debian() {
+        // r_description::Version normalizes `-` separators to `.` on display.
         let cases = [
             ("1.0.0", "1.0.0"),
-            ("1.7-5", "1.7-5"),
-            ("7.3-65", "7.3-65"),
+            ("1.7-5", "1.7.5"),
+            ("7.3-65", "7.3.65"),
             ("3.1.169", "3.1.169"),
         ];
         for (r, deb) in cases {
@@ -433,14 +430,15 @@ mod tests {
     #[cfg(feature = "debian")]
     #[test]
     fn test_debian_version_to_r() {
-        // The R version is held whole in the upstream part.
+        // The R version is held whole in the upstream part; `-` in the source
+        // is normalized to `.` when the RVersion is displayed.
         let debian = debversion::Version {
             epoch: None,
             upstream_version: "1.7-5".to_string(),
             debian_revision: None,
         };
         let r = debian_version_to_r(&debian).unwrap();
-        assert_eq!(r.to_string(), "1.7-5");
+        assert_eq!(r.to_string(), "1.7.5");
 
         // The Debian revision and epoch have no R equivalent and are dropped.
         let debian: debversion::Version = "2:3.1.169-1".parse().unwrap();
