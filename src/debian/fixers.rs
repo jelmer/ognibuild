@@ -518,28 +518,34 @@ where
 pub fn apt_fixers<'a, 'b, 'c, 'd>(
     apt: &'a AptManager<'d>,
     packaging_context: &'b DebianPackagingContext,
-) -> Vec<Box<dyn DebianBuildFixer + 'c>>
+) -> Result<Vec<Box<dyn DebianBuildFixer + 'c>>, Error>
 where
     'a: 'c,
     'b: 'c,
 {
+    // The build-dependency tie-breaker needs a working local APT cache. That
+    // can fail (e.g. a mis-mapped unshare session, or missing permissions), so
+    // surface it as an error rather than unwrapping and panicking the caller.
+    let build_dep_tie_breaker =
+        crate::debian::build_deps::BuildDependencyTieBreaker::try_from_session(apt.session())
+            .map_err(|e| Error::AptCache(e.to_string()))?;
     let apt_tie_breakers: Vec<Box<dyn TieBreaker>> = vec![
         Box::new(PythonTieBreaker::from_tree(
             &packaging_context.tree,
             &packaging_context.subpath,
         )),
-        Box::new(crate::debian::build_deps::BuildDependencyTieBreaker::from_session(apt.session())),
+        Box::new(build_dep_tie_breaker),
         #[cfg(feature = "udd")]
         Box::new(crate::debian::udd::PopconTieBreaker),
     ];
-    vec![
+    Ok(vec![
         Box::new(RetryAptFetchFailure(packaging_context)) as Box<dyn DebianBuildFixer>,
         Box::new(PackageDependencyFixer {
             context: packaging_context,
             apt,
             tie_breakers: apt_tie_breakers,
         }) as Box<dyn DebianBuildFixer + 'c>,
-    ]
+    ])
 }
 
 /// Create a set of default Debian build fixers.
@@ -556,7 +562,7 @@ where
 pub fn default_fixers<'a, 'b, 'c, 'd>(
     packaging_context: &'a DebianPackagingContext,
     apt: &'b AptManager<'d>,
-) -> Vec<Box<dyn DebianBuildFixer + 'c>>
+) -> Result<Vec<Box<dyn DebianBuildFixer + 'c>>, Error>
 where
     'a: 'c,
     'b: 'c,
@@ -567,6 +573,6 @@ where
         packaging_context,
         apt,
     ));
-    ret.extend(apt_fixers(apt, packaging_context));
-    ret
+    ret.extend(apt_fixers(apt, packaging_context)?);
+    Ok(ret)
 }
