@@ -133,7 +133,13 @@ fn main() -> Result<(), i32> {
         Some(Box::new(breezyshim::commit::NullCommitReporter::new())),
     );
 
-    let fixers = ognibuild::debian::fixers::default_fixers(&packaging_context, &apt);
+    let fixers = match ognibuild::debian::fixers::default_fixers(&packaging_context, &apt) {
+        Ok(fixers) => fixers,
+        Err(e) => {
+            log::error!("Failed to set up build fixers: {}", e);
+            return Err(1);
+        }
+    };
 
     match ognibuild::debian::fix_build::build_incrementally(
         &tree,

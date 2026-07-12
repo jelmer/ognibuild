@@ -29,6 +29,8 @@ pub enum Error {
     IoError(std::io::Error),
     /// Invalid field value in control file.
     InvalidField(String, String),
+    /// The local APT cache could not be initialized.
+    AptCache(String),
 }
 
 impl From<BrzError> for Error {
@@ -64,6 +66,7 @@ impl std::fmt::Display for Error {
             Error::EditorError(e) => write!(f, "{}", e),
             Error::IoError(e) => write!(f, "{}", e),
             Error::InvalidField(field, e) => write!(f, "Invalid field {}: {}", field, e),
+            Error::AptCache(e) => write!(f, "Failed to initialize local APT cache: {}", e),
         }
     }
 }
