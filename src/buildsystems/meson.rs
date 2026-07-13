@@ -1,6 +1,8 @@
 use crate::analyze::AnalyzedError;
 use crate::buildsystem::{BuildSystem, DependencyCategory, Error};
+use crate::dependencies::pkgconfig::{PkgComparison, PkgConstraint};
 use crate::dependencies::vague::VagueDependency;
+use crate::dependencies::PkgConfigDependency;
 use crate::dependency::Dependency;
 use crate::dist_catcher::DistCatcher;
 use crate::fix_build::BuildFixer;
@@ -118,6 +120,46 @@ struct MesonTargetSource {
     parameters: Vec<String>,
     #[serde(default)]
     sources: Vec<PathBuf>,
+}
+
+/// Build a dependency from a meson `dependency()` call.
+///
+/// `versions` holds the constraint strings meson resolved statically, or None if
+/// it could not resolve them (in which case we depend on the module without a
+/// version bound).
+///
+/// A [`VagueDependency`] expands into more candidates (a binary, a `-dev`
+/// package) and is the better guess, but it can only carry a minimum version.
+/// Anything else goes straight to pkg-config, which is what meson's
+/// `dependency()` looks up anyway.
+fn meson_dependency(name: &str, versions: Option<&[String]>) -> Box<dyn Dependency> {
+    let mut constraint = None;
+    match versions {
+        Some([text]) => match text.parse::<PkgConstraint>() {
+            Ok(parsed) => constraint = Some(parsed),
+            Err(e) => log::warn!("Unable to parse version constraint {:?}: {}", text, e),
+        },
+        // TODO(jelmer): A dependency can carry several constraints (e.g.
+        // ['>=1.2', '<2.0']); neither VagueDependency nor PkgConfigDependency
+        // holds more than one.
+        Some(versions) if versions.len() > 1 => {
+            log::warn!("Ignoring version constraints on {}: {:?}", name, versions);
+        }
+        Some(_) => {}
+        None => {
+            log::debug!("Version constraint for {} is not statically known", name);
+        }
+    }
+
+    match constraint {
+        Some(constraint) if constraint.comparison != PkgComparison::GreaterEqual => {
+            Box::new(PkgConfigDependency::new_with_constraint(name, constraint))
+        }
+        constraint => Box::new(VagueDependency {
+            name: name.to_string(),
+            minimum_version: constraint.map(|c| c.version.to_string()),
+        }),
+    }
 }
 
 impl Meson {
@@ -491,32 +533,9 @@ impl BuildSystem for Meson {
                 continue;
             };
 
-            let mut minimum_version = None;
-            match entry.version.known().as_deref() {
-                Some([constraint]) => {
-                    if let Some(rest) = constraint.strip_prefix(">=") {
-                        minimum_version = Some(rest.trim().to_string());
-                    }
-                }
-                Some(versions) if versions.len() > 1 => {
-                    log::warn!("Unable to parse version constraints: {:?}", versions);
-                }
-                Some(_) => {}
-                // A version constraint exists but is not statically known; depend
-                // on the dependency without a version bound.
-                None => {
-                    log::debug!("Version constraint for {} is not statically known", name);
-                }
-            }
-
-            // TODO(jelmer): Include entry.required; note it is tri-state, so an
-            // unknown value must not be treated as "not required".
             ret.push((
                 DependencyCategory::Universal,
-                Box::new(VagueDependency {
-                    name,
-                    minimum_version,
-                }),
+                meson_dependency(&name, entry.version.known().as_deref()),
             ));
         }
         Ok(ret)
@@ -628,6 +647,69 @@ mod tests {
             MaybeUnknown::Known(vec![">=2.50".to_string()]),
             deps[0].version
         );
+    }
+
+    fn vague(dep: &dyn Dependency) -> &VagueDependency {
+        dep.as_any()
+            .downcast_ref::<VagueDependency>()
+            .expect("expected a VagueDependency")
+    }
+
+    fn pkg_config(dep: &dyn Dependency) -> &PkgConfigDependency {
+        dep.as_any()
+            .downcast_ref::<PkgConfigDependency>()
+            .expect("expected a PkgConfigDependency")
+    }
+
+    /// A minimum version, or no constraint at all, becomes a VagueDependency:
+    /// it can carry the bound, and expands into more candidate packages.
+    #[test]
+    fn test_meson_dependency_vague() {
+        let dep = meson_dependency("glib-2.0", Some(&[">=2.50".to_string()]));
+        assert_eq!("glib-2.0", vague(dep.as_ref()).name);
+        assert_eq!(Some("2.50"), vague(dep.as_ref()).minimum_version.as_deref());
+
+        let dep = meson_dependency("glib-2.0", Some(&[]));
+        assert_eq!(None, vague(dep.as_ref()).minimum_version);
+
+        // meson could not resolve the constraint statically.
+        let dep = meson_dependency("glib-2.0", None);
+        assert_eq!(None, vague(dep.as_ref()).minimum_version);
+    }
+
+    /// Any other operator can only be expressed against pkg-config.
+    #[test]
+    fn test_meson_dependency_pkg_config() {
+        for (text, expected) in [
+            ("<2.0", PkgComparison::Less),
+            ("<=2.0", PkgComparison::LessEqual),
+            ("=1.4", PkgComparison::Equal),
+            ("!=1.4", PkgComparison::NotEqual),
+            (">1.4", PkgComparison::Greater),
+        ] {
+            let dep = meson_dependency("glib-2.0", Some(&[text.to_string()]));
+            let dep = pkg_config(dep.as_ref());
+            assert_eq!("glib-2.0", dep.module());
+            assert_eq!(
+                Some(expected),
+                dep.constraint().map(|c| c.comparison),
+                "for {text}"
+            );
+        }
+    }
+
+    /// An unparseable constraint is dropped rather than guessed at.
+    #[test]
+    fn test_meson_dependency_bad_constraint() {
+        let dep = meson_dependency("glib-2.0", Some(&["=> 2.50".to_string()]));
+        assert_eq!(None, vague(dep.as_ref()).minimum_version);
+    }
+
+    /// TODO: multiple constraints are not representable yet, so they are dropped.
+    #[test]
+    fn test_meson_dependency_multiple_constraints() {
+        let dep = meson_dependency("glib-2.0", Some(&[">=1.0".to_string(), "<2.0".to_string()]));
+        assert_eq!(None, vague(dep.as_ref()).minimum_version);
     }
 
     /// Helper function to create a minimal meson.build file
