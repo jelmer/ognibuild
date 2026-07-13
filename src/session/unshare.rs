@@ -53,9 +53,13 @@ impl Drop for RootDir {
 ///
 /// Re-entering a user namespace with `--map-auto` maps the caller's whole subuid
 /// range, and `--map-root-user` makes the caller root within it, which is enough
-/// to unlink files owned by those subuids. `unshare` may be missing (it is only a
-/// hard requirement for *running* a session), so fall back to a direct removal,
-/// which suffices for roots that happen to be entirely caller-owned.
+/// to unlink files owned by those subuids.
+///
+/// That namespace is not always available: `unshare` may be missing, or the
+/// caller may have no `/etc/subuid` range (as on GitHub Actions runners). Both
+/// are only a hard requirement for *running* a session, so fall back to a direct
+/// removal -- if a session root cannot be populated through a user namespace, it
+/// holds nothing but caller-owned files, and `remove_dir_all` handles it.
 fn remove_root(root: &Path) -> std::io::Result<()> {
     let status = std::process::Command::new("unshare")
         .arg("--map-auto")
@@ -69,16 +73,11 @@ fn remove_root(root: &Path) -> std::io::Result<()> {
         .arg(root)
         .status();
 
-    match status {
-        Ok(status) if status.success() => Ok(()),
-        Ok(status) => Err(std::io::Error::other(format!(
-            "unshare rm -rf {} exited with {}",
-            root.display(),
-            status
-        ))),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => std::fs::remove_dir_all(root),
-        Err(e) => Err(e),
+    if matches!(status, Ok(status) if status.success()) {
+        return Ok(());
     }
+
+    std::fs::remove_dir_all(root)
 }
 
 fn compression_flag(path: &Path) -> Result<Option<&str>, crate::session::Error> {
