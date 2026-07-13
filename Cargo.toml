@@ -95,6 +95,7 @@ breezyshim = { version = "0.7.22", features = ["auto-initialize"] }
 lazy_static = "1.5"
 test-log = "0.2"
 criterion = { version = ">=0.5, <0.9", features = ["html_reports"] }
+ctor = "0.6"
 
 [[bin]]
 name = "ognibuild-deb"
