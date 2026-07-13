@@ -27,6 +27,8 @@ pub mod octave;
 pub mod perl;
 /// Dependency handling for PHP projects.
 pub mod php;
+/// pkg-config/pkgconf module versions.
+pub mod pkgconfig;
 /// Dependency handling for pytest-specific dependencies.
 pub mod pytest;
 /// Dependency handling for Python projects.
@@ -441,12 +443,12 @@ impl crate::upstream::FindUpstream for CargoCrateDependency {
 pub struct PkgConfigDependency {
     /// Name of the pkg-config module
     module: String,
-    /// Optional minimum version requirement
-    minimum_version: Option<String>,
+    /// Optional version constraint
+    constraint: Option<pkgconfig::PkgConstraint>,
 }
 
 impl PkgConfigDependency {
-    /// Create a new PkgConfigDependency with a version requirement.
+    /// Create a new PkgConfigDependency with a minimum version requirement.
     ///
     /// # Arguments
     /// * `module` - Name of the pkg-config module
@@ -457,7 +459,23 @@ impl PkgConfigDependency {
     pub fn new(module: &str, minimum_version: Option<&str>) -> Self {
         Self {
             module: module.to_string(),
-            minimum_version: minimum_version.map(|s| s.to_string()),
+            constraint: minimum_version
+                .map(|v| pkgconfig::PkgConstraint::at_least(pkgconfig::PkgVersion::new(v))),
+        }
+    }
+
+    /// Create a new PkgConfigDependency with an arbitrary version constraint.
+    ///
+    /// # Arguments
+    /// * `module` - Name of the pkg-config module
+    /// * `constraint` - The version constraint, e.g. `< 2.0`
+    ///
+    /// # Returns
+    /// A new PkgConfigDependency instance
+    pub fn new_with_constraint(module: &str, constraint: pkgconfig::PkgConstraint) -> Self {
+        Self {
+            module: module.to_string(),
+            constraint: Some(constraint),
         }
     }
 
@@ -471,13 +489,18 @@ impl PkgConfigDependency {
     pub fn simple(module: &str) -> Self {
         Self {
             module: module.to_string(),
-            minimum_version: None,
+            constraint: None,
         }
     }
 
     /// The name of the pkg-config module.
     pub fn module(&self) -> &str {
         &self.module
+    }
+
+    /// The version constraint, if any.
+    pub fn constraint(&self) -> Option<&pkgconfig::PkgConstraint> {
+        self.constraint.as_ref()
     }
 }
 
@@ -491,8 +514,8 @@ impl Dependency for PkgConfigDependency {
         let cmd = [
             "pkg-config".to_string(),
             "--exists".to_string(),
-            if let Some(minimum_version) = &self.minimum_version {
-                format!("{} >= {}", self.module, minimum_version)
+            if let Some(constraint) = &self.constraint {
+                format!("{} {}", self.module, constraint)
             } else {
                 self.module.clone()
             },
@@ -561,23 +584,39 @@ impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
             return None;
         }
 
-        Some(if let Some(minimum_version) = &self.minimum_version {
-            let minimum_version: debversion::Version = minimum_version.parse().unwrap();
+        // A constraint Debian cannot express (`!=`, or a version that is not a
+        // valid Debian version) yields an unversioned dependency rather than no
+        // dependency at all: the package is still the right one, we just cannot
+        // carry the bound across.
+        let constraint = self.constraint.as_ref().and_then(|c| {
+            let converted = pkgconfig::pkg_constraint_to_debian(c);
+            if converted.is_none() {
+                log::warn!(
+                    "pkg-config constraint '{}' on module {} has no Debian equivalent; \
+                     depending on {} without a version constraint",
+                    c,
+                    self.module,
+                    names.join(", ")
+                );
+            }
+            converted
+        });
+
+        Some(
             names
                 .into_iter()
-                .map(|name| {
-                    crate::dependencies::debian::DebianDependency::new_with_min_version(
-                        &name,
-                        &minimum_version,
-                    )
+                .map(|name| match &constraint {
+                    Some((comparison, version)) => {
+                        crate::dependencies::debian::DebianDependency::new_with_version(
+                            &name,
+                            comparison.clone(),
+                            version,
+                        )
+                    }
+                    None => crate::dependencies::debian::DebianDependency::simple(&name),
                 })
-                .collect()
-        } else {
-            names
-                .into_iter()
-                .map(|name| crate::dependencies::debian::DebianDependency::simple(&name))
-                .collect()
-        })
+                .collect(),
+        )
     }
 }
 
