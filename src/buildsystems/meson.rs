@@ -17,22 +17,65 @@ pub struct Meson {
     path: PathBuf,
 }
 
+/// A value from `meson introspect --scan-dependencies` that meson may not have
+/// been able to evaluate.
+///
+/// `--scan-dependencies` interprets meson.build statically, without configuring
+/// the project. Since meson 1.9, any value it cannot resolve that way -- e.g.
+/// `required: get_option('foo')` -- is serialized as the string "unknown"
+/// instead of its natural type. Older meson silently guessed a value instead
+/// (coercing a non-literal `required:` to false), so both shapes occur in the
+/// wild depending on the meson in use.
+#[derive(Debug, Default, PartialEq, Eq)]
+enum MaybeUnknown<T> {
+    /// The value could not be determined statically.
+    #[default]
+    Unknown,
+    Known(T),
+}
+
+impl<T> MaybeUnknown<T> {
+    fn known(self) -> Option<T> {
+        match self {
+            MaybeUnknown::Known(v) => Some(v),
+            MaybeUnknown::Unknown => None,
+        }
+    }
+}
+
+impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for MaybeUnknown<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // Deserialize to a generic value first so we can distinguish the
+        // "unknown" sentinel from a T that happens to be a string.
+        let value = serde_json::Value::deserialize(deserializer)?;
+        if value.as_str() == Some("unknown") {
+            return Ok(MaybeUnknown::Unknown);
+        }
+        T::deserialize(value)
+            .map(MaybeUnknown::Known)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Debug, serde::Deserialize)]
 #[allow(dead_code)]
 struct MesonDependency {
-    pub name: String,
-    #[serde(deserialize_with = "version_as_vec")]
-    pub version: Vec<String>,
+    /// Unknown when the name is not a literal, e.g. `dependency(get_option('x'))`.
+    pub name: MaybeUnknown<String>,
+    /// Meson collapses the whole list to "unknown" if any constraint is unknown.
+    #[serde(default, deserialize_with = "version_as_vec")]
+    pub version: MaybeUnknown<Vec<String>>,
     #[serde(default)]
-    pub required: bool,
+    pub required: MaybeUnknown<bool>,
     #[serde(default)]
     pub has_fallback: bool,
     #[serde(default)]
     pub conditional: bool,
 }
 
-// Helper to handle both string and vec for version field
-fn version_as_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+/// Accept both a bare string and a list for the version field, on top of the
+/// "unknown" sentinel handled by `MaybeUnknown`.
+fn version_as_vec<'de, D>(deserializer: D) -> Result<MaybeUnknown<Vec<String>>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -45,10 +88,15 @@ where
         Vec(Vec<String>),
     }
 
-    match StringOrVec::deserialize(deserializer)? {
-        StringOrVec::String(s) => Ok(if s.is_empty() { vec![] } else { vec![s] }),
-        StringOrVec::Vec(v) => Ok(v),
-    }
+    Ok(
+        match MaybeUnknown::<StringOrVec>::deserialize(deserializer)? {
+            MaybeUnknown::Unknown => MaybeUnknown::Unknown,
+            MaybeUnknown::Known(StringOrVec::String(s)) => {
+                MaybeUnknown::Known(if s.is_empty() { vec![] } else { vec![s] })
+            }
+            MaybeUnknown::Known(StringOrVec::Vec(v)) => MaybeUnknown::Known(v),
+        },
+    )
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -436,19 +484,37 @@ impl BuildSystem for Meson {
         })?;
 
         for entry in resp {
+            // meson could not statically evaluate the name, so there is nothing
+            // useful to depend on.
+            let Some(name) = entry.name.known() else {
+                log::warn!("Ignoring dependency with a name meson could not determine statically");
+                continue;
+            };
+
             let mut minimum_version = None;
-            if entry.version.len() == 1 {
-                if let Some(rest) = entry.version[0].strip_prefix(">=") {
-                    minimum_version = Some(rest.trim().to_string());
+            match entry.version.known().as_deref() {
+                Some([constraint]) => {
+                    if let Some(rest) = constraint.strip_prefix(">=") {
+                        minimum_version = Some(rest.trim().to_string());
+                    }
                 }
-            } else if entry.version.len() > 1 {
-                log::warn!("Unable to parse version constraints: {:?}", entry.version);
+                Some(versions) if versions.len() > 1 => {
+                    log::warn!("Unable to parse version constraints: {:?}", versions);
+                }
+                Some(_) => {}
+                // A version constraint exists but is not statically known; depend
+                // on the dependency without a version bound.
+                None => {
+                    log::debug!("Version constraint for {} is not statically known", name);
+                }
             }
-            // TODO(jelmer): Include entry['required']
+
+            // TODO(jelmer): Include entry.required; note it is tri-state, so an
+            // unknown value must not be treated as "not required".
             ret.push((
                 DependencyCategory::Universal,
                 Box::new(VagueDependency {
-                    name: entry.name.to_string(),
+                    name,
                     minimum_version,
                 }),
             ));
@@ -493,6 +559,76 @@ mod tests {
     use crate::session::plain::PlainSession;
     use std::fs;
     use tempfile::TempDir;
+
+    /// Verbatim output of `meson introspect --scan-dependencies` (meson 1.11)
+    /// for a meson.build using get_option() for a dependency's required:,
+    /// version: and name:, plus statically resolvable dependencies.
+    const SCAN_DEPENDENCIES_WITH_UNKNOWNS: &str = r#"[
+        {"name": "glib-2.0", "required": "unknown", "version": [">=2.50"],
+         "has_fallback": false, "conditional": false},
+        {"name": "zlib", "required": true, "version": "unknown",
+         "has_fallback": false, "conditional": false},
+        {"name": "unknown", "required": true, "version": [],
+         "has_fallback": false, "conditional": false},
+        {"name": "m", "required": false, "version": [">=1.0", "<2.0"],
+         "has_fallback": false, "conditional": false},
+        {"name": "libcurl", "required": true, "version": [],
+         "has_fallback": true, "conditional": true}
+    ]"#;
+
+    #[test]
+    fn test_parse_scan_dependencies_with_unknowns() {
+        let deps: Vec<MesonDependency> =
+            serde_json::from_str(SCAN_DEPENDENCIES_WITH_UNKNOWNS).unwrap();
+
+        assert_eq!(5, deps.len());
+
+        // required: is unknown, but the name and version still parse.
+        assert_eq!(MaybeUnknown::Known("glib-2.0".to_string()), deps[0].name);
+        assert_eq!(MaybeUnknown::Unknown, deps[0].required);
+        assert_eq!(
+            MaybeUnknown::Known(vec![">=2.50".to_string()]),
+            deps[0].version
+        );
+
+        // version: collapses to a bare "unknown" string, not a list.
+        assert_eq!(MaybeUnknown::Unknown, deps[1].version);
+        assert_eq!(MaybeUnknown::Known(true), deps[1].required);
+
+        // An unresolvable name is serialized as the string "unknown".
+        assert_eq!(MaybeUnknown::Unknown, deps[2].name);
+
+        // Fully static entries are unaffected.
+        assert_eq!(MaybeUnknown::Known("m".to_string()), deps[3].name);
+        assert_eq!(MaybeUnknown::Known(false), deps[3].required);
+        assert_eq!(
+            MaybeUnknown::Known(vec![">=1.0".to_string(), "<2.0".to_string()]),
+            deps[3].version
+        );
+        assert_eq!(MaybeUnknown::Known(vec![]), deps[4].version);
+        assert!(deps[4].has_fallback);
+        assert!(deps[4].conditional);
+    }
+
+    #[test]
+    fn test_parse_scan_dependencies_pre_meson_1_9() {
+        // meson < 1.9 never emitted "unknown"; it coerced a non-literal
+        // required: to false. That output must keep parsing.
+        let text = r#"[
+            {"name": "glib-2.0", "required": false, "version": [">=2.50"],
+             "has_fallback": false, "conditional": false}
+        ]"#;
+
+        let deps: Vec<MesonDependency> = serde_json::from_str(text).unwrap();
+
+        assert_eq!(1, deps.len());
+        assert_eq!(MaybeUnknown::Known("glib-2.0".to_string()), deps[0].name);
+        assert_eq!(MaybeUnknown::Known(false), deps[0].required);
+        assert_eq!(
+            MaybeUnknown::Known(vec![">=2.50".to_string()]),
+            deps[0].version
+        );
+    }
 
     /// Helper function to create a minimal meson.build file
     fn create_meson_project(dir: &Path) -> std::io::Result<()> {
