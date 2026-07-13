@@ -198,6 +198,9 @@ pub trait Session {
     fn pwd(&self) -> &std::path::Path;
 
     /// Return the external path for a path inside the session.
+    ///
+    /// The path need not exist; callers may use this to find out where to
+    /// create a file.
     fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf;
 
     /// Return the location of the session.

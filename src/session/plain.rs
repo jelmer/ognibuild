@@ -12,6 +12,31 @@ impl Default for PlainSession {
     }
 }
 
+/// Canonicalize the longest existing ancestor of `path` and re-append the rest.
+///
+/// `std::fs::canonicalize` fails when the path does not exist, but callers
+/// legitimately ask for the external path of a file they are about to create.
+/// Symlinks and `..` in the existing part are still resolved.
+fn canonicalize_existing_prefix(path: &std::path::Path) -> std::path::PathBuf {
+    let mut suffix: Vec<&std::ffi::OsStr> = Vec::new();
+    let mut prefix = path;
+
+    loop {
+        if let Ok(canonical) = prefix.canonicalize() {
+            return canonical.join(suffix.iter().rev().collect::<std::path::PathBuf>());
+        }
+        match (prefix.parent(), prefix.file_name()) {
+            (Some(parent), Some(name)) => {
+                suffix.push(name);
+                prefix = parent;
+            }
+            // Reached the root without finding anything that exists; there is
+            // nothing left to resolve.
+            _ => return path.to_path_buf(),
+        }
+    }
+}
+
 impl PlainSession {
     /// Create a new PlainSession.
     ///
@@ -59,7 +84,7 @@ impl Session for PlainSession {
     }
 
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), Error> {
-        self.0 = self.0.join(path).canonicalize().unwrap();
+        self.0 = self.0.join(path).canonicalize().map_err(Error::IoError)?;
         Ok(())
     }
 
@@ -68,7 +93,7 @@ impl Session for PlainSession {
     }
 
     fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf {
-        self.0.join(path).canonicalize().unwrap()
+        canonicalize_existing_prefix(&self.0.join(path))
     }
 
     fn check_output(
@@ -321,6 +346,20 @@ mod tests {
     }
 
     #[test]
+    fn test_chdir_nonexistent() {
+        let mut session = PlainSession::new();
+        let td = tempfile::tempdir().unwrap();
+        let path = td.path().join("does-not-exist");
+        match session.chdir(&path) {
+            Err(Error::IoError(e)) => {
+                assert_eq!(e.kind(), std::io::ErrorKind::NotFound);
+            }
+            other => panic!("expected IoError, got {:?}", other),
+        }
+        assert_eq!(session.pwd(), std::path::Path::new("/"));
+    }
+
+    #[test]
     fn test_pwd() {
         let mut session = PlainSession::new();
         let pwd = session.pwd();
@@ -338,6 +377,36 @@ mod tests {
         let path = td.path().join("test");
         session.mkdir(&path).unwrap();
         assert_eq!(session.external_path(&path), path.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_external_path_nonexistent() {
+        let session = PlainSession::new();
+        let td = tempfile::tempdir().unwrap();
+        let path = td.path().join("does-not-exist").join("config.toml");
+        assert_eq!(
+            session.external_path(&path),
+            td.path()
+                .canonicalize()
+                .unwrap()
+                .join("does-not-exist")
+                .join("config.toml")
+        );
+    }
+
+    #[test]
+    fn test_external_path_relative_to_cwd() {
+        let mut session = PlainSession::new();
+        let td = tempfile::tempdir().unwrap();
+        session.chdir(td.path()).unwrap();
+        assert_eq!(
+            session.external_path(std::path::Path::new("sub/new-file")),
+            td.path()
+                .canonicalize()
+                .unwrap()
+                .join("sub")
+                .join("new-file")
+        );
     }
 
     #[test]
