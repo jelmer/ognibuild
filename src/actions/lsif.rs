@@ -214,18 +214,8 @@ pub fn run_lsif(
             }
             Output::Stdout => {
                 // The indexer streams the dump to stdout; redirect that straight
-                // into the output file. `external_path` canonicalizes its
-                // argument, so resolve the (existing) parent directory and join
-                // the file name rather than the not-yet-created file.
-                let parent = output.parent().filter(|p| !p.as_os_str().is_empty());
-                let dir = session.external_path(parent.unwrap_or(Path::new(".")));
-                let file_name = output.file_name().ok_or_else(|| {
-                    Error::Other(format!(
-                        "Output path has no file name: {}",
-                        output.display()
-                    ))
-                })?;
-                let file = std::fs::File::create(dir.join(file_name))?;
+                // into the output file.
+                let file = std::fs::File::create(session.external_path(output))?;
                 let status = session
                     .command(argv)
                     .stdout(std::process::Stdio::from(file))
