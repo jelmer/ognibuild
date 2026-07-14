@@ -80,6 +80,42 @@ impl Output for PythonPackageOutput {
 }
 
 #[derive(Debug)]
+/// Output representing a compiled Python extension module.
+///
+/// Its presence means the build produces architecture-dependent objects and
+/// needs the Python headers, which callers packaging the project have to
+/// account for.
+pub struct PythonExtensionOutput {
+    /// Name of the extension module, e.g. `markupsafe._speedups`.
+    pub name: String,
+}
+
+impl PythonExtensionOutput {
+    /// Create a new Python extension module output.
+    ///
+    /// # Arguments
+    /// * `name` - Name of the extension module
+    ///
+    /// # Returns
+    /// A new PythonExtensionOutput instance
+    pub fn new(name: &str) -> Self {
+        PythonExtensionOutput {
+            name: name.to_owned(),
+        }
+    }
+}
+
+impl Output for PythonExtensionOutput {
+    fn family(&self) -> &'static str {
+        "python-extension"
+    }
+
+    fn get_declared_dependencies(&self) -> Vec<String> {
+        vec![]
+    }
+}
+
+#[derive(Debug)]
 /// Output representing an R package.
 pub struct RPackageOutput {
     /// Name of the R package.
