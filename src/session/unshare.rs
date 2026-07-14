@@ -4,7 +4,10 @@ use std::path::{Path, PathBuf};
 /// An unshare based session
 pub struct UnshareSession {
     root: PathBuf,
-    _tempdir: Option<tempfile::TempDir>,
+    /// Owns the session root when it is a temporary directory this session
+    /// created, and removes it on drop. `None` for a session pointed at a root
+    /// it does not own. Held only for its `Drop`.
+    _root_dir: Option<RootDir>,
     cwd: PathBuf,
     /// Whether to isolate the network namespace (deny network access).
     ///
@@ -12,6 +15,69 @@ pub struct UnshareSession {
     /// network needs to be turned on and off around individual install steps
     /// while the session is borrowed immutably elsewhere (e.g. by an installer).
     isolate_network: std::cell::Cell<bool>,
+}
+
+/// A temporary session root, removed on drop.
+///
+/// Deliberately not a [`tempfile::TempDir`]. The root is populated by `tar` or
+/// `mmdebstrap` running in a user namespace, which leaves files owned by uids
+/// from the caller's `/etc/subuid` range. Those are not the caller's uid, and the
+/// directories holding them are not writable by the caller, so the plain
+/// `remove_dir_all` that `TempDir` performs on drop fails with EPERM -- and
+/// `TempDir` discards that error, leaving several hundred MB behind per session.
+struct RootDir(PathBuf);
+
+impl RootDir {
+    fn new() -> Result<Self, crate::session::Error> {
+        // Only the directory is taken from tempfile; cleanup is ours.
+        let td = tempfile::tempdir().map_err(|e| {
+            crate::session::Error::SetupFailure("tempdir failed".to_string(), e.to_string())
+        })?;
+        Ok(Self(td.keep()))
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for RootDir {
+    fn drop(&mut self) {
+        if let Err(e) = remove_root(&self.0) {
+            log::warn!("Failed to remove session root {}: {}", self.0.display(), e);
+        }
+    }
+}
+
+/// Remove a session root, including files owned by mapped subuids.
+///
+/// Re-entering a user namespace with `--map-auto` maps the caller's whole subuid
+/// range, and `--map-root-user` makes the caller root within it, which is enough
+/// to unlink files owned by those subuids.
+///
+/// That namespace is not always available: `unshare` may be missing, or the
+/// caller may have no `/etc/subuid` range (as on GitHub Actions runners). Both
+/// are only a hard requirement for *running* a session, so fall back to a direct
+/// removal -- if a session root cannot be populated through a user namespace, it
+/// holds nothing but caller-owned files, and `remove_dir_all` handles it.
+fn remove_root(root: &Path) -> std::io::Result<()> {
+    let status = std::process::Command::new("unshare")
+        .arg("--map-auto")
+        .arg("--map-root-user")
+        .arg("--setuid=0")
+        .arg("--setgid=0")
+        .arg("--")
+        .arg("rm")
+        .arg("-rf")
+        .arg("--")
+        .arg(root)
+        .status();
+
+    if matches!(status, Ok(status) if status.success()) {
+        return Ok(());
+    }
+
+    std::fs::remove_dir_all(root)
 }
 
 fn compression_flag(path: &Path) -> Result<Option<&str>, crate::session::Error> {
@@ -107,9 +173,7 @@ impl UnshareSession {
 
     /// Create a session from a tarball
     pub fn from_tarball(path: &Path) -> Result<Self, crate::session::Error> {
-        let td = tempfile::tempdir().map_err(|e| {
-            crate::session::Error::SetupFailure("tempdir failed".to_string(), e.to_string())
-        })?;
+        let td = RootDir::new()?;
 
         // Run tar within unshare to extract the tarball. This is necessary because
         // the tarball may contain files that are owned by a different user.
@@ -166,9 +230,10 @@ impl UnshareSession {
 
         ensure_dev_shm(root)?;
 
+        let root = root.to_path_buf();
         let s = Self {
-            root: root.to_path_buf(),
-            _tempdir: Some(td),
+            root,
+            _root_dir: Some(td),
             cwd: std::path::PathBuf::from("/"),
             isolate_network: std::cell::Cell::new(true),
         };
@@ -430,10 +495,7 @@ pub fn bootstrap_debian_tarball(
     setup_apt_file: bool,
     extra_packages: &[&str],
 ) -> Result<UnshareSession, crate::session::Error> {
-    let td = tempfile::tempdir().map_err(|e| {
-        crate::session::Error::SetupFailure("tempdir failed".to_string(), e.to_string())
-    })?;
-
+    let td = RootDir::new()?;
     let root = td.path();
 
     // Build mmdebstrap command
@@ -491,9 +553,10 @@ pub fn bootstrap_debian_tarball(
 
     ensure_dev_shm(root)?;
 
+    let root = root.to_path_buf();
     let s = UnshareSession {
-        root: root.to_path_buf(),
-        _tempdir: Some(td),
+        root,
+        _root_dir: Some(td),
         cwd: std::path::PathBuf::from("/"),
         isolate_network: std::cell::Cell::new(true),
     };
@@ -729,10 +792,23 @@ lazy_static::lazy_static! {
 
     // None when no cached image or test tarball is available, so tests can skip
     // gracefully rather than the lazy initializer panicking on first access.
+    //
+    // The session is extracted once and shared by every test in the binary, which
+    // means it has to outlive them all -- and a `lazy_static` is never dropped, so
+    // `RootDir` would never get to remove its root. `drop_test_session` below runs
+    // at process exit to do it.
     static ref TEST_SESSION: std::sync::Mutex<Option<UnshareSession>> = std::sync::Mutex::new({
         let _guard = TEST_ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         create_debian_session_for_testing("sid", false).ok()
     });
+}
+
+/// Drop the shared test session at exit, so its root gets removed.
+#[cfg(test)]
+#[ctor::dtor]
+fn drop_test_session() {
+    let mut guard = TEST_SESSION.lock().unwrap_or_else(|p| p.into_inner());
+    guard.take();
 }
 
 /// A locked, available [`UnshareSession`] for use in tests.
@@ -780,6 +856,83 @@ pub(crate) fn test_session() -> Option<TestSession> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A root populated in a user namespace holds files owned by mapped subuids,
+    /// which the calling user cannot unlink. Dropping the session has to remove
+    /// them anyway; a plain `remove_dir_all` (as `tempfile::TempDir` does) fails
+    /// with EPERM and would leave the whole tree behind.
+    #[test]
+    fn test_drop_removes_subuid_owned_root() {
+        if std::env::var("GITHUB_ACTIONS").is_ok() {
+            return;
+        }
+
+        let td = tempfile::tempdir().unwrap();
+        let root = td.keep();
+
+        // Populate the root the way mmdebstrap does: as root inside a user
+        // namespace, so the files land owned by a subuid on the host.
+        let status = std::process::Command::new("unshare")
+            .arg("--map-auto")
+            .arg("--map-root-user")
+            .arg("--setuid=0")
+            .arg("--setgid=0")
+            .arg("--")
+            .arg("sh")
+            .arg("-c")
+            .arg(format!(
+                "mkdir -p {0}/usr/bin && touch {0}/usr/bin/f && chown -R 1:1 {0}/usr && chmod -R a-w {0}/usr",
+                root.display()
+            ))
+            .status();
+
+        match status {
+            Ok(status) if status.success() => {}
+            // No unshare, or no subuid range configured: nothing to test here.
+            _ => {
+                std::fs::remove_dir_all(&root).ok();
+                return;
+            }
+        }
+
+        // Confirm the setup actually reproduces the condition: the caller must
+        // not be able to remove this tree by itself, or the test proves nothing.
+        assert!(
+            std::fs::remove_dir_all(&root).is_err(),
+            "expected the subuid-owned root to be unremovable by the calling user"
+        );
+
+        std::mem::drop(RootDir(root.clone()));
+
+        assert!(!root.exists(), "session root {} leaked", root.display());
+    }
+
+    /// The root has to be removed even when setup fails partway through, which
+    /// is where a `mmdebstrap` root -- already populated, already subuid-owned --
+    /// used to be abandoned.
+    #[test]
+    fn test_root_removed_when_setup_fails() {
+        let td = RootDir::new().unwrap();
+        let root = td.path().to_path_buf();
+        std::fs::write(root.join("half-extracted"), "x").unwrap();
+
+        std::mem::drop(td);
+
+        assert!(!root.exists(), "session root {} leaked", root.display());
+    }
+
+    #[test]
+    fn test_drop_leaves_unowned_root_alone() {
+        let td = tempfile::tempdir().unwrap();
+        let session = UnshareSession {
+            root: td.path().to_path_buf(),
+            _root_dir: None,
+            cwd: std::path::PathBuf::from("/"),
+            isolate_network: std::cell::Cell::new(true),
+        };
+        std::mem::drop(session);
+        assert!(td.path().exists());
+    }
 
     #[test]
     fn test_is_temporary() {
@@ -1174,7 +1327,7 @@ mod tests {
     fn test_set_isolate_network() {
         let session = UnshareSession {
             root: std::path::PathBuf::from("/fakechroot"),
-            _tempdir: None,
+            _root_dir: None,
             cwd: std::path::PathBuf::from("/"),
             isolate_network: std::cell::Cell::new(true),
         };
@@ -1194,7 +1347,7 @@ mod tests {
     fn test_with_network_restores_isolation() {
         let session = UnshareSession {
             root: std::path::PathBuf::from("/fakechroot"),
-            _tempdir: None,
+            _root_dir: None,
             cwd: std::path::PathBuf::from("/"),
             isolate_network: std::cell::Cell::new(true),
         };
