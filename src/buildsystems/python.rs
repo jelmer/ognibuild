@@ -10,11 +10,9 @@ use crate::dependency::Dependency;
 use crate::dist_catcher::DistCatcher;
 use crate::fix_build::BuildFixer;
 use crate::installer::{Error as InstallerError, InstallationScope, Installer};
-use crate::output::{BinaryOutput, Output, PythonPackageOutput};
+use crate::output::{BinaryOutput, Output, PythonExtensionOutput, PythonPackageOutput};
 use crate::session::Session;
-use pyo3::exceptions::{
-    PyFileNotFoundError, PyImportError, PyModuleNotFoundError, PyRuntimeError, PySystemExit,
-};
+use pyo3::exceptions::{PyFileNotFoundError, PyImportError, PyModuleNotFoundError, PySystemExit};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::Deserialize;
@@ -35,6 +33,8 @@ struct Distribution {
     scripts: Vec<String>,
     packages: Vec<String>,
     entry_points: HashMap<String, Vec<String>>,
+    /// Names of the compiled extension modules declared by `ext_modules`.
+    ext_modules: Vec<String>,
 }
 
 fn load_toml(path: &Path) -> Result<pyproject_toml::PyProjectToml, PyErr> {
@@ -160,6 +160,15 @@ fn load_setup_cfg(path: &Path) -> Result<Option<SetupCfg>, PyErr> {
 //  run_setup, but setting __name__
 // Imported from Python's distutils.core, Copyright (C) PSF
 
+/// run_setup mutates interpreter-global state (distutils.core._setup_stop_after
+/// and ._setup_distribution, sys.argv, and the process working directory), so
+/// concurrent callers would read back each other's results.
+///
+/// Take this before attaching to the interpreter, never while already holding
+/// the GIL: a thread holding the lock has to reacquire the GIL to finish, so
+/// the reverse order deadlocks.
+static RUN_SETUP_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn run_setup(py: Python, script_name: &Path, stop_after: &str) -> PyResult<Py<PyAny>> {
     assert!(
         stop_after == "init"
@@ -180,6 +189,10 @@ fn run_setup(py: Python, script_name: &Path, stop_after: &str) -> PyResult<Py<Py
     };
 
     core.setattr("_setup_stop_after", stop_after)?;
+    // Stale from a previous run otherwise: distutils only ever assigns this,
+    // so without clearing it a setup.py that never calls setup() would appear
+    // to have produced the previous caller's Distribution.
+    core.setattr("_setup_distribution", py.None())?;
 
     let sys = py.import("sys")?;
     let os = py.import("os")?;
@@ -188,7 +201,7 @@ fn run_setup(py: Python, script_name: &Path, stop_after: &str) -> PyResult<Py<Py
 
     let g = PyDict::new(py);
     g.set_item("__file__", script_name)?;
-    g.set_item("__name__", "__main")?;
+    g.set_item("__name__", "__main__")?;
 
     let old_cwd = os.getattr("getcwd")?.call0()?.extract::<String>()?;
     os.call_method1(
@@ -202,7 +215,9 @@ fn run_setup(py: Python, script_name: &Path, stop_after: &str) -> PyResult<Py<Py
     let text = std::fs::read_to_string(script_name)?;
 
     let code = std::ffi::CString::new(text).unwrap();
-    let r = py.eval(&code, Some(&g), None);
+    // run, not eval: a setup.py is a sequence of statements, and eval only
+    // accepts a single expression.
+    let r = py.run(&code, Some(&g), None);
 
     os.call_method1("chdir", (old_cwd,))?;
     sys.setattr("argv", save_argv)?;
@@ -261,7 +276,8 @@ if core._setup_distribution is None:
 
 d = core._setup_distribution
 r = {
-    'name': getattr(d, "name", None) or None,
+    # d.name is the --name display flag, not the metadata; use d.metadata.
+    'name': getattr(d.metadata, "name", None) or None,
     'setup_requires': getattr(d, "setup_requires", []),
     'install_requires': getattr(d, "install_requires", []),
     'tests_require': getattr(d, "tests_require", []) or [],
@@ -269,10 +285,65 @@ r = {
     'entry_points': getattr(d, "entry_points", None) or {},
     'packages': getattr(d, "packages", []) or [],
     'requires': d.get_requires() or [],
+    'ext_modules': [e.name for e in (getattr(d, "ext_modules", None) or [])],
     }
 with open(%(output_path)s, 'w') as f:
     json.dump(r, f)
 """#;
+
+/// Read an optional attribute off a distutils Distribution, treating both a
+/// missing attribute and `None` as absent.
+///
+/// Distribution.__getattr__ falls back to the command-option namespace, so
+/// e.g. `name` resolves to the `--name` display flag (a bool) rather than the
+/// metadata. Anything that does not extract to the expected type is therefore
+/// treated as absent rather than trusted.
+fn attr_or_default<'py, T>(d: &Bound<'py, PyAny>, name: &str) -> T
+where
+    T: for<'a> FromPyObject<'a, 'py> + Default,
+{
+    d.getattr(name)
+        .ok()
+        .and_then(|v| v.extract::<T>().ok())
+        .unwrap_or_default()
+}
+
+fn distribution_from_object(d: &Bound<'_, PyAny>) -> PyResult<Distribution> {
+    // The real name lives on the metadata object; d.name is the display flag.
+    let name: Option<String> = d
+        .getattr("metadata")
+        .ok()
+        .and_then(|m| m.getattr("name").ok())
+        .and_then(|n| n.extract::<Option<String>>().ok())
+        .flatten();
+
+    // ext_modules holds Extension objects, not strings.
+    let ext_modules: Vec<String> = d
+        .getattr("ext_modules")
+        .ok()
+        .and_then(|v| v.extract::<Vec<Bound<PyAny>>>().ok())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|ext| ext.getattr("name").ok()?.extract().ok())
+        .collect();
+
+    let requires: Vec<String> = d
+        .call_method0("get_requires")?
+        .extract()
+        .unwrap_or_default();
+
+    Ok(Distribution {
+        name,
+        setup_requires: attr_or_default(d, "setup_requires"),
+        install_requires: attr_or_default(d, "install_requires"),
+        tests_require: attr_or_default(d, "tests_require"),
+        scripts: attr_or_default(d, "scripts"),
+        entry_points: attr_or_default(d, "entry_points"),
+        packages: attr_or_default(d, "packages"),
+        requires,
+        ext_modules,
+    })
+}
 
 #[derive(Debug)]
 /// A Python setuptools-based build system.
@@ -357,72 +428,29 @@ impl SetupPy {
         None
     }
 
-    fn extract_setup_direct(&self) -> Option<Distribution> {
-        let p = self.path.join("setup.py").canonicalize().unwrap();
+    fn extract_setup_direct(&self) -> Result<Distribution, Error> {
+        let p = self
+            .path
+            .join("setup.py")
+            .canonicalize()
+            .map_err(Error::IoError)?;
+
+        let _guard = RUN_SETUP_LOCK.lock().unwrap_or_else(|e| e.into_inner());
 
         Python::attach(|py| {
-            let d = match run_setup(py, &p, "init") {
-                Err(e) if e.is_instance_of::<PyRuntimeError>(py) => {
-                    log::warn!("Unable to load setup.py metadata: {}", e);
-                    return None;
-                }
-                Ok(d) => d,
-                Err(e) => {
-                    panic!("Unable to load setup.py metadata: {}", e);
-                }
-            };
+            let d = run_setup(py, &p, "init")
+                .map_err(|e| Error::Other(format!("Unable to load setup.py metadata: {}", e)))?
+                .into_bound(py);
 
-            let name: Option<String> = d.getattr(py, "name").unwrap().extract(py).unwrap();
-            let setup_requires: Vec<String> = d
-                .call_method1(py, "get", ("setup_requires", Vec::<String>::new()))
-                .unwrap()
-                .extract(py)
-                .unwrap();
-            let install_requires: Vec<String> = d
-                .call_method1(py, "get", ("install_requires", Vec::<String>::new()))
-                .unwrap()
-                .extract(py)
-                .unwrap();
-            let tests_require: Vec<String> = d
-                .call_method1(py, "get", ("tests_require", Vec::<String>::new()))
-                .unwrap()
-                .extract(py)
-                .unwrap();
-            let scripts: Vec<String> = d
-                .call_method1(py, "get", ("scripts", Vec::<String>::new()))
-                .unwrap()
-                .extract(py)
-                .unwrap();
-            let entry_points: HashMap<String, Vec<String>> = d
-                .call_method1(
-                    py,
-                    "get",
-                    ("entry_points", HashMap::<String, Vec<String>>::new()),
-                )
-                .unwrap()
-                .extract(py)
-                .unwrap();
-            let packages: Vec<String> = d
-                .call_method1(py, "get", ("packages", Vec::<String>::new()))
-                .unwrap()
-                .extract(py)
-                .unwrap();
-            let requires: Vec<String> = d
-                .call_method0(py, "get_requires")
-                .unwrap()
-                .extract(py)
-                .unwrap();
+            if d.is_none() {
+                return Err(Error::Other(format!(
+                    "'distutils.core.setup()' was never called -- perhaps {} is not a Distutils setup script?",
+                    p.display()
+                )));
+            }
 
-            Some(Distribution {
-                name,
-                setup_requires,
-                install_requires,
-                tests_require,
-                scripts,
-                entry_points,
-                packages,
-                requires,
-            })
+            distribution_from_object(&d)
+                .map_err(|e| Error::Other(format!("Unable to read setup.py metadata: {}", e)))
         })
     }
 
@@ -448,7 +476,7 @@ impl SetupPy {
         &self,
         session: &dyn Session,
         fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
-    ) -> Option<Distribution> {
+    ) -> Result<Distribution, Error> {
         let interpreter = self.determine_interpreter();
 
         let mut output_f = tempfile::NamedTempFile::new_in(session.location().join("tmp")).unwrap();
@@ -486,29 +514,33 @@ impl SetupPy {
                 .check_call()
                 .map_err(|e| e.to_string())
         };
-        match r {
-            Ok(_) => (),
-            Err(e) => {
-                log::warn!("Unable to load setup.py metadata: {}", e);
-                return None;
-            }
-        }
-        output_f.seek(std::io::SeekFrom::Start(0)).unwrap();
-        Some(serde_json::from_reader(output_f).unwrap())
+        r.map_err(|e| Error::Other(format!("Unable to load setup.py metadata: {}", e)))?;
+
+        output_f
+            .seek(std::io::SeekFrom::Start(0))
+            .map_err(Error::IoError)?;
+        serde_json::from_reader(output_f)
+            .map_err(|e| Error::Other(format!("Unable to parse setup.py metadata: {}", e)))
     }
 
+    /// Extract the metadata declared by setup.py.
+    ///
+    /// Returns `Ok(None)` when there is no setup.py to read; a setup.py that
+    /// exists but cannot be introspected is an error, not an absence, since
+    /// callers would otherwise mistake a failed extraction for a project that
+    /// declares nothing.
     fn extract_setup(
         &self,
         session: Option<&dyn Session>,
         fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
-    ) -> Option<Distribution> {
+    ) -> Result<Option<Distribution>, Error> {
         if !self.has_setup_py {
-            return None;
+            return Ok(None);
         }
         if let Some(session) = session {
-            self.extract_setup_in_session(session, fixers)
+            self.extract_setup_in_session(session, fixers).map(Some)
         } else {
-            self.extract_setup_direct()
+            self.extract_setup_direct().map(Some)
         }
     }
 
@@ -705,7 +737,7 @@ impl BuildSystem for SetupPy {
         fixers: std::option::Option<&[&dyn BuildFixer<InstallerError>]>,
     ) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error> {
         let mut ret: Vec<(DependencyCategory, Box<dyn Dependency>)> = vec![];
-        let distribution = self.extract_setup(Some(session), fixers);
+        let distribution = self.extract_setup(Some(session), fixers)?;
         if let Some(distribution) = distribution {
             for require in &distribution.requires {
                 ret.push((
@@ -825,7 +857,7 @@ impl BuildSystem for SetupPy {
         fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
     ) -> Result<Vec<Box<dyn Output>>, Error> {
         let mut ret: Vec<Box<dyn Output>> = vec![];
-        let distribution = self.extract_setup(Some(session), fixers);
+        let distribution = self.extract_setup(Some(session), fixers)?;
         let mut all_packages = HashSet::new();
         if let Some(distribution) = distribution {
             for script in &distribution.scripts {
@@ -846,6 +878,9 @@ impl BuildSystem for SetupPy {
                 ret.push(Box::new(BinaryOutput(
                     script.split_once('=').unwrap().0.to_string().to_owned(),
                 )));
+            }
+            for ext_module in &distribution.ext_modules {
+                ret.push(Box::new(PythonExtensionOutput::new(ext_module)));
             }
             all_packages.extend(distribution.packages);
         }
@@ -911,6 +946,14 @@ mod tests {
     use std::fs;
     use tempfile::tempdir;
 
+    /// Whether setuptools can be imported. Tests that introspect a setup.py
+    /// depend on it and are skipped when it is unavailable (e.g. on a minimal
+    /// CI Python without setuptools bundled).
+    fn setuptools_available() -> bool {
+        pyo3::Python::initialize();
+        Python::attach(|py| py.import("setuptools").is_ok())
+    }
+
     #[test]
     fn test_python_project_without_pyproject_toml() {
         pyo3::Python::initialize();
@@ -929,6 +972,92 @@ mod tests {
         let setup_py = SetupPy::new(path);
         assert!(setup_py.has_setup_py);
         assert!(setup_py.pyproject.is_none());
+    }
+
+    #[test]
+    fn test_extract_setup_ext_modules() {
+        if !setuptools_available() {
+            return;
+        }
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+
+        fs::write(
+            path.join("setup.py"),
+            r#"from setuptools import setup, Extension
+setup(
+    name='test',
+    packages=['test'],
+    install_requires=['requests'],
+    ext_modules=[Extension('test._speedups', ['src/_speedups.c'])],
+)
+"#,
+        )
+        .unwrap();
+
+        let setup_py = SetupPy::new(path);
+        let distribution = setup_py.extract_setup_direct().unwrap();
+        assert_eq!(distribution.name, Some("test".to_string()));
+        assert_eq!(distribution.packages, vec!["test".to_string()]);
+        assert_eq!(distribution.install_requires, vec!["requests".to_string()]);
+        assert_eq!(distribution.ext_modules, vec!["test._speedups".to_string()]);
+    }
+
+    #[test]
+    fn test_extract_setup_without_ext_modules() {
+        if !setuptools_available() {
+            return;
+        }
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+
+        fs::write(
+            path.join("setup.py"),
+            "from setuptools import setup\nsetup(name='test')\n",
+        )
+        .unwrap();
+
+        let setup_py = SetupPy::new(path);
+        let distribution = setup_py.extract_setup_direct().unwrap();
+        assert_eq!(distribution.name, Some("test".to_string()));
+        assert_eq!(distribution.ext_modules, Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_extract_setup_direct_not_a_setup_script() {
+        pyo3::Python::initialize();
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+
+        fs::write(path.join("setup.py"), "print('not a setup script')\n").unwrap();
+
+        // A setup.py that never calls setup() is a failure to introspect, not a
+        // project that declares nothing.
+        let setup_py = SetupPy::new(path);
+        assert!(setup_py.extract_setup_direct().is_err());
+    }
+
+    #[test]
+    fn test_extract_setup_direct_under_main_guard() {
+        if !setuptools_available() {
+            return;
+        }
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+
+        fs::write(
+            path.join("setup.py"),
+            "from setuptools import setup\nif __name__ == '__main__':\n    setup(name='guarded')\n",
+        )
+        .unwrap();
+
+        let setup_py = SetupPy::new(path);
+        let distribution = setup_py.extract_setup_direct().unwrap();
+        assert_eq!(distribution.name, Some("guarded".to_string()));
     }
 
     #[test]
