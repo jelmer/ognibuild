@@ -946,6 +946,14 @@ mod tests {
     use std::fs;
     use tempfile::tempdir;
 
+    /// Whether setuptools can be imported. Tests that introspect a setup.py
+    /// depend on it and are skipped when it is unavailable (e.g. on a minimal
+    /// CI Python without setuptools bundled).
+    fn setuptools_available() -> bool {
+        pyo3::Python::initialize();
+        Python::attach(|py| py.import("setuptools").is_ok())
+    }
+
     #[test]
     fn test_python_project_without_pyproject_toml() {
         pyo3::Python::initialize();
@@ -968,7 +976,9 @@ mod tests {
 
     #[test]
     fn test_extract_setup_ext_modules() {
-        pyo3::Python::initialize();
+        if !setuptools_available() {
+            return;
+        }
 
         let temp_dir = tempdir().unwrap();
         let path = temp_dir.path();
@@ -996,7 +1006,9 @@ setup(
 
     #[test]
     fn test_extract_setup_without_ext_modules() {
-        pyo3::Python::initialize();
+        if !setuptools_available() {
+            return;
+        }
 
         let temp_dir = tempdir().unwrap();
         let path = temp_dir.path();
@@ -1030,7 +1042,9 @@ setup(
 
     #[test]
     fn test_extract_setup_direct_under_main_guard() {
-        pyo3::Python::initialize();
+        if !setuptools_available() {
+            return;
+        }
 
         let temp_dir = tempdir().unwrap();
         let path = temp_dir.path();
