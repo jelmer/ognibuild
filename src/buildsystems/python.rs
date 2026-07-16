@@ -233,23 +233,15 @@ fn run_setup(py: Python, script_name: &Path, stop_after: &str) -> PyResult<Py<Py
 }
 
 const SETUP_WRAPPER: &str = r#"""
-try:
-    import setuptools
-except ImportError:
-    pass
+# setuptools is what a setup.py imports, and on Python 3.12+ it is also what
+# provides distutils (removed from the stdlib). Let the ImportError bubble up
+# rather than swallowing it: a session missing setuptools would otherwise yield
+# empty metadata that looks like a project declaring nothing, and the caller's
+# build fixers can install setuptools once the failure names it.
+import setuptools
+from distutils import core
 import os
 import json
-
-# distutils was removed from the standard library in Python 3.12+. It is only
-# needed to introspect setup.py metadata, which is best-effort, so if it is
-# unavailable skip extraction and emit empty metadata rather than failing.
-try:
-    from distutils import core
-except ImportError:
-    with open(%(output_path)s, 'w') as f:
-        json.dump({}, f)
-    raise SystemExit(0)
-
 import sys
 script_name = "%(script_name)s"
 os.chdir(os.path.dirname(script_name))
@@ -1023,6 +1015,21 @@ setup(
         let distribution = setup_py.extract_setup_direct().unwrap();
         assert_eq!(distribution.name, Some("test".to_string()));
         assert_eq!(distribution.ext_modules, Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_setup_wrapper_does_not_swallow_missing_setuptools() {
+        // A session without setuptools must surface the ImportError so the
+        // caller's fixers can install it, rather than emitting empty metadata
+        // that looks like a project declaring nothing. Both are guarded against
+        // reintroduction: the imports must be unguarded, and there must be no
+        // empty-metadata escape hatch.
+        assert!(!SETUP_WRAPPER.contains("except ImportError"));
+        assert!(!SETUP_WRAPPER.contains("json.dump({}"));
+        // The imports the extraction depends on run at top level, not inside a
+        // try that could swallow their failure.
+        assert!(SETUP_WRAPPER.contains("\nimport setuptools\n"));
+        assert!(SETUP_WRAPPER.contains("\nfrom distutils import core\n"));
     }
 
     #[test]
