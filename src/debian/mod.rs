@@ -80,16 +80,9 @@ pub fn satisfy_build_deps_from_control(
     let apt_mgr = apt::AptManager::new(session, None);
     let deps = build_dep_entries(&control);
 
-    // apt needs the network to fetch the packages; download them with network
-    // access enabled, then install from the local cache under whatever network
-    // policy the session is configured with.
-    crate::session::with_network(session, || {
-        apt_mgr.satisfy_phase(deps.clone(), apt::SatisfyPhase::Download)
-    })
-    .map_err(|e| format!("Failed to download build dependencies: {:?}", e))?;
     apt_mgr
-        .satisfy_phase(deps, apt::SatisfyPhase::Install)
-        .map_err(|e| format!("Failed to install build dependencies: {:?}", e))?;
+        .satisfy(deps)
+        .map_err(|e| format!("Failed to satisfy build dependencies: {:?}", e))?;
     Ok(())
 }
 

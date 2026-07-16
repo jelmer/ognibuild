@@ -249,13 +249,21 @@ impl<'a> AptManager<'a> {
 
     /// Satisfy package dependencies using APT.
     ///
+    /// Fetching needs the network, which a session may be isolated from, so the
+    /// download runs with access enabled and the install then works from the
+    /// local cache under whatever policy the session is configured with. Use
+    /// [`Self::satisfy_phase`] to drive the phases individually.
+    ///
     /// # Arguments
     /// * `deps` - List of dependencies to satisfy (required or conflicts)
     ///
     /// # Returns
     /// Ok on success, Error if dependencies cannot be satisfied
     pub fn satisfy(&self, deps: Vec<SatisfyEntry>) -> Result<(), Error> {
-        self.satisfy_phase(deps, SatisfyPhase::Both)
+        crate::session::with_network(self.session, || {
+            self.satisfy_phase(deps.clone(), SatisfyPhase::Download)
+        })?;
+        self.satisfy_phase(deps, SatisfyPhase::Install)
     }
 
     /// Satisfy package dependencies using APT, running only the given phase.
