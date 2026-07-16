@@ -94,30 +94,40 @@ fn compression_flag(path: &Path) -> Result<Option<&str>, crate::session::Error> 
     }
 }
 
-/// Ensure the session root has a usable `/dev/shm`.
+/// Enter the session root with a working `/dev`, then exec the command.
 ///
-/// minbase roots ship without `/dev/shm`, but scip-clang needs it for its
-/// driver/worker shared-memory IPC. Each command runs in a fresh mount
-/// namespace mapped as the calling (non-root) user, which holds no
-/// CAP_SYS_ADMIN, so an in-namespace `mount -t tmpfs` is not possible. The root
-/// is a real directory tree on the host, though, and POSIX `shm_open` is
-/// satisfied by a plain writable `/dev/shm` directory, so create one (mode 1777,
-/// matching the usual tmpfs permissions).
-fn ensure_dev_shm(root: &Path) -> Result<(), crate::session::Error> {
-    use std::os::unix::fs::PermissionsExt;
-
-    let shm = root.join("dev").join("shm");
-    std::fs::create_dir_all(&shm).map_err(|e| {
-        crate::session::Error::SetupFailure("Failed to create /dev/shm".to_string(), e.to_string())
-    })?;
-    std::fs::set_permissions(&shm, std::fs::Permissions::from_mode(0o1777)).map_err(|e| {
-        crate::session::Error::SetupFailure(
-            "Failed to set /dev/shm permissions".to_string(),
-            e.to_string(),
-        )
-    })?;
-    Ok(())
-}
+/// A tarball cannot carry device nodes (creating them needs CAP_MKNOD, which an
+/// unprivileged extraction does not have, and which the kernel forbids in a user
+/// namespace regardless), so the root's `/dev` holds at best plain files. apt,
+/// among others, needs a real `/dev/null`, and fails in ways that look like
+/// network timeouts when it cannot open one.
+///
+/// mknod being out, the host's nodes are bind-mounted in instead. Only the
+/// handful a build environment expects are bound, rather than the whole host
+/// `/dev` -- no reason to expose its disks, loop devices or `/dev/mem` to a
+/// build. `/dev/shm` comes from the host too, so shared memory is real tmpfs and
+/// not just a writable directory. This has to happen before entering the root,
+/// since the host's devices are unreachable by path afterwards, so the binds are
+/// done here and a nested `unshare --root` then enters the root to run the
+/// command.
+///
+/// $1 is the root, $2 the working directory, and the rest the command. They are
+/// passed as arguments rather than interpolated so a command containing spaces
+/// or shell metacharacters survives intact.
+const DEV_SETUP: &str = r#"
+set -e
+root="$1"
+wd="$2"
+shift 2
+for node in null zero full random urandom tty; do
+    [ -e "/dev/$node" ] || continue
+    : > "$root/dev/$node"
+    mount --bind "/dev/$node" "$root/dev/$node"
+done
+mkdir -p "$root/dev/shm"
+mount --rbind /dev/shm "$root/dev/shm"
+exec unshare --root="$root" --wd="$wd" -- "$@"
+"#;
 
 /// Get the path to a cached Debian tarball if it exists
 ///
@@ -227,8 +237,6 @@ impl UnshareSession {
                 stderr,
             ));
         }
-
-        ensure_dev_shm(root)?;
 
         let root = root.to_path_buf();
         let s = Self {
@@ -359,43 +367,55 @@ impl UnshareSession {
     }
 
     /// Run a command in the session
-    pub fn run_argv<'a>(
-        &'a self,
-        argv: Vec<&'a str>,
-        cwd: Option<&'a std::path::Path>,
-        user: Option<&'a str>,
-    ) -> std::vec::Vec<&'a str> {
-        let mut ret = vec![
+    pub fn run_argv(
+        &self,
+        argv: Vec<&str>,
+        cwd: Option<&std::path::Path>,
+        user: Option<&str>,
+    ) -> std::vec::Vec<String> {
+        let mut ret: Vec<String> = [
             "unshare",
             "--map-users=auto",
             "--map-groups=auto",
             "--fork",
             "--pid",
             "--mount-proc",
-        ];
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
         if self.isolate_network.get() {
-            ret.push("--net");
+            ret.push("--net".to_string());
         }
+        // Always map root, which DEV_SETUP needs in order to mount. Root inside
+        // the namespace is the calling user outside it, so files a command
+        // creates still belong to the caller on the host -- which the host-side
+        // copy in project_from_directory, and cleanup, both rely on.
+        ret.extend(
+            ["--uts", "--ipc", "--map-root-user"]
+                .iter()
+                .map(|s| s.to_string()),
+        );
+        ret.push("--".to_string());
         ret.extend([
-            "--uts",
-            "--ipc",
-            "--root",
-            self.root.to_str().unwrap(),
-            "--wd",
-            cwd.unwrap_or(&self.cwd).to_str().unwrap(),
+            "/bin/sh".to_string(),
+            "-c".to_string(),
+            DEV_SETUP.to_string(),
+            // $0 for the shell; DEV_SETUP takes the root and the cwd as $1 and $2.
+            "unshare-session".to_string(),
+            self.root.to_str().unwrap().to_string(),
+            cwd.unwrap_or(&self.cwd).to_str().unwrap().to_string(),
         ]);
-        if let Some(user) = user {
-            if user == "root" {
-                ret.push("--map-root-user")
-            } else {
-                ret.push("--map-user");
-                ret.push(user);
-            }
-        } else {
-            ret.push("--map-current-user")
+        // Only a user other than root needs dropping to; root is what the
+        // namespace already maps to.
+        if let Some(user) = user.filter(|u| *u != "root") {
+            ret.extend([
+                "/usr/bin/setpriv".to_string(),
+                format!("--reuid={}", user),
+                "--init-groups".to_string(),
+            ]);
         }
-        ret.push("--");
-        ret.extend(argv);
+        ret.extend(argv.into_iter().map(|s| s.to_string()));
         ret
     }
 
@@ -551,8 +571,6 @@ pub fn bootstrap_debian_tarball(
         ));
     }
 
-    ensure_dev_shm(root)?;
-
     let root = root.to_path_buf();
     let s = UnshareSession {
         root,
@@ -603,7 +621,7 @@ impl Session for UnshareSession {
     ) -> Result<Vec<u8>, super::Error> {
         let argv = self.run_argv(argv, cwd, user);
 
-        let output = std::process::Command::new(argv[0])
+        let output = std::process::Command::new(&argv[0])
             .args(&argv[1..])
             .stderr(std::process::Stdio::inherit())
             .envs(env.unwrap_or_default())
@@ -634,7 +652,7 @@ impl Session for UnshareSession {
     ) -> Result<(), crate::session::Error> {
         let argv = self.run_argv(argv, cwd, user);
 
-        let status = std::process::Command::new(argv[0])
+        let status = std::process::Command::new(&argv[0])
             .args(&argv[1..])
             .envs(env.unwrap_or_default())
             .status();
@@ -712,7 +730,7 @@ impl Session for UnshareSession {
     ) -> Result<std::process::Child, Error> {
         let argv = self.run_argv(argv, cwd, user);
 
-        let mut binding = std::process::Command::new(argv[0]);
+        let mut binding = std::process::Command::new(&argv[0]);
         let mut cmd = binding.args(&argv[1..]);
 
         if let Some(env) = env {
@@ -1013,6 +1031,57 @@ mod tests {
             )
             .unwrap()
             .trim_end()
+        );
+    }
+
+    #[test]
+    fn test_missing_command_is_recognisable() {
+        let session = if let Some(session) = test_session() {
+            session
+        } else {
+            return;
+        };
+        // The build fixers only install a missing command if the failure is
+        // phrased in a way buildlog-consultant recognises, so the wording of the
+        // shim that execs the command matters.
+        let err = crate::analyze::run_detecting_problems(
+            &*session,
+            vec!["definitely-not-a-real-command"],
+            None,
+            true,
+            Some(std::path::Path::new("/")),
+            None,
+            None,
+            None,
+        )
+        .unwrap_err();
+
+        let crate::analyze::AnalyzedError::Detailed { error, .. } = err else {
+            panic!("missing command not identified: {:?}", err);
+        };
+        assert_eq!(error.kind(), "command-missing");
+    }
+
+    #[test]
+    fn test_dev_nodes_are_devices() {
+        let session = if let Some(session) = test_session() {
+            session
+        } else {
+            return;
+        };
+        // A tarball cannot carry device nodes, so an unpacked root has at best a
+        // regular file here. apt needs a real one, and fails obscurely without it.
+        let out = session
+            .check_output(
+                vec!["stat", "-c", "%F", "/dev/null", "/dev/urandom"],
+                Some(std::path::Path::new("/")),
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(
+            String::from_utf8(out).unwrap(),
+            "character special file\ncharacter special file\n"
         );
     }
 
@@ -1332,15 +1401,15 @@ mod tests {
             isolate_network: std::cell::Cell::new(true),
         };
         let argv = session.run_argv(vec!["true"], Some(std::path::Path::new("/")), None);
-        assert!(argv.contains(&"--net"));
+        assert!(argv.iter().any(|a| a == "--net"));
 
         session.set_isolate_network(false);
         let argv = session.run_argv(vec!["true"], Some(std::path::Path::new("/")), None);
-        assert!(!argv.contains(&"--net"));
+        assert!(!argv.iter().any(|a| a == "--net"));
 
         session.set_isolate_network(true);
         let argv = session.run_argv(vec!["true"], Some(std::path::Path::new("/")), None);
-        assert!(argv.contains(&"--net"));
+        assert!(argv.iter().any(|a| a == "--net"));
     }
 
     #[test]
