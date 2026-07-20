@@ -176,8 +176,8 @@ impl Make {
     ///
     /// Autotools source trees ship only `configure.ac`/`Makefile.am` and have no
     /// `Makefile` until configured, so a bare `make` fails. Callers that drive
-    /// `make` directly (e.g. the SCIP indexer wrapping it in `bear`) use this to
-    /// prepare the tree first. No-op once a Makefile is present.
+    /// `make` directly use this to prepare the tree first. No-op once a Makefile
+    /// is present.
     pub fn configure(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         self.setup(session, installer, None)
     }
@@ -685,8 +685,8 @@ check:
     }
 
     /// An autotools tree (configure.ac, no Makefile) is detected as Autoconf.
-    /// This is the case the SCIP indexer must configure before running `make`;
-    /// before that fix a bare `make` failed with "no makefile found".
+    /// It must be configured before running `make`; before that fix a bare
+    /// `make` failed with "no makefile found".
     #[test]
     fn test_configure_ac_detected_as_autoconf() {
         let td = tempfile::tempdir().unwrap();

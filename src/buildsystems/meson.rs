@@ -107,19 +107,6 @@ struct MesonTarget {
     r#type: String,
     installed: bool,
     filename: Vec<PathBuf>,
-    #[serde(default)]
-    target_sources: Vec<MesonTargetSource>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct MesonTargetSource {
-    // Some target_sources entries (e.g. extra files) carry no `language` key.
-    #[serde(default)]
-    language: Option<String>,
-    #[serde(default)]
-    parameters: Vec<String>,
-    #[serde(default)]
-    sources: Vec<PathBuf>,
 }
 
 /// Build a dependency from a meson `dependency()` call.
@@ -312,57 +299,6 @@ impl Meson {
             None
         }
     }
-
-    /// Source files and external packages for indexing a Vala project.
-    ///
-    /// Returns the project's `.vala` source files and the vapi packages they
-    /// resolve against (the `--pkg` flags Meson passes to `valac`), gathered
-    /// from `meson introspect --targets`. Empty source list means the project
-    /// has no Vala targets. Used by the SCIP indexer, which drives `scip-vala`
-    /// with an explicit source list and `--pkg` flags.
-    pub fn vala_index_info(
-        &self,
-        session: &dyn Session,
-        fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
-    ) -> Result<ValaIndexInfo, InstallerError> {
-        let targets = self.introspect::<Vec<MesonTarget>>(session, fixers, &["--targets"])?;
-        let mut sources = Vec::new();
-        let mut packages = Vec::new();
-        for target in &targets {
-            for ts in &target.target_sources {
-                if ts.language.as_deref() != Some("vala") {
-                    continue;
-                }
-                sources.extend(ts.sources.iter().cloned());
-                // valac takes the vapi to resolve against as `--pkg NAME`; pull
-                // those NAMEs out of the resolved compiler parameters.
-                let mut params = ts.parameters.iter();
-                while let Some(param) = params.next() {
-                    if param == "--pkg" {
-                        if let Some(pkg) = params.next() {
-                            packages.push(pkg.clone());
-                        }
-                    } else if let Some(pkg) = param.strip_prefix("--pkg=") {
-                        packages.push(pkg.to_string());
-                    }
-                }
-            }
-        }
-        sources.sort();
-        sources.dedup();
-        packages.sort();
-        packages.dedup();
-        Ok(ValaIndexInfo { sources, packages })
-    }
-}
-
-/// Vala sources and the vapi packages they resolve against, from Meson.
-#[derive(Debug, PartialEq, Eq)]
-pub struct ValaIndexInfo {
-    /// The project's `.vala` source files.
-    pub sources: Vec<PathBuf>,
-    /// vapi package names to resolve references against (scip-vala `--pkg`).
-    pub packages: Vec<String>,
 }
 
 impl BuildSystem for Meson {
@@ -1193,63 +1129,6 @@ static_library('helper',
                 );
 
                 log::debug!("Got acceptable error: {}", error_str);
-            }
-        }
-    }
-
-    #[test]
-    fn test_meson_vala_index_info() {
-        let temp_dir = TempDir::new().unwrap();
-        let project_dir = temp_dir.path().join("vala-test");
-        fs::create_dir_all(project_dir.join("src")).unwrap();
-
-        fs::write(
-            project_dir.join("meson.build"),
-            r#"project('vala-test', 'vala', 'c')
-glib_dep = dependency('glib-2.0')
-gobject_dep = dependency('gobject-2.0')
-executable('demo',
-  'src/main.vala',
-  'src/util.vala',
-  dependencies : [glib_dep, gobject_dep])
-"#,
-        )
-        .unwrap();
-        fs::write(project_dir.join("src/main.vala"), "void main() {}\n").unwrap();
-        fs::write(
-            project_dir.join("src/util.vala"),
-            "int util() { return 0; }\n",
-        )
-        .unwrap();
-
-        let mut session = PlainSession::new();
-        session.chdir(temp_dir.path()).unwrap();
-
-        let meson = Meson::new(&project_dir.join("meson.build"));
-        match meson.vala_index_info(&session, None) {
-            Ok(info) => {
-                // Configuring needs meson and valac; when both are present the
-                // two .vala sources and their glib/gobject vapis come back.
-                let names: Vec<_> = info
-                    .sources
-                    .iter()
-                    .map(|p| p.file_name().unwrap().to_str().unwrap())
-                    .collect();
-                assert_eq!(names, vec!["main.vala", "util.vala"]);
-                assert!(
-                    info.packages.contains(&"glib-2.0".to_string()),
-                    "expected glib-2.0 in {:?}",
-                    info.packages
-                );
-                assert!(
-                    info.packages.contains(&"gobject-2.0".to_string()),
-                    "expected gobject-2.0 in {:?}",
-                    info.packages
-                );
-            }
-            Err(e) => {
-                // meson or valac missing: tolerate, like the other meson tests.
-                log::debug!("Skipping vala_index_info assertions: {}", e);
             }
         }
     }

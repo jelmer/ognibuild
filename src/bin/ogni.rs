@@ -53,17 +53,17 @@ fn is_network_disabled() -> bool {
 #[derive(Parser)]
 struct ExecArgs {
     /// Before running the command, install the Debian source package's
-    /// Build-Depends (from debian/control) via apt, as for "scip". Lets the
-    /// command run with the build environment present without ognibuild's own
-    /// build-system dependency detection.
+    /// Build-Depends (from debian/control) via apt. Lets the command run with
+    /// the build environment present without ognibuild's own build-system
+    /// dependency detection.
     #[clap(long)]
     apt_build_deps: bool,
 
     /// After the command, copy a file produced inside the session out to the
     /// host, given as "SESSION_PATH:HOST_PATH" (repeatable). A relative
     /// SESSION_PATH is taken relative to the session's working directory. Useful
-    /// for retrieving output (e.g. a SCIP index) from a session that is
-    /// otherwise isolated from the host filesystem.
+    /// for retrieving output from a session that is otherwise isolated from the
+    /// host filesystem.
     #[clap(long = "copy-out", value_name = "SESSION_PATH:HOST_PATH")]
     copy_out: Vec<String>,
 
@@ -75,39 +75,6 @@ struct ExecArgs {
 struct InstallArgs {
     #[clap(long)]
     prefix: Option<PathBuf>,
-}
-
-#[derive(Parser)]
-struct ScipArgs {
-    /// Path to write a single combined SCIP index file to
-    #[clap(long, short, conflicts_with = "output_all")]
-    output: Option<PathBuf>,
-
-    /// Directory to write one SCIP index file per build system into,
-    /// each named after the indexed language (e.g. python.scip)
-    #[clap(long)]
-    output_all: Option<PathBuf>,
-
-    /// Before indexing, install the Debian source package's Build-Depends
-    /// (from debian/control) via apt. These resolve to concrete packages,
-    /// unlike the build system's own declared dependencies, so indexers that
-    /// need the build environment present (e.g. scip-python reading setup.py
-    /// metadata) work. Requires a session where apt can install packages.
-    #[clap(long)]
-    apt_build_deps: bool,
-
-    /// Isolate the session from the network while indexing. Indexing normally
-    /// needs the network (e.g. to install build dependencies), so it is
-    /// allowed by default; pass this to cut it off.
-    #[clap(long)]
-    offline: bool,
-}
-
-#[derive(Parser)]
-struct LsifArgs {
-    /// Path to write the LSIF index file to
-    #[clap(long, short, default_value = "dump.lsif")]
-    output: PathBuf,
 }
 
 #[derive(Parser)]
@@ -125,7 +92,7 @@ struct CacheEnvArgs {
     update: bool,
 
     /// Additional packages to install into the cached image (repeatable or
-    /// comma-separated), e.g. to provide tools the indexers need in-session.
+    /// comma-separated), e.g. to provide tools needed in-session.
     #[clap(long = "include", value_delimiter = ',')]
     include: Vec<String>,
 }
@@ -159,12 +126,6 @@ enum Command {
     #[clap(name = "cache-env")]
     /// Cache a Debian cloud image for use with UnshareSession
     CacheEnv(CacheEnvArgs),
-    #[clap(name = "scip")]
-    /// Generate a SCIP index file for the project
-    Scip(ScipArgs),
-    #[clap(name = "lsif")]
-    /// Generate an LSIF index file for the project
-    Lsif(LsifArgs),
 }
 
 #[derive(Parser)]
@@ -302,7 +263,7 @@ fn install_necessary_declared_dependencies(
 }
 
 /// Install the source package's Debian Build-Depends (from debian/control) via
-/// apt, shared by the `scip` and `exec` `--apt-build-deps` options.
+/// apt, for the `exec` `--apt-build-deps` option.
 fn install_apt_build_deps(
     #[allow(unused_variables)] session: &dyn Session,
     #[allow(unused_variables)] external_dir: &Path,
@@ -391,16 +352,7 @@ fn run_action(
     }
     let mut log_manager = ognibuild::logs::NoLogManager;
     let bss = detect_buildsystems(external_dir);
-    // "scip --apt-build-deps" installs the Debian source package's Build-Depends
-    // from debian/control, which are then the authoritative set. Installing the
-    // build systems' own declared dependencies on top is redundant and can fail
-    // for reasons irrelevant to indexing (e.g. a JS build system pulling in
-    // puppeteer, which downloads a browser), so skip that step in this case.
-    let apt_build_deps = matches!(
-        args.command.as_ref(),
-        Some(Command::Scip(scip_args)) if scip_args.apt_build_deps
-    );
-    if !args.ignore_declared_dependencies && !apt_build_deps {
+    if !args.ignore_declared_dependencies {
         let categories = match args.command.as_ref().unwrap() {
             Command::Dist => vec![],
             Command::Build => vec![DependencyCategory::Universal, DependencyCategory::Build],
@@ -419,8 +371,6 @@ fn run_action(
             ],
             Command::Exec(_) => vec![],
             Command::CacheEnv(_) => return Ok(()), // No dependencies needed
-            Command::Scip(_) => vec![DependencyCategory::Universal, DependencyCategory::Build],
-            Command::Lsif(_) => vec![DependencyCategory::Universal, DependencyCategory::Build],
         };
         if !categories.is_empty() {
             log::info!("Checking that declared dependencies are present");
@@ -471,45 +421,6 @@ fn run_action(
     match args.command.as_ref().unwrap() {
         Command::Exec(..) => unreachable!(),
         Command::CacheEnv(..) => unreachable!(),
-        Command::Scip(scip_args) => {
-            if scip_args.apt_build_deps {
-                install_apt_build_deps(session, external_dir)?;
-            }
-            let bss = bss.iter().map(|bs| bs.as_ref()).collect::<Vec<_>>();
-            if let Some(output_dir) = scip_args.output_all.as_ref() {
-                ognibuild::actions::scip::run_scip_multi(
-                    session,
-                    bss.as_slice(),
-                    installer,
-                    fixers,
-                    output_dir.as_path(),
-                )?;
-            } else {
-                let output = scip_args
-                    .output
-                    .clone()
-                    .unwrap_or_else(|| PathBuf::from("index.scip"));
-                ognibuild::actions::scip::run_scip(
-                    session,
-                    bss.as_slice(),
-                    installer,
-                    fixers,
-                    output.as_path(),
-                )?;
-            }
-        }
-        Command::Lsif(lsif_args) => {
-            ognibuild::actions::lsif::run_lsif(
-                session,
-                bss.iter()
-                    .map(|bs| bs.as_ref())
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-                installer,
-                fixers,
-                lsif_args.output.as_path(),
-            )?;
-        }
         Command::Dist => {
             ognibuild::actions::dist::run_dist(
                 session,
@@ -673,13 +584,6 @@ fn main() -> Result<(), i32> {
         eprintln!("Error: Failed to set up session: {}", e);
         1
     })?;
-
-    // Indexing needs the network (to install build dependencies), so allow it
-    // unless explicitly asked to stay offline. Only sessions that isolate the
-    // network (unshare) act on this.
-    if let Some(Command::Scip(scip_args)) = args.command.as_ref() {
-        session.set_isolate_network(scip_args.offline);
-    }
 
     #[cfg(feature = "breezy")]
     if let Err(e) = breezyshim::try_init() {

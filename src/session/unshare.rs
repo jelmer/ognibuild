@@ -1092,8 +1092,8 @@ mod tests {
         } else {
             return;
         };
-        // scip-clang relies on a writable /dev/shm as the calling user; verify a
-        // command run without an explicit user can create a file there.
+        // Some build tools rely on a writable /dev/shm as the calling user;
+        // verify a command run without an explicit user can create a file there.
         session
             .check_call(
                 vec!["touch", "/dev/shm/ognibuild-test"],
