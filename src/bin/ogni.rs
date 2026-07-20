@@ -78,13 +78,6 @@ struct InstallArgs {
 }
 
 #[derive(Parser)]
-struct LsifArgs {
-    /// Path to write the LSIF index file to
-    #[clap(long, short, default_value = "dump.lsif")]
-    output: PathBuf,
-}
-
-#[derive(Parser)]
 struct CacheEnvArgs {
     /// Debian suite to cache (e.g., "sid", "bookworm", "stable")
     #[clap(default_value = "sid")]
@@ -99,7 +92,7 @@ struct CacheEnvArgs {
     update: bool,
 
     /// Additional packages to install into the cached image (repeatable or
-    /// comma-separated), e.g. to provide tools the indexers need in-session.
+    /// comma-separated), e.g. to provide tools needed in-session.
     #[clap(long = "include", value_delimiter = ',')]
     include: Vec<String>,
 }
@@ -133,9 +126,6 @@ enum Command {
     #[clap(name = "cache-env")]
     /// Cache a Debian cloud image for use with UnshareSession
     CacheEnv(CacheEnvArgs),
-    #[clap(name = "lsif")]
-    /// Generate an LSIF index file for the project
-    Lsif(LsifArgs),
 }
 
 #[derive(Parser)]
@@ -381,7 +371,6 @@ fn run_action(
             ],
             Command::Exec(_) => vec![],
             Command::CacheEnv(_) => return Ok(()), // No dependencies needed
-            Command::Lsif(_) => vec![DependencyCategory::Universal, DependencyCategory::Build],
         };
         if !categories.is_empty() {
             log::info!("Checking that declared dependencies are present");
@@ -432,18 +421,6 @@ fn run_action(
     match args.command.as_ref().unwrap() {
         Command::Exec(..) => unreachable!(),
         Command::CacheEnv(..) => unreachable!(),
-        Command::Lsif(lsif_args) => {
-            ognibuild::actions::lsif::run_lsif(
-                session,
-                bss.iter()
-                    .map(|bs| bs.as_ref())
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-                installer,
-                fixers,
-                lsif_args.output.as_path(),
-            )?;
-        }
         Command::Dist => {
             ognibuild::actions::dist::run_dist(
                 session,
