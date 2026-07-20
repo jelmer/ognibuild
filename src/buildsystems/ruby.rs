@@ -20,8 +20,8 @@ pub struct Gem {
 /// A packaged `.gem` is the original signal, but Debian source packages (and
 /// upstream source trees generally) ship the unpacked sources instead: a
 /// `*.gemspec` and/or a `Gemfile` at the root, with the library under `lib/`.
-/// Detecting those lets the SCIP indexer run on source trees that never carry a
-/// built `.gem`.
+/// Detecting those lets ognibuild handle source trees that never carry a built
+/// `.gem`.
 fn has_gem_markers(path: &Path) -> bool {
     let entries = match std::fs::read_dir(path) {
         Ok(entries) => entries,

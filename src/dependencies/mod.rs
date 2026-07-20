@@ -1267,28 +1267,12 @@ impl crate::upstream::FindUpstream for RubyGemDependency {
     }
 }
 
-/// Map a binary command to the Ruby gem that provides it.
-///
-/// Some indexers and tools ship as gems whose executable name differs from
-/// nothing useful in apt; resolving them via RubyGems lets ognibuild install
-/// them into the session itself, the same way [`node::command_package`] handles
-/// npm-distributed tools.
-fn gem_command_package(command: &str) -> Option<&'static str> {
-    match command {
-        "scip-ruby" => Some("scip-ruby"),
-        _ => None,
-    }
-}
-
 /// Resolve a dependency to the Ruby gem that provides it, if any.
 fn to_ruby_gem_req(requirement: &dyn Dependency) -> Option<RubyGemDependency> {
-    if let Some(requirement) = requirement.as_any().downcast_ref::<RubyGemDependency>() {
-        Some(requirement.clone())
-    } else if let Some(requirement) = requirement.as_any().downcast_ref::<BinaryDependency>() {
-        gem_command_package(&requirement.binary_name).map(RubyGemDependency::simple)
-    } else {
-        None
-    }
+    requirement
+        .as_any()
+        .downcast_ref::<RubyGemDependency>()
+        .cloned()
 }
 
 /// A resolver that installs Ruby gems via the `gem` command.
@@ -1357,29 +1341,12 @@ impl crate::installer::Installer for GemResolver<'_> {
     }
 }
 
-/// Map a binary command to the crate that provides it.
-///
-/// Some tools ship only as a crate on crates.io with no apt/npm/gem package;
-/// resolving them via `cargo install` lets ognibuild install them into the
-/// session itself, the same way [`gem_command_package`] and
-/// [`node::command_package`] handle gem- and npm-distributed tools.
-fn cargo_command_package(command: &str) -> Option<&'static str> {
-    match command {
-        "scip-perl" => Some("scip-perl"),
-        "scip-vala" => Some("scip-vala"),
-        _ => None,
-    }
-}
-
 /// Resolve a dependency to the crate that provides it, if any.
 fn to_cargo_crate_req(requirement: &dyn Dependency) -> Option<CargoCrateDependency> {
-    if let Some(requirement) = requirement.as_any().downcast_ref::<CargoCrateDependency>() {
-        Some(requirement.clone())
-    } else if let Some(requirement) = requirement.as_any().downcast_ref::<BinaryDependency>() {
-        cargo_command_package(&requirement.binary_name).map(CargoCrateDependency::simple)
-    } else {
-        None
-    }
+    requirement
+        .as_any()
+        .downcast_ref::<CargoCrateDependency>()
+        .cloned()
 }
 
 /// A resolver that installs crates via `cargo install`.
@@ -2896,19 +2863,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_gem_command_package() {
-        assert_eq!(gem_command_package("scip-ruby"), Some("scip-ruby"));
-        assert_eq!(gem_command_package("rubocop"), None);
-    }
-
-    #[test]
-    fn test_binary_dependency_maps_to_gem() {
-        let dep = BinaryDependency::new("scip-ruby");
-        let req = to_ruby_gem_req(&dep).expect("scip-ruby binary should resolve to a gem");
-        assert_eq!(req.gem, "scip-ruby");
-    }
-
-    #[test]
     fn test_unknown_binary_does_not_map() {
         let dep = BinaryDependency::new("definitely-not-a-gem");
         assert!(to_ruby_gem_req(&dep).is_none());
@@ -2953,20 +2907,6 @@ mod tests {
             ruby_version_to_debian("1.0.0.beta1").parse().unwrap();
         let release: debversion::Version = ruby_version_to_debian("1.0.0").parse().unwrap();
         assert!(prerelease < release);
-    }
-
-    #[test]
-    fn test_cargo_command_package() {
-        assert_eq!(cargo_command_package("scip-perl"), Some("scip-perl"));
-        assert_eq!(cargo_command_package("scip-vala"), Some("scip-vala"));
-        assert_eq!(cargo_command_package("ripgrep"), None);
-    }
-
-    #[test]
-    fn test_binary_dependency_maps_to_crate() {
-        let dep = BinaryDependency::new("scip-perl");
-        let req = to_cargo_crate_req(&dep).expect("scip-perl binary should resolve to a crate");
-        assert_eq!(req.name, "scip-perl");
     }
 
     #[test]

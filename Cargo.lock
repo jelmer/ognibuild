@@ -3320,7 +3320,6 @@ dependencies = [
  "shlex 2.0.1",
  "sqlx",
  "stackdriver_logger",
- "tar",
  "tempfile",
  "test-log",
  "tokio",

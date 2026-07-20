@@ -10,7 +10,5 @@ pub mod info;
 pub mod install;
 /// LSIF index generation action implementation.
 pub mod lsif;
-/// SCIP index generation action implementation.
-pub mod scip;
 /// Test action implementation.
 pub mod test;
