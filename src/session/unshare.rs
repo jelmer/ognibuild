@@ -823,8 +823,8 @@ lazy_static::lazy_static! {
 
 /// Drop the shared test session at exit, so its root gets removed.
 #[cfg(test)]
-#[ctor::dtor]
-fn drop_test_session() {
+#[dtor::dtor]
+unsafe fn drop_test_session() {
     let mut guard = TEST_SESSION.lock().unwrap_or_else(|p| p.into_inner());
     guard.take();
 }
