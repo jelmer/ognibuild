@@ -492,7 +492,7 @@ checksum = "e7e5f4ccded53548f9a260642b58f363fbc988071fe6379b74055fd5a2dbaa35"
 dependencies = [
  "bazaar",
  "chrono",
- "ctor 0.6.3",
+ "ctor",
  "deb822-lossless",
  "debian-changelog",
  "debian-control",
@@ -1065,17 +1065,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "424e0138278faeb2b401f174ad17e715c829512d74f3d1e81eb43365c2e0590e"
 dependencies = [
  "ctor-proc-macro",
- "dtor",
-]
-
-[[package]]
-name = "ctor"
-version = "1.0.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9bb72bb94fdc1bd619f4c18cc91ecf6302aeb333d31b3c6ec0bb841cd920209"
-dependencies = [
- "link-section",
- "linktime-proc-macro",
+ "dtor 0.1.1",
 ]
 
 [[package]]
@@ -1444,6 +1434,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "404d02eeb088a82cfd873006cb713fe411306c7d182c344905e101fb1167d301"
 dependencies = [
  "dtor-proc-macro",
+]
+
+[[package]]
+name = "dtor"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d738e43aa64edab57c983d56de890d65fea7dc05605490c74451ce721dfd84b"
+dependencies = [
+ "linktime-proc-macro",
 ]
 
 [[package]]
@@ -3018,12 +3017,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "link-section"
-version = "0.19.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ee1a0d6e252afe82e7bc2db42fba60e02ddf3b1accaf8cb21d96e34ba61f3d4"
-
-[[package]]
 name = "linktime-proc-macro"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3429,13 +3422,13 @@ dependencies = [
  "chrono",
  "clap",
  "criterion",
- "ctor 1.0.11",
  "deb822-lossless",
  "debian-analyzer",
  "debian-changelog",
  "debian-control",
  "debversion",
  "dirs",
+ "dtor 1.0.5",
  "env_logger 0.11.11",
  "flate2",
  "fs_extra",
