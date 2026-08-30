@@ -967,6 +967,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial(cwd)]
     fn test_extract_setup_ext_modules() {
         if !setuptools_available() {
             return;
@@ -997,6 +998,7 @@ setup(
     }
 
     #[test]
+    #[serial_test::serial(cwd)]
     fn test_extract_setup_without_ext_modules() {
         if !setuptools_available() {
             return;
@@ -1033,6 +1035,7 @@ setup(
     }
 
     #[test]
+    #[serial_test::serial(cwd)]
     fn test_extract_setup_direct_not_a_setup_script() {
         pyo3::Python::initialize();
 
@@ -1048,6 +1051,7 @@ setup(
     }
 
     #[test]
+    #[serial_test::serial(cwd)]
     fn test_extract_setup_direct_under_main_guard() {
         if !setuptools_available() {
             return;
