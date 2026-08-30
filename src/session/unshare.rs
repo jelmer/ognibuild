@@ -1206,19 +1206,18 @@ mod tests {
 
     #[test]
     fn test_session_works_after_panic() {
-        // Skip if we're in CI
-        if std::env::var("GITHUB_ACTIONS").is_ok() {
-            return;
-        }
-
         // First, verify we can get the session normally
-        let session1 = test_session().unwrap();
+        let session1 = if let Some(session) = test_session() {
+            session
+        } else {
+            return;
+        };
         assert!(session1.exists(std::path::Path::new("/bin")));
         std::mem::drop(session1);
 
         // Now cause a panic while holding the lock
         let result = std::panic::catch_unwind(|| {
-            let _session = test_session().unwrap();
+            let _session = test_session().expect("session was available a moment ago");
             panic!("Intentional panic to test recovery");
         });
 
@@ -1226,7 +1225,7 @@ mod tests {
         assert!(result.is_err());
 
         // Now verify we can still get the session (it shouldn't be blocked)
-        let session2 = test_session().unwrap();
+        let session2 = test_session().expect("session was available a moment ago");
         assert!(session2.exists(std::path::Path::new("/bin")));
 
         // Verify the session is still functional by running a command

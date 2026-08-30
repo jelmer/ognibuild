@@ -461,6 +461,7 @@ mod tests {
 
     #[cfg(feature = "breezy")]
     #[test]
+    #[serial_test::serial(cwd)]
     fn test_project_from_vcs() {
         // Trigger loading of test session before we mess up HOME
         #[cfg(target_os = "linux")]
