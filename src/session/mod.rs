@@ -51,6 +51,30 @@ pub enum Error {
     SetupFailure(String, String),
     /// Error from image operations (download, cache, etc.)
     ImageError(ImageError),
+    /// A helper binary required by the session backend (e.g. `schroot`) was
+    /// not found on `PATH`.
+    MissingBinary {
+        /// Name of the missing command, as passed to `Command::new`.
+        command: String,
+        /// The underlying spawn error (typically `ErrorKind::NotFound`).
+        source: std::io::Error,
+    },
+}
+
+impl Error {
+    /// Map a spawn error to `MissingBinary` when the OS reported the binary as
+    /// missing, otherwise fall back to `IoError`. Use at the site that invokes
+    /// a helper binary the session backend depends on.
+    pub(crate) fn from_spawn(command: &str, e: std::io::Error) -> Self {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            Error::MissingBinary {
+                command: command.to_string(),
+                source: e,
+            }
+        } else {
+            Error::IoError(e)
+        }
+    }
 }
 
 impl From<std::io::Error> for Error {
@@ -92,6 +116,9 @@ impl std::fmt::Display for Error {
             Error::IoError(e) => write!(f, "IoError({})", e),
             Error::SetupFailure(msg, _long_description) => write!(f, "SetupFailure({})", msg),
             Error::ImageError(e) => write!(f, "ImageError: {}", e),
+            Error::MissingBinary { command, source } => {
+                write!(f, "`{}` binary not found in PATH: {}", command, source)
+            }
         }
     }
 }

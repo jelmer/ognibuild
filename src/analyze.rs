@@ -321,6 +321,13 @@ pub fn run_detecting_problems(
                         as Box<dyn buildlog_consultant::Problem>,
                 });
             }
+            Err(SessionError::MissingBinary { command, .. }) => {
+                return Err(AnalyzedError::Detailed {
+                    retcode: 127,
+                    error: Box::new(MissingCommand(command))
+                        as Box<dyn buildlog_consultant::Problem>,
+                });
+            }
             Err(SessionError::IoError(e)) => {
                 return Err(AnalyzedError::IoError(e));
             }

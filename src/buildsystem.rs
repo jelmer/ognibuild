@@ -94,6 +94,7 @@ impl From<crate::session::Error> for Error {
                 .into()
             }
             crate::session::Error::IoError(e) => e.into(),
+            crate::session::Error::MissingBinary { source, .. } => source.into(),
             crate::session::Error::SetupFailure(_, _) => unreachable!(),
             crate::session::Error::ImageError(_) => unreachable!(),
         }
