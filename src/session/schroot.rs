@@ -48,7 +48,7 @@ impl SchrootSession {
             .args(extra_args)
             .stderr(std::process::Stdio::from(stderr.try_clone().unwrap()))
             .output()
-            .unwrap();
+            .map_err(|e| Error::from_spawn("schroot", e))?;
 
         let session_id = match cmd.status.code() {
             Some(0) => String::from_utf8(cmd.stdout).unwrap(),
@@ -82,7 +82,7 @@ impl SchrootSession {
             .arg(format!("session:{}", session_id))
             .arg("--location")
             .output()
-            .unwrap();
+            .map_err(|e| Error::from_spawn("schroot", e))?;
         let location = std::path::PathBuf::from(
             String::from_utf8(output.stdout)
                 .unwrap()
@@ -397,5 +397,29 @@ mod tests {
         let id = super::generate_session_id("foo");
         assert_eq!(id.len(), 12);
         assert_eq!(&id[..4], "foo-");
+    }
+
+    #[test]
+    fn test_new_returns_missing_binary_when_schroot_absent() {
+        // Only meaningful when the schroot binary isn't installed; when it
+        // is, `new` will still hit the schroot-invocation path and return
+        // some other error (which is fine).
+        if std::process::Command::new("schroot")
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok()
+        {
+            return;
+        }
+        let err = super::SchrootSession::new("does-not-exist", None)
+            .err()
+            .expect("expected error when schroot binary is missing");
+        assert!(
+            matches!(err, super::Error::MissingBinary { ref command, .. } if command == "schroot"),
+            "expected MissingBinary {{ command: \"schroot\", .. }}, got {:?}",
+            err
+        );
     }
 }
