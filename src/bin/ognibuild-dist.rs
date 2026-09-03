@@ -3,7 +3,36 @@ use breezyshim::workingtree::{self, WorkingTree};
 use clap::Parser;
 #[cfg(feature = "debian")]
 use debian_control::Control;
+#[cfg(feature = "debian")]
+use debian_watch::linebased::WatchFile;
 use std::path::{Path, PathBuf};
+
+/// Names of any Multiple Upstream Tarball components declared in a
+/// packaging tree's debian/watch, if any.
+///
+/// A plain VCS export of the packaging tree does not fetch or refresh
+/// these - it only ever contains whatever the git history happens to
+/// have for that subdirectory, which is not necessarily what the
+/// current debian/patches were written against.
+#[cfg(all(target_os = "linux", feature = "debian"))]
+fn mut_components(packaging_tree: &dyn breezyshim::tree::Tree) -> Vec<String> {
+    let Ok(mut reader) = packaging_tree.get_file(Path::new("debian/watch")) else {
+        return Vec::new();
+    };
+    let mut content = String::new();
+    if std::io::Read::read_to_string(&mut reader, &mut content).is_err() {
+        return Vec::new();
+    }
+    WatchFile::from_str_relaxed(&content)
+        .entries()
+        .filter_map(|entry| entry.component())
+        .collect()
+}
+
+#[cfg(all(target_os = "linux", not(feature = "debian")))]
+fn mut_components(_packaging_tree: &dyn breezyshim::tree::Tree) -> Vec<String> {
+    Vec::new()
+}
 
 // These imports are only used in Linux-specific code
 #[cfg(target_os = "linux")]
@@ -162,6 +191,18 @@ pub fn main() -> Result<(), i32> {
                     if args.mode == Mode::Buildsystem {
                         log::error!("No build system detected, unable to create tarball");
                         Err(1)
+                    } else if let Some(components) = packaging_tree
+                        .as_ref()
+                        .map(|t| mut_components(&**t as &dyn Tree))
+                        .filter(|c| !c.is_empty())
+                    {
+                        log::error!(
+                            "debian/watch declares additional upstream tarball component(s) ({}), \
+                             which a plain VCS export does not fetch or refresh - refusing to \
+                             produce a tarball that would silently ship stale/mismatched content.",
+                            components.join(", "),
+                        );
+                        Err(1)
                     } else {
                         log::info!("No build system detected, falling back to simple export.");
                         export(&tree, Path::new("dist.tar.gz"), Some(&subpath)).unwrap();
@@ -171,6 +212,18 @@ pub fn main() -> Result<(), i32> {
                 Err(Error::Unimplemented) => {
                     if args.mode == Mode::Buildsystem {
                         log::error!("Unable to ask buildsystem for tarball");
+                        Err(1)
+                    } else if let Some(components) = packaging_tree
+                        .as_ref()
+                        .map(|t| mut_components(&**t as &dyn Tree))
+                        .filter(|c| !c.is_empty())
+                    {
+                        log::error!(
+                            "debian/watch declares additional upstream tarball component(s) ({}), \
+                             which a plain VCS export does not fetch or refresh - refusing to \
+                             produce a tarball that would silently ship stale/mismatched content.",
+                            components.join(", "),
+                        );
                         Err(1)
                     } else {
                         log::info!("Build system does not support dist tarball creation, falling back to simple export.");
