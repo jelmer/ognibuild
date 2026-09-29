@@ -313,6 +313,7 @@ pub fn run_detecting_problems(
             Ok((retcode, contents)) => (retcode, contents),
             Err(SessionError::SetupFailure(..)) => unreachable!(),
             Err(SessionError::ImageError(..)) => unreachable!(),
+            Err(SessionError::InvalidSessionPrefix(..)) => unreachable!(),
             Err(SessionError::IoError(e)) if e.kind() == std::io::ErrorKind::NotFound => {
                 let command = args[0].to_string();
                 return Err(AnalyzedError::Detailed {

@@ -59,6 +59,9 @@ pub enum Error {
         /// The underlying spawn error (typically `ErrorKind::NotFound`).
         source: std::io::Error,
     },
+    /// A session name prefix was empty once sanitized, so it cannot identify
+    /// the sessions it owns.
+    InvalidSessionPrefix(String),
 }
 
 impl Error {
@@ -118,6 +121,9 @@ impl std::fmt::Display for Error {
             Error::ImageError(e) => write!(f, "ImageError: {}", e),
             Error::MissingBinary { command, source } => {
                 write!(f, "`{}` binary not found in PATH: {}", command, source)
+            }
+            Error::InvalidSessionPrefix(prefix) => {
+                write!(f, "Session prefix {:?} is empty once sanitized", prefix)
             }
         }
     }
