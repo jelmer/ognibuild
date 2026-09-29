@@ -25,6 +25,57 @@ pub fn generate_session_id(prefix: &str) -> String {
     format!("{}-{}", sanitize_session_name(prefix), suffix)
 }
 
+fn session_name_matches_prefix(session_name: &str, prefix: &str) -> bool {
+    session_name
+        .strip_prefix(&format!("{}-", sanitize_session_name(prefix)))
+        .is_some()
+}
+
+/// End every active schroot session whose name was generated from the given
+/// prefix (see `SchrootSession::new`'s `session_prefix`), leaving sessions
+/// belonging to other tools or users on the same host untouched.
+///
+/// Intended for use at process startup, to recover sessions a previous
+/// crashed or killed instance left behind - `SchrootSession`'s own
+/// `Drop`-time cleanup never runs if the process is killed before `Drop`
+/// executes, and stray sessions accumulate until schroot refuses to create
+/// new ones.
+pub fn purge_stale_sessions(prefix: &str) -> Result<usize, Error> {
+    let output = std::process::Command::new("schroot")
+        .args(["--list", "--all-sessions"])
+        .output()
+        .map_err(|e| Error::from_spawn("schroot", e))?;
+    if !output.status.success() {
+        return Err(Error::CalledProcessError(output.status));
+    }
+
+    let mut purged = 0;
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let name = line.strip_prefix("session:").unwrap_or(line).trim();
+        if !session_name_matches_prefix(name, prefix) {
+            continue;
+        }
+        match std::process::Command::new("schroot")
+            .arg("-c")
+            .arg(format!("session:{}", name))
+            .arg("-e")
+            .output()
+        {
+            Ok(o) if o.status.success() => {
+                log::info!("Purged stale schroot session {}", name);
+                purged += 1;
+            }
+            Ok(o) => log::error!(
+                "Failed to purge stale schroot session {} (exit {})",
+                name,
+                o.status
+            ),
+            Err(e) => log::error!("Failed to purge stale schroot session {}: {}", name, e),
+        }
+    }
+    Ok(purged)
+}
+
 /// A schroot-based session
 pub struct SchrootSession {
     cwd: std::path::PathBuf,
@@ -401,6 +452,22 @@ mod tests {
         assert_eq!(super::sanitize_session_name("foo.bar"), "foo.bar");
         assert_eq!(super::sanitize_session_name("foo!bar"), "foobar");
         assert_eq!(super::sanitize_session_name("foo@bar"), "foobar");
+    }
+
+    #[test]
+    fn test_session_name_matches_prefix() {
+        assert!(super::session_name_matches_prefix(
+            "janitor-worker-abcd1234",
+            "janitor-worker"
+        ));
+        assert!(!super::session_name_matches_prefix(
+            "other-tool-abcd1234",
+            "janitor-worker"
+        ));
+        assert!(!super::session_name_matches_prefix(
+            "janitor-workermore-abcd1234",
+            "janitor-worker"
+        ));
     }
 
     #[test]
