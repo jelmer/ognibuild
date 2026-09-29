@@ -5,6 +5,9 @@ extern crate rand;
 use rand::distr::{Alphanumeric, Distribution};
 use std::iter;
 
+/// Number of random characters appended to a generated session name.
+const RANDOM_SUFFIX_LEN: usize = 8;
+
 /// Sanitize the session name
 pub fn sanitize_session_name(name: &str) -> String {
     name.chars()
@@ -12,35 +15,98 @@ pub fn sanitize_session_name(name: &str) -> String {
         .collect()
 }
 
-/// Generate a session
+/// Generate a session name of the form `<sanitized prefix>-<pid>-<random>`,
+/// where the pid is the process that owns the session.
 pub fn generate_session_id(prefix: &str) -> String {
     let mut rng = rand::rng();
     let suffix: String = String::from_utf8(
         iter::repeat(())
             .map(|()| Alphanumeric.sample(&mut rng))
-            .take(8)
+            .take(RANDOM_SUFFIX_LEN)
             .collect(),
     )
     .unwrap();
-    format!("{}-{}", sanitize_session_name(prefix), suffix)
+    format!(
+        "{}-{}-{}",
+        sanitize_session_name(prefix),
+        std::process::id(),
+        suffix
+    )
 }
 
-fn session_name_matches_prefix(session_name: &str, prefix: &str) -> bool {
-    session_name
-        .strip_prefix(&format!("{}-", sanitize_session_name(prefix)))
-        .is_some()
+/// Owning pid of `session_name`, if `generate_session_id` could have produced
+/// it from `sanitized_prefix`. Requiring the whole remainder anchors the match.
+fn session_name_owner_pid(session_name: &str, sanitized_prefix: &str) -> Option<libc::pid_t> {
+    let rest = session_name
+        .strip_prefix(sanitized_prefix)?
+        .strip_prefix('-')?;
+    let (pid, random) = rest.split_once('-')?;
+    if random.len() != RANDOM_SUFFIX_LEN || !random.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return None;
+    }
+    if pid.is_empty() || !pid.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    let pid: libc::pid_t = pid.parse().ok()?;
+    if pid <= 0 {
+        return None;
+    }
+    Some(pid)
 }
 
-/// End every active schroot session whose name was generated from the given
-/// prefix (see `SchrootSession::new`'s `session_prefix`), leaving sessions
-/// belonging to other tools or users on the same host untouched.
-///
-/// Intended for use at process startup, to recover sessions a previous
-/// crashed or killed instance left behind - `SchrootSession`'s own
-/// `Drop`-time cleanup never runs if the process is killed before `Drop`
-/// executes, and stray sessions accumulate until schroot refuses to create
-/// new ones.
-pub fn purge_stale_sessions(prefix: &str) -> Result<usize, Error> {
+/// Whether a process with this pid exists, whoever owns it. `EPERM` means it
+/// exists and is somebody else's, so only `ESRCH` counts as gone.
+fn pid_is_alive(pid: libc::pid_t) -> bool {
+    if unsafe { libc::kill(pid, 0) } == 0 {
+        return true;
+    }
+    std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
+}
+
+/// Session names in `schroot --list --all-sessions` output that were generated
+/// from `prefix` and whose owning process is gone.
+fn stale_session_names(stdout: &str, prefix: &str) -> Result<Vec<String>, Error> {
+    let sanitized = sanitize_session_name(prefix);
+    if sanitized.is_empty() {
+        return Err(Error::InvalidSessionPrefix(prefix.to_string()));
+    }
+    Ok(filter_stale_session_names(stdout, &sanitized, pid_is_alive))
+}
+
+fn filter_stale_session_names(
+    stdout: &str,
+    sanitized_prefix: &str,
+    is_alive: impl Fn(libc::pid_t) -> bool,
+) -> Vec<String> {
+    let mut names = vec![];
+    for line in stdout.lines() {
+        let line = line.trim();
+        let name = line.strip_prefix("session:").unwrap_or(line);
+        let pid = match session_name_owner_pid(name, sanitized_prefix) {
+            Some(pid) => pid,
+            None => continue,
+        };
+        if is_alive(pid) {
+            log::debug!("Leaving schroot session {} to live pid {}", name, pid);
+            continue;
+        }
+        names.push(name.to_string());
+    }
+    names
+}
+
+/// What `purge_stale_sessions` did.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct PurgeReport {
+    /// Sessions that were ended.
+    pub purged: Vec<String>,
+    /// Sessions that should have been ended, each with the reason it was not.
+    pub failed: Vec<(String, String)>,
+}
+
+/// End every schroot session on the host named `<prefix>-<pid>-<random>` by
+/// `generate_session_id` whose pid is no longer running, whichever user owns it.
+pub fn purge_stale_sessions(prefix: &str) -> Result<PurgeReport, Error> {
     let output = std::process::Command::new("schroot")
         .args(["--list", "--all-sessions"])
         .output()
@@ -49,12 +115,8 @@ pub fn purge_stale_sessions(prefix: &str) -> Result<usize, Error> {
         return Err(Error::CalledProcessError(output.status));
     }
 
-    let mut purged = 0;
-    for line in String::from_utf8_lossy(&output.stdout).lines() {
-        let name = line.strip_prefix("session:").unwrap_or(line).trim();
-        if !session_name_matches_prefix(name, prefix) {
-            continue;
-        }
+    let mut report = PurgeReport::default();
+    for name in stale_session_names(&String::from_utf8_lossy(&output.stdout), prefix)? {
         match std::process::Command::new("schroot")
             .arg("-c")
             .arg(format!("session:{}", name))
@@ -63,17 +125,23 @@ pub fn purge_stale_sessions(prefix: &str) -> Result<usize, Error> {
         {
             Ok(o) if o.status.success() => {
                 log::info!("Purged stale schroot session {}", name);
-                purged += 1;
+                report.purged.push(name);
             }
-            Ok(o) => log::error!(
-                "Failed to purge stale schroot session {} (exit {})",
-                name,
-                o.status
-            ),
-            Err(e) => log::error!("Failed to purge stale schroot session {}: {}", name, e),
+            Ok(o) => {
+                log::error!(
+                    "Failed to purge stale schroot session {} (exit {})",
+                    name,
+                    o.status
+                );
+                report.failed.push((name, format!("exit {}", o.status)));
+            }
+            Err(e) => {
+                log::error!("Failed to purge stale schroot session {}: {}", name, e);
+                report.failed.push((name, e.to_string()));
+            }
         }
     }
-    Ok(purged)
+    Ok(report)
 }
 
 /// A schroot-based session
@@ -455,26 +523,146 @@ mod tests {
     }
 
     #[test]
-    fn test_session_name_matches_prefix() {
-        assert!(super::session_name_matches_prefix(
-            "janitor-worker-abcd1234",
-            "janitor-worker"
-        ));
-        assert!(!super::session_name_matches_prefix(
-            "other-tool-abcd1234",
-            "janitor-worker"
-        ));
-        assert!(!super::session_name_matches_prefix(
-            "janitor-workermore-abcd1234",
-            "janitor-worker"
-        ));
+    fn test_session_name_owner_pid() {
+        assert_eq!(
+            super::session_name_owner_pid("janitor-worker-4242-abcd1234", "janitor-worker"),
+            Some(4242)
+        );
+        assert_eq!(
+            super::session_name_owner_pid("other-tool-4242-abcd1234", "janitor-worker"),
+            None
+        );
+        // A shorter prefix must not swallow a longer one.
+        assert_eq!(
+            super::session_name_owner_pid("janitor-worker-4242-abcd1234", "janitor"),
+            None
+        );
+        assert_eq!(
+            super::session_name_owner_pid("janitor-workermore-4242-abcd1234", "janitor-worker"),
+            None
+        );
+        // Names without an embedded pid, and malformed ones, are not ours.
+        assert_eq!(
+            super::session_name_owner_pid("janitor-worker-abcd1234", "janitor-worker"),
+            None
+        );
+        assert_eq!(
+            super::session_name_owner_pid("janitor-worker-4242-abcd123", "janitor-worker"),
+            None
+        );
+        assert_eq!(
+            super::session_name_owner_pid("janitor-worker-0-abcd1234", "janitor-worker"),
+            None
+        );
+        assert_eq!(
+            super::session_name_owner_pid("janitor-worker--4242-abcd1234", "janitor-worker"),
+            None
+        );
     }
 
     #[test]
     fn test_generate_session_id() {
         let id = super::generate_session_id("foo");
-        assert_eq!(id.len(), 12);
-        assert_eq!(&id[..4], "foo-");
+        assert_eq!(
+            super::session_name_owner_pid(&id, "foo"),
+            Some(std::process::id() as libc::pid_t)
+        );
+    }
+
+    #[test]
+    fn test_generate_session_id_sanitizes_prefix() {
+        let id = super::generate_session_id("janitor@worker");
+        assert!(id.starts_with("janitorworker-"), "{}", id);
+        assert_eq!(
+            super::session_name_owner_pid(&id, "janitorworker"),
+            Some(std::process::id() as libc::pid_t)
+        );
+    }
+
+    /// A pid that has certainly exited: spawned, waited for, and reaped.
+    fn dead_pid() -> libc::pid_t {
+        let mut child = std::process::Command::new("/bin/true")
+            .spawn()
+            .expect("spawn /bin/true");
+        let pid = child.id() as libc::pid_t;
+        child.wait().expect("wait for /bin/true");
+        pid
+    }
+
+    #[test]
+    fn test_pid_is_alive() {
+        assert!(super::pid_is_alive(std::process::id() as libc::pid_t));
+        assert!(super::pid_is_alive(1));
+        assert!(!super::pid_is_alive(dead_pid()));
+    }
+
+    #[test]
+    fn test_stale_session_names_skips_live_pid() {
+        let dead = dead_pid();
+        let stdout = format!(
+            "session:janitor-worker-{}-aaaaaaaa\nsession:janitor-worker-{}-bbbbbbbb\n",
+            std::process::id(),
+            dead
+        );
+        assert_eq!(
+            super::stale_session_names(&stdout, "janitor-worker").unwrap(),
+            vec![format!("janitor-worker-{}-bbbbbbbb", dead)]
+        );
+    }
+
+    #[test]
+    fn test_stale_session_names_does_not_swallow_longer_prefix() {
+        let stdout = format!("session:janitor-worker-{}-aaaaaaaa\n", dead_pid());
+        assert!(super::stale_session_names(&stdout, "janitor")
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            super::stale_session_names(&stdout, "janitor-worker")
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_stale_session_names_rejects_empty_prefix() {
+        let stdout = "session:-4242-aaaaaaaa\n";
+        for prefix in ["", "@@@", "!"] {
+            assert!(matches!(
+                super::stale_session_names(stdout, prefix),
+                Err(super::Error::InvalidSessionPrefix(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn test_stale_session_names_sanitizes_prefix() {
+        let name = format!("janitorworker-{}-aaaaaaaa", dead_pid());
+        let stdout = format!("session:{}\n", name);
+        assert_eq!(
+            super::stale_session_names(&stdout, "janitor@worker").unwrap(),
+            vec![name]
+        );
+    }
+
+    #[test]
+    fn test_stale_session_names_trims_before_stripping_prefix() {
+        let name = format!("janitor-worker-{}-aaaaaaaa", dead_pid());
+        let stdout = format!("  session:{}  \n\n", name);
+        assert_eq!(
+            super::stale_session_names(&stdout, "janitor-worker").unwrap(),
+            vec![name]
+        );
+    }
+
+    #[test]
+    fn test_stale_session_names_accepts_unqualified_names() {
+        let name = format!("janitor-worker-{}-aaaaaaaa", dead_pid());
+        let stdout = format!("{}\n", name);
+        assert_eq!(
+            super::stale_session_names(&stdout, "janitor-worker").unwrap(),
+            vec![name]
+        );
     }
 
     #[test]
