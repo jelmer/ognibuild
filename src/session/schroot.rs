@@ -159,6 +159,14 @@ impl SchrootSession {
 impl Drop for SchrootSession {
     fn drop(&mut self) {
         let stderr = tempfile::tempfile().unwrap();
+        let log_stderr = |stderr: &std::fs::File| {
+            for line in std::io::BufReader::new(stderr).lines() {
+                let line = line.unwrap();
+                if let Some(rest) = line.strip_prefix("E: ") {
+                    log::error!("{}", rest);
+                }
+            }
+        };
         match std::process::Command::new("schroot")
             .arg("-c")
             .arg(format!("session:{}", self.session_id))
@@ -167,15 +175,18 @@ impl Drop for SchrootSession {
             .output()
         {
             Err(_) => {
-                for line in std::io::BufReader::new(&stderr).lines() {
-                    let line = line.unwrap();
-                    if let Some(rest) = line.strip_prefix("E: ") {
-                        log::error!("{}", rest);
-                    }
-                }
+                log_stderr(&stderr);
                 log::error!(
                     "Failed to close schroot session {}, leaving stray.",
                     self.session_id
+                );
+            }
+            Ok(output) if !output.status.success() => {
+                log_stderr(&stderr);
+                log::error!(
+                    "Failed to close schroot session {} (exit {}), leaving stray.",
+                    self.session_id,
+                    output.status
                 );
             }
             Ok(_) => {
