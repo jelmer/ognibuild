@@ -42,7 +42,7 @@ impl DistCatcher {
         Self {
             directories: directories
                 .iter()
-                .map(|d| d.canonicalize().unwrap())
+                .map(|d| d.canonicalize().unwrap_or_else(|_| d.clone()))
                 .collect(),
             files: std::sync::Mutex::new(Vec::new()),
             start_time: std::time::SystemTime::now(),
@@ -68,9 +68,11 @@ impl DistCatcher {
                 .iter()
                 .map(|d| {
                     let mut map = HashMap::new();
-                    for entry in d.read_dir().unwrap() {
-                        let entry = entry.unwrap();
-                        map.insert(entry.path(), entry);
+                    if let Ok(entries) = d.read_dir() {
+                        for entry in entries {
+                            let entry = entry.unwrap();
+                            map.insert(entry.path(), entry);
+                        }
                     }
                     (d.clone(), map)
                 })
