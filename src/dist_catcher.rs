@@ -251,6 +251,31 @@ mod tests {
     }
 
     #[test]
+    fn test_default_does_not_panic_without_a_dist_directory() {
+        let td = tempfile::tempdir().unwrap();
+        // Nested so that the `..` the default watches is the tempdir, not TMPDIR.
+        let tree = td.path().join("tree");
+        std::fs::create_dir(&tree).unwrap();
+        let mut catcher = DistCatcher::default(&tree);
+        catcher.start();
+
+        assert_eq!(catcher.find_files(), None);
+    }
+
+    #[test]
+    fn test_catches_tarball_in_a_directory_created_by_the_build() {
+        let td = tempfile::tempdir().unwrap();
+        let dist = td.path().join("dist");
+        let mut catcher = DistCatcher::new(vec![dist.clone()]);
+        catcher.start();
+        std::fs::create_dir(&dist).unwrap();
+        let tarball = dist.join("project-1.0.tar.gz");
+        touch(&tarball);
+
+        assert_eq!(catcher.find_files(), Some(tarball));
+    }
+
+    #[test]
     fn test_copy_single_no_files_is_not_found() {
         let td = tempfile::tempdir().unwrap();
         let mut catcher = DistCatcher::new(vec![td.path().to_path_buf()]);
