@@ -970,6 +970,105 @@ mod tests {
     }
 
     #[test]
+    fn an_unparseable_pyproject_toml_is_reported() {
+        pyo3::Python::initialize();
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+        fs::write(path.join("pyproject.toml"), "this is not toml\n").unwrap();
+        fs::write(path.join("setup.py"), "from setuptools import setup\n").unwrap();
+
+        let setup_py = SetupPy::new(path);
+
+        // Still recognised as a Python project.
+        assert!(SetupPy::probe(path).is_some());
+
+        let session = crate::session::plain::PlainSession::new();
+        let installer = crate::installer::NullInstaller::new();
+        let install_target = InstallTarget {
+            scope: InstallationScope::Vendor,
+            prefix: None,
+        };
+
+        for err in [
+            setup_py.build(&session, &installer).unwrap_err(),
+            setup_py
+                .install(&session, &installer, &install_target)
+                .unwrap_err(),
+            setup_py.clean(&session, &installer).unwrap_err(),
+        ] {
+            let msg = err.to_string();
+            assert!(
+                msg.contains("pyproject.toml"),
+                "error should name the file, got {msg:?}"
+            );
+        }
+    }
+
+    #[test]
+    // Its neighbours chdir the process while they parse.
+    #[serial_test::serial(cwd)]
+    fn a_readable_config_reports_no_error() {
+        if !setuptools_available() {
+            return;
+        }
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+        fs::write(
+            path.join("setup.py"),
+            "from setuptools import setup\nsetup(name='test')",
+        )
+        .unwrap();
+
+        let session = crate::session::plain::PlainSession::new();
+        let installer = crate::installer::NullInstaller::new();
+        let msg = SetupPy::new(path)
+            .build(&session, &installer)
+            .unwrap_err()
+            .to_string();
+        assert!(!msg.contains("Unable to parse"), "got {}", msg);
+    }
+
+    #[test]
+    // `read_configuration` chdirs the process while it parses.
+    #[serial_test::serial(cwd)]
+    fn an_unparseable_setup_cfg_is_reported() {
+        if !setuptools_available() {
+            return;
+        }
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+        fs::write(path.join("setup.cfg"), "this is not a setup.cfg\n").unwrap();
+        fs::write(
+            path.join("setup.py"),
+            "from setuptools import setup\nsetup(name='test')",
+        )
+        .unwrap();
+
+        let setup_py = SetupPy::new(path);
+
+        assert!(SetupPy::probe(path).is_some());
+
+        let session = crate::session::plain::PlainSession::new();
+        let installer = crate::installer::NullInstaller::new();
+        let msg = setup_py
+            .build(&session, &installer)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            msg.contains("setup.cfg"),
+            "error should name the file, got {msg:?}"
+        );
+        // The reason has to survive, not just the name from the format string.
+        assert!(
+            msg.contains("section"),
+            "error should carry the reason, got {msg:?}"
+        );
+    }
+
+    #[test]
     fn test_python_project_without_pyproject_toml() {
         pyo3::Python::initialize();
 
