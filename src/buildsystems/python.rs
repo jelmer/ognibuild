@@ -143,26 +143,39 @@ impl SetupCfgSection {
 }
 
 fn load_setup_cfg(path: &Path) -> Result<Option<SetupCfg>, PyErr> {
+    let p = path.join("setup.cfg");
+    if !p.exists() {
+        return Ok(None);
+    }
+
     Python::attach(|py| {
-        let m = py.import("setuptools.config.setupcfg")?;
-        let read_configuration = m.getattr("read_configuration")?;
-
-        let p = path.join("setup.cfg");
-
-        if p.exists() {
-            let config = read_configuration.call1((p.as_path(),))?;
-            // read_configuration keeps only metadata and options; add the other sections, e.g. tool:pytest.
-            let parser = py.import("configparser")?.call_method0("RawConfigParser")?;
-            parser.call_method1("read", (p.as_path(), "utf-8"))?;
-            for section in parser.call_method0("sections")?.try_iter()? {
-                let section = section?;
-                let items = parser.call_method1("items", (&section,))?;
-                config.call_method1("setdefault", (section, PyDict::from_sequence(&items)?))?;
+        let m = match py.import("setuptools.config.setupcfg") {
+            Ok(m) => m,
+            Err(e) if e.is_instance_of::<PyModuleNotFoundError>(py) => {
+                log::warn!("Unable to read setup.cfg: {}", e);
+                return Ok(None);
             }
-            Ok(Some(SetupCfg(config.unbind())))
-        } else {
-            Ok(None)
+            Err(e) => return Err(e),
+        };
+        let read_configuration = m.getattr("read_configuration")?;
+        let config = match read_configuration.call1((p.as_path(),)) {
+            Ok(config) => config,
+            // e.g. an attr: that needs a module the host does not have
+            Err(e) if e.is_instance_of::<PyModuleNotFoundError>(py) => {
+                log::warn!("Unable to read setup.cfg: {}", e);
+                return Ok(None);
+            }
+            Err(e) => return Err(e),
+        };
+        // read_configuration keeps only metadata and options; add the other sections, e.g. tool:pytest.
+        let parser = py.import("configparser")?.call_method0("RawConfigParser")?;
+        parser.call_method1("read", (p.as_path(), "utf-8"))?;
+        for section in parser.call_method0("sections")?.try_iter()? {
+            let section = section?;
+            let items = parser.call_method1("items", (&section,))?;
+            config.call_method1("setdefault", (section, PyDict::from_sequence(&items)?))?;
         }
+        Ok(Some(SetupCfg(config.unbind())))
     })
 }
 
@@ -354,16 +367,13 @@ fn distribution_from_object(d: &Bound<'_, PyAny>) -> PyResult<Distribution> {
 pub struct SetupPy {
     path: PathBuf,
     has_setup_py: bool,
-    config: Option<SetupCfg>,
-    pyproject: Option<pyproject_toml::PyProjectToml>,
-    #[allow(dead_code)]
-    buildsystem: Option<String>,
+    setup_cfg: std::sync::OnceLock<Result<Option<SetupCfg>, String>>,
 }
 
 impl SetupPy {
     /// Create a new SetupPy build system with the specified path.
     ///
-    /// This will load and parse setup.cfg and pyproject.toml if they exist.
+    /// setup.cfg and pyproject.toml are read when they are needed.
     ///
     /// # Arguments
     /// * `path` - The path to the Python project directory
@@ -371,42 +381,31 @@ impl SetupPy {
     /// # Returns
     /// A new SetupPy build system instance
     pub fn new(path: &Path) -> Self {
-        let has_setup_py = path.join("setup.py").exists();
+        Self {
+            has_setup_py: path.join("setup.py").exists(),
+            path: path.to_owned(),
+            setup_cfg: std::sync::OnceLock::new(),
+        }
+    }
 
-        Python::attach(|py| {
-            let config = match load_setup_cfg(path) {
-                Ok(config) => config,
-                Err(e) if e.is_instance_of::<PyFileNotFoundError>(py) => None,
-                Err(e) if e.is_instance_of::<PyModuleNotFoundError>(py) => {
-                    log::warn!("Error parsing setup.cfg: {}", e);
-                    None
-                }
-                Err(e) => {
-                    panic!("Error parsing setup.cfg: {}", e);
-                }
-            };
+    fn setup_cfg(&self) -> Result<Option<&SetupCfg>, Error> {
+        self.setup_cfg
+            .get_or_init(|| {
+                load_setup_cfg(&self.path).map_err(|e| format!("Unable to parse setup.cfg: {}", e))
+            })
+            .as_ref()
+            .map(|c| c.as_ref())
+            .map_err(|e| Error::Other(e.clone()))
+    }
 
-            let (pyproject, buildsystem) = match load_toml(path) {
-                Ok(pyproject) => {
-                    let buildsystem = pyproject
-                        .build_system
-                        .as_ref()
-                        .and_then(|bs| bs.build_backend.clone());
-                    (Some(pyproject), buildsystem)
-                }
-                Err(e) if e.is_instance_of::<PyFileNotFoundError>(py) => (None, None),
-                Err(e) => {
-                    panic!("Error parsing pyproject.toml: {}", e);
-                }
-            };
-
-            Self {
-                has_setup_py,
-                path: path.to_owned(),
-                config,
-                pyproject,
-                buildsystem,
-            }
+    fn pyproject(&self) -> Result<Option<pyproject_toml::PyProjectToml>, Error> {
+        Python::attach(|py| match load_toml(&self.path) {
+            Ok(pyproject) => Ok(Some(pyproject)),
+            Err(e) if e.is_instance_of::<PyFileNotFoundError>(py) => Ok(None),
+            Err(e) => Err(Error::Other(format!(
+                "Unable to parse pyproject.toml: {}",
+                e
+            ))),
         })
     }
 
@@ -455,8 +454,8 @@ impl SetupPy {
         })
     }
 
-    fn determine_interpreter(&self) -> String {
-        if let Some(config) = self.config.as_ref() {
+    fn determine_interpreter(&self) -> Result<String, Error> {
+        if let Some(config) = self.setup_cfg()? {
             let python_requires: Option<String> = config
                 .get_section("options")
                 .and_then(|s| s.get::<String>("python_requires"));
@@ -464,13 +463,13 @@ impl SetupPy {
                 .map(|pr| !pr.contains("2.7"))
                 .unwrap_or(true)
             {
-                return "python3".to_owned();
+                return Ok("python3".to_owned());
             }
         }
         let path = self.path.join("setup.py");
         let shebang_binary = crate::shebang::shebang_binary(&path).unwrap();
 
-        shebang_binary.unwrap_or("python3".to_owned())
+        Ok(shebang_binary.unwrap_or("python3".to_owned()))
     }
 
     fn extract_setup_in_session(
@@ -478,7 +477,7 @@ impl SetupPy {
         session: &dyn Session,
         fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
     ) -> Result<Distribution, Error> {
-        let interpreter = self.determine_interpreter();
+        let interpreter = self.determine_interpreter()?;
 
         let mut output_f = tempfile::NamedTempFile::new_in(session.location().join("tmp")).unwrap();
         let argv: Vec<String> = vec![
@@ -545,20 +544,16 @@ impl SetupPy {
         }
     }
 
-    fn setup_requires(&self) -> Vec<PythonPackageDependency> {
+    fn setup_requires(&self) -> Result<Vec<PythonPackageDependency>, Error> {
         let mut ret = vec![];
-        if let Some(build_system) = self
-            .pyproject
-            .as_ref()
-            .and_then(|p| p.build_system.as_ref())
-        {
+        if let Some(build_system) = self.pyproject()?.and_then(|p| p.build_system) {
             let requires = &build_system.requires;
             for require in requires {
                 ret.push(PythonPackageDependency::from(require.clone()));
             }
         }
 
-        if let Some(config) = &self.config {
+        if let Some(config) = self.setup_cfg()? {
             let options = config.get_section("options");
             let setup_requires = options
                 .and_then(|os| os.get::<Vec<String>>("setup_requires"))
@@ -567,7 +562,7 @@ impl SetupPy {
                 ret.push(PythonPackageDependency::try_from(require.clone()).unwrap());
             }
         }
-        ret
+        Ok(ret)
     }
 
     fn run_setup(
@@ -579,7 +574,7 @@ impl SetupPy {
         // Install the setup_requires beforehand, since otherwise
         // setuptools might fetch eggs instead of our preferred installer.
         let setup_requires = self
-            .setup_requires()
+            .setup_requires()?
             .into_iter()
             .map(|x| Box::new(x) as Box<dyn Dependency>)
             .collect::<Vec<_>>();
@@ -593,7 +588,7 @@ impl SetupPy {
                 .collect::<Vec<_>>()
                 .as_slice(),
         )?;
-        let interpreter = self.determine_interpreter().clone();
+        let interpreter = self.determine_interpreter()?;
         let mut args = args.clone();
         args.insert(0, &interpreter);
         args.insert(1, "setup.py");
@@ -619,8 +614,7 @@ impl BuildSystem for SetupPy {
             return Ok(());
         }
         if self
-            .config
-            .as_ref()
+            .setup_cfg()?
             .map(|c| c.has_section("tool:pytest") || c.has_section("pytest"))
             .unwrap_or(false)
         {
@@ -684,7 +678,7 @@ impl BuildSystem for SetupPy {
             }
             preargs.push("sdist");
             self.run_setup(session, installer, preargs)?;
-        } else if self.pyproject.is_some() {
+        } else if self.pyproject()?.is_some() {
             run_detecting_problems(
                 session,
                 vec!["python3", "-m", "build", "--sdist", "."],
@@ -740,6 +734,8 @@ impl BuildSystem for SetupPy {
         session: &dyn Session,
         fixers: std::option::Option<&[&dyn BuildFixer<InstallerError>]>,
     ) -> Result<Vec<(DependencyCategory, Box<dyn Dependency>)>, Error> {
+        let config = self.setup_cfg()?;
+        let pyproject = self.pyproject()?;
         let mut ret: Vec<(DependencyCategory, Box<dyn Dependency>)> = vec![];
         let distribution = self.extract_setup(Some(session), fixers)?;
         if let Some(distribution) = distribution {
@@ -771,7 +767,7 @@ impl BuildSystem for SetupPy {
                 ));
             }
         }
-        if let Some(pyproject) = self.pyproject.as_ref() {
+        if let Some(pyproject) = pyproject.as_ref() {
             if let Some(build_system) = pyproject.build_system.as_ref() {
                 for require in &build_system.requires {
                     ret.push((
@@ -781,7 +777,7 @@ impl BuildSystem for SetupPy {
                 }
             }
         }
-        if let Some(options) = self.config.as_ref().and_then(|c| c.get_section("options")) {
+        if let Some(options) = config.as_ref().and_then(|c| c.get_section("options")) {
             for require in options
                 .get::<Vec<String>>("setup_requires")
                 .unwrap_or_default()
@@ -802,7 +798,7 @@ impl BuildSystem for SetupPy {
             }
         }
 
-        if let Some(pyproject_toml) = self.pyproject.as_ref() {
+        if let Some(pyproject_toml) = pyproject.as_ref() {
             if let Some(build_system) = pyproject_toml.build_system.as_ref() {
                 for require in &build_system.requires {
                     ret.push((
@@ -860,6 +856,8 @@ impl BuildSystem for SetupPy {
         session: &dyn Session,
         fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
     ) -> Result<Vec<Box<dyn Output>>, Error> {
+        let config = self.setup_cfg()?;
+        let pyproject = self.pyproject()?;
         let mut ret: Vec<Box<dyn Output>> = vec![];
         let distribution = self.extract_setup(Some(session), fixers)?;
         let mut all_packages = HashSet::new();
@@ -888,7 +886,7 @@ impl BuildSystem for SetupPy {
             }
             all_packages.extend(distribution.packages);
         }
-        if let Some(options) = self.config.as_ref().and_then(|c| c.get_section("options")) {
+        if let Some(options) = config.as_ref().and_then(|c| c.get_section("options")) {
             all_packages.extend(options.get::<Vec<String>>("packages").unwrap_or_default());
             for script in options.get::<Vec<String>>("scripts").unwrap_or_default() {
                 let p = Path::new(&script);
@@ -913,7 +911,7 @@ impl BuildSystem for SetupPy {
             )));
         }
 
-        if let Some(pyproject) = self.pyproject.as_ref().and_then(|p| p.project.as_ref()) {
+        if let Some(pyproject) = pyproject.as_ref().and_then(|p| p.project.as_ref()) {
             if let Some(scripts) = pyproject.scripts.as_ref() {
                 for (script, _from) in scripts {
                     ret.push(Box::new(BinaryOutput(script.to_string())));
@@ -959,6 +957,128 @@ mod tests {
     }
 
     #[test]
+    fn an_unparseable_pyproject_toml_is_reported() {
+        pyo3::Python::initialize();
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+        fs::write(path.join("pyproject.toml"), "this is not toml\n").unwrap();
+        fs::write(path.join("setup.py"), "from setuptools import setup\n").unwrap();
+
+        let setup_py = SetupPy::new(path);
+
+        // Still recognised as a Python project.
+        assert!(SetupPy::probe(path).is_some());
+
+        let session = crate::session::plain::PlainSession::new();
+        let installer = crate::installer::NullInstaller::new();
+        let install_target = InstallTarget {
+            scope: InstallationScope::Vendor,
+            prefix: None,
+        };
+
+        for err in [
+            setup_py.build(&session, &installer).unwrap_err(),
+            setup_py
+                .install(&session, &installer, &install_target)
+                .unwrap_err(),
+            setup_py.clean(&session, &installer).unwrap_err(),
+        ] {
+            let msg = err.to_string();
+            assert!(
+                msg.contains("pyproject.toml"),
+                "error should name the file, got {msg:?}"
+            );
+        }
+    }
+
+    #[test]
+    // Its neighbours chdir the process while they parse.
+    #[serial_test::serial(cwd)]
+    fn a_readable_config_reports_no_error() {
+        if !setuptools_available() {
+            return;
+        }
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+        fs::write(path.join("setup.cfg"), "[metadata]\nname = test\n").unwrap();
+        fs::write(
+            path.join("pyproject.toml"),
+            "[build-system]\nrequires = [\"setuptools\"]\n",
+        )
+        .unwrap();
+
+        let setup_py = SetupPy::new(path);
+        assert!(setup_py.setup_cfg().unwrap().is_some());
+        assert!(setup_py.pyproject().unwrap().is_some());
+    }
+
+    #[test]
+    #[serial_test::serial(cwd)]
+    fn a_setup_cfg_that_needs_a_missing_module_is_skipped() {
+        if !setuptools_available() {
+            return;
+        }
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+        fs::write(
+            path.join("setup.cfg"),
+            "[metadata]\nname = ognitestpkg\nversion = attr: ognitestpkg.__version__\n",
+        )
+        .unwrap();
+        fs::create_dir(path.join("ognitestpkg")).unwrap();
+        fs::write(
+            path.join("ognitestpkg/__init__.py"),
+            "import ogni_test_module_that_is_not_installed\n__version__ = '.'.join(['1', '0'])\n",
+        )
+        .unwrap();
+
+        let setup_py = SetupPy::new(path);
+        assert!(setup_py.setup_cfg().unwrap().is_none());
+        assert!(setup_py.setup_cfg().unwrap().is_none());
+    }
+
+    #[test]
+    // `read_configuration` chdirs the process while it parses.
+    #[serial_test::serial(cwd)]
+    fn an_unparseable_setup_cfg_is_reported() {
+        if !setuptools_available() {
+            return;
+        }
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+        fs::write(path.join("setup.cfg"), "this is not a setup.cfg\n").unwrap();
+        fs::write(
+            path.join("setup.py"),
+            "from setuptools import setup\nsetup(name='test')",
+        )
+        .unwrap();
+
+        let setup_py = SetupPy::new(path);
+
+        assert!(SetupPy::probe(path).is_some());
+
+        let session = crate::session::plain::PlainSession::new();
+        let installer = crate::installer::NullInstaller::new();
+        let msg = setup_py
+            .build(&session, &installer)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            msg.contains("setup.cfg"),
+            "error should name the file, got {msg:?}"
+        );
+        // The reason has to survive, not just the name from the format string.
+        assert!(
+            msg.contains("section"),
+            "error should carry the reason, got {msg:?}"
+        );
+    }
+
+    #[test]
     fn test_python_project_without_pyproject_toml() {
         pyo3::Python::initialize();
 
@@ -975,7 +1095,7 @@ mod tests {
         // This should not panic
         let setup_py = SetupPy::new(path);
         assert!(setup_py.has_setup_py);
-        assert!(setup_py.pyproject.is_none());
+        assert!(setup_py.pyproject().unwrap().is_none());
     }
 
     #[test]
