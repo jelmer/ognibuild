@@ -4,7 +4,11 @@ use crate::session::{CommandBuilder, Error, Project, Session};
 ///
 /// This is the simplest session implementation, which just runs commands
 /// directly on the host system without any isolation.
-pub struct PlainSession(std::path::PathBuf);
+pub struct PlainSession {
+    cwd: std::path::PathBuf,
+    /// Environment overlay applied to every spawned command, before any per-call env.
+    env: std::collections::HashMap<String, String>,
+}
 
 impl Default for PlainSession {
     fn default() -> Self {
@@ -50,7 +54,29 @@ impl PlainSession {
     /// # Returns
     /// A new PlainSession instance
     pub fn new() -> Self {
-        PlainSession(std::path::PathBuf::from("/"))
+        PlainSession {
+            cwd: std::path::PathBuf::from("/"),
+            env: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Prepend `dir` to the `PATH` seen by every command this session spawns.
+    ///
+    /// The directory is searched ahead of the inherited `PATH`, and the process
+    /// environment is left untouched.
+    pub fn prepend_path(&mut self, dir: &std::path::Path) {
+        let current = self
+            .env
+            .get("PATH")
+            .map(std::ffi::OsString::from)
+            .or_else(|| std::env::var_os("PATH"))
+            .unwrap_or_default();
+        let joined = std::env::join_paths(
+            std::iter::once(dir.to_path_buf()).chain(std::env::split_paths(&current)),
+        )
+        .expect("directory is representable in PATH");
+        self.env
+            .insert("PATH".to_string(), joined.to_string_lossy().into_owned());
     }
 
     fn prepend_user<'a>(&'a self, user: Option<&'a str>, mut args: Vec<&'a str>) -> Vec<&'a str> {
@@ -80,24 +106,24 @@ impl Session for PlainSession {
     }
 
     fn exists(&self, path: &std::path::Path) -> bool {
-        self.0.join(path).exists()
+        self.cwd.join(path).exists()
     }
 
     fn mkdir(&self, path: &std::path::Path) -> Result<(), Error> {
-        std::fs::create_dir_all(self.0.join(path)).map_err(Error::IoError)
+        std::fs::create_dir_all(self.cwd.join(path)).map_err(Error::IoError)
     }
 
     fn chdir(&mut self, path: &std::path::Path) -> Result<(), Error> {
-        self.0 = self.0.join(path).canonicalize().map_err(Error::IoError)?;
+        self.cwd = self.cwd.join(path).canonicalize().map_err(Error::IoError)?;
         Ok(())
     }
 
     fn pwd(&self) -> &std::path::Path {
-        &self.0
+        &self.cwd
     }
 
     fn external_path(&self, path: &std::path::Path) -> std::path::PathBuf {
-        canonicalize_existing_prefix(&self.0.join(path))
+        canonicalize_existing_prefix(&self.cwd.join(path))
     }
 
     fn check_output(
@@ -111,8 +137,9 @@ impl Session for PlainSession {
         let mut binding = std::process::Command::new(argv[0]);
         let mut cmd = binding.args(&argv[1..]);
 
-        cmd = cmd.current_dir(cwd.unwrap_or(self.0.as_path()));
+        cmd = cmd.current_dir(cwd.unwrap_or(self.cwd.as_path()));
 
+        cmd = cmd.envs(&self.env);
         if let Some(env) = env {
             cmd = cmd.envs(env);
         }
@@ -146,8 +173,9 @@ impl Session for PlainSession {
         let mut binding = std::process::Command::new(argv[0]);
         let mut cmd = binding.args(&argv[1..]);
 
-        cmd = cmd.current_dir(cwd.unwrap_or(self.0.as_path()));
+        cmd = cmd.current_dir(cwd.unwrap_or(self.cwd.as_path()));
 
+        cmd = cmd.envs(&self.env);
         if let Some(env) = env {
             cmd = cmd.envs(env);
         }
@@ -198,9 +226,10 @@ impl Session for PlainSession {
             .stdout(stdout.unwrap_or(std::process::Stdio::inherit()))
             .stderr(stderr.unwrap_or(std::process::Stdio::inherit()));
 
-        let cwd = cwd.map_or_else(|| self.0.clone(), |p| self.0.join(p));
+        let cwd = cwd.map_or_else(|| self.cwd.clone(), |p| self.cwd.join(p));
         cmd = cmd.current_dir(cwd);
 
+        cmd = cmd.envs(&self.env);
         if let Some(env) = env {
             cmd = cmd.envs(env);
         }
