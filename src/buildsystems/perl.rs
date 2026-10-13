@@ -418,7 +418,7 @@ impl BuildSystem for PerlBuildTiny {
             crate::analyze::run_detecting_problems(
                 session,
                 vec!["minil", "dist"],
-                Some(&|_, _| dc.find_files().is_none()),
+                Some(&|_, _| dc.find_files().is_some()),
                 quiet,
                 None,
                 None,
