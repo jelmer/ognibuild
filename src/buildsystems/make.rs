@@ -707,4 +707,32 @@ check:
             .configure(&session, &crate::installer::NullInstaller)
             .unwrap();
     }
+
+    #[test]
+    fn test_dist() {
+        let mut session = crate::session::plain::PlainSession::new();
+        let td = tempfile::tempdir().unwrap();
+        // Nested so that the `..` the dist catcher watches is the tempdir.
+        let tree = td.path().join("tree");
+        std::fs::create_dir_all(tree.join("dist")).unwrap();
+        session.chdir(&tree).unwrap();
+        std::fs::write(
+            tree.join("Makefile"),
+            ".PHONY: dist\ndist:\n\ttouch dist/project-1.0.tar.gz\n",
+        )
+        .unwrap();
+        let target = tempfile::tempdir().unwrap();
+        let make = Make::probe(&tree).expect("make");
+
+        let name = make
+            .dist(
+                &session,
+                &crate::installer::NullInstaller,
+                target.path(),
+                false,
+            )
+            .unwrap();
+        assert_eq!(name, "project-1.0.tar.gz");
+        assert!(target.path().join("project-1.0.tar.gz").exists());
+    }
 }

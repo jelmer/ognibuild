@@ -267,4 +267,27 @@ mod tests {
         let err = catcher.copy_single(target.path()).unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
     }
+
+    #[test]
+    fn test_find_files_without_start() {
+        let td = tempfile::tempdir().unwrap();
+        let catcher = DistCatcher::new(vec![td.path().to_path_buf()]);
+        let tarball = td.path().join("project-1.0.tar.gz");
+        touch(&tarball);
+
+        let found = catcher.find_files();
+        assert_eq!(found, Some(tarball.canonicalize().unwrap()));
+    }
+
+    #[test]
+    fn test_copy_single_without_find_files() {
+        let td = tempfile::tempdir().unwrap();
+        let catcher = DistCatcher::new(vec![td.path().to_path_buf()]);
+        touch(&td.path().join("project-1.0.tar.gz"));
+
+        let target = tempfile::tempdir().unwrap();
+        let copied = catcher.copy_single(target.path()).unwrap();
+        assert_eq!(copied, Some(OsString::from("project-1.0.tar.gz")));
+        assert!(target.path().join("project-1.0.tar.gz").exists());
+    }
 }
