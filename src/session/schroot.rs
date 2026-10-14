@@ -407,6 +407,23 @@ mod tests {
     }
 
     #[test]
+    fn test_setup_failure_reads_written_stderr() {
+        use std::io::Write;
+        // The child leaves the shared offset at the end of what it wrote.
+        let mut stderr = tempfile::tempfile().unwrap();
+        stderr
+            .write_all(b"E: unstable-amd64-sbuild: Chroot not found\n")
+            .unwrap();
+        match super::setup_failure(&mut stderr) {
+            super::Error::SetupFailure(msg, long) => {
+                assert_eq!(msg, "E: unstable-amd64-sbuild: Chroot not found");
+                assert_eq!(long, "E: unstable-amd64-sbuild: Chroot not found\n");
+            }
+            e => panic!("unexpected error: {:?}", e),
+        }
+    }
+
+    #[test]
     fn test_new_returns_missing_binary_when_schroot_absent() {
         // Only meaningful when the schroot binary isn't installed; when it
         // is, `new` will still hit the schroot-invocation path and return
