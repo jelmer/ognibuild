@@ -1,5 +1,5 @@
 use crate::session::{CommandBuilder, Error, Project, Session};
-use std::io::{BufRead, Read};
+use std::io::{BufRead, Read, Seek, SeekFrom};
 
 extern crate rand;
 use rand::distr::{Alphanumeric, Distribution};
@@ -23,6 +23,21 @@ pub fn generate_session_id(prefix: &str) -> String {
     )
     .unwrap();
     format!("{}-{}", sanitize_session_name(prefix), suffix)
+}
+
+/// Build the error for a failed `schroot -b` from its captured stderr
+fn setup_failure<R: Read + Seek>(stderr: &mut R) -> Error {
+    let mut errlines = String::new();
+    // schroot wrote through a shared file offset, so rewind before reading
+    stderr.seek(SeekFrom::Start(0)).unwrap();
+    stderr.read_to_string(&mut errlines).unwrap();
+    if errlines.len() == 1 {
+        Error::SetupFailure(errlines.lines().next().unwrap().to_string(), errlines)
+    } else if errlines.is_empty() {
+        Error::SetupFailure("No output from schroot".to_string(), errlines)
+    } else {
+        Error::SetupFailure(errlines.lines().last().unwrap().to_string(), errlines)
+    }
 }
 
 /// A schroot-based session
@@ -52,26 +67,7 @@ impl SchrootSession {
 
         let session_id = match cmd.status.code() {
             Some(0) => String::from_utf8(cmd.stdout).unwrap(),
-            Some(_) => {
-                let mut errlines = String::new();
-                stderr.read_to_string(&mut errlines).unwrap();
-                if errlines.len() == 1 {
-                    return Err(Error::SetupFailure(
-                        errlines.lines().next().unwrap().to_string(),
-                        errlines,
-                    ));
-                } else if errlines.is_empty() {
-                    return Err(Error::SetupFailure(
-                        "No output from schroot".to_string(),
-                        errlines,
-                    ));
-                } else {
-                    return Err(Error::SetupFailure(
-                        errlines.lines().last().unwrap().to_string(),
-                        errlines,
-                    ));
-                }
-            }
+            Some(_) => return Err(setup_failure(&mut stderr)),
             None => panic!("schroot exited by signal"),
         };
 
@@ -408,6 +404,23 @@ mod tests {
         let id = super::generate_session_id("foo");
         assert_eq!(id.len(), 12);
         assert_eq!(&id[..4], "foo-");
+    }
+
+    #[test]
+    fn test_setup_failure_reads_written_stderr() {
+        use std::io::Write;
+        // The child leaves the shared offset at the end of what it wrote.
+        let mut stderr = tempfile::tempfile().unwrap();
+        stderr
+            .write_all(b"E: unstable-amd64-sbuild: Chroot not found\n")
+            .unwrap();
+        match super::setup_failure(&mut stderr) {
+            super::Error::SetupFailure(msg, long) => {
+                assert_eq!(msg, "E: unstable-amd64-sbuild: Chroot not found");
+                assert_eq!(long, "E: unstable-amd64-sbuild: Chroot not found\n");
+            }
+            e => panic!("unexpected error: {:?}", e),
+        }
     }
 
     #[test]
