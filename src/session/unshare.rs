@@ -1238,22 +1238,14 @@ mod tests {
 
     #[test]
     fn test_cached_debian_session_no_download() {
-        // Test that cached_debian_session returns the correct error when download is not allowed
-        // and no cached file exists
-        let result = UnshareSession::cached_debian_session("test-suite-nonexistent");
-        assert!(result.is_err());
-        if let Err(err) = result {
-            assert!(
-                matches!(
-                    err,
-                    crate::session::Error::ImageError(
-                        crate::session::ImageError::CachedImageNotFound { .. }
-                            | crate::session::ImageError::NoCachedImage
-                    )
-                ),
-                "Expected CachedImageNotFound error, got {:?}",
-                err
-            );
+        match UnshareSession::cached_debian_session("test-suite-nonexistent") {
+            Err(crate::session::Error::ImageError(
+                crate::session::ImageError::CachedImageNotFound { path },
+            )) => assert_eq!(
+                path,
+                cached_debian_tarball_path("test-suite-nonexistent").unwrap()
+            ),
+            other => panic!("unexpected result: {:?}", other.err()),
         }
     }
 
