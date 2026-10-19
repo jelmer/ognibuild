@@ -10,7 +10,7 @@ homepage = "https://github.com/jelmer/ognibuild"
 default-run = "ogni"
 
 [dependencies]
-pyo3 = ">=0.27, <0.30"
+pyo3 = ">=0.27, <0.31"
 breezyshim = { version = "0.7.22", optional = true, default-features = false }
 buildlog-consultant = { version = "0.1.9" }
 upstream-ontologist = { version = "0.3.18", optional = true }
