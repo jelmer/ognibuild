@@ -788,6 +788,18 @@ mod tests {
     }
 
     #[test]
+    fn test_satisfy_entry_apt_arg() {
+        assert_eq!(
+            SatisfyEntry::Required("dh-python".to_string()).apt_arg(),
+            "dh-python"
+        );
+        assert_eq!(
+            SatisfyEntry::Conflict("python3-broken".to_string()).apt_arg(),
+            "Conflicts: python3-broken"
+        );
+    }
+
+    #[test]
     fn test_pick_best_deb_dependency() {
         struct DummyTieBreaker;
         impl crate::dependencies::debian::TieBreaker for DummyTieBreaker {
