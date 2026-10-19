@@ -315,7 +315,7 @@ impl UnshareSession {
         let uid = nix::unistd::getuid().to_string();
         let gid = nix::unistd::getgid().to_string();
 
-        match self.check_call(
+        self.check_call(
             vec![
                 "/usr/sbin/groupadd",
                 "--force",
@@ -327,10 +327,13 @@ impl UnshareSession {
             Some(std::path::Path::new("/")),
             Some("root"),
             None,
-        ) {
-            Ok(_) => {}
-            Err(e) => panic!("Error: {:?}", e),
-        }
+        )
+        .map_err(|e| {
+            Error::SetupFailure(
+                "failed to run groupadd in the session".to_string(),
+                e.to_string(),
+            )
+        })?;
 
         let child = self.popen(
             vec![
@@ -343,28 +346,28 @@ impl UnshareSession {
             ],
             Some(std::path::Path::new("/")),
             Some("root"),
-            None,
+            Some(std::process::Stdio::piped()),
             Some(std::process::Stdio::piped()),
             None,
             None,
         )?;
 
-        match child.wait_with_output() {
-            Ok(output) => {
-                match output.status.code() {
-                    // User created
-                    Some(0) => Ok(()),
-                    // Ignore if user already exists
-                    Some(9) => Ok(()),
-                    Some(4) => Ok(()),
-                    _ => panic!(
-                        "Error: {:?}: {}",
-                        output.status,
-                        String::from_utf8(output.stdout).unwrap()
-                    ),
-                }
-            }
-            Err(e) => panic!("Error: {:?}", e),
+        let output = child.wait_with_output()?;
+        match output.status.code() {
+            // User created
+            Some(0) => Ok(()),
+            // Ignore if user already exists
+            Some(9) => Ok(()),
+            Some(4) => Ok(()),
+            _ => Err(Error::SetupFailure(
+                "failed to run useradd in the session".to_string(),
+                format!(
+                    "{}\nstdout: {}\nstderr: {}",
+                    output.status,
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr),
+                ),
+            )),
         }
     }
 
