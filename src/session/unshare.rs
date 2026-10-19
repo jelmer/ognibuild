@@ -170,7 +170,9 @@ impl UnshareSession {
     pub fn cached_debian_session(suite: &str) -> Result<Self, crate::session::Error> {
         let tarball_path = cached_debian_tarball_path(suite)?;
         if !tarball_path.exists() {
-            Err(Error::ImageError(ImageError::NoCachedImage))
+            Err(Error::ImageError(ImageError::CachedImageNotFound {
+                path: tarball_path,
+            }))
         } else {
             log::info!(
                 "Using cached Debian {} image from: {}",
@@ -1236,22 +1238,14 @@ mod tests {
 
     #[test]
     fn test_cached_debian_session_no_download() {
-        // Test that cached_debian_session returns the correct error when download is not allowed
-        // and no cached file exists
-        let result = UnshareSession::cached_debian_session("test-suite-nonexistent");
-        assert!(result.is_err());
-        if let Err(err) = result {
-            assert!(
-                matches!(
-                    err,
-                    crate::session::Error::ImageError(
-                        crate::session::ImageError::CachedImageNotFound { .. }
-                            | crate::session::ImageError::NoCachedImage
-                    )
-                ),
-                "Expected CachedImageNotFound error, got {:?}",
-                err
-            );
+        match UnshareSession::cached_debian_session("test-suite-nonexistent") {
+            Err(crate::session::Error::ImageError(
+                crate::session::ImageError::CachedImageNotFound { path },
+            )) => assert_eq!(
+                path,
+                cached_debian_tarball_path("test-suite-nonexistent").unwrap()
+            ),
+            other => panic!("unexpected result: {:?}", other.err()),
         }
     }
 
