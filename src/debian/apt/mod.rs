@@ -156,6 +156,16 @@ pub enum SatisfyEntry {
     Conflict(String),
 }
 
+impl SatisfyEntry {
+    /// The argument for this entry on the `apt satisfy` command line.
+    fn apt_arg(&self) -> String {
+        match self {
+            SatisfyEntry::Required(s) => s.clone(),
+            SatisfyEntry::Conflict(s) => format!("Conflicts: {}", s),
+        }
+    }
+}
+
 /// Which phase(s) of an apt satisfy/install run to perform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SatisfyPhase {
@@ -281,10 +291,7 @@ impl<'a> AptManager<'a> {
         if let Some(flag) = phase.flag() {
             args.push(flag.to_string());
         }
-        args.extend(deps.iter().map(|dep| match dep {
-            SatisfyEntry::Required(s) => s.clone(),
-            SatisfyEntry::Conflict(s) => format!("Conflict: {}", s),
-        }));
+        args.extend(deps.iter().map(SatisfyEntry::apt_arg));
         self.run_apt(args.iter().map(|s| s.as_str()).collect())
     }
 
@@ -778,6 +785,18 @@ mod tests {
         assert_eq!(SatisfyPhase::Download.flag(), Some("--download-only"));
         assert_eq!(SatisfyPhase::Install.flag(), Some("--no-download"));
         assert_eq!(SatisfyPhase::Both.flag(), None);
+    }
+
+    #[test]
+    fn test_satisfy_entry_apt_arg() {
+        assert_eq!(
+            SatisfyEntry::Required("dh-python".to_string()).apt_arg(),
+            "dh-python"
+        );
+        assert_eq!(
+            SatisfyEntry::Conflict("python3-broken".to_string()).apt_arg(),
+            "Conflicts: python3-broken"
+        );
     }
 
     #[test]
