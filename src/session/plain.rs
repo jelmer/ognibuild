@@ -23,6 +23,10 @@ fn canonicalize_existing_prefix(path: &std::path::Path) -> std::path::PathBuf {
 
     loop {
         if let Ok(canonical) = prefix.canonicalize() {
+            // Joining an empty path would add a trailing slash.
+            if suffix.is_empty() {
+                return canonical;
+            }
             return canonical.join(suffix.iter().rev().collect::<std::path::PathBuf>());
         }
         match (prefix.parent(), prefix.file_name()) {
@@ -377,6 +381,19 @@ mod tests {
         let path = td.path().join("test");
         session.mkdir(&path).unwrap();
         assert_eq!(session.external_path(&path), path.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_external_path_existing_file() {
+        let session = PlainSession::new();
+        let td = tempfile::tempdir().unwrap();
+        let path = td.path().join("file");
+        std::fs::write(&path, b"").unwrap();
+        // Path equality ignores a trailing slash, so compare the raw strings.
+        assert_eq!(
+            session.external_path(&path).as_os_str(),
+            path.canonicalize().unwrap().as_os_str()
+        );
     }
 
     #[test]
