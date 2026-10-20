@@ -292,7 +292,7 @@ mod tests {
     fn test_prepend_user_current_user() {
         let session = PlainSession::new();
         let args = vec!["ls"];
-        let username = whoami::username().expect("Failed to get current username");
+        let username = crate::session::get_user(&session);
         let args = session.prepend_user(Some(username.as_str()), args);
         assert_eq!(args, vec!["ls"]);
     }
