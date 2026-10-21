@@ -19,7 +19,7 @@ jobs:
       - name: Update apt cache
         run: sudo apt-get update
       - name: Install system dependencies
-        run: sudo apt-get install -y libapt-pkg-dev libpcre3-dev
+        run: sudo apt-get install -y libapt-pkg-dev
             clang libclang-dev pkg-config nettle-dev
       - uses: rust-lang/crates-io-auth-action@v1
         id: auth

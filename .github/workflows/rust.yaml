@@ -22,7 +22,7 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v7
         with:
-          python-version: "3.x"
+          python-version: "3.14"
       - name: Update apt cache
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update
@@ -31,7 +31,7 @@ jobs:
         run: sudo apt-get install -y mmdebstrap
       - name: Install system breezy and libapt-pkg-dev
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get install -y brz libapt-pkg-dev libpcre3-dev
+        run: sudo apt-get install -y brz libapt-pkg-dev
             clang libclang-dev pkg-config nettle-dev
       - name: Install breezy
         run: pip install breezy
