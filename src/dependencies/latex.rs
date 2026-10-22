@@ -40,7 +40,7 @@ impl Dependency for LatexPackageDependency {
 
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingLatexFile {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        if let Some(filename) = self.0.strip_suffix(".sty") {
+        if let Some(filename) = self.filename.strip_suffix(".sty") {
             Some(Box::new(LatexPackageDependency::new(filename)))
         } else {
             None
@@ -175,8 +175,9 @@ mod tests {
 
     #[test]
     fn test_missing_latex_file_to_dependency() {
-        let problem =
-            buildlog_consultant::problems::common::MissingLatexFile("graphicx.sty".to_string());
+        let problem = buildlog_consultant::problems::common::MissingLatexFile {
+            filename: "graphicx.sty".to_string(),
+        };
         let dependency = problem.to_dependency();
         assert!(dependency.is_some());
         let dep = dependency.unwrap();
@@ -191,8 +192,9 @@ mod tests {
     #[test]
     fn test_missing_latex_file_non_sty_to_dependency() {
         // Non .sty files should return None
-        let problem =
-            buildlog_consultant::problems::common::MissingLatexFile("graphicx.cls".to_string());
+        let problem = buildlog_consultant::problems::common::MissingLatexFile {
+            filename: "graphicx.cls".to_string(),
+        };
         let dependency = problem.to_dependency();
         assert!(dependency.is_none());
     }

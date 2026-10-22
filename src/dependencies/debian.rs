@@ -315,7 +315,7 @@ impl crate::buildlog::ToDependency
     for buildlog_consultant::problems::debian::UnsatisfiedAptDependencies
 {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(DebianDependency::new(&self.0)))
+        Some(Box::new(DebianDependency::new(&self.relations)))
     }
 }
 

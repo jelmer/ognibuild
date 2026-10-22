@@ -187,7 +187,7 @@ impl crate::buildlog::ToDependency
     for buildlog_consultant::problems::common::MissingHaskellDependencies
 {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        let d: HaskellPackageDependency = self.0[0].parse().unwrap();
+        let d: HaskellPackageDependency = self.deps[0].parse().unwrap();
         Some(Box::new(d))
     }
 }
@@ -243,9 +243,9 @@ mod tests {
 
     #[test]
     fn test_missing_haskell_dependencies_to_dependency() {
-        let problem = buildlog_consultant::problems::common::MissingHaskellDependencies(vec![
-            "parsec".to_string(),
-        ]);
+        let problem = buildlog_consultant::problems::common::MissingHaskellDependencies {
+            deps: vec!["parsec".to_string()],
+        };
         let dependency = problem.to_dependency();
         assert!(dependency.is_some());
         let dep = dependency.unwrap();

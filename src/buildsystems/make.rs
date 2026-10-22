@@ -295,12 +295,12 @@ impl Make {
 
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingMakeTarget {
     fn to_dependency(&self) -> Option<Box<dyn crate::dependency::Dependency>> {
-        if let Some(_local_path) = self.0.strip_prefix("/<<PKGBUILDDIR>>/") {
+        if let Some(_local_path) = self.target.strip_prefix("/<<PKGBUILDDIR>>/") {
             // Local file or target
             None
-        } else if self.0.starts_with('/') {
+        } else if self.target.starts_with('/') {
             Some(Box::new(crate::dependencies::PathDependency::from(
-                PathBuf::from(&self.0),
+                PathBuf::from(&self.target),
             )))
         } else {
             None

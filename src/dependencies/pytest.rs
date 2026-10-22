@@ -170,7 +170,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PytestPluginDependenc
 
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPytestFixture {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        pytest_fixture_to_plugin(&self.0)
+        pytest_fixture_to_plugin(&self.fixture)
             .map(|plugin| Box::new(PytestPluginDependency::new(plugin)) as Box<dyn Dependency>)
     }
 }
@@ -179,7 +179,7 @@ impl crate::buildlog::ToDependency
     for buildlog_consultant::problems::common::UnsupportedPytestArguments
 {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        let args = self.0.iter().map(|x| x.as_str()).collect::<Vec<_>>();
+        let args = self.args.iter().map(|x| x.as_str()).collect::<Vec<_>>();
         map_pytest_arguments_to_plugin(args.as_slice())
             .map(|plugin| Box::new(PytestPluginDependency::new(plugin)) as Box<dyn Dependency>)
     }
@@ -189,7 +189,7 @@ impl crate::buildlog::ToDependency
     for buildlog_consultant::problems::common::UnsupportedPytestConfigOption
 {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        map_pytest_config_option_to_plugin(&self.0)
+        map_pytest_config_option_to_plugin(&self.name)
             .map(|plugin| Box::new(PytestPluginDependency::new(plugin)) as Box<dyn Dependency>)
     }
 }
@@ -251,8 +251,9 @@ mod tests {
 
     #[test]
     fn test_missing_pytest_fixture_to_dependency() {
-        let problem =
-            buildlog_consultant::problems::common::MissingPytestFixture("event_loop".to_string());
+        let problem = buildlog_consultant::problems::common::MissingPytestFixture {
+            fixture: "event_loop".to_string(),
+        };
         let dependency = problem.to_dependency();
         assert!(dependency.is_some());
         let dep = dependency.unwrap();
@@ -266,19 +267,18 @@ mod tests {
 
     #[test]
     fn test_missing_pytest_fixture_to_dependency_unknown() {
-        let problem = buildlog_consultant::problems::common::MissingPytestFixture(
-            "unknown_fixture".to_string(),
-        );
+        let problem = buildlog_consultant::problems::common::MissingPytestFixture {
+            fixture: "unknown_fixture".to_string(),
+        };
         let dependency = problem.to_dependency();
         assert!(dependency.is_none());
     }
 
     #[test]
     fn test_unsupported_pytest_arguments_to_dependency() {
-        let problem = buildlog_consultant::problems::common::UnsupportedPytestArguments(vec![
-            "--cov".to_string(),
-            "--cov-report=html".to_string(),
-        ]);
+        let problem = buildlog_consultant::problems::common::UnsupportedPytestArguments {
+            args: vec!["--cov".to_string(), "--cov-report=html".to_string()],
+        };
         let dependency = problem.to_dependency();
         assert!(dependency.is_some());
         let dep = dependency.unwrap();
@@ -292,18 +292,18 @@ mod tests {
 
     #[test]
     fn test_unsupported_pytest_arguments_to_dependency_unknown() {
-        let problem = buildlog_consultant::problems::common::UnsupportedPytestArguments(vec![
-            "--unknown".to_string(),
-        ]);
+        let problem = buildlog_consultant::problems::common::UnsupportedPytestArguments {
+            args: vec!["--unknown".to_string()],
+        };
         let dependency = problem.to_dependency();
         assert!(dependency.is_none());
     }
 
     #[test]
     fn test_unsupported_pytest_config_option_to_dependency() {
-        let problem = buildlog_consultant::problems::common::UnsupportedPytestConfigOption(
-            "asyncio_mode".to_string(),
-        );
+        let problem = buildlog_consultant::problems::common::UnsupportedPytestConfigOption {
+            name: "asyncio_mode".to_string(),
+        };
         let dependency = problem.to_dependency();
         assert!(dependency.is_some());
         let dep = dependency.unwrap();
@@ -317,9 +317,9 @@ mod tests {
 
     #[test]
     fn test_unsupported_pytest_config_option_to_dependency_unknown() {
-        let problem = buildlog_consultant::problems::common::UnsupportedPytestConfigOption(
-            "unknown_option".to_string(),
-        );
+        let problem = buildlog_consultant::problems::common::UnsupportedPytestConfigOption {
+            name: "unknown_option".to_string(),
+        };
         let dependency = problem.to_dependency();
         assert!(dependency.is_none());
     }
