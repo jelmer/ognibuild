@@ -38,8 +38,10 @@ pub struct DistCatcher {
 
 impl DistCatcher {
     /// Create a new DistCatcher to monitor the specified directories.
+    ///
+    /// Takes the snapshot of existing files; see [`DistCatcher::start`].
     pub fn new(directories: Vec<PathBuf>) -> Self {
-        Self {
+        let mut catcher = Self {
             directories: directories
                 .iter()
                 .map(|d| d.canonicalize().unwrap())
@@ -47,7 +49,9 @@ impl DistCatcher {
             files: std::sync::Mutex::new(Vec::new()),
             start_time: std::time::SystemTime::now(),
             existing_files: None,
-        }
+        };
+        catcher.start();
+        catcher
     }
 
     /// Create a DistCatcher with default directory locations.
@@ -59,9 +63,9 @@ impl DistCatcher {
         ])
     }
 
-    /// Initialize the file monitoring process.
+    /// Take a fresh snapshot of existing files.
     ///
-    /// Takes a snapshot of existing files to later detect new or modified files.
+    /// `new` already takes one; call this only to take it again later.
     pub fn start(&mut self) {
         self.existing_files = Some(
             self.directories
@@ -133,8 +137,13 @@ impl DistCatcher {
 
     /// Copy a single distribution file to the target directory.
     ///
+    /// Calls [`DistCatcher::find_files`] first if no file was found yet.
+    ///
     /// Returns the filename of the copied file if successful.
     pub fn copy_single(&self, target_dir: &Path) -> Result<Option<OsString>, std::io::Error> {
+        if self.files.lock().unwrap().is_empty() {
+            self.find_files();
+        }
         for path in self.files.lock().unwrap().iter() {
             match std::fs::copy(path, target_dir.join(path.file_name().unwrap())) {
                 Ok(_) => return Ok(Some(path.file_name().unwrap().into())),
@@ -257,5 +266,28 @@ mod tests {
         let target = tempfile::tempdir().unwrap();
         let err = catcher.copy_single(target.path()).unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_find_files_without_start() {
+        let td = tempfile::tempdir().unwrap();
+        let catcher = DistCatcher::new(vec![td.path().to_path_buf()]);
+        let tarball = td.path().join("project-1.0.tar.gz");
+        touch(&tarball);
+
+        let found = catcher.find_files();
+        assert_eq!(found, Some(tarball.canonicalize().unwrap()));
+    }
+
+    #[test]
+    fn test_copy_single_without_find_files() {
+        let td = tempfile::tempdir().unwrap();
+        let catcher = DistCatcher::new(vec![td.path().to_path_buf()]);
+        touch(&td.path().join("project-1.0.tar.gz"));
+
+        let target = tempfile::tempdir().unwrap();
+        let copied = catcher.copy_single(target.path()).unwrap();
+        assert_eq!(copied, Some(OsString::from("project-1.0.tar.gz")));
+        assert!(target.path().join("project-1.0.tar.gz").exists());
     }
 }
