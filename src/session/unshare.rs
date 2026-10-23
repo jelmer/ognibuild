@@ -421,6 +421,22 @@ impl UnshareSession {
         ret
     }
 
+    /// The host command for `argv`, minus the temp dir variables naming host paths.
+    fn host_command(
+        &self,
+        argv: Vec<&str>,
+        cwd: Option<&std::path::Path>,
+        user: Option<&str>,
+    ) -> std::process::Command {
+        let argv = self.run_argv(argv, cwd, user);
+        let mut cmd = std::process::Command::new(&argv[0]);
+        cmd.args(&argv[1..]);
+        for var in ["TMPDIR", "TMP", "TEMP"] {
+            cmd.env_remove(var);
+        }
+        cmd
+    }
+
     fn build_tempdir(&self, user: Option<&str>) -> std::path::PathBuf {
         let build_dir = "/build";
 
@@ -621,10 +637,8 @@ impl Session for UnshareSession {
         user: Option<&str>,
         env: Option<std::collections::HashMap<String, String>>,
     ) -> Result<Vec<u8>, super::Error> {
-        let argv = self.run_argv(argv, cwd, user);
-
-        let output = std::process::Command::new(&argv[0])
-            .args(&argv[1..])
+        let output = self
+            .host_command(argv, cwd, user)
             .stderr(std::process::Stdio::inherit())
             .envs(env.unwrap_or_default())
             .output();
@@ -652,10 +666,8 @@ impl Session for UnshareSession {
         user: Option<&str>,
         env: Option<std::collections::HashMap<String, String>>,
     ) -> Result<(), crate::session::Error> {
-        let argv = self.run_argv(argv, cwd, user);
-
-        let status = std::process::Command::new(&argv[0])
-            .args(&argv[1..])
+        let status = self
+            .host_command(argv, cwd, user)
             .envs(env.unwrap_or_default())
             .status();
 
@@ -730,10 +742,8 @@ impl Session for UnshareSession {
         stdin: Option<std::process::Stdio>,
         env: Option<&std::collections::HashMap<String, String>>,
     ) -> Result<std::process::Child, Error> {
-        let argv = self.run_argv(argv, cwd, user);
-
-        let mut binding = std::process::Command::new(&argv[0]);
-        let mut cmd = binding.args(&argv[1..]);
+        let mut binding = self.host_command(argv, cwd, user);
+        let mut cmd = &mut binding;
 
         if let Some(env) = env {
             cmd = cmd.envs(env);
@@ -1403,6 +1413,27 @@ mod tests {
         session.set_isolate_network(true);
         let argv = session.run_argv(vec!["true"], Some(std::path::Path::new("/")), None);
         assert!(argv.iter().any(|a| a == "--net"));
+    }
+
+    #[test]
+    fn test_host_command_drops_host_tmpdir() {
+        let session = UnshareSession {
+            root: std::path::PathBuf::from("/fakechroot"),
+            _root_dir: None,
+            cwd: std::path::PathBuf::from("/"),
+            isolate_network: std::cell::Cell::new(true),
+        };
+        let cmd = session.host_command(vec!["true"], None, None);
+        let mut envs: Vec<_> = cmd.get_envs().collect();
+        envs.sort();
+        assert_eq!(
+            envs,
+            vec![
+                (std::ffi::OsStr::new("TEMP"), None),
+                (std::ffi::OsStr::new("TMP"), None),
+                (std::ffi::OsStr::new("TMPDIR"), None),
+            ]
+        );
     }
 
     #[test]
