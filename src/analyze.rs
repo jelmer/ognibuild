@@ -111,9 +111,9 @@ mod tests {
 
     #[test]
     fn test_analyzed_error_display_detailed() {
-        let problem = Box::new(buildlog_consultant::problems::common::MissingCommand(
-            "test".to_string(),
-        ));
+        let problem = Box::new(buildlog_consultant::problems::common::MissingCommand {
+            command: "test".to_string(),
+        });
         let error = AnalyzedError::Detailed {
             retcode: 127,
             error: problem,
@@ -317,14 +317,14 @@ pub fn run_detecting_problems(
                 let command = args[0].to_string();
                 return Err(AnalyzedError::Detailed {
                     retcode: 127,
-                    error: Box::new(MissingCommand(command))
+                    error: Box::new(MissingCommand { command })
                         as Box<dyn buildlog_consultant::Problem>,
                 });
             }
             Err(SessionError::MissingBinary { command, .. }) => {
                 return Err(AnalyzedError::Detailed {
                     retcode: 127,
-                    error: Box::new(MissingCommand(command))
+                    error: Box::new(MissingCommand { command })
                         as Box<dyn buildlog_consultant::Problem>,
                 });
             }
@@ -343,9 +343,13 @@ pub fn run_detecting_problems(
     if check_success(retcode, contents.iter().map(|s| s.as_str()).collect()) {
         return Ok(contents);
     }
-    let (r#match, error) = buildlog_consultant::common::find_build_failure_description(
-        contents.iter().map(|x| x.as_str()).collect(),
-    );
+    let lines = contents.iter().map(|x| x.as_str()).collect::<Vec<_>>();
+    let failure = buildlog_consultant::common::find_build_failure_description(&lines)
+        .unwrap_or_else(|e| {
+            log::warn!("Error analyzing build log: {}", e);
+            None
+        });
+    let (r#match, error) = failure.map_or((None, None), |f| (Some(f.r#match), f.problem));
     if let Some(error) = error {
         log::debug!("Identified error: {}", error);
         Err(AnalyzedError::Detailed {

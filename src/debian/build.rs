@@ -268,7 +268,7 @@ pub fn build_once(
     extra_repositories: Option<&Vec<&str>>,
 ) -> Result<BuildOnceResult, BuildOnceError> {
     use buildlog_consultant::problems::debian::DpkgSourceLocalChanges;
-    use buildlog_consultant::sbuild::{worker_failure_from_sbuild_log, SbuildLog};
+    use buildlog_consultant::sbuild::{worker_failure_from_sbuild_log, SbuildFailure, SbuildLog};
     let build_log_path = output_directory.join(BUILD_LOG_FILENAME);
     log::debug!("Writing build log to {}", build_log_path.display());
     let mut logf = std::fs::File::create(&build_log_path).unwrap();
@@ -291,7 +291,17 @@ pub fn build_once(
 
             let sbuildlog =
                 SbuildLog::try_from(std::fs::File::open(&build_log_path).unwrap()).unwrap();
-            let sbuild_failure = worker_failure_from_sbuild_log(&sbuildlog);
+            let sbuild_failure = worker_failure_from_sbuild_log(&sbuildlog).unwrap_or_else(|e| {
+                log::warn!("Error analyzing sbuild log: {}", e);
+                SbuildFailure {
+                    stage: None,
+                    description: None,
+                    error: None,
+                    phase: None,
+                    section: None,
+                    r#match: None,
+                }
+            });
 
             // Preserve the diff for later inspection
             if let Some(error) = sbuild_failure

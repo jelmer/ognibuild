@@ -210,11 +210,11 @@ impl<'a> BuildFixer<InstallerError> for MinimumAutoconfFixer<'a> {
                 if m.is_none() {
                     continue;
                 }
-                *line = format!("AC_PREREQ({})", problem.0);
+                *line = format!("AC_PREREQ({})", problem.minimum_version);
                 found = true;
             }
             if !found {
-                lines.insert(0, format!("AC_PREREQ({})", problem.0));
+                lines.insert(0, format!("AC_PREREQ({})", problem.minimum_version));
             }
             std::fs::write(
                 self.session.external_path(std::path::Path::new(name)),
@@ -451,7 +451,9 @@ mod tests {
         let fixer = InstallFixer::new(&installer, InstallationScope::Global);
 
         // Use MissingCommand which maps to a BinaryDependency
-        let problem = MissingCommand("nonexistent-command".to_string());
+        let problem = MissingCommand {
+            command: "nonexistent-command".to_string(),
+        };
 
         // This should return Ok(false) without panicking, even though the dependency
         // family is unknown to the NullInstaller

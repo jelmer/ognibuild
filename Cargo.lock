@@ -560,9 +560,9 @@ dependencies = [
 
 [[package]]
 name = "buildlog-consultant"
-version = "0.1.11"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8748e1b319fdd4362a366de0f57decb4743f4f40cd91d03d87ab911cf71deed4"
+checksum = "370f68a4e45959d7133af29fce22ab3332d0b68cd6d346a784d6342490532490"
 dependencies = [
  "chrono",
  "clap",

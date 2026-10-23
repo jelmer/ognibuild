@@ -426,8 +426,10 @@ pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Res
     if status.success() {
         return Ok(());
     }
-    let (r#match, error) =
-        buildlog_consultant::apt::find_apt_get_failure(lines.iter().map(|s| s.as_str()).collect());
+    let (r#match, error) = buildlog_consultant::apt::find_apt_get_failure(
+        &lines.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+    )
+    .map_or((None, None), |f| (Some(f.r#match), f.problem));
     if let Some(error) = error {
         return Err(Error::Detailed {
             retcode: status.code().unwrap_or(1),

@@ -1005,7 +1005,7 @@ impl crate::buildlog::ToDependency
     for buildlog_consultant::problems::common::MissingSetupPyCommand
 {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        match self.0.as_str() {
+        match self.command.as_str() {
             "test" => Some(Box::new(PythonPackageDependency::simple("setuptools"))),
             _ => None,
         }

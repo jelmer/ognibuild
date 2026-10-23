@@ -135,8 +135,9 @@ mod tests {
 
     #[test]
     fn test_missing_php_extension_to_dependency() {
-        let problem =
-            buildlog_consultant::problems::common::MissingPHPExtension("curl".to_string());
+        let problem = buildlog_consultant::problems::common::MissingPHPExtension {
+            extension: "curl".to_string(),
+        };
         let dependency = problem.to_dependency();
         assert!(dependency.is_some());
         let dep = dependency.unwrap();
@@ -352,6 +353,6 @@ impl crate::dependencies::debian::IntoDebianDependency for PhpExtensionDependenc
 
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPHPExtension {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(PhpExtensionDependency::new(&self.0)))
+        Some(Box::new(PhpExtensionDependency::new(&self.extension)))
     }
 }

@@ -260,7 +260,7 @@ pub fn run_fixing_problems<
                 },
                 crate::analyze::AnalyzedError::MissingCommandError { command } => {
                     InterimError::Recognized(Box::new(
-                        buildlog_consultant::problems::common::MissingCommand(command),
+                        buildlog_consultant::problems::common::MissingCommand { command },
                     ))
                 }
                 crate::analyze::AnalyzedError::IoError(e) => InterimError::Other(e.into()),

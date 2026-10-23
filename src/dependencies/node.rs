@@ -95,7 +95,7 @@ impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency
 
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingNodePackage {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(NodePackageDependency::new(&self.0)))
+        Some(Box::new(NodePackageDependency::new(&self.package)))
     }
 }
 
@@ -208,7 +208,7 @@ impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency 
 
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingNodeModule {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(NodeModuleDependency::new(&self.0)))
+        Some(Box::new(NodeModuleDependency::new(&self.module)))
     }
 }
 

@@ -191,10 +191,10 @@ impl crate::buildlog::ToDependency
     for buildlog_consultant::problems::common::MissingPerlPredeclared
 {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        match known_predeclared_module(self.0.as_str()) {
-            Some(_module) => Some(Box::new(PerlModuleDependency::simple(self.0.as_str()))),
+        match known_predeclared_module(self.name.as_str()) {
+            Some(_module) => Some(Box::new(PerlModuleDependency::simple(self.name.as_str()))),
             None => {
-                log::warn!("Unknown predeclared function: {}", self.0);
+                log::warn!("Unknown predeclared function: {}", self.name);
                 None
             }
         }

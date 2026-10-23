@@ -96,7 +96,7 @@ impl Dependency for BinaryDependency {
 
 impl ToDependency for buildlog_consultant::problems::common::MissingCommand {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(BinaryDependency::new(&self.0)))
+        Some(Box::new(BinaryDependency::new(&self.command)))
     }
 }
 
@@ -257,7 +257,7 @@ impl Dependency for LuaModuleDependency {
 
 impl ToDependency for buildlog_consultant::problems::common::MissingLuaModule {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(LuaModuleDependency::new(&self.0)))
+        Some(Box::new(LuaModuleDependency::new(&self.module)))
     }
 }
 
@@ -983,7 +983,7 @@ impl ToDependency for buildlog_consultant::problems::common::MissingValaPackage 
     /// # Returns
     /// A ValaPackageDependency boxed as a Dependency trait object
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(ValaPackageDependency::new(&self.0)))
+        Some(Box::new(ValaPackageDependency::new(&self.package)))
     }
 }
 
@@ -1637,7 +1637,7 @@ impl crate::dependencies::debian::IntoDebianDependency for LibraryDependency {
 
 impl ToDependency for buildlog_consultant::problems::common::MissingLibrary {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(LibraryDependency::new(&self.0)))
+        Some(Box::new(LibraryDependency::new(&self.library)))
     }
 }
 
@@ -2218,7 +2218,7 @@ impl std::str::FromStr for MavenArtifactDependency {
 
 impl ToDependency for buildlog_consultant::problems::common::MissingMavenArtifacts {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        let text = self.0[0].as_str();
+        let text = self.artifacts[0].as_str();
         let d: MavenArtifactDependency = text.parse().unwrap();
         Some(Box::new(d))
     }
@@ -2345,7 +2345,7 @@ impl crate::dependencies::debian::IntoDebianDependency for QtModuleDependency {
 
 impl ToDependency for buildlog_consultant::problems::common::MissingQtModules {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(QtModuleDependency::new(&self.0[0])))
+        Some(Box::new(QtModuleDependency::new(&self.modules[0])))
     }
 }
 
@@ -2501,7 +2501,7 @@ impl crate::dependencies::debian::IntoDebianDependency for CertificateAuthorityD
 
 impl ToDependency for buildlog_consultant::problems::common::UnknownCertificateAuthority {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(CertificateAuthorityDependency::new(&self.0)))
+        Some(Box::new(CertificateAuthorityDependency::new(&self.url)))
     }
 }
 
@@ -2756,7 +2756,7 @@ impl Dependency for GnulibDirectoryDependency {
 impl ToDependency for buildlog_consultant::problems::common::MissingGnulibDirectory {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(GnulibDirectoryDependency {
-            directory: self.0.clone(),
+            directory: self.directory.clone(),
         }))
     }
 }
@@ -2806,7 +2806,7 @@ impl Dependency for IntrospectionTypelibDependency {
 
 impl ToDependency for buildlog_consultant::problems::common::MissingIntrospectionTypelib {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
-        Some(Box::new(IntrospectionTypelibDependency::new(&self.0)))
+        Some(Box::new(IntrospectionTypelibDependency::new(&self.library)))
     }
 }
 

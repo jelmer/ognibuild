@@ -109,7 +109,9 @@ mod tests {
 
     #[test]
     fn test_missing_command_to_dependency() {
-        let problem = MissingCommand("gcc".to_string());
+        let problem = MissingCommand {
+            command: "gcc".to_string(),
+        };
         let dep = problem_to_dependency(&problem).unwrap();
         assert_eq!(dep.family(), "binary");
     }
@@ -126,8 +128,9 @@ mod tests {
     #[test]
     fn test_unrecognized_problem_returns_none() {
         // MissingPostgresExtension is not in the dispatch table.
-        let problem =
-            buildlog_consultant::problems::common::MissingPostgresExtension("postgis".to_string());
+        let problem = buildlog_consultant::problems::common::MissingPostgresExtension {
+            extension: "postgis".to_string(),
+        };
         assert!(problem_to_dependency(&problem).is_none());
     }
 }
