@@ -32,11 +32,11 @@ fn setup_failure<R: Read + Seek>(stderr: &mut R) -> Error {
     stderr.seek(SeekFrom::Start(0)).unwrap();
     stderr.read_to_string(&mut errlines).unwrap();
     if errlines.len() == 1 {
-        Error::SetupFailure(errlines.lines().next().unwrap().to_string(), errlines)
+        Error::SetupFailure(errlines.lines().next().unwrap().to_string(), Some(errlines))
     } else if errlines.is_empty() {
-        Error::SetupFailure("No output from schroot".to_string(), errlines)
+        Error::SetupFailure("No output from schroot".to_string(), None)
     } else {
-        Error::SetupFailure(errlines.lines().last().unwrap().to_string(), errlines)
+        Error::SetupFailure(errlines.lines().last().unwrap().to_string(), Some(errlines))
     }
 }
 
@@ -310,8 +310,8 @@ impl Session for SchrootSession {
         // Perform the copy operation
         fs_extra::dir::copy(path, &export_directory, &options).map_err(|e| {
             Error::SetupFailure(
-                format!("failed to copy {} into session", path.display()),
-                e.to_string(),
+                format!("failed to copy {} into session: {}", path.display(), e),
+                None,
             )
         })?;
 
@@ -414,7 +414,10 @@ mod tests {
         match super::setup_failure(&mut stderr) {
             super::Error::SetupFailure(msg, long) => {
                 assert_eq!(msg, "E: unstable-amd64-sbuild: Chroot not found");
-                assert_eq!(long, "E: unstable-amd64-sbuild: Chroot not found\n");
+                assert_eq!(
+                    long.as_deref(),
+                    Some("E: unstable-amd64-sbuild: Chroot not found\n")
+                );
             }
             e => panic!("unexpected error: {:?}", e),
         }

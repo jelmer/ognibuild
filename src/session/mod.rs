@@ -48,7 +48,7 @@ pub enum Error {
     /// Error from an IO operation.
     IoError(std::io::Error),
     /// Error from setting up the session, with a message and detailed description.
-    SetupFailure(String, String),
+    SetupFailure(String, Option<String>),
     /// Error from image operations (download, cache, etc.)
     ImageError(ImageError),
     /// A helper binary required by the session backend (e.g. `schroot`) was
@@ -204,7 +204,7 @@ impl SessionKind {
             #[cfg(not(target_os = "linux"))]
             SessionKind::Schroot(_) | SessionKind::Unshare(_) => Err(Error::SetupFailure(
                 "unsupported session backend".to_string(),
-                "schroot and unshare sessions are only available on Linux".to_string(),
+                Some("schroot and unshare sessions are only available on Linux".to_string()),
             )),
         }
     }
@@ -963,10 +963,7 @@ fn run_single_line(
     let out = session.check_output(vec!["sh", "-c", script], Some(cwd), None, None)?;
     String::from_utf8(out)
         .map_err(|e| {
-            Error::SetupFailure(
-                format!("Failed to {}", what),
-                format!("non-UTF-8 output: {}", e),
-            )
+            Error::SetupFailure(format!("Failed to {}: non-UTF-8 output: {}", what, e), None)
         })
         .map(|s| s.trim().to_string())
 }
