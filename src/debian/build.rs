@@ -222,6 +222,8 @@ pub enum BuildOnceError {
         command: Vec<String>,
         /// Human-readable description of the error.
         description: String,
+        /// The lines of the build log that matched the failure, if any.
+        secondary: Option<Box<dyn buildlog_consultant::Match>>,
     },
 }
 
@@ -335,6 +337,7 @@ pub fn build_once(
                     description: sbuild_failure
                         .description
                         .unwrap_or_else(|| format!("Build failed with exit code {}", retcode)),
+                    secondary: sbuild_failure.r#match,
                 });
             }
         }

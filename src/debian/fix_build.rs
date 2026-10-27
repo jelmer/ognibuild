@@ -184,13 +184,22 @@ pub fn build_incrementally(
                 retcode,
                 command: _,
                 description: _,
+                secondary,
             }) => {
                 log::warn!("Build failed with unidentified error. Giving up.");
                 return Err(IterateBuildError::Unidentified {
                     phase,
                     retcode,
-                    lines: vec![],
-                    secondary: None,
+                    lines: secondary
+                        .as_ref()
+                        .map(|m| {
+                            m.lines()
+                                .iter()
+                                .map(|l| l.trim_end_matches('\n').to_string())
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    secondary,
                 });
             }
             Err(BuildOnceError::Detailed { phase, error, .. }) => {
@@ -247,6 +256,63 @@ pub fn build_incrementally(
                 }
                 fixed_errors.push((error, phase));
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use breezyshim::tree::MutableTree;
+
+    #[test]
+    fn test_build_incrementally_unidentified() {
+        breezyshim::init();
+        let td = tempfile::tempdir().unwrap();
+        let tree = breezyshim::controldir::create_standalone_workingtree(
+            td.path(),
+            &breezyshim::controldir::ControlDirFormat::default(),
+        )
+        .unwrap();
+        std::fs::create_dir(td.path().join("debian")).unwrap();
+        std::fs::write(
+            td.path().join("debian/changelog"),
+            "test-package (1.0) unstable; urgency=low\n\n  * Initial release\n\n -- Test User <test@example.com>  Thu, 01 Jan 2023 00:00:00 +0000\n",
+        )
+        .unwrap();
+        std::fs::write(
+            td.path().join("fail.sh"),
+            "echo 'make: *** [all] Error 1'\nexit 2\n",
+        )
+        .unwrap();
+        tree.add(&[
+            Path::new("debian"),
+            Path::new("debian/changelog"),
+            Path::new("fail.sh"),
+        ])
+        .unwrap();
+        let output_dir = tempfile::tempdir().unwrap();
+        let result = build_incrementally(
+            &tree,
+            None,
+            None,
+            output_dir.path(),
+            "sh fail.sh",
+            &[],
+            None,
+            None,
+            Path::new(""),
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
+        match result {
+            Err(IterateBuildError::Unidentified { lines, .. }) => {
+                assert_eq!(lines, vec!["make: *** [all] Error 1"]);
+            }
+            other => panic!("unexpected result: {:?}", other.err()),
         }
     }
 }
