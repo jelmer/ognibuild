@@ -31,7 +31,7 @@ impl RootDir {
     fn new() -> Result<Self, crate::session::Error> {
         // Only the directory is taken from tempfile; cleanup is ours.
         let td = tempfile::tempdir().map_err(|e| {
-            crate::session::Error::SetupFailure("tempdir failed".to_string(), e.to_string())
+            crate::session::Error::SetupFailure(format!("tempdir failed: {}", e), String::new())
         })?;
         Ok(Self(td.keep()))
     }
@@ -88,8 +88,8 @@ fn compression_flag(path: &Path) -> Result<Option<&str>, crate::session::Error> 
         "xz" => Ok(Some("-J")),
         "zst" => Ok(Some("--zstd")),
         e => Err(crate::session::Error::SetupFailure(
-            "unknown extension".to_string(),
             format!("unknown extension: {}", e),
+            String::new(),
         )),
     }
 }
@@ -196,7 +196,7 @@ impl UnshareSession {
         let root = td.path();
 
         let f = std::fs::File::open(path).map_err(|e| {
-            crate::session::Error::SetupFailure("open failed".to_string(), e.to_string())
+            crate::session::Error::SetupFailure(format!("open failed: {}", e), String::new())
         })?;
 
         // Create necessary directories for mounting before extraction
@@ -204,8 +204,8 @@ impl UnshareSession {
         for dir in &["proc", "sys", "dev"] {
             std::fs::create_dir_all(root.join(dir)).map_err(|e| {
                 crate::session::Error::SetupFailure(
-                    format!("Failed to create {} directory", dir),
-                    e.to_string(),
+                    format!("Failed to create {} directory: {}", dir, e),
+                    String::new(),
                 )
             })?;
         }
@@ -234,10 +234,11 @@ impl UnshareSession {
 
         if !output.status.success() {
             let stderr = String::from_utf8(output.stderr).unwrap();
-            return Err(crate::session::Error::SetupFailure(
-                "tar failed".to_string(),
-                stderr,
-            ));
+            let msg = match stderr.lines().next() {
+                Some(line) => format!("tar failed: {}", line),
+                None => "tar failed".to_string(),
+            };
+            return Err(crate::session::Error::SetupFailure(msg, stderr));
         }
 
         let root = root.to_path_buf();
@@ -279,21 +280,22 @@ impl UnshareSession {
         )?;
 
         let f = std::fs::File::create(path).map_err(|e| {
-            crate::session::Error::SetupFailure("create failed".to_string(), e.to_string())
+            crate::session::Error::SetupFailure(format!("create failed: {}", e), String::new())
         })?;
 
         let mut writer = std::io::BufWriter::new(f);
 
         std::io::copy(child.stdout.as_mut().unwrap(), &mut writer).map_err(|e| {
-            crate::session::Error::SetupFailure("copy failed".to_string(), e.to_string())
+            crate::session::Error::SetupFailure(format!("copy failed: {}", e), String::new())
         })?;
 
-        if child.wait()?.success() {
+        let status = child.wait()?;
+        if status.success() {
             Ok(())
         } else {
             Err(crate::session::Error::SetupFailure(
-                "tar failed".to_string(),
-                "tar failed".to_string(),
+                format!("tar failed: {}", status),
+                String::new(),
             ))
         }
     }
@@ -308,8 +310,8 @@ impl UnshareSession {
         // Ensure that the current user has an entry in /etc/passwd
         let user = whoami::username().map_err(|e| {
             crate::session::Error::SetupFailure(
-                "Failed to get current username".to_string(),
-                e.to_string(),
+                format!("Failed to get current username: {}", e),
+                String::new(),
             )
         })?;
         let uid = nix::unistd::getuid().to_string();
@@ -577,8 +579,8 @@ pub fn bootstrap_debian_tarball(
 
     let status = cmd.status().map_err(|e| {
         crate::session::Error::SetupFailure(
-            "mmdebstrap command not found or failed to execute".to_string(),
-            format!("Failed to run mmdebstrap (ensure it's installed): {}", e),
+            format!("mmdebstrap command not found or failed to execute: {}", e),
+            String::new(),
         )
     })?;
 
@@ -720,8 +722,8 @@ impl Session for UnshareSession {
         // Perform the copy operation
         fs_extra::dir::copy(path, &export_directory, &options).map_err(|e| {
             crate::session::Error::SetupFailure(
-                format!("failed to copy {} into session", path.display()),
-                e.to_string(),
+                format!("failed to copy {} into session: {}", path.display(), e),
+                String::new(),
             )
         })?;
 
