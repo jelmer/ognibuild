@@ -30,7 +30,9 @@ pub fn rescue_build_log(
     let target_log_file = buildlogs_dir.join(format!(
         "{}-{}.log",
         tree.map_or_else(|| PathBuf::from("build"), |t| t.basedir())
-            .display(),
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy(),
         chrono::Local::now().format("%Y-%m-%d_%H%M%S"),
     ));
     std::fs::copy(output_directory.join("build.log"), &target_log_file)?;
