@@ -171,7 +171,7 @@ fn main() -> Result<(), i32> {
         }
         Err(IterateBuildError::Persistent(phase, error)) => {
             log::error!("Error during {}: {}", phase, error);
-            if let Some(output_directory) = args.output_directory {
+            if args.output_directory.is_none() {
                 rescue_build_log(&output_directory, Some(&tree)).unwrap();
             }
             Err(1)
@@ -202,7 +202,7 @@ fn main() -> Result<(), i32> {
             for line in lines {
                 log::error!("  {}", line);
             }
-            if let Some(output_directory) = args.output_directory {
+            if args.output_directory.is_none() {
                 rescue_build_log(&output_directory, Some(&tree)).unwrap();
             }
             Err(1)
