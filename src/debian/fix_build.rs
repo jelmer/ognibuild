@@ -31,7 +31,7 @@ pub fn rescue_build_log(
         "{}-{}.log",
         tree.map_or_else(|| PathBuf::from("build"), |t| t.basedir())
             .display(),
-        chrono::Local::now().format("%Y-%m-%d_%H%M%s"),
+        chrono::Local::now().format("%Y-%m-%d_%H%M%S"),
     ));
     std::fs::copy(output_directory.join("build.log"), &target_log_file)?;
     log::info!("Build log available in {}", target_log_file.display());
