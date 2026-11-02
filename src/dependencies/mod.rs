@@ -1,5 +1,5 @@
 use crate::buildlog::ToDependency;
-use crate::dependency::Dependency;
+use crate::dependency::{Dependency, DependencyFamily};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -94,6 +94,8 @@ impl Dependency for BinaryDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<BinaryDependency>("binary") }
+
 impl ToDependency for buildlog_consultant::problems::common::MissingCommand {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {
         Some(Box::new(BinaryDependency::new(&self.command)))
@@ -157,6 +159,8 @@ impl Dependency for VcsControlDirectoryAccessDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<VcsControlDirectoryAccessDependency>("vcs-access") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for VcsControlDirectoryAccessDependency {
@@ -352,6 +356,8 @@ impl Dependency for CargoCrateDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<CargoCrateDependency>("cargo-crate") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for CargoCrateDependency {
     fn try_into_debian_dependency(
@@ -544,6 +550,8 @@ impl Dependency for PkgConfigDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<PkgConfigDependency>("pkg-config") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
     fn try_into_debian_dependency(
@@ -687,6 +695,8 @@ impl Dependency for PathDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<PathDependency>("path") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PathDependency {
     fn try_into_debian_dependency(
@@ -769,6 +779,8 @@ impl Dependency for CHeaderDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<CHeaderDependency>("c-header") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for CHeaderDependency {
     fn try_into_debian_dependency(
@@ -819,7 +831,7 @@ impl ToDependency for buildlog_consultant::problems::common::MissingCHeader {
 ///
 /// This represents a dependency on a JavaScript runtime environment
 /// like Node.js or a web browser.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JavaScriptRuntimeDependency;
 
 impl Dependency for JavaScriptRuntimeDependency {
@@ -845,6 +857,8 @@ impl Dependency for JavaScriptRuntimeDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<JavaScriptRuntimeDependency>("javascript-runtime") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for JavaScriptRuntimeDependency {
@@ -943,6 +957,8 @@ impl Dependency for ValaPackageDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<ValaPackageDependency>("vala-package") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for ValaPackageDependency {
@@ -1096,6 +1112,8 @@ impl Dependency for RubyGemDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<RubyGemDependency>("ruby-gem") }
 
 /// Convert a Ruby gem version to a Debian upstream version.
 ///
@@ -1492,6 +1510,8 @@ impl Dependency for DhAddonDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<DhAddonDependency>("dh-addon") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for DhAddonDependency {
     /// Convert this dependency to a list of Debian package dependencies.
@@ -1613,6 +1633,8 @@ impl Dependency for LibraryDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<LibraryDependency>("library") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for LibraryDependency {
     fn try_into_debian_dependency(
@@ -1710,6 +1732,8 @@ impl Dependency for StaticLibraryDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<StaticLibraryDependency>("static-library") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for StaticLibraryDependency {
     fn try_into_debian_dependency(
@@ -1786,6 +1810,8 @@ impl Dependency for RubyFileDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<RubyFileDependency>("ruby-file") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for RubyFileDependency {
@@ -1882,6 +1908,8 @@ impl Dependency for SprocketsFileDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<SprocketsFileDependency>("sprockets-file") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for SprocketsFileDependency {
     fn try_into_debian_dependency(
@@ -1973,6 +2001,8 @@ impl Dependency for CMakeFileDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<CMakeFileDependency>("cmakefile") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for CMakeFileDependency {
@@ -2145,6 +2175,8 @@ impl Dependency for MavenArtifactDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<MavenArtifactDependency>("maven-artifact") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for MavenArtifactDependency {
     fn try_into_debian_dependency(
@@ -2254,6 +2286,8 @@ impl Dependency for GnomeCommonDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<GnomeCommonDependency>("gnome-common") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for GnomeCommonDependency {
     fn try_into_debian_dependency(
@@ -2312,6 +2346,8 @@ impl Dependency for QtModuleDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<QtModuleDependency>("qt-module") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for QtModuleDependency {
@@ -2373,6 +2409,8 @@ impl Dependency for QTDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<QTDependency>("qt") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for QTDependency {
     fn try_into_debian_dependency(
@@ -2426,6 +2464,8 @@ impl Dependency for X11Dependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<X11Dependency>("x11") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for X11Dependency {
@@ -2487,6 +2527,8 @@ impl Dependency for CertificateAuthorityDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<CertificateAuthorityDependency>("certificate-authority") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for CertificateAuthorityDependency {
     fn try_into_debian_dependency(
@@ -2534,6 +2576,8 @@ impl Dependency for LibtoolDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<LibtoolDependency>("libtool") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for LibtoolDependency {
@@ -2594,6 +2638,8 @@ impl Dependency for BoostComponentDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<BoostComponentDependency>("boost-component") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for BoostComponentDependency {
@@ -2666,6 +2712,8 @@ impl Dependency for KF5ComponentDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<KF5ComponentDependency>("kf5-component") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for KF5ComponentDependency {
@@ -2803,6 +2851,8 @@ impl Dependency for IntrospectionTypelibDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<IntrospectionTypelibDependency>("introspection-type-lib") }
 
 impl ToDependency for buildlog_consultant::problems::common::MissingIntrospectionTypelib {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {

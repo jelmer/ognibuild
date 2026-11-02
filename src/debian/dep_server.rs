@@ -4,14 +4,30 @@
 //! a remote dependency server that can translate generic dependencies
 //! into Debian package dependencies.
 
-use crate::debian::apt::AptManager;
-use crate::dependencies::debian::DebianDependency;
-use crate::dependency::Dependency;
+use crate::debian::apt::{pick_best_deb_dependency, AptManager};
+use crate::dependencies::debian::{default_tie_breakers, DebianDependency, TieBreaker};
+use crate::dependency::{dependency_to_json, Dependency};
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use reqwest::StatusCode;
 use tokio::runtime::Runtime;
 use url::Url;
+
+/// Request body of the `/resolve-apt` route.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ResolveAptRequest {
+    /// The dependency as `[family, details]`.
+    pub requirement: (String, serde_json::Value),
+}
+
+/// Body of the `/resolve-apt` answer for a family the server does not know.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct FamilyUnknown {
+    /// The family that was asked for.
+    pub family: String,
+    /// Always `family-unknown`.
+    pub reason: String,
+}
 
 /// Resolve a requirement to an APT requirement with a dep server.
 ///
@@ -23,16 +39,13 @@ use url::Url;
 /// List of APT requirements.
 async fn resolve_apt_requirement_dep_server(
     url: &url::Url,
-    _dep: &dyn Dependency,
-) -> Result<Option<DebianDependency>, Error> {
+    dep: &dyn Dependency,
+) -> Result<Vec<DebianDependency>, Error> {
+    let requirement = dependency_to_json(dep).ok_or(Error::UnknownDependencyFamily)?;
     let client = reqwest::Client::new();
     let response = client
         .post(url.join("resolve-apt").unwrap())
-        .json(&serde_json::json!( {
-            "requirement": {
-                // TODO: Use the actual dependency
-            }
-        }))
+        .json(&ResolveAptRequest { requirement })
         .send()
         .await
         .unwrap();
@@ -47,12 +60,9 @@ async fn resolve_apt_requirement_dep_server(
             {
                 return Err(Error::UnknownDependencyFamily);
             }
-            Ok(None)
+            Ok(vec![])
         }
-        StatusCode::OK => {
-            let body = response.json::<DebianDependency>().await.unwrap();
-            Ok(Some(body))
-        }
+        StatusCode::OK => Ok(response.json::<Vec<DebianDependency>>().await.unwrap()),
         _ => {
             panic!("Unexpected response status: {}", response.status());
         }
@@ -69,6 +79,8 @@ pub struct DepServerAptInstaller<'a> {
     apt: AptManager<'a>,
     /// URL of the dependency server
     dep_server_url: Url,
+    /// Tie breakers for selecting among the server's candidates
+    tie_breakers: Vec<Box<dyn TieBreaker>>,
 }
 
 impl<'a> DepServerAptInstaller<'a> {
@@ -82,6 +94,7 @@ impl<'a> DepServerAptInstaller<'a> {
     /// A new DepServerAptInstaller instance
     pub fn new(apt: AptManager<'a>, dep_server_url: &Url) -> Self {
         Self {
+            tie_breakers: default_tie_breakers(apt.session()),
             apt,
             dep_server_url: dep_server_url.clone(),
         }
@@ -114,7 +127,8 @@ impl<'a> DepServerAptInstaller<'a> {
             &self.dep_server_url,
             req,
         )) {
-            Ok(deps) => Ok(deps),
+            Ok(deps) => Ok(pick_best_deb_dependency(deps, &self.tie_breakers)),
+            Err(Error::UnknownDependencyFamily) => Err(Error::UnknownDependencyFamily),
             Err(o) => {
                 log::warn!("Falling back to resolving error locally");
                 Err(Error::Other(o.to_string()))
