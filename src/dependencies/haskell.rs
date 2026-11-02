@@ -1,4 +1,4 @@
-use crate::dependency::Dependency;
+use crate::dependency::{Dependency, DependencyFamily};
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
@@ -80,6 +80,8 @@ impl Dependency for HaskellPackageDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<HaskellPackageDependency>("haskell-package") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for HaskellPackageDependency {
