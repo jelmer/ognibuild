@@ -80,6 +80,38 @@ fn remove_root(root: &Path) -> std::io::Result<()> {
     std::fs::remove_dir_all(root)
 }
 
+/// Hard-coded PATH set inside the session, matching schroot's default.
+const DEFAULT_PATH: &str = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+
+/// Clear the host environment from `cmd` and set the minimal, safe variables a
+/// session command expects, matching schroot's default behaviour.
+///
+/// schroot drops the whole caller environment by default and defines only
+/// `HOME`, `LOGNAME`, `USER`, `SHELL`, `PATH`, and `TERM` (the last forwarded
+/// only if set). Without this, the host's `LD_PRELOAD`, `BASH_ENV`, locale
+/// overrides and the like leak into every command the session runs -- and
+/// through `/bin/sh` and `setpriv`, which neither reset the environment.
+///
+/// `user` names the target user inside the session so `HOME`/`USER`/`LOGNAME`
+/// can be set to something sensible. We don't read the session's passwd, so
+/// `HOME` is best-effort: `/root` for root, `/home/<user>` otherwise.
+fn sanitize_env(cmd: &mut std::process::Command, user: &str) {
+    cmd.env_clear();
+    cmd.env("PATH", DEFAULT_PATH);
+    cmd.env("USER", user);
+    cmd.env("LOGNAME", user);
+    let home = if user == "root" {
+        "/root".to_string()
+    } else {
+        format!("/home/{}", user)
+    };
+    cmd.env("HOME", home);
+    cmd.env("SHELL", "/bin/sh");
+    if let Ok(term) = std::env::var("TERM") {
+        cmd.env("TERM", term);
+    }
+}
+
 fn compression_flag(path: &Path) -> Result<Option<&str>, crate::session::Error> {
     match path.extension().unwrap().to_str().unwrap() {
         "tar" => Ok(None),
@@ -421,7 +453,12 @@ impl UnshareSession {
         ret
     }
 
-    /// The host command for `argv`, minus the temp dir variables naming host paths.
+    /// The host command for `argv`, with a sanitized environment.
+    ///
+    /// The host env would otherwise flow through `unshare` and `/bin/sh` into
+    /// the target command unmodified. Matches schroot's default behaviour: drop
+    /// the host env entirely and rebuild a minimal, safe one. `TERM` is the
+    /// only host variable forwarded, and only if set.
     fn host_command(
         &self,
         argv: Vec<&str>,
@@ -431,9 +468,7 @@ impl UnshareSession {
         let argv = self.run_argv(argv, cwd, user);
         let mut cmd = std::process::Command::new(&argv[0]);
         cmd.args(&argv[1..]);
-        for var in ["TMPDIR", "TMP", "TEMP"] {
-            cmd.env_remove(var);
-        }
+        sanitize_env(&mut cmd, user.unwrap_or("root"));
         cmd
     }
 
@@ -1416,7 +1451,7 @@ mod tests {
     }
 
     #[test]
-    fn test_host_command_drops_host_tmpdir() {
+    fn test_host_command_sanitizes_env() {
         let session = UnshareSession {
             root: std::path::PathBuf::from("/fakechroot"),
             _root_dir: None,
@@ -1424,15 +1459,84 @@ mod tests {
             isolate_network: std::cell::Cell::new(true),
         };
         let cmd = session.host_command(vec!["true"], None, None);
-        let mut envs: Vec<_> = cmd.get_envs().collect();
-        envs.sort();
+        let envs: std::collections::HashMap<_, _> = cmd
+            .get_envs()
+            .map(|(k, v)| (k.to_os_string(), v.map(|s| s.to_os_string())))
+            .collect();
+
+        for (key, expected) in [
+            ("PATH", DEFAULT_PATH),
+            ("USER", "root"),
+            ("LOGNAME", "root"),
+            ("HOME", "/root"),
+            ("SHELL", "/bin/sh"),
+        ] {
+            assert_eq!(
+                envs.get(std::ffi::OsStr::new(key)),
+                Some(&Some(std::ffi::OsString::from(expected))),
+                "env var {} not set to {:?}",
+                key,
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn test_host_command_drops_dangerous_env() {
+        // host_command must clear the caller's env; schroot's filter regex
+        // targets LD_* and a handful of other variables that can hijack the
+        // dynamic linker or shell startup. env_clear() covers them all.
+        let session = UnshareSession {
+            root: std::path::PathBuf::from("/fakechroot"),
+            _root_dir: None,
+            cwd: std::path::PathBuf::from("/"),
+            isolate_network: std::cell::Cell::new(true),
+        };
+        let cmd = session.host_command(vec!["true"], None, None);
+        let set_keys: std::collections::HashSet<_> = cmd
+            .get_envs()
+            .filter_map(|(k, v)| v.map(|_| k.to_os_string()))
+            .collect();
+
+        for forbidden in [
+            "LD_PRELOAD",
+            "LD_LIBRARY_PATH",
+            "BASH_ENV",
+            "ENV",
+            "IFS",
+            "CDPATH",
+            "TMPDIR",
+            "TMP",
+            "TEMP",
+        ] {
+            assert!(
+                !set_keys.contains(std::ffi::OsStr::new(forbidden)),
+                "{} should not be set in the sanitized env",
+                forbidden,
+            );
+        }
+    }
+
+    #[test]
+    fn test_host_command_sets_user_home() {
+        let session = UnshareSession {
+            root: std::path::PathBuf::from("/fakechroot"),
+            _root_dir: None,
+            cwd: std::path::PathBuf::from("/"),
+            isolate_network: std::cell::Cell::new(true),
+        };
+        let cmd = session.host_command(vec!["true"], None, Some("nobody"));
+        let envs: std::collections::HashMap<_, _> = cmd
+            .get_envs()
+            .map(|(k, v)| (k.to_os_string(), v.map(|s| s.to_os_string())))
+            .collect();
         assert_eq!(
-            envs,
-            vec![
-                (std::ffi::OsStr::new("TEMP"), None),
-                (std::ffi::OsStr::new("TMP"), None),
-                (std::ffi::OsStr::new("TMPDIR"), None),
-            ]
+            envs.get(std::ffi::OsStr::new("USER")),
+            Some(&Some(std::ffi::OsString::from("nobody"))),
+        );
+        assert_eq!(
+            envs.get(std::ffi::OsStr::new("HOME")),
+            Some(&Some(std::ffi::OsString::from("/home/nobody"))),
         );
     }
 
