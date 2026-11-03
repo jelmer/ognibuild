@@ -110,7 +110,11 @@ fn m4_macro_regex(r#macro: &str) -> String {
 fn find_local_m4_macro(r#macro: &str) -> Option<String> {
     // TODO(jelmer): Query some external service that can search all binary packages?
     let p = regex::Regex::new(&m4_macro_regex(r#macro)).unwrap();
-    for entry in std::fs::read_dir("/usr/share/aclocal").unwrap() {
+    let entries = match std::fs::read_dir("/usr/share/aclocal") {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
+        r => r.unwrap(),
+    };
+    for entry in entries {
         let entry = entry.unwrap();
         if !entry.metadata().unwrap().is_file() {
             continue;
