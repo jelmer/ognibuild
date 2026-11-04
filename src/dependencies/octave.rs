@@ -1,4 +1,4 @@
-use crate::dependency::Dependency;
+use crate::dependency::{Dependency, DependencyFamily};
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
@@ -69,6 +69,8 @@ impl Dependency for OctavePackageDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<OctavePackageDependency>("octave-package") }
 
 /// OctaveForgeResolver is an installer for Octave packages using the Octave Forge repository.
 pub struct OctaveForgeResolver<'a> {

@@ -5,6 +5,7 @@
 //! and command-line arguments.
 
 use crate::dependencies::Dependency;
+use crate::dependency::DependencyFamily;
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -155,6 +156,8 @@ impl Dependency for PytestPluginDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<PytestPluginDependency>("pytest-plugin") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PytestPluginDependency {

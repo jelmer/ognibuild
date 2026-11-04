@@ -8,7 +8,7 @@
 use crate::debian::apt::AptManager;
 #[cfg(feature = "debian")]
 use crate::dependencies::debian::DebianDependency;
-use crate::dependency::Dependency;
+use crate::dependency::{Dependency, DependencyFamily};
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 #[cfg(feature = "debian")]
@@ -273,6 +273,8 @@ impl Dependency for PythonPackageDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<PythonPackageDependency>("python-package") }
+
 #[cfg(feature = "upstream")]
 impl crate::upstream::FindUpstream for PythonPackageDependency {
     fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
@@ -384,6 +386,8 @@ impl Dependency for PythonModuleDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<PythonModuleDependency>("python-module") }
 
 /// Resolver for Python packages using pip.
 ///
@@ -1369,6 +1373,8 @@ impl Dependency for PythonDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<PythonDependency>("python") }
 
 impl From<&pep440_rs::VersionSpecifiers> for PythonDependency {
     fn from(specs: &pep440_rs::VersionSpecifiers) -> Self {

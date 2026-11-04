@@ -5,6 +5,7 @@
 //! mapping between URLs and filesystem paths.
 
 use crate::dependencies::Dependency;
+use crate::dependency::DependencyFamily;
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -55,6 +56,8 @@ impl Dependency for XmlEntityDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<XmlEntityDependency>("xml-entity") }
 
 /// Mapping between XML entity URLs and their filesystem locations.
 ///

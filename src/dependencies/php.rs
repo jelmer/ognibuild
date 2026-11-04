@@ -3,7 +3,7 @@
 //! This module provides functionality for working with PHP dependencies,
 //! including PHP classes, packages via Composer, and PHP extensions.
 
-use crate::dependency::Dependency;
+use crate::dependency::{Dependency, DependencyFamily};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -53,6 +53,8 @@ impl Dependency for PhpClassDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<PhpClassDependency>("php-class") }
 
 #[cfg(test)]
 mod tests {
@@ -338,6 +340,8 @@ impl Dependency for PhpExtensionDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<PhpExtensionDependency>("php-extension") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PhpExtensionDependency {
