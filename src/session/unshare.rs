@@ -121,7 +121,7 @@ fn compression_flag(path: &Path) -> Result<Option<&str>, crate::session::Error> 
         "zst" => Ok(Some("--zstd")),
         e => Err(crate::session::Error::SetupFailure(
             "unknown extension".to_string(),
-            format!("unknown extension: {}", e),
+            e.to_string(),
         )),
     }
 }

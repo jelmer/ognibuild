@@ -114,7 +114,16 @@ impl std::fmt::Display for Error {
         match self {
             Error::CalledProcessError(code) => write!(f, "CalledProcessError({})", code),
             Error::IoError(e) => write!(f, "IoError({})", e),
-            Error::SetupFailure(msg, _long_description) => write!(f, "SetupFailure({})", msg),
+            Error::SetupFailure(msg, detail) => {
+                let detail = detail.trim();
+                if msg.is_empty() {
+                    write!(f, "SetupFailure({})", detail)
+                } else if detail.is_empty() || detail.contains(msg.as_str()) {
+                    write!(f, "SetupFailure({})", msg)
+                } else {
+                    write!(f, "SetupFailure({}: {})", msg, detail)
+                }
+            }
             Error::ImageError(e) => write!(f, "ImageError: {}", e),
             Error::MissingBinary { command, source } => {
                 write!(f, "`{}` binary not found in PATH: {}", command, source)
@@ -1039,6 +1048,19 @@ mod tests {
             Ok(SessionKind::Schroot("foo".to_string()))
         );
         assert!(resolve_session_kind(Some(SessionKind::Plain), Some("foo".to_string())).is_err());
+    }
+
+    #[test]
+    fn test_setup_failure_display() {
+        use super::Error::SetupFailure;
+        let e = SetupFailure("tar failed".to_string(), "bad file\n".to_string());
+        assert_eq!(e.to_string(), "SetupFailure(tar failed: bad file)");
+        let e = SetupFailure("tar failed".to_string(), String::new());
+        assert_eq!(e.to_string(), "SetupFailure(tar failed)");
+        let e = SetupFailure("E: gone".to_string(), "I: hi\nE: gone\n".to_string());
+        assert_eq!(e.to_string(), "SetupFailure(E: gone)");
+        let e = SetupFailure(String::new(), "E: gone\n".to_string());
+        assert_eq!(e.to_string(), "SetupFailure(E: gone)");
     }
 
     #[test]
