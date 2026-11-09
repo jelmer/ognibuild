@@ -508,9 +508,9 @@ checksum = "36f64beae40a84da1b4b26ff2761a5b895c12adc41dc25aaee1c4f2bbfe97a6e"
 
 [[package]]
 name = "breezyshim"
-version = "0.7.31"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2e741209ad8a1e9bf79995496a7e557a6ece771c6fa2ab0e8ad0640cbd85a60"
+checksum = "e81a65cf11ef065794bdada1cd5f0fe042057bf7a94a6558ef750d009ce99eca"
 dependencies = [
  "bazaar",
  "chrono",
@@ -1152,9 +1152,9 @@ dependencies = [
 
 [[package]]
 name = "debian-analyzer"
-version = "0.160.22"
+version = "0.160.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07e4810b272bdbbd3074270cf4a9de71723f8429da950b9fa71ec509b5ca7af8"
+checksum = "6171e65feff0b9cc2b9c79e43249dd552dae9ab5223e636258203d1af944d610"
 dependencies = [
  "breezyshim",
  "chrono",
@@ -6038,9 +6038,9 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "upstream-ontologist"
-version = "0.3.24"
+version = "0.3.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4899296127fa2c6f7affa3cab7d38ae18bdcabab863905a85e423749d87e6d5f"
+checksum = "258b2c84b5c70ea77101082a431b113a007a24f7b553d3489fb81a0d173743c8"
 dependencies = [
  "async-trait",
  "base64 0.23.1",

@@ -99,7 +99,7 @@ pub fn dupe_vcs_tree(orig_tree: &dyn DupableTree, directory: &Path) -> Result<()
     // Copy parent location - some scripts need this
     if let Some(parent) = orig_tree.get_parent() {
         let mut branch = result.open_branch(None)?;
-        branch.set_parent(&parent);
+        branch.set_parent(&parent)?;
     }
 
     Ok(())
