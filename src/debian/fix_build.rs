@@ -213,8 +213,15 @@ pub fn build_incrementally(
                         max_iterations.unwrap(),
                     ));
                 }
-                reset_tree(local_tree, None, Some(subpath))
-                    .map_err(IterateBuildError::ResetTree)?;
+                let subpath_str = subpath.to_str().ok_or_else(|| {
+                    IterateBuildError::ResetTree(BrzError::Other(
+                        pyo3::exceptions::PyValueError::new_err(format!(
+                            "subpath {} is not valid UTF-8",
+                            subpath.display()
+                        )),
+                    ))
+                })?;
+                reset_tree(local_tree, None, subpath_str).map_err(IterateBuildError::ResetTree)?;
 
                 match resolve_error(error.as_ref(), &phase, fixers) {
                     Ok(false) => {

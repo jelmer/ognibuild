@@ -1,8 +1,8 @@
 use breezyshim::error::Error as BrzError;
 use breezyshim::workingtree::{self, WorkingTree};
 use clap::Parser;
-use debian_analyzer::editor::{Editor, MutableTreeEdit};
 use debian_control::lossless::relations::Relations;
+use debian_workbench::editor::{Editor, MutableTreeEdit};
 use ognibuild::session::Session;
 use std::io::Write;
 use std::path::PathBuf;
@@ -102,7 +102,7 @@ fn main() -> Result<(), i8> {
             for entry in build_dep.iter() {
                 let mut relations = source.build_depends().unwrap_or_else(Relations::new);
                 let old_str = relations.to_string();
-                debian_analyzer::relations::ensure_relation(&mut relations, entry);
+                debian_workbench::relations::ensure_relation(&mut relations, entry);
                 if old_str != relations.to_string() {
                     log::info!("Bumped to {}", relations);
                     source.set_build_depends(&relations);

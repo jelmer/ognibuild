@@ -10,8 +10,8 @@ use breezyshim::error::Error as BrzError;
 use breezyshim::tree::{MutableTree, Tree};
 use breezyshim::workingtree::{GenericWorkingTree, WorkingTree};
 pub use buildlog_consultant::sbuild::Phase;
-use debian_analyzer::abstract_control::AbstractControlEditor;
-use debian_analyzer::editor::{Editor, EditorError, Marshallable, MutableTreeEdit, TreeEditor};
+use debian_workbench::abstract_control::AbstractControlEditor;
+use debian_workbench::editor::{Editor, EditorError, Marshallable, MutableTreeEdit, TreeEditor};
 use std::path::{Path, PathBuf};
 
 /// Errors that can occur when working with Debian packages.
@@ -23,8 +23,8 @@ pub enum Error {
     MissingSource,
     /// Error from breezyshim.
     BrzError(BrzError),
-    /// Error from debian_analyzer editor.
-    EditorError(debian_analyzer::editor::EditorError),
+    /// Error from debian_workbench editor.
+    EditorError(debian_workbench::editor::EditorError),
     /// I/O error when accessing files.
     IoError(std::io::Error),
     /// Invalid field value in control file.
@@ -39,8 +39,8 @@ impl From<BrzError> for Error {
     }
 }
 
-impl From<debian_analyzer::editor::EditorError> for Error {
-    fn from(e: debian_analyzer::editor::EditorError) -> Self {
+impl From<debian_workbench::editor::EditorError> for Error {
+    fn from(e: debian_workbench::editor::EditorError) -> Self {
         Error::EditorError(e)
     }
 }
@@ -256,7 +256,7 @@ impl DebianPackagingContext {
             .has_filename(&self.subpath.join("debian/debcargo.toml"))
         {
             Ok(Box::new(
-                debian_analyzer::debcargo::DebcargoEditor::from_directory(
+                debian_workbench::debcargo::DebcargoEditor::from_directory(
                     &self.tree.abspath(&self.subpath).unwrap(),
                 )?,
             ))
@@ -346,7 +346,7 @@ impl DebianPackagingContext {
                     depends.parse().map_err(|e| {
                         Error::InvalidField(format!("Test Depends for {}", testname), e)
                     })?;
-                debian_analyzer::relations::ensure_relation(&mut rels, rel);
+                debian_workbench::relations::ensure_relation(&mut rels, rel);
                 para.insert("Depends", &rels.to_string());
             }
         }
