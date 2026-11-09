@@ -8,7 +8,7 @@ use breezyshim::workingtree::WorkingTree;
 use buildlog_consultant::problems::common::NeedPgBuildExtUpdateControl;
 use buildlog_consultant::sbuild::Phase;
 use buildlog_consultant::Problem;
-use debian_workbench::editor::Editor;
+use debian_analyzer::editor::Editor;
 use std::path::Path;
 
 /// Extract targeted Python versions from a package's build dependencies.
@@ -142,7 +142,7 @@ fn retry_apt_failure(
 fn enable_dh_autoreconf(context: &DebianPackagingContext, phase: &Phase) -> Result<bool, Error> {
     // Debhelper >= 10 depends on dh-autoreconf and enables autoreconf by default.
     let debhelper_compat_version =
-        debian_workbench::debhelper::get_debhelper_compat_level(&context.abspath(Path::new(".")))
+        debian_analyzer::debhelper::get_debhelper_compat_level(&context.abspath(Path::new(".")))
             .unwrap();
 
     if !debhelper_compat_version
@@ -160,7 +160,7 @@ fn enable_dh_autoreconf(context: &DebianPackagingContext, phase: &Phase) -> Resu
             if !line.starts_with("dh ") {
                 continue;
             }
-            let new_line = debian_workbench::rules::dh_invoke_add_with(&line, "autoreconf");
+            let new_line = debian_analyzer::rules::dh_invoke_add_with(&line, "autoreconf");
             if line != new_line {
                 rule.replace_command(i, &new_line);
                 modified = true;

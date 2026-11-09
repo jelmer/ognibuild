@@ -1151,6 +1151,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "debian-analyzer"
+version = "0.160.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6171e65feff0b9cc2b9c79e43249dd552dae9ab5223e636258203d1af944d610"
+dependencies = [
+ "breezyshim",
+ "chrono",
+ "configparser",
+ "deb822-lossless",
+ "debian-changelog",
+ "debian-control",
+ "debian-copyright",
+ "debversion",
+ "dep3",
+ "difflib",
+ "distro-info",
+ "filetime",
+ "hex",
+ "lazy-regex",
+ "lazy_static",
+ "log",
+ "makefile-lossless",
+ "maplit",
+ "merge3",
+ "patchkit",
+ "pyo3",
+ "quote",
+ "regex",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha1",
+ "tempfile",
+ "toml_edit",
+ "url",
+]
+
+[[package]]
 name = "debian-changelog"
 version = "0.2.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1205,42 +1244,6 @@ dependencies = [
  "m_lexer",
  "regex",
  "rowan",
- "url",
-]
-
-[[package]]
-name = "debian-workbench"
-version = "0.3.1"
-source = "git+https://github.com/jelmer/debian-workbench?branch=main#25f5f692589486987ad5fb460a0826187042083a"
-dependencies = [
- "breezyshim",
- "chrono",
- "configparser",
- "deb822-lossless",
- "debian-changelog",
- "debian-control",
- "debian-copyright",
- "debversion",
- "dep3",
- "difflib",
- "distro-info",
- "filetime",
- "hex",
- "lazy-regex",
- "lazy_static",
- "log",
- "makefile-lossless",
- "maplit",
- "merge3",
- "patchkit",
- "regex",
- "reqwest",
- "semver",
- "serde",
- "serde_json",
- "sha1",
- "tempfile",
- "toml_edit",
  "url",
 ]
 
@@ -3533,9 +3536,9 @@ dependencies = [
  "clap",
  "criterion",
  "deb822-lossless",
+ "debian-analyzer",
  "debian-changelog",
  "debian-control",
- "debian-workbench",
  "debversion",
  "dirs",
  "dtor",
