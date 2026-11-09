@@ -1,6 +1,6 @@
 [package]
 name = "ognibuild"
-version = "0.2.21"
+version = "0.2.22"
 authors = ["Jelmer Vernooij <jelmer@jelmer.uk>"]
 edition = "2021"
 license = "GPL-2.0+"
