@@ -3579,6 +3579,7 @@ dependencies = [
  "serde_yaml",
  "serial_test",
  "shlex 2.0.1",
+ "socket2",
  "sqlx",
  "stackdriver_logger",
  "tempfile",
