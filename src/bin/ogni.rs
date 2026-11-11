@@ -744,6 +744,7 @@ fn main() -> Result<(), i32> {
             log::info!(
                 "Please consider filing a bug report at https://github.com/jelmer/ognibuild/issues/new"
             );
+            return Err(1);
         }
         Err(e) => {
             log::info!("Error: {}", e);
