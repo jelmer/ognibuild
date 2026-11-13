@@ -112,6 +112,10 @@ impl TieBreaker for BuildDependencyTieBreaker {
             return None;
         }
         let top = by_count.iter().max_by_key(|k| k.1).unwrap();
+        if *top.1 == 0 {
+            // None of them is build-depended on (e.g. no Sources index), so don't guess.
+            return None;
+        }
         log::info!(
             "Breaking tie between [{:?}] to {:?} based on build-depends count",
             reqs.iter().map(|r| r.relation_string()).collect::<Vec<_>>(),
@@ -169,5 +173,23 @@ mod tests {
         // With empty input, should return None
         let result = tie_breaker.break_tie(&[]);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_build_dependency_tie_breaker_break_tie() {
+        let session = PlainSession::new();
+        let Some(tie_breaker) = tie_breaker_or_skip(&session) else {
+            return;
+        };
+        let cargo = DebianDependency::simple("cargo");
+        let rustup = DebianDependency::simple("rustup");
+
+        tie_breaker
+            .counts
+            .replace(Some(HashMap::from([("cargo".to_string(), 3)])));
+        assert_eq!(tie_breaker.break_tie(&[&rustup, &cargo]), Some(&cargo));
+
+        tie_breaker.counts.replace(Some(HashMap::new()));
+        assert_eq!(tie_breaker.break_tie(&[&rustup, &cargo]), None);
     }
 }
