@@ -303,6 +303,17 @@ pub fn get_apt_contents_file_searcher<'a>(
     }
 }
 
+/// Package names from the "<section>/<package>[,...]" column of a Contents line.
+fn contents_packages(rest: &[u8]) -> Vec<String> {
+    rest.split(|c| *c == b',')
+        .map(|entry| {
+            std::str::from_utf8(entry.split(|c| *c == b'/').last().unwrap())
+                .unwrap()
+                .to_string()
+        })
+        .collect()
+}
+
 /// File searcher that uses remote Contents files from Debian repositories.
 ///
 /// This searcher downloads and parses Contents files from Debian repositories
@@ -492,11 +503,7 @@ impl RemoteContentsFileSearcher {
             self.db
                 .iter()
                 .filter(move |(p, _)| matches(Path::new(p)))
-                .map(|(_, rest)| {
-                    std::str::from_utf8(rest.split(|c| *c == b'/').last().unwrap())
-                        .unwrap()
-                        .to_string()
-                }),
+                .flat_map(|(_, rest)| contents_packages(rest)),
         )
     }
 
@@ -874,6 +881,16 @@ mod tests {
             "expected python3-build, got {:?}",
             packages
         );
+    }
+
+    #[test]
+    fn test_contents_packages() {
+        assert_eq!(contents_packages(b"golang/golang-go"), vec!["golang-go"]);
+        assert_eq!(
+            contents_packages(b"rust/cargo,devel/rustup"),
+            vec!["cargo", "rustup"]
+        );
+        assert_eq!(contents_packages(b"non-free/libs/libfoo1"), vec!["libfoo1"]);
     }
 
     #[test]
