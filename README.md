@@ -27,7 +27,8 @@ Ognibuild has a number of subcommands:
  * ``ogni build`` - build the package in-tree
  * ``ogni install`` - install the package
  * ``ogni test`` - run the testsuite in the source directory
- * ``ogni cache-env`` - cache a Debian cloud image for testing (Linux only)
+ * ``ogni cache-env`` - cache a Debian cloud image for testing (Linux only),
+   and drop cached APT Contents files that are more than a day old
 
 It also includes a subcommand that can fix up the build dependencies
 for Debian packages, called deb-fix-build.

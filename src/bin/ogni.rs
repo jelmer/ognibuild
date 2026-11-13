@@ -124,7 +124,7 @@ enum Command {
     /// Install the project
     Install(InstallArgs),
     #[clap(name = "cache-env")]
-    /// Cache a Debian cloud image for use with UnshareSession
+    /// Cache a Debian cloud image for use with UnshareSession, and drop out of date APT Contents files
     CacheEnv(CacheEnvArgs),
 }
 
@@ -765,6 +765,12 @@ fn cache_debian_image(suite: &str, force: bool, update: bool, include: &[&str]) 
     if is_network_disabled() {
         eprintln!("Error: Network access is disabled (OGNIBUILD_DISABLE_NET is set)");
         eprintln!("Cannot download or update a Debian image without network access.");
+        return Err(1);
+    }
+
+    #[cfg(feature = "debian")]
+    if let Err(e) = ognibuild::debian::apt::repository::remove_stale_user_cache() {
+        eprintln!("Failed to remove out of date APT Contents files: {}", e);
         return Err(1);
     }
 
