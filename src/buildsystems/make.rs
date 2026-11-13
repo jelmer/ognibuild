@@ -212,11 +212,12 @@ impl Make {
             )
         }
 
-        let build_path = self.path.join("build");
+        let path = crate::session::internal_path(session, &self.path);
+        let build_path = path.join("build");
         let cwd = if session.exists(&build_path.join("Makefile")) {
             &build_path
         } else {
-            &self.path
+            &path
         };
 
         let args = [vec!["make"], args, NO_REGEN_MAKE_VARS.to_vec()].concat();
@@ -244,7 +245,7 @@ impl Make {
                         .map(|x| x.as_str())
                         .collect(),
                     )
-                    .cwd(&self.path)
+                    .cwd(&path)
                     .run_detecting_problems()?;
                 session.command(args).cwd(cwd).run_detecting_problems()
             }
@@ -256,7 +257,7 @@ impl Make {
             {
                 session
                     .command(vec!["./config"])
-                    .cwd(&self.path)
+                    .cwd(&path)
                     .run_detecting_problems()?;
                 session.command(args).cwd(cwd).run_detecting_problems()
             }
@@ -502,13 +503,14 @@ impl CMake {
         session: &dyn Session,
         _installer: &dyn crate::installer::Installer,
     ) -> Result<(), Error> {
-        let build_path = self.path.join(&self.builddir);
+        let path = crate::session::internal_path(session, &self.path);
+        let build_path = path.join(&self.builddir);
         if !session.exists(&build_path) {
             session.mkdir(&build_path)?;
         }
         match session
             .command(vec!["cmake", ".", &format!("-B{}", self.builddir)])
-            .cwd(&self.path)
+            .cwd(&path)
             .run_detecting_problems()
         {
             Ok(_) => Ok(()),
@@ -553,7 +555,7 @@ impl crate::buildsystem::BuildSystem for CMake {
         self.setup(session, installer)?;
         session
             .command(vec!["cmake", "--build", &self.builddir])
-            .cwd(&self.path)
+            .cwd(&crate::session::internal_path(session, &self.path))
             .run_detecting_problems()?;
         Ok(())
     }
@@ -567,7 +569,7 @@ impl crate::buildsystem::BuildSystem for CMake {
         self.setup(session, installer)?;
         session
             .command(vec!["cmake", "--install", &self.builddir])
-            .cwd(&self.path)
+            .cwd(&crate::session::internal_path(session, &self.path))
             .run_detecting_problems()?;
         Ok(())
     }
@@ -587,7 +589,7 @@ impl crate::buildsystem::BuildSystem for CMake {
                 "--target",
                 "clean",
             ])
-            .cwd(&self.path)
+            .cwd(&crate::session::internal_path(session, &self.path))
             .run_detecting_problems()?;
         Ok(())
     }
