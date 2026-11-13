@@ -337,7 +337,7 @@ impl BuildSystem for Meson {
             }
             Err(e) => return Err(e.into()),
         }
-        Ok(dc.copy_single(target_directory).unwrap().unwrap())
+        Ok(dc.copy_single(target_directory)?.unwrap())
     }
 
     fn test(
