@@ -162,8 +162,14 @@ impl Make {
                 .iter()
                 .any(|n| n.file_name().to_str().unwrap().ends_with(".pro"))
         {
+            // Debian's qmake is qtchooser, which has no default Qt since qt5-default was removed.
+            let qmake = if crate::session::which(session, "qmake").is_some() {
+                "qmake"
+            } else {
+                "qmake6"
+            };
             session
-                .command(vec!["qmake"])
+                .command(vec![qmake])
                 .cwd(&sdir)
                 .run_detecting_problems()?;
         }
