@@ -1,7 +1,7 @@
 use crate::session::{run_with_tee, Error as SessionError, Session};
 use buildlog_consultant::problems::common::MissingCommand;
 
-fn default_check_success(status: std::process::ExitStatus, _lines: Vec<&str>) -> bool {
+fn default_check_success(status: std::process::ExitStatus, _lines: Vec<&[u8]>) -> bool {
     status.success()
 }
 
@@ -30,7 +30,7 @@ pub enum AnalyzedError {
         /// The return code of the failed command.
         retcode: i32,
         /// The output lines from the command.
-        lines: Vec<String>,
+        lines: Vec<Vec<u8>>,
         /// Optional secondary information about the error.
         secondary: Option<Box<dyn buildlog_consultant::Match>>,
     },
@@ -78,7 +78,7 @@ impl std::fmt::Display for AnalyzedError {
                 if let Some(secondary) = secondary {
                     write!(f, "\n{}", secondary)
                 } else {
-                    write!(f, "\n{}", lines.join("\n"))
+                    write!(f, "\n{}", String::from_utf8_lossy(&lines.join(&b'\n')))
                 }
             }
         }
@@ -127,7 +127,7 @@ mod tests {
     fn test_analyzed_error_display_unidentified_with_secondary() {
         let error = AnalyzedError::Unidentified {
             retcode: 1,
-            lines: vec!["line1".to_string(), "line2".to_string()],
+            lines: vec![b"line1".to_vec(), b"line2".to_vec()],
             secondary: None, // Skip the secondary match for now due to API complexity
         };
         let display = error.to_string();
@@ -139,7 +139,7 @@ mod tests {
     fn test_analyzed_error_display_unidentified_without_secondary() {
         let error = AnalyzedError::Unidentified {
             retcode: 1,
-            lines: vec!["line1".to_string(), "line2".to_string()],
+            lines: vec![b"line1".to_vec(), b"line2".to_vec()],
             secondary: None,
         };
         let display = error.to_string();
@@ -188,7 +188,7 @@ mod tests {
 
         assert!(result.is_ok());
         let lines = result.unwrap();
-        assert_eq!(lines, vec!["hello"]);
+        assert_eq!(lines, vec![b"hello"]);
     }
 
     #[test]
@@ -196,8 +196,8 @@ mod tests {
         let _temp_dir = TempDir::new().unwrap();
         let session = PlainSession::new();
 
-        let custom_check = |_status: ExitStatus, lines: Vec<&str>| -> bool {
-            lines.iter().any(|line| line.contains("hello"))
+        let custom_check = |_status: ExitStatus, lines: Vec<&[u8]>| -> bool {
+            lines.iter().any(|line| *line == b"hello")
         };
 
         let result = run_detecting_problems(
@@ -299,13 +299,13 @@ mod tests {
 pub fn run_detecting_problems(
     session: &dyn Session,
     args: Vec<&str>,
-    check_success: Option<&dyn Fn(std::process::ExitStatus, Vec<&str>) -> bool>,
+    check_success: Option<&dyn Fn(std::process::ExitStatus, Vec<&[u8]>) -> bool>,
     quiet: bool,
     cwd: Option<&std::path::Path>,
     user: Option<&str>,
     env: Option<&std::collections::HashMap<String, String>>,
     stdin: Option<std::process::Stdio>,
-) -> Result<Vec<String>, AnalyzedError> {
+) -> Result<Vec<Vec<u8>>, AnalyzedError> {
     let check_success = check_success.unwrap_or(&default_check_success);
 
     let (retcode, contents) =
@@ -340,10 +340,14 @@ pub fn run_detecting_problems(
         contents.len()
     );
 
-    if check_success(retcode, contents.iter().map(|s| s.as_str()).collect()) {
+    if check_success(retcode, contents.iter().map(|s| s.as_slice()).collect()) {
         return Ok(contents);
     }
-    let lines = contents.iter().map(|x| x.as_str()).collect::<Vec<_>>();
+    let text = contents
+        .iter()
+        .map(|x| String::from_utf8_lossy(x))
+        .collect::<Vec<_>>();
+    let lines = text.iter().map(|x| x.as_ref()).collect::<Vec<_>>();
     let failure = buildlog_consultant::common::find_build_failure_description(&lines)
         .unwrap_or_else(|e| {
             log::warn!("Error analyzing build log: {}", e);

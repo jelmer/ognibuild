@@ -595,9 +595,9 @@ impl<'a> CommandBuilder<'a> {
     /// displaying it in real time.
     ///
     /// # Returns
-    /// * `Ok((ExitStatus, Vec<String>))` - The exit status and output lines if successful
+    /// * `Ok((ExitStatus, Vec<Vec<u8>>))` - The exit status and output lines if successful
     /// * `Err(Error)` - If the command fails
-    pub fn run_with_tee(self) -> Result<(ExitStatus, Vec<String>), Error> {
+    pub fn run_with_tee(self) -> Result<(ExitStatus, Vec<Vec<u8>>), Error> {
         assert!(self.stdout.is_none());
         assert!(self.stderr.is_none());
         run_with_tee(
@@ -617,9 +617,9 @@ impl<'a> CommandBuilder<'a> {
     /// build problems, returning a more detailed error when issues are detected.
     ///
     /// # Returns
-    /// * `Ok(Vec<String>)` - The output lines if successful
+    /// * `Ok(Vec<Vec<u8>>)` - The output lines if successful
     /// * `Err(AnalyzedError)` - A detailed error if the command fails
-    pub fn run_detecting_problems(self) -> Result<Vec<String>, crate::analyze::AnalyzedError> {
+    pub fn run_detecting_problems(self) -> Result<Vec<Vec<u8>>, crate::analyze::AnalyzedError> {
         assert!(self.stdout.is_none());
         assert!(self.stderr.is_none());
         crate::analyze::run_detecting_problems(
@@ -643,7 +643,7 @@ impl<'a> CommandBuilder<'a> {
     /// * `fixers` - List of fixers to try if the command fails
     ///
     /// # Returns
-    /// * `Ok(Vec<String>)` - The command output if successful
+    /// * `Ok(Vec<Vec<u8>>)` - The command output if successful
     /// * `Err(IterateBuildError)` - If the command fails and can't be fixed
     pub fn run_fixing_problems<
         I: std::error::Error,
@@ -651,7 +651,7 @@ impl<'a> CommandBuilder<'a> {
     >(
         self,
         fixers: &[&dyn crate::fix_build::BuildFixer<I>],
-    ) -> Result<Vec<String>, crate::fix_build::IterateBuildError<E>> {
+    ) -> Result<Vec<Vec<u8>>, crate::fix_build::IterateBuildError<E>> {
         assert!(self.stdin.is_none());
         assert!(self.stdout.is_none());
         assert!(self.stderr.is_none());
@@ -784,28 +784,34 @@ pub fn get_user(session: &dyn Session) -> String {
 fn capture_output(
     mut child: std::process::Child,
     forward: bool,
-) -> Result<(std::process::ExitStatus, Vec<String>), std::io::Error> {
+) -> Result<(std::process::ExitStatus, Vec<Vec<u8>>), std::io::Error> {
     use std::io::{BufRead, BufReader};
     use std::sync::mpsc::{channel, Receiver, Sender};
     use std::thread;
-    let mut output_log = Vec::<String>::new();
+    let mut output_log = Vec::<Vec<u8>>::new();
 
     // Channels to handle communication from threads
-    let (tx, rx): (Sender<Option<String>>, Receiver<Option<String>>) = channel();
+    let (tx, rx): (Sender<Option<Vec<u8>>>, Receiver<Option<Vec<u8>>>) = channel();
 
     // Function to handle the stdout of the child process
     let stdout_tx = tx.clone();
     let stdout = child.stdout.take().expect("Failed to capture stdout");
     let stdout_handle = thread::spawn(move || -> Result<(), std::io::Error> {
-        let reader = BufReader::new(stdout);
-        for line in reader.lines() {
-            let line = line?;
+        let mut reader = BufReader::new(stdout);
+        let mut line = Vec::new();
+        while reader.read_until(b'\n', &mut line)? > 0 {
+            if line.last() == Some(&b'\n') {
+                line.pop();
+                if line.last() == Some(&b'\r') {
+                    line.pop();
+                }
+            }
             if forward {
-                std::io::stdout().write_all(line.as_bytes())?;
+                std::io::stdout().write_all(&line)?;
                 std::io::stdout().write_all(b"\n")?;
             }
             stdout_tx
-                .send(Some(line))
+                .send(Some(std::mem::take(&mut line)))
                 .expect("Failed to send stdout through channel");
         }
 
@@ -819,15 +825,21 @@ fn capture_output(
     let stderr_tx = tx.clone();
     let stderr = child.stderr.take().expect("Failed to capture stderr");
     let stderr_handle = thread::spawn(move || -> Result<(), std::io::Error> {
-        let reader = BufReader::new(stderr);
-        for line in reader.lines() {
-            let line = line?;
+        let mut reader = BufReader::new(stderr);
+        let mut line = Vec::new();
+        while reader.read_until(b'\n', &mut line)? > 0 {
+            if line.last() == Some(&b'\n') {
+                line.pop();
+                if line.last() == Some(&b'\r') {
+                    line.pop();
+                }
+            }
             if forward {
-                std::io::stderr().write_all(line.as_bytes())?;
+                std::io::stderr().write_all(&line)?;
                 std::io::stderr().write_all(b"\n")?;
             }
             stderr_tx
-                .send(Some(line))
+                .send(Some(std::mem::take(&mut line)))
                 .expect("Failed to send stderr through channel");
         }
         stderr_tx
@@ -877,7 +889,7 @@ fn capture_output(
 /// * `quiet` - Whether to suppress output
 ///
 /// # Returns
-/// * `Ok((ExitStatus, Vec<String>))` - The exit status and output lines if successful
+/// * `Ok((ExitStatus, Vec<Vec<u8>>))` - The exit status and output lines if successful
 /// * `Err(Error)` - If the command fails
 pub fn run_with_tee(
     session: &dyn Session,
@@ -887,7 +899,7 @@ pub fn run_with_tee(
     env: Option<&std::collections::HashMap<String, String>>,
     stdin: Option<std::process::Stdio>,
     quiet: bool,
-) -> Result<(ExitStatus, Vec<String>), Error> {
+) -> Result<(ExitStatus, Vec<Vec<u8>>), Error> {
     if let (Some(cwd), Some(user)) = (cwd, user) {
         log::debug!("Running command: {:?} in {:?} as user {}", args, cwd, user);
     } else if let Some(cwd) = cwd {
@@ -1049,7 +1061,18 @@ mod tests {
 
         let (status, output) = super::capture_output(p, false).unwrap();
         assert!(status.success());
-        assert_eq!(output, vec!["Hello, world!"]);
+        assert_eq!(output, vec![b"Hello, world!"]);
+
+        let p = std::process::Command::new("printf")
+            .arg("\\351t\\351\r\ncaf\\351\n")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let (status, output) = super::capture_output(p, false).unwrap();
+        assert!(status.success());
+        assert_eq!(output, vec![&b"\xe9t\xe9"[..], b"caf\xe9"]);
     }
 }
 
