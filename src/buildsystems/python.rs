@@ -570,6 +570,21 @@ impl SetupPy {
     ) -> Result<(), Error> {
         // Install the setup_requires beforehand, since otherwise
         // setuptools might fetch eggs instead of our preferred installer.
+        self.install_setup_requires(session, installer)?;
+        let interpreter = self.determine_interpreter().clone();
+        let mut args = args.clone();
+        args.insert(0, &interpreter);
+        args.insert(1, "setup.py");
+        // TODO(jelmer): Perhaps this should be additive?
+        session.command(args).run_detecting_problems()?;
+        Ok(())
+    }
+
+    fn install_setup_requires(
+        &self,
+        session: &dyn Session,
+        installer: &dyn Installer,
+    ) -> Result<(), Error> {
         let setup_requires = self
             .setup_requires()
             .into_iter()
@@ -585,12 +600,6 @@ impl SetupPy {
                 .collect::<Vec<_>>()
                 .as_slice(),
         )?;
-        let interpreter = self.determine_interpreter().clone();
-        let mut args = args.clone();
-        args.insert(0, &interpreter);
-        args.insert(1, "setup.py");
-        // TODO(jelmer): Perhaps this should be additive?
-        session.command(args).run_detecting_problems()?;
         Ok(())
     }
 }
@@ -644,14 +653,19 @@ impl BuildSystem for SetupPy {
                 }
             }
         }
-        unimplemented!();
+        Err(Error::Unimplemented)
     }
 
     fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         if self.has_setup_py {
             self.run_setup(session, installer, vec!["build"])
         } else {
-            unimplemented!();
+            // A PEP 517 build, with the build requirements installed by us.
+            self.install_setup_requires(session, installer)?;
+            session
+                .command(vec!["python3", "-m", "build", "--wheel", "--no-isolation"])
+                .run_detecting_problems()?;
+            Ok(())
         }
     }
 
@@ -697,7 +711,11 @@ impl BuildSystem for SetupPy {
         if self.has_setup_py {
             self.run_setup(session, installer, vec!["clean"])
         } else {
-            unimplemented!();
+            // Where python3 -m build puts its output.
+            session
+                .command(vec!["rm", "-rf", "dist"])
+                .run_detecting_problems()?;
+            Ok(())
         }
     }
 
@@ -723,7 +741,7 @@ impl BuildSystem for SetupPy {
             )?;
             Ok(())
         } else {
-            unimplemented!();
+            Err(Error::Unimplemented)
         }
     }
 
@@ -968,6 +986,71 @@ mod tests {
         let setup_py = SetupPy::new(path);
         assert!(setup_py.has_setup_py);
         assert!(setup_py.pyproject.is_none());
+    }
+
+    #[test]
+    fn test_python_project_without_setup_py() {
+        pyo3::Python::initialize();
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+
+        fs::write(
+            path.join("pyproject.toml"),
+            "[project]\nname = \"test\"\nversion = \"0.1\"\n",
+        )
+        .unwrap();
+
+        let setup_py = SetupPy::new(path);
+        assert!(!setup_py.has_setup_py);
+
+        let session = crate::session::plain::PlainSession::new();
+        let installer = crate::installer::NullInstaller::new();
+        let target = InstallTarget {
+            scope: InstallationScope::User,
+            prefix: None,
+        };
+        assert!(matches!(
+            setup_py.test(&session, &installer),
+            Err(Error::Unimplemented)
+        ));
+        assert!(matches!(
+            setup_py.install(&session, &installer, &target),
+            Err(Error::Unimplemented)
+        ));
+    }
+
+    #[test]
+    fn test_pep517_build_and_clean() {
+        if !setuptools_available() || !Python::attach(|py| py.import("build").is_ok()) {
+            return;
+        }
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+        fs::write(
+            path.join("pyproject.toml"),
+            "[build-system]\nrequires = [\"setuptools\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = \"demo\"\nversion = \"1.0\"\n",
+        )
+        .unwrap();
+        fs::create_dir(path.join("demo")).unwrap();
+        fs::write(path.join("demo/__init__.py"), "").unwrap();
+
+        let setup_py = SetupPy::new(path);
+        let mut session = crate::session::plain::PlainSession::new();
+        session.chdir(path).unwrap();
+        let installer = crate::installer::NullInstaller::new();
+
+        setup_py.build(&session, &installer).unwrap();
+        let built = fs::read_dir(path.join("dist"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect::<Vec<_>>();
+        assert_eq!(built, vec!["demo-1.0-py3-none-any.whl"]);
+
+        setup_py.clean(&session, &installer).unwrap();
+        assert!(!path.join("dist").exists());
+        assert!(path.join("demo/__init__.py").exists());
     }
 
     #[test]
