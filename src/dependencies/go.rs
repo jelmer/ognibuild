@@ -84,6 +84,45 @@ mod tests {
     }
 
     #[test]
+    fn test_go_version() {
+        let v = |s: &str| s.parse::<GoVersion>().unwrap();
+        assert_eq!(
+            v("1.24.4"),
+            GoVersion {
+                major: 1,
+                minor: 24,
+                patch: Some(4),
+                prerelease: None
+            }
+        );
+        assert_eq!(
+            v("1.21rc1"),
+            GoVersion {
+                major: 1,
+                minor: 21,
+                patch: None,
+                prerelease: Some((GoPrerelease::Rc, 1))
+            }
+        );
+        assert!(v("1.24.4") > v("1.21"));
+        assert!(v("1.20.14") < v("1.21"));
+        assert!(v("1.9") < v("1.21"));
+        assert!(v("1.21") < v("1.21beta2"));
+        assert!(v("1.20rc1") < v("1.20"));
+        assert_eq!(v("1.20"), v("1.20.0"));
+        assert!(v("1.21beta2") < v("1.21rc1"));
+        assert!(v("1.21rc1") < v("1.21.0"));
+        assert!(v("1.21.0") < v("1.21.1"));
+        assert!(v("1.22") > v("1.21rc1"));
+        for bad in ["", "1", "1.x", "1.21.0rc1", "1.21foo1", "1.21.0.1", "devel"] {
+            assert_eq!(
+                bad.parse::<GoVersion>(),
+                Err(format!("invalid Go version {:?}", bad))
+            );
+        }
+    }
+
+    #[test]
     fn test_go_dependency_family() {
         let dependency = GoDependency::new(None);
         assert_eq!(dependency.family(), "go");
@@ -199,23 +238,98 @@ impl GoDependency {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum GoPrerelease {
+    Alpha,
+    Beta,
+    Rc,
+}
+
+/// A Go version, ordered as Go does: "1.21" < "1.21rc1" < "1.21.0".
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct GoVersion {
+    major: u64,
+    minor: u64,
+    patch: Option<u64>,
+    prerelease: Option<(GoPrerelease, u64)>,
+}
+
+impl std::str::FromStr for GoVersion {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let invalid = || format!("invalid Go version {:?}", s);
+        let number = |n: &str| n.parse::<u64>().map_err(|_| invalid());
+        let (release, pre) =
+            s.split_at(s.find(|c: char| c.is_ascii_alphabetic()).unwrap_or(s.len()));
+        let mut parts = release.split('.');
+        let major = number(parts.next().ok_or_else(invalid)?)?;
+        let minor = number(parts.next().ok_or_else(invalid)?)?;
+        let patch = parts.next().map(number).transpose()?;
+        if parts.next().is_some() || (patch.is_some() && !pre.is_empty()) {
+            return Err(invalid());
+        }
+        // Before Go 1.21, "1.20" is the release "1.20.0".
+        let patch = match patch {
+            None if pre.is_empty() && (major, minor) < (1, 21) => Some(0),
+            patch => patch,
+        };
+        let prerelease = if pre.is_empty() {
+            None
+        } else if let Some(n) = pre.strip_prefix("rc") {
+            Some((GoPrerelease::Rc, number(n)?))
+        } else if let Some(n) = pre.strip_prefix("beta") {
+            Some((GoPrerelease::Beta, number(n)?))
+        } else if let Some(n) = pre.strip_prefix("alpha") {
+            Some((GoPrerelease::Alpha, number(n)?))
+        } else {
+            return Err(invalid());
+        };
+        Ok(GoVersion {
+            major,
+            minor,
+            patch,
+            prerelease,
+        })
+    }
+}
+
 impl Dependency for GoDependency {
     fn family(&self) -> &'static str {
         "go"
     }
 
     fn present(&self, session: &dyn Session) -> bool {
-        let mut cmd = vec!["go".to_string(), "version".to_string()];
-        if let Some(version) = &self.version {
-            cmd.push(format!(">={}", version));
-        }
-        session
-            .command(cmd.iter().map(|s| s.as_str()).collect())
-            .stdout(std::process::Stdio::null())
+        let output = session
+            .command(vec!["go", "version"])
+            .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            return false;
+        }
+        let Some(wanted) = &self.version else {
+            return true;
+        };
+        // e.g. "go version go1.24.4 linux/amd64"
+        let output = String::from_utf8_lossy(&output.stdout);
+        let version = output
+            .split_whitespace()
+            .nth(2)
+            .and_then(|v| v.strip_prefix("go"));
+        let found = match version {
+            Some(found) => found.parse::<GoVersion>(),
+            None => Err(format!("unexpected output from go version: {:?}", output)),
+        };
+        // Either way, treat it as no usable Go, so that Go gets installed.
+        match (found, wanted.parse::<GoVersion>()) {
+            (Ok(found), Ok(wanted)) => found >= wanted,
+            (Err(e), _) | (_, Err(e)) => {
+                log::warn!("{}", e);
+                false
+            }
+        }
     }
 
     fn project_present(&self, _session: &dyn Session) -> bool {
