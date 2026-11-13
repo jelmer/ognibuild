@@ -12,6 +12,7 @@ use crate::fix_build::BuildFixer;
 use crate::installer::{Error as InstallerError, InstallationScope, Installer};
 use crate::output::{BinaryOutput, Output, PythonExtensionOutput, PythonPackageOutput};
 use crate::session::Session;
+use buildlog_consultant::problems::common::MissingSetupPyCommand;
 use pyo3::exceptions::{PyFileNotFoundError, PyImportError, PyModuleNotFoundError, PySystemExit};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -630,8 +631,11 @@ impl BuildSystem for SetupPy {
                 Ok(_) => {
                     return Ok(());
                 }
-                Err(Error::Error(AnalyzedError::Unidentified { lines, .. }))
-                    if lines.contains(&"error: invalid command 'test'".to_string()) =>
+                Err(Error::Error(AnalyzedError::Detailed { error, .. }))
+                    if error
+                        .as_any()
+                        .downcast_ref::<MissingSetupPyCommand>()
+                        .is_some_and(|e| e.command == "test") =>
                 {
                     return Ok(());
                 }
