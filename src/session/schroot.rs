@@ -27,10 +27,11 @@ pub fn generate_session_id(prefix: &str) -> String {
 
 /// Build the error for a failed `schroot -b` from its captured stderr
 fn setup_failure<R: Read + Seek>(stderr: &mut R) -> Error {
-    let mut errlines = String::new();
+    let mut errbytes = Vec::new();
     // schroot wrote through a shared file offset, so rewind before reading
     stderr.seek(SeekFrom::Start(0)).unwrap();
-    stderr.read_to_string(&mut errlines).unwrap();
+    stderr.read_to_end(&mut errbytes).unwrap();
+    let errlines = String::from_utf8_lossy(&errbytes).into_owned();
     if errlines.len() == 1 {
         Error::SetupFailure(errlines.lines().next().unwrap().to_string(), errlines)
     } else if errlines.is_empty() {
@@ -418,6 +419,16 @@ mod tests {
             super::Error::SetupFailure(msg, long) => {
                 assert_eq!(msg, "E: unstable-amd64-sbuild: Chroot not found");
                 assert_eq!(long, "E: unstable-amd64-sbuild: Chroot not found\n");
+            }
+            e => panic!("unexpected error: {:?}", e),
+        }
+
+        let mut stderr = tempfile::tempfile().unwrap();
+        stderr.write_all(b"E: sid: Chroot \xe9chou\xe9\n").unwrap();
+        match super::setup_failure(&mut stderr) {
+            super::Error::SetupFailure(msg, long) => {
+                assert_eq!(msg, "E: sid: Chroot \u{FFFD}chou\u{FFFD}");
+                assert_eq!(long, "E: sid: Chroot \u{FFFD}chou\u{FFFD}\n");
             }
             e => panic!("unexpected error: {:?}", e),
         }
