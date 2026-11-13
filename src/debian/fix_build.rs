@@ -106,8 +106,8 @@ pub enum IterateBuildError {
         phase: Option<Phase>,
     },
 
-    /// The build phase could not be determined
-    MissingPhase,
+    /// A problem was detected, but the build phase it happened in could not be determined.
+    MissingPhase(Box<dyn Problem>),
 
     /// An error occurred while resetting the tree
     ResetTree(BrzError),
@@ -196,7 +196,7 @@ pub fn build_incrementally(
             Err(BuildOnceError::Detailed { phase, error, .. }) => {
                 if phase.is_none() {
                     log::info!("No relevant context, not making any changes.");
-                    return Err(IterateBuildError::MissingPhase);
+                    return Err(IterateBuildError::MissingPhase(error));
                 }
                 let phase = phase.unwrap();
                 if fixed_errors.iter().any(|(e, p)| e == &error && p == &phase) {

@@ -215,8 +215,8 @@ fn main() -> Result<(), i32> {
             log::error!("Error: {}", o);
             Err(1)
         }
-        Err(IterateBuildError::MissingPhase) => {
-            log::error!("Missing phase");
+        Err(IterateBuildError::MissingPhase(error)) => {
+            log::error!("Error: {}", error);
             Err(1)
         }
         Err(IterateBuildError::ResetTree(e)) => {
