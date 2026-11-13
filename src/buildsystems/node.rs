@@ -113,7 +113,7 @@ impl BuildSystem for Node {
             .command(vec!["npm", "pack"])
             .quiet(quiet)
             .run_detecting_problems()?;
-        Ok(dc.copy_single(target_directory).unwrap().unwrap())
+        Ok(dc.copy_single(target_directory)?.unwrap())
     }
 
     fn test(

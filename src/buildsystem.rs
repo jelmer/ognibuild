@@ -570,7 +570,7 @@ impl BuildSystem for Pear {
             .command(vec![pear.to_str().unwrap(), "package"])
             .quiet(quiet)
             .run_detecting_problems()?;
-        Ok(dc.copy_single(target_directory).unwrap().unwrap())
+        Ok(dc.copy_single(target_directory)?.unwrap())
     }
 
     fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {

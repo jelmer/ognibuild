@@ -101,7 +101,7 @@ impl BuildSystem for Waf {
             .command(vec!["./waf", "dist"])
             .quiet(quiet)
             .run_detecting_problems()?;
-        Ok(dc.copy_single(target_directory).unwrap().unwrap())
+        Ok(dc.copy_single(target_directory)?.unwrap())
     }
 
     /// Run tests using waf test command.
