@@ -145,19 +145,19 @@ impl crate::dependencies::debian::IntoDebianDependency for AutoconfMacroDependen
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let path = find_local_m4_macro(&self.macro_name);
         if path.is_none() {
             log::info!("No local m4 file found defining {}", self.macro_name);
-            return None;
+            return Ok(None);
         }
-        Some(
-            apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false)
-                .unwrap()
+        Ok(Some(
+            apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false)?
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 

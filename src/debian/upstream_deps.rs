@@ -15,7 +15,7 @@ use crate::session::Session;
 pub fn get_project_wide_deps(
     session: &dyn Session,
     buildsystem: &dyn BuildSystem,
-) -> (Vec<DebianDependency>, Vec<DebianDependency>) {
+) -> Result<(Vec<DebianDependency>, Vec<DebianDependency>), InstallerError> {
     let mut build_deps = vec![];
     let mut test_deps = vec![];
 
@@ -71,8 +71,7 @@ pub fn get_project_wide_deps(
                     &apt,
                     dep.as_ref(),
                     tie_breakers.as_slice(),
-                )
-                .unwrap();
+                )?;
                 if apt_dep.is_none() {
                     log::warn!(
                         "Unable to map upstream requirement {:?} (kind {}) to a Debian package",
@@ -92,5 +91,5 @@ pub fn get_project_wide_deps(
             }
         }
     }
-    (build_deps, test_deps)
+    Ok((build_deps, test_deps))
 }

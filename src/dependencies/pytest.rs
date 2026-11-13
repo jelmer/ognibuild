@@ -161,10 +161,14 @@ impl crate::dependencies::debian::IntoDebianDependency for PytestPluginDependenc
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::simple(
-            &format!("python3-pytest-{}", self.plugin),
-        )])
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(vec![
+            crate::dependencies::debian::DebianDependency::simple(&format!(
+                "python3-pytest-{}",
+                self.plugin
+            )),
+        ]))
     }
 }
 

@@ -80,7 +80,12 @@ fn main() -> Result<(), i32> {
             log::info!("Stage: {}", stage);
             for dep in deps {
                 if let Some(deb_dep) =
-                    dependency_to_deb_dependency(&apt, dep.as_ref(), &tie_breakers).unwrap()
+                    dependency_to_deb_dependency(&apt, dep.as_ref(), &tie_breakers).map_err(
+                        |e| {
+                            log::error!("Unable to map dependency {:?}: {}", dep, e);
+                            1
+                        },
+                    )?
                 {
                     log::info!("Dependency: {:?} → {}", dep, deb_dep.relation_string());
                 } else {
@@ -102,7 +107,12 @@ fn main() -> Result<(), i32> {
         for (stage, reqs) in deps.iter() {
             for dep in reqs {
                 if let Some(deb_dep) =
-                    dependency_to_deb_dependency(&apt, dep.as_ref(), &tie_breakers).unwrap()
+                    dependency_to_deb_dependency(&apt, dep.as_ref(), &tie_breakers).map_err(
+                        |e| {
+                            log::error!("Unable to map dependency {:?}: {}", dep, e);
+                            1
+                        },
+                    )?
                 {
                     match stage {
                         DependencyCategory::Universal => {

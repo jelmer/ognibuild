@@ -155,17 +155,16 @@ impl crate::dependencies::debian::IntoDebianDependency for PhpClassDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let path = format!("/usr/share/php/{}", self.php_class.replace("\\", "/"));
-        let names = apt
-            .get_packages_for_paths(vec![&path], false, false)
-            .unwrap();
-        Some(
+        let names = apt.get_packages_for_paths(vec![&path], false, false)?;
+        Ok(Some(
             names
                 .into_iter()
                 .map(|name| crate::dependencies::debian::DebianDependency::new(&name))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -344,10 +343,11 @@ impl crate::dependencies::debian::IntoDebianDependency for PhpExtensionDependenc
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::new(
-            &format!("php-{}", &self.extension),
-        )])
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(vec![
+            crate::dependencies::debian::DebianDependency::new(&format!("php-{}", &self.extension)),
+        ]))
     }
 }
 

@@ -67,7 +67,16 @@ fn main() -> Result<(), i8> {
             .unwrap();
 
         let (bs_build_deps, bs_test_deps) =
-            ognibuild::debian::upstream_deps::get_project_wide_deps(session.as_ref(), bs.as_ref());
+            match ognibuild::debian::upstream_deps::get_project_wide_deps(
+                session.as_ref(),
+                bs.as_ref(),
+            ) {
+                Ok(deps) => deps,
+                Err(e) => {
+                    log::error!("Unable to map upstream dependencies: {}", e);
+                    return Err(1);
+                }
+            };
         build_deps.extend(bs_build_deps);
         test_deps.extend(bs_test_deps);
     }

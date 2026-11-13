@@ -31,6 +31,8 @@ pub enum Error {
     InvalidField(String, String),
     /// The local APT cache could not be initialized.
     AptCache(String),
+    /// Looking up the Debian package for a dependency failed.
+    DependencyLookup(crate::installer::Error),
 }
 
 impl From<BrzError> for Error {
@@ -67,6 +69,7 @@ impl std::fmt::Display for Error {
             Error::IoError(e) => write!(f, "{}", e),
             Error::InvalidField(field, e) => write!(f, "Invalid field {}: {}", field, e),
             Error::AptCache(e) => write!(f, "Failed to initialize local APT cache: {}", e),
+            Error::DependencyLookup(e) => write!(f, "Failed to look up Debian dependency: {}", e),
         }
     }
 }
