@@ -604,11 +604,9 @@ impl crate::buildsystem::BuildSystem for CMake {
         crate::buildsystem::Error,
     > {
         // TODO(jelmer): Find a proper parser for CMakeLists.txt somewhere?
-        use std::io::BufRead;
-        let f = std::fs::File::open(self.path.join("CMakeLists.txt")).unwrap();
+        let contents = std::fs::read(self.path.join("CMakeLists.txt")).unwrap();
         let mut ret: Vec<(DependencyCategory, Box<dyn Dependency>)> = vec![];
-        for line in std::io::BufReader::new(f).lines() {
-            let line = line.unwrap();
+        for line in String::from_utf8_lossy(&contents).lines() {
             if let Some((_, m)) = lazy_regex::regex_captures!(
                 r"cmake_minimum_required\(\s*VERSION\s+(.*)\s*\)",
                 &line
