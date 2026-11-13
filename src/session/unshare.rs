@@ -1431,6 +1431,30 @@ mod tests {
     }
 
     #[test]
+    fn test_session_path() {
+        let session = UnshareSession {
+            root: std::path::PathBuf::from("/fakechroot"),
+            _root_dir: None,
+            cwd: std::path::PathBuf::from("/"),
+            isolate_network: std::cell::Cell::new(true),
+        };
+        let path = |p: &str| crate::session::session_path(&session, Path::new(p));
+        assert_eq!(
+            path("/fakechroot/build/package"),
+            Path::new("/build/package")
+        );
+        assert_eq!(path("/fakechroot"), Path::new("/"));
+        assert_eq!(path("/srv/package"), Path::new("/srv/package"));
+        assert_eq!(path("package"), Path::new("package"));
+
+        let session = crate::session::plain::PlainSession::new();
+        assert_eq!(
+            crate::session::session_path(&session, Path::new("/srv/package")),
+            Path::new("/srv/package")
+        );
+    }
+
+    #[test]
     fn test_set_isolate_network() {
         let session = UnshareSession {
             root: std::path::PathBuf::from("/fakechroot"),

@@ -727,6 +727,14 @@ impl<'a> CommandBuilder<'a> {
     }
 }
 
+/// Map a path under the session location to the same path as seen inside the session; other paths (relative ones, or ones the session shares with the outside, such as schroot's bind mounts) stay as is.
+pub fn session_path(session: &dyn Session, path: &std::path::Path) -> std::path::PathBuf {
+    match path.strip_prefix(session.location()) {
+        Ok(rest) => std::path::Path::new("/").join(rest),
+        Err(_) => path.to_path_buf(),
+    }
+}
+
 /// Find the path to an executable in the session's PATH.
 ///
 /// # Arguments
