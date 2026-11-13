@@ -99,7 +99,7 @@ impl BuildSystem for Golang {
         _installer: &dyn crate::installer::Installer,
     ) -> Result<(), crate::buildsystem::Error> {
         session
-            .command(vec!["go", "build"])
+            .command(vec!["go", "build", "./..."])
             .run_detecting_problems()?;
         Ok(())
     }
