@@ -492,10 +492,12 @@ impl RemoteContentsFileSearcher {
             self.db
                 .iter()
                 .filter(move |(p, _)| matches(Path::new(p)))
-                .map(|(_, rest)| {
-                    std::str::from_utf8(rest.split(|c| *c == b'/').last().unwrap())
-                        .unwrap()
-                        .to_string()
+                .flat_map(|(_, rest)| {
+                    rest.split(|c| *c == b',').map(|entry| {
+                        std::str::from_utf8(entry.split(|c| *c == b'/').last().unwrap())
+                            .unwrap()
+                            .to_string()
+                    })
                 }),
         )
     }
@@ -873,6 +875,27 @@ mod tests {
             packages.iter().any(|p| p == "python3-build"),
             "expected python3-build, got {:?}",
             packages
+        );
+    }
+
+    #[test]
+    fn test_remote_contents_search_files() {
+        let mut searcher = RemoteContentsFileSearcher { db: HashMap::new() };
+        searcher.load_file(
+            &b"usr/bin/cargo     rust/cargo,devel/rustup\nusr/bin/go     golang/golang-go\n"[..],
+            url::Url::parse("http://deb.debian.org/debian/dists/sid/main/Contents-amd64").unwrap(),
+        );
+        assert_eq!(
+            searcher
+                .search_files(Path::new("/usr/bin/cargo"), false)
+                .collect::<Vec<String>>(),
+            vec!["cargo", "rustup"]
+        );
+        assert_eq!(
+            searcher
+                .search_files(Path::new("/usr/bin/go"), false)
+                .collect::<Vec<String>>(),
+            vec!["golang-go"]
         );
     }
 
