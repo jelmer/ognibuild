@@ -162,10 +162,14 @@ impl Make {
                 .iter()
                 .any(|n| n.file_name().to_str().unwrap().ends_with(".pro"))
         {
-            session
-                .command(vec!["qmake"])
-                .cwd(&sdir)
-                .run_detecting_problems()?;
+            let mut cmd = session.command(vec!["qmake"]).cwd(&sdir);
+            // qtchooser has no default Qt since qt5-default was removed, so pick Qt 5.
+            if std::env::var_os("QT_SELECT").is_none()
+                && session.exists(Path::new("/usr/lib/qt5/bin/qmake"))
+            {
+                cmd = cmd.setenv("QT_SELECT".to_string(), "qt5".to_string());
+            }
+            cmd.run_detecting_problems()?;
         }
 
         Ok(())
