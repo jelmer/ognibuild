@@ -407,7 +407,9 @@ impl RemoteContentsFileSearcher {
         let num_urls = urls.len();
 
         if num_urls == 0 {
-            return Ok(());
+            return Err(Error::AptFileAccessError(
+                "No APT Contents files found for the configured sources".to_string(),
+            ));
         }
 
         log::info!(
