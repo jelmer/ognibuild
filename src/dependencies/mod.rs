@@ -311,6 +311,81 @@ impl CargoCrateDependency {
             minimum_version: None,
         }
     }
+
+    /// Whether cargo can resolve this crate offline from the local registry at
+    /// `registry`, honouring the version and features asked for.
+    fn present_in_registry(&self, session: &dyn Session, registry: &std::path::Path) -> bool {
+        if !session.exists(registry) {
+            return false;
+        }
+        let version: Vec<String> = self
+            .api_version
+            .iter()
+            .map(|v| format!("^{}", v))
+            .chain(self.minimum_version.iter().map(|v| format!(">={}", v)))
+            .collect();
+        let mut dependency = toml::Table::new();
+        dependency.insert(
+            "version".to_string(),
+            if version.is_empty() {
+                "*".to_string()
+            } else {
+                version.join(", ")
+            }
+            .into(),
+        );
+        if let Some(features) = &self.features {
+            dependency.insert("features".to_string(), features.clone().into());
+        }
+        let mut manifest = toml::toml! {
+            [package]
+            name = "ognibuild-probe"
+            version = "0.0.0"
+
+            [lib]
+            path = "lib.rs"
+        };
+        manifest.insert(
+            "dependencies".to_string(),
+            toml::Table::from_iter([(self.name.clone(), dependency.into())]).into(),
+        );
+
+        let output = session
+            .check_output(vec!["mktemp", "-d"], None, None, None)
+            .unwrap();
+        let dir = std::path::PathBuf::from(String::from_utf8(output).unwrap().trim_end());
+        std::fs::write(
+            session.external_path(&dir.join("Cargo.toml")),
+            toml::to_string(&manifest).unwrap(),
+        )
+        .unwrap();
+        let directory = format!(
+            "source.local-registry.directory={}",
+            toml::Value::from(registry.to_str().unwrap())
+        );
+        let present = session
+            .command(vec![
+                "cargo",
+                "--config",
+                "source.crates-io.replace-with=\"local-registry\"",
+                "--config",
+                &directory,
+                "generate-lockfile",
+                "--offline",
+            ])
+            .cwd(&dir)
+            .env(std::collections::HashMap::from([(
+                "CARGO_HOME".to_string(),
+                dir.join("cargo-home").to_str().unwrap().to_string(),
+            )]))
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .run()
+            .unwrap()
+            .success();
+        session.rmtree(&dir).unwrap();
+        present
+    }
 }
 
 impl Dependency for CargoCrateDependency {
@@ -318,8 +393,9 @@ impl Dependency for CargoCrateDependency {
         "cargo-crate"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
-        todo!()
+    fn present(&self, session: &dyn Session) -> bool {
+        // Debian's librust-*-dev packages install crates into this local registry.
+        self.present_in_registry(session, std::path::Path::new("/usr/share/cargo/registry"))
     }
 
     fn project_present(&self, session: &dyn Session) -> bool {
@@ -2847,6 +2923,55 @@ impl ToDependency for buildlog_consultant::problems::common::MissingXfceDependen
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_cargo_crate_present_in_registry() {
+        let registry = tempfile::tempdir().unwrap();
+        let serde = registry.path().join("serde-1.0.228");
+        std::fs::create_dir_all(serde.join("src")).unwrap();
+        std::fs::write(serde.join("src/lib.rs"), "").unwrap();
+        std::fs::write(
+            serde.join("Cargo.toml"),
+            "[package]\nname = \"serde\"\nversion = \"1.0.228\"\n\n[features]\nderive = []\n",
+        )
+        .unwrap();
+        std::fs::write(
+            serde.join(".cargo-checksum.json"),
+            r#"{"package":"","files":{}}"#,
+        )
+        .unwrap();
+        let session = crate::session::plain::PlainSession::new();
+        let present =
+            |dep: CargoCrateDependency| dep.present_in_registry(&session, registry.path());
+
+        assert!(present(CargoCrateDependency::simple("serde")));
+        assert!(!present(CargoCrateDependency::simple("serde_json")));
+        assert!(present(CargoCrateDependency::new(
+            "serde",
+            Some(vec!["derive"]),
+            Some("1")
+        )));
+        assert!(!present(CargoCrateDependency::new(
+            "serde",
+            Some(vec!["rc"]),
+            None
+        )));
+        assert!(!present(CargoCrateDependency::new(
+            "serde",
+            None,
+            Some("2")
+        )));
+        assert!(present(CargoCrateDependency {
+            minimum_version: Some("1.0.200".to_string()),
+            ..CargoCrateDependency::simple("serde")
+        }));
+        assert!(!present(CargoCrateDependency {
+            minimum_version: Some("1.0.300".to_string()),
+            ..CargoCrateDependency::simple("serde")
+        }));
+        assert!(!CargoCrateDependency::simple("serde")
+            .present_in_registry(&session, &registry.path().join("missing")));
+    }
 
     #[test]
     fn test_unknown_binary_does_not_map() {
