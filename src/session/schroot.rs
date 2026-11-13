@@ -79,11 +79,13 @@ impl SchrootSession {
             .arg("--location")
             .output()
             .map_err(|e| Error::from_spawn("schroot", e))?;
-        let location = std::path::PathBuf::from(
+        // Resolve symlinks such as /var/run, as the project paths get resolved too.
+        let location = std::fs::canonicalize(
             String::from_utf8(output.stdout)
                 .unwrap()
                 .trim_end_matches('\n'),
-        );
+        )
+        .map_err(Error::IoError)?;
 
         Ok(Self {
             cwd: std::path::PathBuf::from("/"),
