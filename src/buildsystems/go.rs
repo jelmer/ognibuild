@@ -120,7 +120,7 @@ impl BuildSystem for Golang {
         _install_target: &crate::buildsystem::InstallTarget,
     ) -> Result<(), crate::buildsystem::Error> {
         session
-            .command(vec!["go", "install"])
+            .command(vec!["go", "install", "./..."])
             .run_detecting_problems()?;
         Ok(())
     }
