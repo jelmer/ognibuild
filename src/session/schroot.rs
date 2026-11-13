@@ -66,7 +66,10 @@ impl SchrootSession {
             .map_err(|e| Error::from_spawn("schroot", e))?;
 
         let session_id = match cmd.status.code() {
-            Some(0) => String::from_utf8(cmd.stdout).unwrap(),
+            Some(0) => String::from_utf8(cmd.stdout)
+                .unwrap()
+                .trim_end_matches('\n')
+                .to_string(),
             Some(_) => return Err(setup_failure(&mut stderr)),
             None => panic!("schroot exited by signal"),
         };
