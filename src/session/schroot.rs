@@ -40,6 +40,12 @@ fn setup_failure<R: Read + Seek>(stderr: &mut R) -> Error {
     }
 }
 
+/// Read the `schroot --location` output; symlinks such as /var/run get resolved, as project paths do.
+fn parse_location(stdout: Vec<u8>) -> Result<std::path::PathBuf, Error> {
+    std::fs::canonicalize(String::from_utf8(stdout).unwrap().trim_end_matches('\n'))
+        .map_err(Error::IoError)
+}
+
 /// A schroot-based session
 pub struct SchrootSession {
     cwd: std::path::PathBuf,
@@ -79,11 +85,7 @@ impl SchrootSession {
             .arg("--location")
             .output()
             .map_err(|e| Error::from_spawn("schroot", e))?;
-        let location = std::path::PathBuf::from(
-            String::from_utf8(output.stdout)
-                .unwrap()
-                .trim_end_matches('\n'),
-        );
+        let location = parse_location(output.stdout)?;
 
         Ok(Self {
             cwd: std::path::PathBuf::from("/"),
@@ -420,6 +422,25 @@ mod tests {
                 assert_eq!(long, "E: unstable-amd64-sbuild: Chroot not found\n");
             }
             e => panic!("unexpected error: {:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_parse_location() {
+        let td = tempfile::tempdir().unwrap();
+        let mount = td.path().join("mount");
+        std::fs::create_dir(&mount).unwrap();
+        std::os::unix::fs::symlink(&mount, td.path().join("link")).unwrap();
+        let stdout = format!("{}\n", td.path().join("link").display());
+        assert_eq!(
+            super::parse_location(stdout.into_bytes()).unwrap(),
+            mount.canonicalize().unwrap()
+        );
+
+        let stdout = format!("{}\n", td.path().join("missing").display());
+        match super::parse_location(stdout.into_bytes()) {
+            Err(super::Error::IoError(e)) => assert_eq!(e.kind(), std::io::ErrorKind::NotFound),
+            r => panic!("unexpected result: {:?}", r),
         }
     }
 
