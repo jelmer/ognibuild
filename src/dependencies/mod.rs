@@ -788,11 +788,16 @@ impl crate::dependencies::debian::IntoDebianDependency for CHeaderDependency {
         if deps.is_empty() {
             deps = apt
                 .get_packages_for_paths(
-                    vec![std::path::Path::new("/usr/include")
-                        .join(".*")
-                        .join(&self.header)
-                        .to_str()
-                        .unwrap()],
+                    vec![format!("/usr/include/[^/]+/{}$", regex::escape(&self.header)).as_str()],
+                    true,
+                    false,
+                )
+                .unwrap();
+        }
+        if deps.is_empty() {
+            deps = apt
+                .get_packages_for_paths(
+                    vec![format!("/usr/include/.*/{}$", regex::escape(&self.header)).as_str()],
                     true,
                     false,
                 )
