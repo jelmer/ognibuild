@@ -138,7 +138,7 @@ impl BuildSystem for Waf {
         {
             Err(crate::analyze::AnalyzedError::Unidentified { lines, .. })
                 if lines.contains(
-                    &"The project was not configured: run \"waf configure\" first!".to_string(),
+                    &b"The project was not configured: run \"waf configure\" first!".to_vec(),
                 ) =>
             {
                 session

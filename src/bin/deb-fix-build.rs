@@ -200,7 +200,7 @@ fn main() -> Result<(), i32> {
             header.write_str(":").unwrap();
             log::error!("{}", header);
             for line in lines {
-                log::error!("  {}", line);
+                log::error!("  {}", String::from_utf8_lossy(&line));
             }
             if let Some(output_directory) = args.output_directory {
                 rescue_build_log(&output_directory, Some(&tree)).unwrap();
