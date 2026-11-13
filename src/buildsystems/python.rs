@@ -598,6 +598,11 @@ impl SetupPy {
 impl BuildSystem for SetupPy {
     fn test(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         if self.path.join("tox.ini").exists() {
+            // Let the tox envs see the packages installed with apt (tox 4 reads this).
+            let env = std::collections::HashMap::from([(
+                "TOX_OVERRIDE".to_string(),
+                "testenv.system_site_packages=true".to_string(),
+            )]);
             run_detecting_problems(
                 session,
                 vec!["tox", "--skip-missing-interpreters"],
@@ -605,7 +610,7 @@ impl BuildSystem for SetupPy {
                 false,
                 None,
                 None,
-                None,
+                Some(&env),
                 None,
             )?;
             return Ok(());
