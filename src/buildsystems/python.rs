@@ -158,6 +158,24 @@ fn load_setup_cfg(path: &Path) -> Result<Option<SetupCfg>, PyErr> {
     })
 }
 
+/// Check for a pytest section in setup.cfg; `read_configuration` keeps only metadata and options.
+fn setup_cfg_has_pytest_section(path: &Path) -> Result<bool, PyErr> {
+    let p = path.join("setup.cfg");
+    if !p.exists() {
+        return Ok(false);
+    }
+    Python::attach(|py| {
+        let parser = py.import("configparser")?.call_method0("ConfigParser")?;
+        parser.call_method1("read", (p,))?;
+        Ok(parser
+            .call_method1("has_section", ("tool:pytest",))?
+            .extract::<bool>()?
+            || parser
+                .call_method1("has_section", ("pytest",))?
+                .extract::<bool>()?)
+    })
+}
+
 //  run_setup, but setting __name__
 // Imported from Python's distutils.core, Copyright (C) PSF
 
@@ -610,11 +628,8 @@ impl BuildSystem for SetupPy {
             )?;
             return Ok(());
         }
-        if self
-            .config
-            .as_ref()
-            .map(|c| c.has_section("tool:pytest") || c.has_section("pytest"))
-            .unwrap_or(false)
+        if setup_cfg_has_pytest_section(&self.path)
+            .map_err(|e| Error::Other(format!("Unable to read setup.cfg: {}", e)))?
         {
             session.command(vec!["pytest"]).run_detecting_problems()?;
             return Ok(());
@@ -1073,6 +1088,24 @@ setup(
         let setup_py = SetupPy::new(path);
         let distribution = setup_py.extract_setup_direct().unwrap();
         assert_eq!(distribution.name, Some("guarded".to_string()));
+    }
+
+    #[test]
+    fn test_setup_cfg_has_pytest_section() {
+        pyo3::Python::initialize();
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+        assert_eq!(setup_cfg_has_pytest_section(path).unwrap(), false);
+
+        fs::write(path.join("setup.cfg"), "[metadata]\nname = demo\n").unwrap();
+        assert_eq!(setup_cfg_has_pytest_section(path).unwrap(), false);
+
+        fs::write(
+            path.join("setup.cfg"),
+            "[metadata]\nname = demo\n\n[tool:pytest]\ntestpaths = tests\n",
+        )
+        .unwrap();
+        assert_eq!(setup_cfg_has_pytest_section(path).unwrap(), true);
     }
 
     #[test]
