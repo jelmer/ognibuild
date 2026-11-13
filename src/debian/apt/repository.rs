@@ -386,6 +386,21 @@ fn get_user_cache_dir() -> Option<PathBuf> {
     dirs::cache_dir().map(|d| d.join("ognibuild").join("apt-contents"))
 }
 
+/// How long a file downloaded into the user cache is used before it is fetched again.
+const USER_CACHE_MAX_AGE: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
+
+/// Whether a file in the user cache was downloaded longer than `USER_CACHE_MAX_AGE` ago.
+fn user_cache_is_stale(path: &Path) -> Result<bool, std::io::Error> {
+    match std::fs::metadata(path) {
+        Ok(metadata) => Ok(metadata
+            .modified()?
+            .elapsed()
+            .is_ok_and(|age| age > USER_CACHE_MAX_AGE)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
 /// Load a URL with caching in the specified directories.
 ///
 /// # Arguments
@@ -409,6 +424,9 @@ pub fn load_url_with_cache(url: &url::Url, cache_dirs: &[&Path]) -> Result<Box<d
 
     // Then check user cache directory
     if let Some(user_cache_dir) = get_user_cache_dir() {
+        if user_cache_is_stale(&user_cache_dir.join(uri_to_filename(url)))? {
+            return download_and_cache_url(url);
+        }
         match load_apt_cache_file(url, &user_cache_dir) {
             Ok(f) => {
                 log::debug!(
@@ -561,6 +579,18 @@ pub fn load_apt_cache_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_user_cache_is_stale() {
+        let td = tempfile::tempdir().unwrap();
+        let path = td.path().join("Contents-amd64");
+        assert!(!user_cache_is_stale(&path).unwrap());
+        let f = File::create(&path).unwrap();
+        assert!(!user_cache_is_stale(&path).unwrap());
+        f.set_modified(std::time::SystemTime::now() - 2 * USER_CACHE_MAX_AGE)
+            .unwrap();
+        assert!(user_cache_is_stale(&path).unwrap());
+    }
 
     #[test]
     fn test_uri_to_filename() {
