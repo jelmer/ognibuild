@@ -644,14 +644,14 @@ impl BuildSystem for SetupPy {
                 }
             }
         }
-        unimplemented!();
+        Err(Error::Unimplemented)
     }
 
     fn build(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         if self.has_setup_py {
             self.run_setup(session, installer, vec!["build"])
         } else {
-            unimplemented!();
+            Err(Error::Unimplemented)
         }
     }
 
@@ -697,7 +697,7 @@ impl BuildSystem for SetupPy {
         if self.has_setup_py {
             self.run_setup(session, installer, vec!["clean"])
         } else {
-            unimplemented!();
+            Err(Error::Unimplemented)
         }
     }
 
@@ -723,7 +723,7 @@ impl BuildSystem for SetupPy {
             )?;
             Ok(())
         } else {
-            unimplemented!();
+            Err(Error::Unimplemented)
         }
     }
 
@@ -968,6 +968,46 @@ mod tests {
         let setup_py = SetupPy::new(path);
         assert!(setup_py.has_setup_py);
         assert!(setup_py.pyproject.is_none());
+    }
+
+    #[test]
+    fn test_python_project_without_setup_py() {
+        pyo3::Python::initialize();
+
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+
+        fs::write(
+            path.join("pyproject.toml"),
+            "[project]\nname = \"test\"\nversion = \"0.1\"\n",
+        )
+        .unwrap();
+
+        let setup_py = SetupPy::new(path);
+        assert!(!setup_py.has_setup_py);
+
+        let session = crate::session::plain::PlainSession::new();
+        let installer = crate::installer::NullInstaller::new();
+        let target = InstallTarget {
+            scope: InstallationScope::User,
+            prefix: None,
+        };
+        assert!(matches!(
+            setup_py.build(&session, &installer),
+            Err(Error::Unimplemented)
+        ));
+        assert!(matches!(
+            setup_py.test(&session, &installer),
+            Err(Error::Unimplemented)
+        ));
+        assert!(matches!(
+            setup_py.clean(&session, &installer),
+            Err(Error::Unimplemented)
+        ));
+        assert!(matches!(
+            setup_py.install(&session, &installer, &target),
+            Err(Error::Unimplemented)
+        ));
     }
 
     #[test]
