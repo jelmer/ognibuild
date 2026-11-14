@@ -311,6 +311,34 @@ impl CargoCrateDependency {
             minimum_version: None,
         }
     }
+
+    /// Whether a NAME-VERSION directory of a local cargo registry holds this crate
+    /// in a version that is new enough.
+    fn matches_registry_dir(&self, dir_name: &str) -> bool {
+        let Some(version) = dir_name.strip_prefix(&format!("{}-", self.name)) else {
+            return false;
+        };
+        // "foo-bar-1.0" also starts with "foo-", but its rest is not a version.
+        let Ok(version) = semver::Version::parse(version) else {
+            return false;
+        };
+        match &self.minimum_version {
+            None => true,
+            Some(minimum) => match semver::VersionReq::parse(&format!(">={}", minimum)) {
+                Ok(req) => req.matches(&version),
+                Err(e) => {
+                    log::warn!(
+                        "Cannot compare crate {} {} with minimum version {}: {}",
+                        self.name,
+                        version,
+                        minimum,
+                        e
+                    );
+                    false
+                }
+            },
+        }
+    }
 }
 
 impl Dependency for CargoCrateDependency {
@@ -318,8 +346,19 @@ impl Dependency for CargoCrateDependency {
         "cargo-crate"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
-        todo!()
+    fn present(&self, session: &dyn Session) -> bool {
+        // Debian's librust-*-dev packages install crates into this local registry.
+        match session.read_dir(std::path::Path::new("/usr/share/cargo/registry")) {
+            Err(crate::session::Error::IoError(e)) if e.kind() == std::io::ErrorKind::NotFound => {
+                false
+            }
+            entries => entries.unwrap().iter().any(|entry| {
+                entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|name| self.matches_registry_dir(name))
+            }),
+        }
     }
 
     fn project_present(&self, session: &dyn Session) -> bool {
@@ -2861,6 +2900,22 @@ impl ToDependency for buildlog_consultant::problems::common::MissingXfceDependen
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_cargo_crate_matches_registry_dir() {
+        let dep = CargoCrateDependency::simple("serde");
+        assert!(dep.matches_registry_dir("serde-1.0.228"));
+        assert!(!dep.matches_registry_dir("serde-json-1.0.140"));
+        assert!(!dep.matches_registry_dir("serde_json-1.0.140"));
+        assert!(!dep.matches_registry_dir("other-1.0.0"));
+
+        let dep = CargoCrateDependency {
+            minimum_version: Some("1.0.200".to_string()),
+            ..CargoCrateDependency::simple("serde")
+        };
+        assert!(dep.matches_registry_dir("serde-1.0.228"));
+        assert!(!dep.matches_registry_dir("serde-1.0.100"));
+    }
 
     #[test]
     fn test_unknown_binary_does_not_map() {
