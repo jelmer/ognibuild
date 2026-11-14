@@ -500,12 +500,12 @@ fn pick_best_deb_dependency(
 pub fn dependency_to_possible_deb_dependencies(
     apt: &AptManager,
     dep: &dyn Dependency,
-) -> Vec<DebianDependency> {
+) -> Result<Vec<DebianDependency>, Error> {
     let mut candidates = vec![];
     macro_rules! try_into_debian_dependency {
         ($apt:expr, $dep:expr, $type:ty) => {
             if let Some(dep) = $dep.as_any().downcast_ref::<$type>() {
-                if let Some(alts) = dep.try_into_debian_dependency($apt) {
+                if let Some(alts) = dep.try_into_debian_dependency($apt)? {
                     candidates.extend(alts);
                 }
             }
@@ -602,7 +602,7 @@ pub fn dependency_to_possible_deb_dependencies(
     try_into_debian_dependency!(apt, dep, crate::dependencies::r::RPackageDependency);
     try_into_debian_dependency!(apt, dep, crate::dependencies::vague::VagueDependency);
 
-    candidates
+    Ok(candidates)
 }
 
 /// Convert a generic dependency to the best Debian dependency.
@@ -622,7 +622,8 @@ pub fn dependency_to_deb_dependency(
     dep: &dyn Dependency,
     tie_breakers: &[Box<dyn TieBreaker>],
 ) -> Result<Option<DebianDependency>, InstallerError> {
-    let mut candidates = dependency_to_possible_deb_dependencies(apt, dep);
+    let mut candidates = dependency_to_possible_deb_dependencies(apt, dep)
+        .map_err(|e| InstallerError::Other(e.to_string()))?;
 
     if candidates.is_empty() {
         log::debug!("No Debian dependency candidates for dependency {:?}", dep);

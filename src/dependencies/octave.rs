@@ -191,18 +191,22 @@ impl crate::dependencies::debian::IntoDebianDependency for OctavePackageDependen
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         if let Some(minimum_version) = &self.minimum_version {
-            Some(vec![
+            Ok(Some(vec![
                 crate::dependencies::debian::DebianDependency::new_with_min_version(
                     &format!("octave-{}", &self.package),
                     &minimum_version.parse().unwrap(),
                 ),
-            ])
+            ]))
         } else {
-            Some(vec![crate::dependencies::debian::DebianDependency::new(
-                &format!("octave-{}", &self.package),
-            )])
+            Ok(Some(vec![
+                crate::dependencies::debian::DebianDependency::new(&format!(
+                    "octave-{}",
+                    &self.package
+                )),
+            ]))
         }
     }
 }

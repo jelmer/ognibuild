@@ -797,14 +797,14 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonPackageDependen
     fn try_into_debian_dependency(
         &self,
         apt_mgr: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<DebianDependency>> {
+    ) -> Result<Option<Vec<DebianDependency>>, crate::debian::apt::Error> {
         let names = get_package_for_python_package(
             apt_mgr,
             &self.package(),
             find_python_version(self.0.marker.to_dnf()),
             self.0.version_or_url.as_ref(),
-        );
-        Some(names)
+        )?;
+        Ok(Some(names))
     }
 }
 
@@ -814,7 +814,7 @@ fn get_package_for_python_package(
     package: &str,
     python_version: Option<PythonVersion>,
     version_or_url: Option<&pep508_rs::VersionOrUrl>,
-) -> Vec<DebianDependency> {
+) -> Result<Vec<DebianDependency>, crate::debian::apt::Error> {
     let pypy_regex = format!(
         "/usr/lib/pypy/dist\\-packages/{}-.*\\.(dist|egg)\\-info",
         regex::escape(&package.replace('-', "_"))
@@ -834,11 +834,10 @@ fn get_package_for_python_package(
         None => vec![cpython3_regex, cpython2_regex, pypy_regex],
         _ => unimplemented!(),
     };
-    let names = apt_mgr
-        .get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, true)
-        .unwrap();
+    let names =
+        apt_mgr.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, true)?;
 
-    names
+    Ok(names
         .iter()
         .map(|name| {
             DebianDependency::from(python_version_specifiers_to_debian(
@@ -850,7 +849,7 @@ fn get_package_for_python_package(
                 },
             ))
         })
-        .collect()
+        .collect())
 }
 
 #[cfg(any(feature = "debian", test))]
@@ -941,7 +940,7 @@ fn get_package_for_python_object_path(
     object_path: &str,
     python_version: Option<PythonVersion>,
     version_specifiers: Option<&pep440_rs::VersionSpecifiers>,
-) -> Vec<DebianDependency> {
+) -> Result<Vec<DebianDependency>, crate::debian::apt::Error> {
     // Try to find the most specific file
     let paths = match python_version {
         Some(PythonVersion::CPython3) => get_possible_python3_paths_for_python_object(object_path),
@@ -954,15 +953,13 @@ fn get_package_for_python_object_path(
             .collect(),
         _ => unimplemented!(),
     };
-    let names = apt_mgr
-        .get_packages_for_paths(
-            paths.iter().map(|x| x.to_str().unwrap()).collect(),
-            true,
-            false,
-        )
-        .unwrap();
+    let names = apt_mgr.get_packages_for_paths(
+        paths.iter().map(|x| x.to_str().unwrap()).collect(),
+        true,
+        false,
+    )?;
 
-    names
+    Ok(names
         .into_iter()
         .map(|name| {
             DebianDependency::from(python_version_specifiers_to_debian(
@@ -970,7 +967,7 @@ fn get_package_for_python_object_path(
                 version_specifiers,
             ))
         })
-        .collect()
+        .collect())
 }
 
 #[cfg(feature = "debian")]
@@ -978,7 +975,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonModuleDependenc
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<DebianDependency>> {
+    ) -> Result<Option<Vec<DebianDependency>>, crate::debian::apt::Error> {
         use std::str::FromStr;
         let specs = self.minimum_version.as_ref().map(|min_version| {
             std::iter::once(
@@ -992,12 +989,12 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonModuleDependenc
             )
             .collect()
         });
-        Some(get_package_for_python_object_path(
+        Ok(Some(get_package_for_python_object_path(
             apt,
             &self.module,
             self.python_version,
             specs.as_ref(),
-        ))
+        )?))
     }
 }
 
@@ -1328,6 +1325,25 @@ mod version_conversion_tests {
         let rels = python_version_specifiers_to_debian("foo", None);
         assert_eq!("foo", rels.to_string());
     }
+
+    #[test]
+    fn test_python_dependency_into_debian_dependency() {
+        use crate::dependencies::debian::IntoDebianDependency;
+        let session = crate::session::plain::PlainSession::new();
+        let apt = crate::debian::apt::AptManager::new(&session, None);
+        let deps = PythonDependency::new(Some("3.6"))
+            .try_into_debian_dependency(&apt)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            vec!["python3 (>= 3.6)"],
+            deps.iter().map(|d| d.relation_string()).collect::<Vec<_>>()
+        );
+        assert!(PythonDependency::new(Some("not a version"))
+            .try_into_debian_dependency(&apt)
+            .unwrap()
+            .is_none());
+    }
 }
 
 impl Dependency for PythonDependency {
@@ -1407,11 +1423,13 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonDependency {
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<DebianDependency>> {
+    ) -> Result<Option<Vec<DebianDependency>>, crate::debian::apt::Error> {
         let mut deps = vec![];
         if let Some(min_version) = &self.min_version {
             use std::str::FromStr;
-            let pep440 = pep440_rs::Version::from_str(min_version).ok()?;
+            let Ok(pep440) = pep440_rs::Version::from_str(min_version) else {
+                return Ok(None);
+            };
             let deb_version = pep440_to_debian_version(&pep440);
             let pkg = if min_version.starts_with("2") {
                 "python"
@@ -1429,7 +1447,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PythonDependency {
                 "python3",
             ));
         }
-        Some(deps)
+        Ok(Some(deps))
     }
 }
 

@@ -48,7 +48,7 @@ impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<super::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<super::debian::DebianDependency>>, crate::debian::apt::Error> {
         let paths = vec![
             format!(
                 "/usr/share/nodejs/.*/node_modules/{}/package\\.json",
@@ -64,31 +64,18 @@ impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency
             ),
         ];
 
-        let names = match apt.get_packages_for_paths(
-            paths.iter().map(|p| p.as_str()).collect(),
-            true,
-            false,
-        ) {
-            Ok(names) => names,
-            Err(e) => {
-                log::warn!(
-                    "Failed to search for Node package {} in APT: {}",
-                    self.package,
-                    e
-                );
-                return None;
-            }
-        };
+        let names =
+            apt.get_packages_for_paths(paths.iter().map(|p| p.as_str()).collect(), true, false)?;
 
         if names.is_empty() {
-            None
+            Ok(None)
         } else {
-            Some(
+            Ok(Some(
                 names
                     .into_iter()
                     .map(|name| super::debian::DebianDependency::new(&name))
                     .collect(),
-            )
+            ))
         }
     }
 }
@@ -161,7 +148,7 @@ impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency 
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<super::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<super::debian::DebianDependency>>, crate::debian::apt::Error> {
         let paths = vec![
             format!(
                 "/usr/share/nodejs/.*/node_modules/{}/package\\.json",
@@ -177,31 +164,18 @@ impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency 
             ),
         ];
 
-        let names = match apt.get_packages_for_paths(
-            paths.iter().map(|p| p.as_str()).collect(),
-            true,
-            false,
-        ) {
-            Ok(names) => names,
-            Err(e) => {
-                log::warn!(
-                    "Failed to search for Node module {} in APT: {}",
-                    self.module,
-                    e
-                );
-                return None;
-            }
-        };
+        let names =
+            apt.get_packages_for_paths(paths.iter().map(|p| p.as_str()).collect(), true, false)?;
 
         if names.is_empty() {
-            None
+            Ok(None)
         } else {
-            Some(
+            Ok(Some(
                 names
                     .into_iter()
                     .map(|name| super::debian::DebianDependency::new(&name))
                     .collect(),
-            )
+            ))
         }
     }
 }
@@ -339,8 +313,7 @@ mod tests {
         );
 
         log::debug!("get_project_wide_deps completed in {:?}", duration);
-        log::debug!("Build deps: {} items", result.0.len());
-        log::debug!("Test deps: {} items", result.1.len());
+        log::debug!("get_project_wide_deps returned {:?}", result);
     }
 }
 

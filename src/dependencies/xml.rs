@@ -70,22 +70,24 @@ impl crate::dependencies::debian::IntoDebianDependency for XmlEntityDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let path = XML_ENTITY_URL_MAP.iter().find_map(|(url, path)| {
             self.url
                 .strip_prefix(url)
                 .map(|rest| format!("{}{}", path, rest))
         });
 
-        path.as_ref()?;
+        if path.is_none() {
+            return Ok(None);
+        }
 
-        Some(
-            apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false)
-                .unwrap()
+        Ok(Some(
+            apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false)?
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
