@@ -339,20 +339,52 @@ pub fn native_installers<'a>(
 ) -> Vec<Box<dyn Installer + 'a>> {
     // TODO: Use more dynamic way to load installers
     [
-        "ctan",
-        "pypi",
-        "npm",
-        "gem",
-        "cargo",
-        "go",
-        "hackage",
-        "cran",
-        "bioconductor",
-        "octave-forge",
+        ("ctan", "tlmgr"),
+        ("pypi", "pip"),
+        ("npm", "npm"),
+        ("gem", "gem"),
+        ("cargo", "cargo"),
+        ("go", "go"),
+        ("hackage", "cabal"),
+        ("cran", "R"),
+        ("bioconductor", "R"),
+        ("octave-forge", "octave-cli"),
     ]
     .iter()
-    .map(|name| installer_by_name(session, name).unwrap())
+    .map(|(name, tool)| {
+        Box::new(NativeInstaller {
+            session,
+            tool,
+            installer: installer_by_name(session, name).unwrap(),
+        }) as Box<dyn Installer + 'a>
+    })
     .collect()
+}
+
+/// A native installer that is only used when its tool is installed.
+struct NativeInstaller<'a> {
+    session: &'a dyn crate::session::Session,
+    tool: &'static str,
+    installer: Box<dyn Installer + 'a>,
+}
+
+impl Installer for NativeInstaller<'_> {
+    fn install(&self, dep: &dyn Dependency, scope: InstallationScope) -> Result<(), Error> {
+        // Without its tool, report the dependency itself rather than "Missing command".
+        if crate::session::which(self.session, self.tool).is_none() {
+            log::debug!("{} not found, not using it for {:?}", self.tool, dep);
+            return Err(Error::UnknownDependencyFamily);
+        }
+        self.installer.install(dep, scope)
+    }
+
+    fn explain(
+        &self,
+        dep: &dyn Dependency,
+        scope: InstallationScope,
+    ) -> Result<Explanation, Error> {
+        self.installer.explain(dep, scope)
+    }
 }
 
 #[cfg(feature = "debian")]
