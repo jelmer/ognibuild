@@ -1,5 +1,5 @@
 use crate::session::{CommandBuilder, Error, Project, Session};
-use std::io::{BufRead, Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom};
 
 extern crate rand;
 use rand::distr::{Alphanumeric, Distribution};
@@ -154,33 +154,27 @@ impl SchrootSession {
 
 impl Drop for SchrootSession {
     fn drop(&mut self) {
-        let stderr = tempfile::tempfile().unwrap();
-        let log_stderr = |stderr: &std::fs::File| {
-            for line in std::io::BufReader::new(stderr).lines() {
-                let line = line.unwrap();
-                if let Some(rest) = line.strip_prefix("E: ") {
-                    log::error!("{}", rest);
-                }
-            }
-        };
         match std::process::Command::new("schroot")
             .arg("-c")
             .arg(format!("session:{}", self.session_id))
             .arg("-e")
-            .stderr(std::process::Stdio::from(stderr.try_clone().unwrap()))
             .output()
         {
-            Err(_) => {
-                log_stderr(&stderr);
+            Err(e) => {
                 log::error!(
-                    "Failed to close schroot session {}, leaving stray.",
-                    self.session_id
+                    "Failed to close schroot session {}: {}, leaving stray.",
+                    self.session_id,
+                    e
                 );
             }
             Ok(output) if !output.status.success() => {
-                log_stderr(&stderr);
+                for line in String::from_utf8_lossy(&output.stderr).lines() {
+                    if let Some(rest) = line.strip_prefix("E: ") {
+                        log::error!("{}", rest);
+                    }
+                }
                 log::error!(
-                    "Failed to close schroot session {} (exit {}), leaving stray.",
+                    "Failed to close schroot session {} ({}), leaving stray.",
                     self.session_id,
                     output.status
                 );
