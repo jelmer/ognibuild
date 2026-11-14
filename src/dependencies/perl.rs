@@ -3,7 +3,7 @@
 //! This module provides functionality for working with Perl dependencies,
 //! including Perl modules, pre-declared dependencies, and file dependencies.
 
-use crate::dependency::Dependency;
+use crate::dependency::{Dependency, DependencyFamily};
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
@@ -89,6 +89,8 @@ impl Dependency for PerlModuleDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<PerlModuleDependency>("perl-module") }
+
 #[cfg(feature = "upstream")]
 impl crate::upstream::FindUpstream for PerlModuleDependency {
     fn find_upstream(&self) -> Option<crate::upstream::UpstreamMetadata> {
@@ -173,6 +175,8 @@ impl Dependency for PerlPreDeclaredDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<PerlPreDeclaredDependency>("perl-predeclared") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for PerlPreDeclaredDependency {
     fn try_into_debian_dependency(
@@ -246,6 +250,8 @@ impl Dependency for PerlFileDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<PerlFileDependency>("perl-file") }
 
 impl crate::buildlog::ToDependency for buildlog_consultant::problems::common::MissingPerlFile {
     fn to_dependency(&self) -> Option<Box<dyn Dependency>> {

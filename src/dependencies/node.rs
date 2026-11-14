@@ -1,5 +1,5 @@
 use crate::dependencies::BinaryDependency;
-use crate::dependency::Dependency;
+use crate::dependency::{Dependency, DependencyFamily};
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
@@ -42,6 +42,8 @@ impl Dependency for NodePackageDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<NodePackageDependency>("npm-package") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency {
@@ -155,6 +157,8 @@ impl Dependency for NodeModuleDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<NodeModuleDependency>("node-module") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency {

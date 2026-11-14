@@ -1,4 +1,4 @@
-use crate::dependency::Dependency;
+use crate::dependency::{Dependency, DependencyFamily};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -33,6 +33,8 @@ impl Dependency for JavaClassDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<JavaClassDependency>("java-class") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for JavaClassDependency {
@@ -105,6 +107,8 @@ impl Dependency for JDKDependency {
     }
 }
 
+inventory::submit! { DependencyFamily::new::<JDKDependency>("jdk") }
+
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for JDKDependency {
     fn try_into_debian_dependency(
@@ -149,6 +153,8 @@ impl Dependency for JREDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<JREDependency>("jre") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for JREDependency {
@@ -206,6 +212,8 @@ impl Dependency for JDKFileDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<JDKFileDependency>("jdk-file") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for JDKFileDependency {

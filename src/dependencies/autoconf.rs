@@ -1,4 +1,4 @@
-use crate::dependency::Dependency;
+use crate::dependency::{Dependency, DependencyFamily};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "debian")]
@@ -68,6 +68,8 @@ impl Dependency for AutoconfMacroDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<AutoconfMacroDependency>("autoconf-macro") }
 
 /// Create a regular expression to find a macro definition in M4 files.
 ///
