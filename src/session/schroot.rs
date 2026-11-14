@@ -313,8 +313,8 @@ impl Session for SchrootSession {
         // Perform the copy operation
         fs_extra::dir::copy(path, &export_directory, &options).map_err(|e| {
             Error::SetupFailure(
-                format!("failed to copy {} into session", path.display()),
-                e.to_string(),
+                format!("failed to copy {} into session: {}", path.display(), e),
+                String::new(),
             )
         })?;
 

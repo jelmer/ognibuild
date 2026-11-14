@@ -964,8 +964,8 @@ fn run_single_line(
     String::from_utf8(out)
         .map_err(|e| {
             Error::SetupFailure(
-                format!("Failed to {}", what),
-                format!("non-UTF-8 output: {}", e),
+                format!("Failed to {}: non-UTF-8 output: {}", what, e),
+                String::new(),
             )
         })
         .map(|s| s.trim().to_string())
