@@ -797,16 +797,23 @@ fn capture_output(
     let stdout_tx = tx.clone();
     let stdout = child.stdout.take().expect("Failed to capture stdout");
     let stdout_handle = thread::spawn(move || -> Result<(), std::io::Error> {
-        let reader = BufReader::new(stdout);
-        for line in reader.lines() {
-            let line = line?;
+        let mut reader = BufReader::new(stdout);
+        let mut line = Vec::new();
+        while reader.read_until(b'\n', &mut line)? > 0 {
+            if line.last() == Some(&b'\n') {
+                line.pop();
+                if line.last() == Some(&b'\r') {
+                    line.pop();
+                }
+            }
             if forward {
-                std::io::stdout().write_all(line.as_bytes())?;
+                std::io::stdout().write_all(&line)?;
                 std::io::stdout().write_all(b"\n")?;
             }
             stdout_tx
-                .send(Some(line))
+                .send(Some(String::from_utf8_lossy(&line).into_owned()))
                 .expect("Failed to send stdout through channel");
+            line.clear();
         }
 
         stdout_tx
@@ -819,16 +826,23 @@ fn capture_output(
     let stderr_tx = tx.clone();
     let stderr = child.stderr.take().expect("Failed to capture stderr");
     let stderr_handle = thread::spawn(move || -> Result<(), std::io::Error> {
-        let reader = BufReader::new(stderr);
-        for line in reader.lines() {
-            let line = line?;
+        let mut reader = BufReader::new(stderr);
+        let mut line = Vec::new();
+        while reader.read_until(b'\n', &mut line)? > 0 {
+            if line.last() == Some(&b'\n') {
+                line.pop();
+                if line.last() == Some(&b'\r') {
+                    line.pop();
+                }
+            }
             if forward {
-                std::io::stderr().write_all(line.as_bytes())?;
+                std::io::stderr().write_all(&line)?;
                 std::io::stderr().write_all(b"\n")?;
             }
             stderr_tx
-                .send(Some(line))
+                .send(Some(String::from_utf8_lossy(&line).into_owned()))
                 .expect("Failed to send stderr through channel");
+            line.clear();
         }
         stderr_tx
             .send(None)
@@ -1053,6 +1067,17 @@ mod tests {
         let (status, output) = super::capture_output(p, false).unwrap();
         assert!(status.success());
         assert_eq!(output, vec!["Hello, world!"]);
+
+        let p = std::process::Command::new("printf")
+            .arg("\\351t\\351\r\n")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let (status, output) = super::capture_output(p, false).unwrap();
+        assert!(status.success());
+        assert_eq!(output, vec!["\u{FFFD}t\u{FFFD}"]);
     }
 }
 
