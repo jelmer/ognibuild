@@ -84,6 +84,17 @@ mod tests {
     }
 
     #[test]
+    fn test_go_version_at_least() {
+        assert!(go_version_at_least("1.24.4", "1.21"));
+        assert!(go_version_at_least("1.21.0", "1.21"));
+        assert!(go_version_at_least("1.21", "1.21"));
+        assert!(!go_version_at_least("1.20.14", "1.21"));
+        assert!(!go_version_at_least("1.9", "1.21"));
+        assert!(!go_version_at_least("1.21.0", "1.21.1"));
+        assert!(go_version_at_least("1.22", "1.21rc1"));
+    }
+
+    #[test]
     fn test_go_dependency_family() {
         let dependency = GoDependency::new(None);
         assert_eq!(dependency.family(), "go");
@@ -199,23 +210,40 @@ impl GoDependency {
     }
 }
 
+/// Whether Go version `found` (e.g. "1.24.4") is at least `wanted` (e.g. "1.21").
+fn go_version_at_least(found: &str, wanted: &str) -> bool {
+    let parse = |v: &str| -> Vec<u32> {
+        let Some((_, numeric)) = lazy_regex::regex_captures!(r"^(\d+(?:\.\d+)*)", v) else {
+            panic!("invalid Go version: {}", v);
+        };
+        numeric.split('.').map(|n| n.parse().unwrap()).collect()
+    };
+    parse(found) >= parse(wanted)
+}
+
 impl Dependency for GoDependency {
     fn family(&self) -> &'static str {
         "go"
     }
 
     fn present(&self, session: &dyn Session) -> bool {
-        let mut cmd = vec!["go".to_string(), "version".to_string()];
-        if let Some(version) = &self.version {
-            cmd.push(format!(">={}", version));
-        }
-        session
-            .command(cmd.iter().map(|s| s.as_str()).collect())
-            .stdout(std::process::Stdio::null())
+        let output = session
+            .command(vec!["go", "version"])
+            .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            return false;
+        }
+        let Some(wanted) = &self.version else {
+            return true;
+        };
+        let output = String::from_utf8_lossy(&output.stdout);
+        let Some((_, found)) = lazy_regex::regex_captures!(r"\bgo(\d+(?:\.\d+)*)", &output) else {
+            panic!("unexpected output from go version: {}", output);
+        };
+        go_version_at_least(found, wanted)
     }
 
     fn project_present(&self, _session: &dyn Session) -> bool {
