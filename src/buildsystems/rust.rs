@@ -217,7 +217,13 @@ impl BuildSystem for Cargo {
         {
             Ok(_) => {}
             Err(AnalyzedError::Unidentified { lines, .. })
-                if lines == ["error: no such subcommand: `generate`"] => {}
+                if matches!(
+                    lines.first().map(String::as_str),
+                    Some(
+                        "error: no such subcommand: `generate`"
+                            | "error: no such command: `generate`"
+                    )
+                ) => {}
             Err(e) => return Err(e.into()),
         }
         session
