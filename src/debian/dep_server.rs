@@ -35,7 +35,7 @@ async fn resolve_apt_requirement_dep_server(
         }))
         .send()
         .await
-        .unwrap();
+        .map_err(|e| Error::Other(format!("Unable to reach the dep server: {}", e)))?;
 
     match response.status() {
         StatusCode::NOT_FOUND => {
