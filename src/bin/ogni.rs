@@ -697,7 +697,10 @@ fn main() -> Result<(), i32> {
                 .as_slice(),
             args.dep_server_url.as_ref(),
         )
-        .unwrap()
+        .map_err(|e| {
+            eprintln!("Error: {}", e);
+            1
+        })?
     };
 
     let fixers: Vec<Box<dyn BuildFixer<InstallerError>>> = if !args.explain {
