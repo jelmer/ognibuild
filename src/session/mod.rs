@@ -727,6 +727,14 @@ impl<'a> CommandBuilder<'a> {
     }
 }
 
+/// Map an `external_path` result back to the path inside the session; other paths stay as is.
+pub fn internal_path(session: &dyn Session, path: &std::path::Path) -> std::path::PathBuf {
+    match path.strip_prefix(session.location()) {
+        Ok(rest) => std::path::Path::new("/").join(rest),
+        Err(_) => path.to_path_buf(),
+    }
+}
+
 /// Find the path to an executable in the session's PATH.
 ///
 /// # Arguments
