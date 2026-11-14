@@ -520,13 +520,21 @@ impl Dependency for PkgConfigDependency {
                 self.module.clone()
             },
         ];
-        let result = session
+        let result = match session
             .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .run()
-            .unwrap()
-            .success();
+        {
+            Err(crate::session::Error::IoError(e)) if e.kind() == std::io::ErrorKind::NotFound => {
+                log::warn!(
+                    "pkg-config is not installed, so pkg-config module {} counts as missing",
+                    self.module
+                );
+                false
+            }
+            status => status.unwrap().success(),
+        };
         if !result {
             log::debug!("pkg-config module {} not found", self.module);
         } else {
