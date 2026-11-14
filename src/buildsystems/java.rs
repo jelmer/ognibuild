@@ -113,7 +113,7 @@ impl BuildSystem for Gradle {
     ) -> Result<std::ffi::OsString, crate::buildsystem::Error> {
         let dc = crate::dist_catcher::DistCatcher::new(vec![session.external_path(Path::new("."))]);
         self.run(session, installer, "distTar", [].to_vec())?;
-        Ok(dc.copy_single(target_directory).unwrap().unwrap())
+        Ok(dc.copy_single(target_directory)?.unwrap())
     }
 
     fn test(

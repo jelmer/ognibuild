@@ -690,7 +690,7 @@ impl BuildSystem for SetupPy {
         } else {
             panic!("No setup.py or pyproject.toml");
         }
-        Ok(dc.copy_single(target_directory).unwrap().unwrap())
+        Ok(dc.copy_single(target_directory)?.unwrap())
     }
 
     fn clean(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {

@@ -347,7 +347,7 @@ impl BuildSystem for Make {
             }
             other => other
         }?;
-        Ok(dc.copy_single(target_directory).unwrap().unwrap())
+        Ok(dc.copy_single(target_directory)?.unwrap())
     }
 
     fn test(
