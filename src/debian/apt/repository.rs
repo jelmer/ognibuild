@@ -12,7 +12,7 @@ use apt_sources::{
 use debian_control::apt::Release;
 use flate2::read::MultiGzDecoder;
 use lzma_rs::lzma_decompress;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -246,15 +246,16 @@ pub fn contents_urls_from_repository<'a>(
                 };
                 existing_names.insert(key, name);
             }
-            let mut contents_files = HashSet::new();
+            // A Vec, not a set, so the files load in the same order every run.
+            let mut contents_files = Vec::new();
             if comps.is_empty() {
                 for arch in &arches {
-                    contents_files.insert(format!("Contents-{}", arch));
+                    contents_files.push(format!("Contents-{}", arch));
                 }
             } else {
                 for comp in comps {
                     for arch in &arches {
-                        contents_files.insert(format!("{}/Contents-{}", comp, arch));
+                        contents_files.push(format!("{}/Contents-{}", comp, arch));
                     }
                 }
             }
