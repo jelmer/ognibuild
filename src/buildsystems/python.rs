@@ -150,7 +150,15 @@ fn load_setup_cfg(path: &Path) -> Result<Option<SetupCfg>, PyErr> {
         let p = path.join("setup.cfg");
 
         if p.exists() {
-            let config = read_configuration.call1((p,))?;
+            let config = read_configuration.call1((p.as_path(),))?;
+            // read_configuration keeps only metadata and options; add the other sections, e.g. tool:pytest.
+            let parser = py.import("configparser")?.call_method0("RawConfigParser")?;
+            parser.call_method1("read", (p.as_path(), "utf-8"))?;
+            for section in parser.call_method0("sections")?.try_iter()? {
+                let section = section?;
+                let items = parser.call_method1("items", (&section,))?;
+                config.call_method1("setdefault", (section, PyDict::from_sequence(&items)?))?;
+            }
             Ok(Some(SetupCfg(config.unbind())))
         } else {
             Ok(None)
@@ -1073,6 +1081,36 @@ setup(
         let setup_py = SetupPy::new(path);
         let distribution = setup_py.extract_setup_direct().unwrap();
         assert_eq!(distribution.name, Some("guarded".to_string()));
+    }
+
+    #[test]
+    fn test_load_setup_cfg() {
+        if !setuptools_available() {
+            return;
+        }
+        let temp_dir = tempdir().unwrap();
+        fs::write(
+            temp_dir.path().join("setup.cfg"),
+            "[metadata]\nname = demo\n\n[options]\ninstall_requires =\n    foo\n    bar\n\n[tool:pytest]\ntestpaths = tests\n",
+        )
+        .unwrap();
+        let config = load_setup_cfg(temp_dir.path()).unwrap().unwrap();
+        assert!(config.has_section("tool:pytest"));
+        assert!(!config.has_section("pytest"));
+        assert_eq!(
+            config
+                .get_section("options")
+                .unwrap()
+                .get::<Vec<String>>("install_requires"),
+            Some(vec!["foo".to_string(), "bar".to_string()])
+        );
+        assert_eq!(
+            config
+                .get_section("tool:pytest")
+                .unwrap()
+                .get::<String>("testpaths"),
+            Some("tests".to_string())
+        );
     }
 
     #[test]
