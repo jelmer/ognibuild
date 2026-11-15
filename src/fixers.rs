@@ -374,6 +374,10 @@ impl<'a> BuildFixer<crate::installer::Error> for InstallFixer<'a> {
                     log::warn!("Cannot install dependency from unknown family: {:?}", req);
                     Ok(false) // Can't fix this problem, but that's okay
                 }
+                // A problem the installer ran into, such as its own command missing.
+                Err(crate::installer::Error::AnalyzedError(
+                    crate::analyze::AnalyzedError::Detailed { error, .. },
+                )) => Err(InterimError::Recognized(error)),
                 Err(e) => {
                     log::error!("Failed to install dependency {:?}: {}", req, e);
                     Err(InterimError::Other(e))
@@ -460,5 +464,53 @@ mod tests {
         let result = fixer.fix(&problem);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), false);
+    }
+
+    /// An installer whose own command is not installed.
+    struct MissingToolInstaller<'a>(&'a dyn Session);
+
+    impl Installer for MissingToolInstaller<'_> {
+        fn install(
+            &self,
+            _dep: &dyn crate::dependency::Dependency,
+            _scope: InstallationScope,
+        ) -> Result<(), InstallerError> {
+            self.0
+                .command(vec!["ognibuild-test-missing-tool", "install"])
+                .run_detecting_problems()?;
+            Ok(())
+        }
+
+        fn explain(
+            &self,
+            _dep: &dyn crate::dependency::Dependency,
+            _scope: InstallationScope,
+        ) -> Result<crate::installer::Explanation, InstallerError> {
+            Err(InstallerError::UnknownDependencyFamily)
+        }
+    }
+
+    #[test]
+    fn test_install_fixer_reports_missing_installer_tool() {
+        use buildlog_consultant::problems::common::MissingCommand;
+
+        let session = crate::session::plain::PlainSession::new();
+        let installer = MissingToolInstaller(&session);
+        let fixer = InstallFixer::new(&installer, InstallationScope::Global);
+
+        let problem = MissingCommand {
+            command: "foo".to_string(),
+        };
+
+        // The fix loop then installs the tool and tries again.
+        match fixer.fix(&problem) {
+            Err(InterimError::Recognized(p)) => assert_eq!(
+                p.as_any().downcast_ref::<MissingCommand>(),
+                Some(&MissingCommand {
+                    command: "ognibuild-test-missing-tool".to_string()
+                })
+            ),
+            r => panic!("unexpected result: {:?}", r),
+        }
     }
 }
