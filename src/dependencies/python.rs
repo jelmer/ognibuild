@@ -440,7 +440,10 @@ impl<'a> Installer for PypiResolver<'a> {
 
         match scope {
             InstallationScope::Global => {
-                cmd = cmd.user("root");
+                // Unlike --break-system-packages, older pip ignores this variable.
+                cmd = cmd
+                    .user("root")
+                    .setenv("PIP_BREAK_SYSTEM_PACKAGES".to_string(), "1".to_string());
             }
             InstallationScope::User => {}
             InstallationScope::Vendor => {
