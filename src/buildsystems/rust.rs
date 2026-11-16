@@ -212,12 +212,18 @@ impl BuildSystem for Cargo {
         _installer: &dyn crate::installer::Installer,
     ) -> Result<(), Error> {
         match session
-            .command(vec!["cargo", "generate"])
+            .command(vec!["cargo", "--color", "never", "generate"])
             .run_detecting_problems()
         {
             Ok(_) => {}
             Err(AnalyzedError::Unidentified { lines, .. })
-                if lines == ["error: no such subcommand: `generate`"] => {}
+                if matches!(
+                    lines.first().map(String::as_str),
+                    Some(
+                        "error: no such subcommand: `generate`"
+                            | "error: no such command: `generate`"
+                    )
+                ) => {}
             Err(e) => return Err(e.into()),
         }
         session
@@ -372,5 +378,30 @@ impl BuildSystem for Cargo {
     /// Reference to self as Any
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::session::plain::PlainSession;
+    use crate::session::Session;
+
+    #[test]
+    fn test_build() {
+        let td = tempfile::tempdir().unwrap();
+        std::fs::write(
+            td.path().join("Cargo.toml"),
+            "[package]\nname = \"foo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        )
+        .unwrap();
+        std::fs::create_dir(td.path().join("src")).unwrap();
+        std::fs::write(td.path().join("src/lib.rs"), "").unwrap();
+        let mut session = PlainSession::new();
+        session.chdir(td.path()).unwrap();
+        let cargo = Cargo::new(td.path().to_path_buf());
+        cargo
+            .build(&session, &crate::installer::NullInstaller::new())
+            .unwrap();
     }
 }
