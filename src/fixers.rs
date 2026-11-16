@@ -374,7 +374,7 @@ impl<'a> BuildFixer<crate::installer::Error> for InstallFixer<'a> {
                     log::warn!("Cannot install dependency from unknown family: {:?}", req);
                     Ok(false) // Can't fix this problem, but that's okay
                 }
-                // A problem the installer ran into, such as its own command missing.
+                // Hand any problem the installer surfaced back to the fix loop.
                 Err(crate::installer::Error::AnalyzedError(
                     crate::analyze::AnalyzedError::Detailed { error, .. },
                 )) => Err(InterimError::Recognized(error)),
