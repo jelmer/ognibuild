@@ -699,9 +699,10 @@ impl BuildSystem for SetupPy {
             preargs.push("sdist");
             self.run_setup(session, installer, preargs)?;
         } else if self.pyproject.is_some() {
+            self.install_setup_requires(session, installer)?;
             run_detecting_problems(
                 session,
-                vec!["python3", "-m", "build", "--sdist", "."],
+                vec!["python3", "-m", "build", "--sdist", "--no-isolation", "."],
                 None,
                 false,
                 None,
@@ -1029,7 +1030,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pep517_build_and_clean() {
+    fn test_pep517_build_clean_and_dist() {
         if !setuptools_available() || !Python::attach(|py| py.import("build").is_ok()) {
             return;
         }
@@ -1059,6 +1060,13 @@ mod tests {
         setup_py.clean(&session, &installer).unwrap();
         assert!(!path.join("dist").exists());
         assert!(path.join("demo/__init__.py").exists());
+
+        let target = tempdir().unwrap();
+        let sdist = setup_py
+            .dist(&session, &installer, target.path(), true)
+            .unwrap();
+        assert_eq!(sdist, "demo-1.0.tar.gz");
+        assert!(target.path().join("demo-1.0.tar.gz").exists());
     }
 
     #[test]
