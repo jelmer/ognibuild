@@ -111,7 +111,7 @@ impl<'a> Installer for OctaveForgeResolver<'a> {
         let dependency = dependency
             .as_any()
             .downcast_ref::<OctavePackageDependency>()
-            .unwrap();
+            .ok_or(Error::UnknownDependencyFamily)?;
         let cmd = self.cmd(dependency, scope)?;
         Ok(Explanation {
             command: Some(cmd),
@@ -183,6 +183,34 @@ mod tests {
     fn test_octave_package_dependency_from_str_invalid() {
         let result: Result<OctavePackageDependency, _> = "signal with bad format".parse();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_octave_forge_resolver_explain() {
+        let session = crate::session::plain::PlainSession::new();
+        let resolver = OctaveForgeResolver::new(&session);
+        let explanation = resolver
+            .explain(
+                &OctavePackageDependency::simple("signal"),
+                InstallationScope::User,
+            )
+            .unwrap();
+        assert_eq!(explanation.message, "Install Octave package signal");
+        assert_eq!(
+            explanation.command,
+            Some(vec![
+                "octave-cli".to_string(),
+                "--eval".to_string(),
+                "pkg install -forge -local signal".to_string(),
+            ])
+        );
+        assert!(matches!(
+            resolver.explain(
+                &crate::dependencies::BinaryDependency::new("cmake"),
+                InstallationScope::User
+            ),
+            Err(Error::UnknownDependencyFamily)
+        ));
     }
 }
 
