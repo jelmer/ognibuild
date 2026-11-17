@@ -2361,8 +2361,14 @@ impl Dependency for QTDependency {
         "qt"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
-        todo!()
+    fn present(&self, session: &dyn Session) -> bool {
+        session
+            .command(vec!["qmake", "-v"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .run()
+            .unwrap()
+            .success()
     }
 
     fn project_present(&self, _session: &dyn Session) -> bool {
@@ -2387,10 +2393,29 @@ impl crate::dependencies::debian::IntoDebianDependency for QTDependency {
             return None;
         }
 
+        // This qmake is qtchooser, which only runs once a package sets its default Qt.
+        let defaults = apt
+            .get_packages_for_paths(
+                vec!["/usr/lib/.*/qt-default/qtchooser/default\\.conf"],
+                true,
+                false,
+            )
+            .unwrap();
+
         Some(
             names
                 .iter()
-                .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
+                .map(|p| {
+                    if defaults.is_empty() {
+                        crate::dependencies::debian::DebianDependency::simple(p.as_str())
+                    } else {
+                        crate::dependencies::debian::DebianDependency::new(&format!(
+                            "{}, {}",
+                            p,
+                            defaults.join(" | ")
+                        ))
+                    }
+                })
                 .collect(),
         )
     }
@@ -2913,5 +2938,39 @@ mod tests {
     fn test_unknown_binary_does_not_map_to_crate() {
         let dep = BinaryDependency::new("definitely-not-a-crate");
         assert!(to_cargo_crate_req(&dep).is_none());
+    }
+
+    #[cfg(feature = "debian")]
+    #[test]
+    fn test_qt_to_debian() {
+        use crate::dependencies::debian::{DebianDependency, IntoDebianDependency};
+        let session = crate::session::plain::PlainSession::new();
+        let apt_with = |files: &[(&str, &str)]| {
+            let apt = crate::debian::apt::AptManager::new(&session, None);
+            apt.set_searchers(vec![Box::new(
+                crate::debian::file_search::MemoryAptSearcher::new(
+                    files
+                        .iter()
+                        .map(|(path, pkg)| (PathBuf::from(path), pkg.to_string()))
+                        .collect(),
+                ),
+            )]);
+            apt
+        };
+        let qmake = ("/usr/lib/x86_64-linux-gnu/qt5/bin/qmake", "qt5-qmake");
+        assert_eq!(
+            QTDependency.try_into_debian_dependency(&apt_with(&[qmake])),
+            Some(vec![DebianDependency::new("qt5-qmake")])
+        );
+        assert_eq!(
+            QTDependency.try_into_debian_dependency(&apt_with(&[
+                qmake,
+                (
+                    "/usr/lib/x86_64-linux-gnu/qt-default/qtchooser/default.conf",
+                    "libqt5core5t64"
+                ),
+            ])),
+            Some(vec![DebianDependency::new("qt5-qmake, libqt5core5t64")])
+        );
     }
 }
