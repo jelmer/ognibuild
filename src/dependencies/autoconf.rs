@@ -153,8 +153,7 @@ impl crate::dependencies::debian::IntoDebianDependency for AutoconfMacroDependen
             return Ok(None);
         }
         Ok(Some(
-            apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false)
-                .unwrap()
+            apt.get_packages_for_paths(vec![path.as_ref().unwrap()], false, false)?
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),

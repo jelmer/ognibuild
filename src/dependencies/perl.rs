@@ -435,16 +435,14 @@ impl crate::dependencies::debian::IntoDebianDependency for PerlModuleDependency 
             )
         };
 
-        let packages = apt
-            .get_packages_for_paths(
-                paths
-                    .iter()
-                    .map(|s| s.to_str().unwrap())
-                    .collect::<Vec<_>>(),
-                regex,
-                false,
-            )
-            .unwrap();
+        let packages = apt.get_packages_for_paths(
+            paths
+                .iter()
+                .map(|s| s.to_str().unwrap())
+                .collect::<Vec<_>>(),
+            regex,
+            false,
+        )?;
 
         Ok(Some(
             packages
@@ -462,9 +460,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PerlFileDependency {
         apt: &crate::debian::apt::AptManager,
     ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
     {
-        let packages = apt
-            .get_packages_for_paths(vec![&self.filename], false, false)
-            .unwrap();
+        let packages = apt.get_packages_for_paths(vec![&self.filename], false, false)?;
 
         Ok(Some(
             packages

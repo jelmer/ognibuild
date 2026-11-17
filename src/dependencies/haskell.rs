@@ -92,9 +92,7 @@ impl crate::dependencies::debian::IntoDebianDependency for HaskellPackageDepende
             regex::escape(&self.package)
         );
 
-        let names = apt
-            .get_packages_for_paths(vec![path.as_str()], true, false)
-            .unwrap();
+        let names = apt.get_packages_for_paths(vec![path.as_str()], true, false)?;
         if names.is_empty() {
             Ok(None)
         } else {

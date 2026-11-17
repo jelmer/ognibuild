@@ -218,8 +218,7 @@ fn resolve_vague_dep_req(
                     paths.iter().map(|x| x.to_str().unwrap()).collect(),
                     true,
                     true,
-                )
-                .unwrap()
+                )?
                 .iter()
                 .map(|x| DebianDependency::new(x)),
         )
