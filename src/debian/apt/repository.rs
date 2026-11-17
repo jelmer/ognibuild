@@ -345,6 +345,16 @@ pub fn unwrap<'a, R: Read + 'a>(f: R, ext: &str) -> Result<Box<dyn Read + 'a>, E
 /// # Returns
 /// Reader for the URL contents
 pub fn load_direct_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
+    let (response, ext) = fetch_url(url, None)?;
+    unwrap(response, ext)
+}
+
+/// Fetch the first compressed variant of a URL the server has, sending
+/// If-Modified-Since when `since` is set.
+fn fetch_url(
+    url: &url::Url,
+    since: Option<std::time::SystemTime>,
+) -> Result<(reqwest::blocking::Response, &'static str), Error> {
     // Create a client with reasonable timeouts for downloading large APT Contents files
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(300)) // 5 minutes for large files
@@ -353,7 +363,15 @@ pub fn load_direct_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
         .map_err(|e| Error::AptFileAccessError(format!("Failed to create HTTP client: {}", e)))?;
 
     for ext in [".xz", ".gz", ""] {
-        let response = match client.get(url.to_string() + ext).send() {
+        let mut request = client.get(url.to_string() + ext);
+        if let Some(since) = since {
+            let since = chrono::DateTime::<chrono::Utc>::from(since);
+            request = request.header(
+                reqwest::header::IF_MODIFIED_SINCE,
+                since.format("%a, %d %b %Y %H:%M:%S GMT").to_string(),
+            );
+        }
+        let response = match request.send() {
             Ok(response) => response,
             Err(e) => {
                 log::debug!("Failed to fetch APT contents from {}{}: {}", url, ext, e);
@@ -369,7 +387,8 @@ pub fn load_direct_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             continue;
         }
-        if !response.status().is_success() {
+        if !response.status().is_success() && response.status() != reqwest::StatusCode::NOT_MODIFIED
+        {
             return Err(Error::AptFileAccessError(format!(
                 "Unable to access apt URL {}{}: HTTP {}",
                 url,
@@ -377,10 +396,14 @@ pub fn load_direct_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
                 response.status()
             )));
         }
-        return unwrap(response, ext);
+        return Ok((response, ext));
     }
     Err(Error::FileNotFoundError(format!("{} not found", url)))
 }
+
+/// URLs whose user-cache copy was already checked with the server in this process.
+static CHECKED_URLS: std::sync::Mutex<std::collections::BTreeSet<Url>> =
+    std::sync::Mutex::new(std::collections::BTreeSet::new());
 
 /// Get the user cache directory for ognibuild APT Contents files.
 fn get_user_cache_dir() -> Option<PathBuf> {
@@ -409,8 +432,28 @@ pub fn load_url_with_cache(url: &url::Url, cache_dirs: &[&Path]) -> Result<Box<d
     }
 
     // Then check user cache directory
-    if let Some(user_cache_dir) = get_user_cache_dir() {
-        match load_apt_cache_file(url, &user_cache_dir) {
+    load_url_with_user_cache(url, get_user_cache_dir().as_deref())
+}
+
+/// Load a URL from the user cache directory, downloading it if missing.
+fn load_url_with_user_cache(
+    url: &url::Url,
+    user_cache_dir: Option<&Path>,
+) -> Result<Box<dyn Read>, Error> {
+    if let Some(user_cache_dir) = user_cache_dir {
+        let cached = user_cache_dir.join(uri_to_filename(url));
+        // Ask the server whether a cached copy changed, once per run.
+        if CHECKED_URLS.lock().unwrap().insert(url.clone()) && cached.exists() {
+            match download_and_cache_url(url, Some(user_cache_dir), Some(&cached)) {
+                Ok(f) => return Ok(f),
+                Err(e) => log::warn!(
+                    "Unable to check {} for changes, using the cached copy: {}",
+                    url,
+                    e
+                ),
+            }
+        }
+        match load_apt_cache_file(url, user_cache_dir) {
             Ok(f) => {
                 log::debug!(
                     "Found cached APT contents in user cache: {}",
@@ -427,18 +470,36 @@ pub fn load_url_with_cache(url: &url::Url, cache_dirs: &[&Path]) -> Result<Box<d
     }
 
     // If not found in any cache, download and cache it
-    download_and_cache_url(url)
+    download_and_cache_url(url, user_cache_dir, None)
 }
 
-/// Download a URL and cache it in the user cache directory.
-fn download_and_cache_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
-    // Download the file
-    let content = load_direct_url(url)?;
+/// Download a URL and cache it in the user cache directory. With `cached`,
+/// that copy is used if the server says it has not changed since.
+fn download_and_cache_url(
+    url: &url::Url,
+    user_cache_dir: Option<&Path>,
+    cached: Option<&Path>,
+) -> Result<Box<dyn Read>, Error> {
+    let since = match cached {
+        Some(p) => Some(std::fs::metadata(p)?.modified()?),
+        None => None,
+    };
+    let (response, ext) = fetch_url(url, since)?;
+    if let (Some(p), reqwest::StatusCode::NOT_MODIFIED) = (cached, response.status()) {
+        log::debug!("{} has not changed, using {}", url, p.display());
+        return Ok(Box::new(File::open(p)?));
+    }
+    let last_modified = response
+        .headers()
+        .get(reqwest::header::LAST_MODIFIED)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| chrono::DateTime::parse_from_rfc2822(v).ok());
+    let content = unwrap(response, ext)?;
 
     // Try to cache it in user directory
-    if let Some(user_cache_dir) = get_user_cache_dir() {
+    if let Some(user_cache_dir) = user_cache_dir {
         // Ensure cache directory exists
-        if let Err(e) = std::fs::create_dir_all(&user_cache_dir) {
+        if let Err(e) = std::fs::create_dir_all(user_cache_dir) {
             log::debug!(
                 "Failed to create cache directory {}: {}",
                 user_cache_dir.display(),
@@ -455,7 +516,19 @@ fn download_and_cache_url(url: &url::Url) -> Result<Box<dyn Read>, Error> {
 
             // Write to cache file
             let cache_file_path = user_cache_dir.join(uri_to_filename(url));
-            match std::fs::write(&cache_file_path, &buffer) {
+            // Write a new file and rename it, so a failed write keeps the old copy.
+            let written = tempfile::Builder::new()
+                .permissions(std::os::unix::fs::PermissionsExt::from_mode(0o666))
+                .tempfile_in(user_cache_dir)
+                .and_then(|mut f| {
+                    std::io::Write::write_all(&mut f, &buffer)?;
+                    if let Some(t) = last_modified {
+                        f.as_file().set_modified(t.into())?;
+                    }
+                    f.persist(&cache_file_path).map_err(|e| e.error)?;
+                    Ok(())
+                });
+            match written {
                 Ok(_) => {
                     log::info!("Cached APT contents to: {}", cache_file_path.display());
                 }
@@ -813,5 +886,95 @@ mod tests {
         } else {
             panic!("Expected DecompressionError");
         }
+    }
+
+    #[test]
+    fn test_load_url_with_user_cache() {
+        const LAST_MODIFIED: &str = "Sat, 12 Sep 2026 07:30:39 GMT";
+        const BODY: &str = "usr/bin/foo admin/foo\n";
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let p = "/dists/sid/main/Contents-all";
+        let url: Url = format!("http://{}{}", listener.local_addr().unwrap(), p)
+            .parse()
+            .unwrap();
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let server_seen = seen.clone();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let mut stream = stream.unwrap();
+                let mut head = Vec::new();
+                while !head.ends_with(b"\r\n\r\n") {
+                    let mut byte = [0u8];
+                    stream.read_exact(&mut byte).unwrap();
+                    head.push(byte[0]);
+                }
+                let head = String::from_utf8(head).unwrap();
+                let path = head.split(' ').nth(1).unwrap().to_string();
+                let since = head.lines().find_map(|l| {
+                    l.split_once(": ")
+                        .filter(|(k, _)| k.eq_ignore_ascii_case("if-modified-since"))
+                        .map(|(_, v)| v.to_string())
+                });
+                let response = if !path.ends_with("Contents-all") {
+                    "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n".to_string()
+                } else if since.as_deref() == Some(LAST_MODIFIED) {
+                    "HTTP/1.1 304 Not Modified\r\n".to_string()
+                } else {
+                    format!(
+                        "HTTP/1.1 200 OK\r\nLast-Modified: {}\r\nContent-Length: {}\r\n",
+                        LAST_MODIFIED,
+                        BODY.len()
+                    )
+                };
+                server_seen.lock().unwrap().push((path, since));
+                let response = response + "Connection: close\r\n\r\n";
+                std::io::Write::write_all(&mut stream, response.as_bytes()).unwrap();
+                if response.starts_with("HTTP/1.1 200") {
+                    std::io::Write::write_all(&mut stream, BODY.as_bytes()).unwrap();
+                }
+            }
+        });
+        let dir = tempfile::tempdir().unwrap();
+        let cached = dir.path().join(uri_to_filename(&url));
+        let read = |mut r: Box<dyn Read>| {
+            let mut s = String::new();
+            r.read_to_string(&mut s).unwrap();
+            s
+        };
+        let set_mtime = |t: std::time::SystemTime| {
+            File::options()
+                .write(true)
+                .open(&cached)
+                .unwrap()
+                .set_modified(t)
+                .unwrap()
+        };
+        // The second use in the same run sends no request.
+        for _ in 0..2 {
+            assert_eq!(
+                read(load_url_with_user_cache(&url, Some(dir.path())).unwrap()),
+                BODY
+            );
+        }
+        let last_modified = chrono::DateTime::parse_from_rfc2822(LAST_MODIFIED).unwrap();
+        assert_eq!(
+            std::fs::metadata(&cached).unwrap().modified().unwrap(),
+            std::time::SystemTime::from(last_modified)
+        );
+        std::fs::write(&cached, "cached\n").unwrap();
+        set_mtime(last_modified.into());
+        let check = || read(download_and_cache_url(&url, Some(dir.path()), Some(&cached)).unwrap());
+        assert_eq!(check(), "cached\n");
+        set_mtime(std::time::SystemTime::UNIX_EPOCH);
+        assert_eq!(check(), BODY);
+        assert_eq!(std::fs::read_to_string(&cached).unwrap(), BODY);
+        let old = Some("Thu, 01 Jan 1970 00:00:00 GMT".to_string());
+        let mut expected = Vec::new();
+        for since in [None, Some(LAST_MODIFIED.to_string()), old] {
+            for ext in [".xz", ".gz", ""] {
+                expected.push((format!("{}{}", p, ext), since.clone()));
+            }
+        }
+        assert_eq!(*seen.lock().unwrap(), expected);
     }
 }
