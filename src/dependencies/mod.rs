@@ -2351,8 +2351,7 @@ impl ToDependency for buildlog_consultant::problems::common::MissingQtModules {
 
 /// Dependency on the Qt toolkit.
 ///
-/// This represents a dependency on the Qt toolkit as a whole,
-/// specifically the qmake tool for building Qt projects.
+/// This represents a dependency on the Qt toolkit as a whole.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QTDependency;
 
@@ -2379,20 +2378,7 @@ impl crate::dependencies::debian::IntoDebianDependency for QTDependency {
         &self,
         apt: &crate::debian::apt::AptManager,
     ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        let names = apt
-            .get_packages_for_paths(vec!["/usr/lib/.*/qt[0-9]+/bin/qmake"], true, false)
-            .unwrap();
-
-        if names.is_empty() {
-            return None;
-        }
-
-        Some(
-            names
-                .iter()
-                .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
-                .collect(),
-        )
+        QtModuleDependency::new("core").try_into_debian_dependency(apt)
     }
 }
 
@@ -2913,5 +2899,31 @@ mod tests {
     fn test_unknown_binary_does_not_map_to_crate() {
         let dep = BinaryDependency::new("definitely-not-a-crate");
         assert!(to_cargo_crate_req(&dep).is_none());
+    }
+
+    #[cfg(feature = "debian")]
+    #[test]
+    fn test_qt_to_debian() {
+        use crate::dependencies::debian::{DebianDependency, IntoDebianDependency};
+        let session = crate::session::plain::PlainSession::new();
+        let apt = crate::debian::apt::AptManager::new(&session, None);
+        apt.set_searchers(vec![Box::new(
+            crate::debian::file_search::MemoryAptSearcher::new(
+                [
+                    ("/usr/lib/x86_64-linux-gnu/qt5/bin/qmake", "qt5-qmake"),
+                    (
+                        "/usr/lib/x86_64-linux-gnu/qt5/mkspecs/modules/qt_lib_core.pri",
+                        "qtbase5-dev",
+                    ),
+                ]
+                .iter()
+                .map(|(path, pkg)| (PathBuf::from(path), pkg.to_string()))
+                .collect(),
+            ),
+        )]);
+        assert_eq!(
+            QTDependency.try_into_debian_dependency(&apt),
+            Some(vec![DebianDependency::simple("qtbase5-dev")])
+        );
     }
 }
