@@ -2313,16 +2313,43 @@ impl Dependency for QtModuleDependency {
     }
 }
 
+/// Qt 5's data directory, for when the session's qmake does not know its Qt.
 #[cfg(feature = "debian")]
-impl crate::dependencies::debian::IntoDebianDependency for QtModuleDependency {
-    fn try_into_debian_dependency(
+const QT5_DATA_DIR: &str = "/usr/lib/.*/qt5";
+
+/// Regex for the data directory of the Qt that the session's qmake uses.
+#[cfg(feature = "debian")]
+fn qt_data_dir_regex(session: &dyn Session) -> String {
+    match session
+        .command(vec![
+            crate::buildsystems::make::qmake(session),
+            "-query",
+            "QT_HOST_DATA",
+        ])
+        .check_output()
+    {
+        Ok(dir) => regex::escape(String::from_utf8(dir).unwrap().trim()),
+        // no qmake, or qtchooser's qmake before any Qt is installed
+        Err(crate::session::Error::CalledProcessError(_)) => QT5_DATA_DIR.to_string(),
+        Err(crate::session::Error::IoError(e)) if e.kind() == std::io::ErrorKind::NotFound => {
+            QT5_DATA_DIR.to_string()
+        }
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
+}
+
+#[cfg(feature = "debian")]
+impl QtModuleDependency {
+    fn debian_packages(
         &self,
         apt: &crate::debian::apt::AptManager,
+        qt_dir: &str,
     ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
         let names = apt
             .get_packages_for_paths(
                 vec![&format!(
-                    "/usr/lib/.*/qt5/mkspecs/modules/qt_lib_{}\\.pri",
+                    "{}/mkspecs/modules/qt_lib_{}\\.pri",
+                    qt_dir,
                     regex::escape(&self.module)
                 )],
                 true,
@@ -2340,6 +2367,16 @@ impl crate::dependencies::debian::IntoDebianDependency for QtModuleDependency {
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
         )
+    }
+}
+
+#[cfg(feature = "debian")]
+impl crate::dependencies::debian::IntoDebianDependency for QtModuleDependency {
+    fn try_into_debian_dependency(
+        &self,
+        apt: &crate::debian::apt::AptManager,
+    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+        self.debian_packages(apt, &qt_data_dir_regex(apt.session()))
     }
 }
 
@@ -2904,7 +2941,7 @@ mod tests {
     #[cfg(feature = "debian")]
     #[test]
     fn test_qt_to_debian() {
-        use crate::dependencies::debian::{DebianDependency, IntoDebianDependency};
+        use crate::dependencies::debian::DebianDependency;
         let session = crate::session::plain::PlainSession::new();
         let apt = crate::debian::apt::AptManager::new(&session, None);
         apt.set_searchers(vec![Box::new(
@@ -2915,14 +2952,23 @@ mod tests {
                         "/usr/lib/x86_64-linux-gnu/qt5/mkspecs/modules/qt_lib_core.pri",
                         "qtbase5-dev",
                     ),
+                    (
+                        "/usr/lib/x86_64-linux-gnu/qt6/mkspecs/modules/qt_lib_core.pri",
+                        "qt6-base-dev",
+                    ),
                 ]
                 .iter()
                 .map(|(path, pkg)| (PathBuf::from(path), pkg.to_string()))
                 .collect(),
             ),
         )]);
+        let core = QtModuleDependency::new("core");
         assert_eq!(
-            QTDependency.try_into_debian_dependency(&apt),
+            core.debian_packages(&apt, "/usr/lib/x86_64-linux-gnu/qt6"),
+            Some(vec![DebianDependency::simple("qt6-base-dev")])
+        );
+        assert_eq!(
+            core.debian_packages(&apt, QT5_DATA_DIR),
             Some(vec![DebianDependency::simple("qtbase5-dev")])
         );
     }
