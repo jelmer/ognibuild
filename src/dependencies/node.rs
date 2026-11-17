@@ -64,21 +64,8 @@ impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency
             ),
         ];
 
-        let names = match apt.get_packages_for_paths(
-            paths.iter().map(|p| p.as_str()).collect(),
-            true,
-            false,
-        ) {
-            Ok(names) => names,
-            Err(e) => {
-                log::warn!(
-                    "Failed to search for Node package {} in APT: {}",
-                    self.package,
-                    e
-                );
-                return Ok(None);
-            }
-        };
+        let names =
+            apt.get_packages_for_paths(paths.iter().map(|p| p.as_str()).collect(), true, false)?;
 
         if names.is_empty() {
             Ok(None)
@@ -177,21 +164,8 @@ impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency 
             ),
         ];
 
-        let names = match apt.get_packages_for_paths(
-            paths.iter().map(|p| p.as_str()).collect(),
-            true,
-            false,
-        ) {
-            Ok(names) => names,
-            Err(e) => {
-                log::warn!(
-                    "Failed to search for Node module {} in APT: {}",
-                    self.module,
-                    e
-                );
-                return Ok(None);
-            }
-        };
+        let names =
+            apt.get_packages_for_paths(paths.iter().map(|p| p.as_str()).collect(), true, false)?;
 
         if names.is_empty() {
             Ok(None)
