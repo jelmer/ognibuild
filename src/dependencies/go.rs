@@ -164,7 +164,8 @@ impl crate::dependencies::debian::IntoDebianDependency for GoPackageDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         use std::path::Path;
 
         let names = apt
@@ -179,15 +180,15 @@ impl crate::dependencies::debian::IntoDebianDependency for GoPackageDependency {
             )
             .unwrap();
         if names.is_empty() {
-            return None;
+            return Ok(None);
         }
 
-        Some(
+        Ok(Some(
             names
                 .iter()
                 .map(|name| crate::dependencies::debian::DebianDependency::new(name))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -422,18 +423,19 @@ impl crate::dependencies::debian::IntoDebianDependency for GoDependency {
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         if let Some(version) = &self.version {
-            Some(vec![
+            Ok(Some(vec![
                 crate::dependencies::debian::DebianDependency::new_with_min_version(
                     "golang-go",
                     &version.parse().unwrap(),
                 ),
-            ])
+            ]))
         } else {
-            Some(vec![crate::dependencies::debian::DebianDependency::new(
-                "golang-go",
-            )])
+            Ok(Some(vec![
+                crate::dependencies::debian::DebianDependency::new("golang-go"),
+            ]))
         }
     }
 }
