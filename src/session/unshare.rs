@@ -339,7 +339,7 @@ impl UnshareSession {
 
     /// Bootstrap the session environment with Debian sid
     pub fn bootstrap() -> Result<Self, crate::session::Error> {
-        bootstrap_debian_tarball("sid", true, &[])
+        bootstrap_debian_tarball("sid", true, &[], &[])
     }
 
     /// Verify that the current user has an account in the session
@@ -564,7 +564,7 @@ pub fn create_debian_session_for_testing(
         "No cached image found, bootstrapping Debian {} test session from network using mmdebstrap",
         suite
     );
-    bootstrap_debian_tarball(suite, true, &[])
+    bootstrap_debian_tarball(suite, true, &[], &[])
 }
 
 /// Bootstrap a Debian system using mmdebstrap and create a tarball
@@ -573,10 +573,12 @@ pub fn create_debian_session_for_testing(
 /// * `suite` - The Debian suite to use (e.g., "sid", "unstable", "bookworm", "stable")
 /// * `setup_apt_file` - Whether to install and configure apt-file during bootstrap (requires network)
 /// * `extra_packages` - Additional packages to install into the bootstrapped image
+/// * `extra_args` - Extra arguments for mmdebstrap, given after the suite and target (e.g. a mirror)
 pub fn bootstrap_debian_tarball(
     suite: &str,
     setup_apt_file: bool,
     extra_packages: &[&str],
+    extra_args: &[&str],
 ) -> Result<UnshareSession, crate::session::Error> {
     let td = RootDir::new()?;
     let root = td.path();
@@ -603,10 +605,8 @@ pub fn bootstrap_debian_tarball(
             // package is build-depended on across all source packages; without
             // the Sources index every count is zero and ties are broken
             // arbitrarily (e.g. picking the unusable "rustup" over "cargo").
-            .arg(format!(
-                "--customize-hook=echo 'deb-src http://deb.debian.org/debian/ {} main' >> \"$1\"/etc/apt/sources.list",
-                suite
-            ))
+            .arg("--customize-hook=for f in \"$1\"/etc/apt/sources.list \"$1\"/etc/apt/sources.list.d/*.list; do if [ -f \"$f\" ]; then sed -i '/^deb /{p;s/^deb /deb-src /}' \"$f\" || exit 1; fi; done")
+            .arg("--customize-hook=for f in \"$1\"/etc/apt/sources.list.d/*.sources; do if [ -f \"$f\" ]; then sed -i 's/^Types:[[:space:]]*deb[[:space:]]*$/Types: deb deb-src/I' \"$f\" || exit 1; fi; done")
             .arg("--customize-hook=chroot \"$1\" apt-get update")
             // Download apt-file Contents files (used to map files to packages).
             .arg("--customize-hook=chroot \"$1\" apt-file update")
@@ -615,10 +615,7 @@ pub fn bootstrap_debian_tarball(
             .arg("--skip=cleanup/apt/lists");
     }
 
-    cmd.arg("--quiet")
-        .arg(suite)
-        .arg(root)
-        .arg("http://deb.debian.org/debian/");
+    cmd.arg("--quiet").arg(suite).arg(root).args(extra_args);
 
     let status = cmd.status().map_err(|e| {
         crate::session::Error::SetupFailure(
@@ -630,7 +627,10 @@ pub fn bootstrap_debian_tarball(
     if !status.success() {
         return Err(crate::session::Error::SetupFailure(
             "mmdebstrap failed".to_string(),
-            Some(format!("mmdebstrap exited with status: {}. This likely requires network access to http://deb.debian.org/debian/", status)),
+            Some(format!(
+                "mmdebstrap exited with status: {}. This likely requires network access",
+                status
+            )),
         ));
     }
 
@@ -1391,6 +1391,38 @@ mod tests {
                 _ => panic!("Expected SetupFailure, got {:?}", err),
             }
         }
+    }
+
+    #[test]
+    fn test_bootstrap_debian_tarball_mirror() {
+        if std::env::var("GITHUB_ACTIONS").is_ok() {
+            return;
+        }
+        if std::process::Command::new("mmdebstrap")
+            .arg("--version")
+            .output()
+            .is_err()
+        {
+            return;
+        }
+        use std::io::{BufRead, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let mirror = format!("http://{}/debian/", listener.local_addr().unwrap());
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = String::new();
+            std::io::BufReader::new(&stream)
+                .read_line(&mut request)
+                .unwrap();
+            tx.send(request).unwrap();
+            stream.write_all(b"HTTP/1.0 404 Not Found\r\n\r\n").unwrap();
+        });
+        assert!(bootstrap_debian_tarball("sid", false, &[], &[&mirror]).is_err());
+        assert_eq!(
+            rx.try_recv().unwrap(),
+            "GET /debian/dists/sid/InRelease HTTP/1.1\r\n"
+        );
     }
 
     #[cfg(not(feature = "debian"))]
