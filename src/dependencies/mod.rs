@@ -366,8 +366,7 @@ impl crate::dependencies::debian::IntoDebianDependency for CargoCrateDependency 
         );
 
         Ok(Some(
-            apt.get_packages_for_paths(vec![&path], true, false)
-                .unwrap()
+            apt.get_packages_for_paths(vec![&path], true, false)?
                 .iter()
                 .map(|p| {
                     if self.api_version.is_some() {
@@ -553,34 +552,30 @@ impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
         apt: &crate::debian::apt::AptManager,
     ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
     {
-        let mut names = apt
-            .get_packages_for_paths(
-                [format!(
-                    "/usr/lib/.*/pkgconfig/{}\\.pc",
-                    regex::escape(&self.module)
-                )]
+        let mut names = apt.get_packages_for_paths(
+            [format!(
+                "/usr/lib/.*/pkgconfig/{}\\.pc",
+                regex::escape(&self.module)
+            )]
+            .iter()
+            .map(|s| s.as_str())
+            .collect(),
+            true,
+            false,
+        )?;
+
+        if names.is_empty() {
+            names = apt.get_packages_for_paths(
+                [
+                    format!("/usr/lib/pkgconfig/{}\\.pc", regex::escape(&self.module)),
+                    format!("/usr/share/pkgconfig/{}\\.pc", regex::escape(&self.module)),
+                ]
                 .iter()
                 .map(|s| s.as_str())
                 .collect(),
                 true,
                 false,
-            )
-            .unwrap();
-
-        if names.is_empty() {
-            names = apt
-                .get_packages_for_paths(
-                    [
-                        format!("/usr/lib/pkgconfig/{}\\.pc", regex::escape(&self.module)),
-                        format!("/usr/share/pkgconfig/{}\\.pc", regex::escape(&self.module)),
-                    ]
-                    .iter()
-                    .map(|s| s.as_str())
-                    .collect(),
-                    true,
-                    false,
-                )
-                .unwrap();
+            )?;
         }
 
         if names.is_empty() {
@@ -698,8 +693,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PathDependency {
     ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
     {
         Ok(Some(
-            apt.get_packages_for_paths(vec![self.path.to_str().unwrap()], false, false)
-                .unwrap()
+            apt.get_packages_for_paths(vec![self.path.to_str().unwrap()], false, false)?
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
@@ -780,28 +774,24 @@ impl crate::dependencies::debian::IntoDebianDependency for CHeaderDependency {
         apt: &crate::debian::apt::AptManager,
     ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
     {
-        let mut deps = apt
-            .get_packages_for_paths(
+        let mut deps = apt.get_packages_for_paths(
+            vec![std::path::Path::new("/usr/include")
+                .join(&self.header)
+                .to_str()
+                .unwrap()],
+            false,
+            false,
+        )?;
+        if deps.is_empty() {
+            deps = apt.get_packages_for_paths(
                 vec![std::path::Path::new("/usr/include")
+                    .join(".*")
                     .join(&self.header)
                     .to_str()
                     .unwrap()],
+                true,
                 false,
-                false,
-            )
-            .unwrap();
-        if deps.is_empty() {
-            deps = apt
-                .get_packages_for_paths(
-                    vec![std::path::Path::new("/usr/include")
-                        .join(".*")
-                        .join(&self.header)
-                        .to_str()
-                        .unwrap()],
-                    true,
-                    false,
-                )
-                .unwrap();
+            )?;
         }
         if deps.is_empty() {
             return Ok(None);
@@ -859,15 +849,13 @@ impl crate::dependencies::debian::IntoDebianDependency for JavaScriptRuntimeDepe
     ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
     {
         let paths = vec!["/usr/bin/node", "/usr/bin/duk"];
-        Ok(Some(
-            apt.get_packages_for_paths(paths, false, false)
-                .map(|p| {
-                    p.iter()
-                        .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
-                        .collect()
-                })
-                .unwrap(),
-        ))
+        Ok(Some(apt.get_packages_for_paths(paths, false, false).map(
+            |p| {
+                p.iter()
+                    .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
+                    .collect()
+            },
+        )?))
     }
 }
 
@@ -975,8 +963,7 @@ impl crate::dependencies::debian::IntoDebianDependency for ValaPackageDependency
                 )],
                 true,
                 false,
-            )
-            .unwrap()
+            )?
             .iter()
             .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
             .collect(),
@@ -1167,18 +1154,16 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyGemDependency {
         apt: &crate::debian::apt::AptManager,
     ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
     {
-        let names = apt
-            .get_packages_for_paths(
-                vec![
-                    std::path::Path::new("/usr/share/rubygems-integration/all/specifications/")
-                        .join(format!("{}-.*\\.gemspec", regex::escape(&self.gem)).as_str())
-                        .to_str()
-                        .unwrap(),
-                ],
-                true,
-                false,
-            )
-            .unwrap();
+        let names = apt.get_packages_for_paths(
+            vec![
+                std::path::Path::new("/usr/share/rubygems-integration/all/specifications/")
+                    .join(format!("{}-.*\\.gemspec", regex::escape(&self.gem)).as_str())
+                    .to_str()
+                    .unwrap(),
+            ],
+            true,
+            false,
+        )?;
         if names.is_empty() {
             return Ok(None);
         }
@@ -1525,8 +1510,7 @@ impl crate::dependencies::debian::IntoDebianDependency for DhAddonDependency {
                 )],
                 true,
                 false,
-            )
-            .unwrap()
+            )?
             .iter()
             .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
             .collect(),
@@ -1636,8 +1620,7 @@ impl crate::dependencies::debian::IntoDebianDependency for LibraryDependency {
             format!("/usr/lib/.*/lib{}.a", regex::escape(&self.library)),
         ];
         Ok(Some(
-            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false)
-                .unwrap()
+            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false)?
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
@@ -1732,8 +1715,7 @@ impl crate::dependencies::debian::IntoDebianDependency for StaticLibraryDependen
             format!("/usr/lib/.*/lib{}.a", regex::escape(&self.library)),
         ];
         Ok(Some(
-            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false)
-                .unwrap()
+            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false)?
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
@@ -1809,18 +1791,19 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyFileDependency {
             "/usr/lib/ruby/vendor_ruby/{}.rb",
             regex::escape(&self.filename)
         )];
-        let mut names = apt
-            .get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), false, false)
-            .unwrap();
+        let mut names =
+            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), false, false)?;
 
         if names.is_empty() {
             let paths = vec![format!(
                 "/usr/share/rubygems\\-integration/all/gems/([^/]+)/lib/{}\\.rb",
                 regex::escape(&self.filename)
             )];
-            names = apt
-                .get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false)
-                .unwrap();
+            names = apt.get_packages_for_paths(
+                paths.iter().map(|x| x.as_str()).collect(),
+                true,
+                false,
+            )?;
         }
 
         if names.is_empty() {
@@ -1909,8 +1892,7 @@ impl crate::dependencies::debian::IntoDebianDependency for SprocketsFileDependen
             _ => return Ok(None),
         };
         Ok(Some(
-            apt.get_packages_for_paths(vec![&path], true, false)
-                .unwrap()
+            apt.get_packages_for_paths(vec![&path], true, false)?
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
@@ -1999,8 +1981,7 @@ impl crate::dependencies::debian::IntoDebianDependency for CMakeFileDependency {
             format!("/usr/share/.*/cmake/{}", regex::escape(&self.filename)),
         ];
         Ok(Some(
-            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false)
-                .unwrap()
+            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false)?
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
@@ -2192,9 +2173,7 @@ impl crate::dependencies::debian::IntoDebianDependency for MavenArtifactDependen
             )
         };
 
-        let names = apt
-            .get_packages_for_paths(vec![path.to_str().unwrap()], regex, false)
-            .unwrap();
+        let names = apt.get_packages_for_paths(vec![path.to_str().unwrap()], regex, false)?;
         if names.is_empty() {
             return Ok(None);
         }
@@ -2336,16 +2315,14 @@ impl crate::dependencies::debian::IntoDebianDependency for QtModuleDependency {
         apt: &crate::debian::apt::AptManager,
     ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
     {
-        let names = apt
-            .get_packages_for_paths(
-                vec![&format!(
-                    "/usr/lib/.*/qt5/mkspecs/modules/qt_lib_{}\\.pri",
-                    regex::escape(&self.module)
-                )],
-                true,
-                false,
-            )
-            .unwrap();
+        let names = apt.get_packages_for_paths(
+            vec![&format!(
+                "/usr/lib/.*/qt5/mkspecs/modules/qt_lib_{}\\.pri",
+                regex::escape(&self.module)
+            )],
+            true,
+            false,
+        )?;
 
         if names.is_empty() {
             return Ok(None);
@@ -2609,16 +2586,14 @@ impl crate::dependencies::debian::IntoDebianDependency for BoostComponentDepende
         apt: &crate::debian::apt::AptManager,
     ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
     {
-        let names = apt
-            .get_packages_for_paths(
-                vec![&format!(
-                    "/usr/lib/.*/libboost_{}",
-                    regex::escape(&self.name)
-                )],
-                true,
-                false,
-            )
-            .unwrap();
+        let names = apt.get_packages_for_paths(
+            vec![&format!(
+                "/usr/lib/.*/libboost_{}",
+                regex::escape(&self.name)
+            )],
+            true,
+            false,
+        )?;
 
         if names.is_empty() {
             return Ok(None);
@@ -2682,17 +2657,15 @@ impl crate::dependencies::debian::IntoDebianDependency for KF5ComponentDependenc
         apt: &crate::debian::apt::AptManager,
     ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
     {
-        let names = apt
-            .get_packages_for_paths(
-                vec![&format!(
-                    "/usr/lib/.*/cmake/KF5{}/KF5{}Config\\.cmake",
-                    regex::escape(&self.name),
-                    regex::escape(&self.name)
-                )],
-                true,
-                false,
-            )
-            .unwrap();
+        let names = apt.get_packages_for_paths(
+            vec![&format!(
+                "/usr/lib/.*/cmake/KF5{}/KF5{}Config\\.cmake",
+                regex::escape(&self.name),
+                regex::escape(&self.name)
+            )],
+            true,
+            false,
+        )?;
 
         if names.is_empty() {
             return Ok(None);
@@ -2826,16 +2799,14 @@ impl crate::dependencies::debian::IntoDebianDependency for IntrospectionTypelibD
         apt: &crate::debian::apt::AptManager,
     ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
     {
-        let names = apt
-            .get_packages_for_paths(
-                vec![&format!(
-                    "/usr/lib/.*/girepository\\-.*/{}\\-.*.typelib",
-                    regex::escape(&self.library)
-                )],
-                true,
-                false,
-            )
-            .unwrap();
+        let names = apt.get_packages_for_paths(
+            vec![&format!(
+                "/usr/lib/.*/girepository\\-.*/{}\\-.*.typelib",
+                regex::escape(&self.library)
+            )],
+            true,
+            false,
+        )?;
 
         if names.is_empty() {
             return Ok(None);
