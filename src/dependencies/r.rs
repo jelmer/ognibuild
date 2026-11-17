@@ -160,17 +160,15 @@ impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
         &self,
         apt: &crate::debian::apt::AptManager,
     ) -> Result<Option<Vec<super::debian::DebianDependency>>, crate::debian::apt::Error> {
-        let names = apt
-            .get_packages_for_paths(
-                vec![std::path::Path::new("/usr/lib/R/site-library")
-                    .join(&self.0.name)
-                    .join("DESCRIPTION")
-                    .to_str()
-                    .unwrap()],
-                false,
-                false,
-            )
-            .unwrap();
+        let names = apt.get_packages_for_paths(
+            vec![std::path::Path::new("/usr/lib/R/site-library")
+                .join(&self.0.name)
+                .join("DESCRIPTION")
+                .to_str()
+                .unwrap()],
+            false,
+            false,
+        )?;
 
         if names.is_empty() {
             return Ok(None);

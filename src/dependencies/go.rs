@@ -168,17 +168,15 @@ impl crate::dependencies::debian::IntoDebianDependency for GoPackageDependency {
     {
         use std::path::Path;
 
-        let names = apt
-            .get_packages_for_paths(
-                vec![Path::new("/usr/share/gocode/src")
-                    .join(regex::escape(&self.package))
-                    .join(".*")
-                    .to_str()
-                    .unwrap()],
-                true,
-                false,
-            )
-            .unwrap();
+        let names = apt.get_packages_for_paths(
+            vec![Path::new("/usr/share/gocode/src")
+                .join(regex::escape(&self.package))
+                .join(".*")
+                .to_str()
+                .unwrap()],
+            true,
+            false,
+        )?;
         if names.is_empty() {
             return Ok(None);
         }

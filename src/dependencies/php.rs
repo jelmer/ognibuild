@@ -158,9 +158,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PhpClassDependency {
     ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
     {
         let path = format!("/usr/share/php/{}", self.php_class.replace("\\", "/"));
-        let names = apt
-            .get_packages_for_paths(vec![&path], false, false)
-            .unwrap();
+        let names = apt.get_packages_for_paths(vec![&path], false, false)?;
         Ok(Some(
             names
                 .into_iter()

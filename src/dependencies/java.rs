@@ -43,16 +43,14 @@ impl crate::dependencies::debian::IntoDebianDependency for JavaClassDependency {
     {
         apt.satisfy(vec![crate::debian::apt::SatisfyEntry::Required(
             "java-propose-classpath".to_string(),
-        )])
-        .unwrap();
+        )])?;
         let output = String::from_utf8(
             apt.session()
                 .command(vec![
                     "java-propose-classpath",
                     &format!("-c{}", &self.classname),
                 ])
-                .check_output()
-                .unwrap(),
+                .check_output()?,
         )
         .unwrap();
         let classpath = output
@@ -220,9 +218,7 @@ impl crate::dependencies::debian::IntoDebianDependency for JDKFileDependency {
         let path = regex::escape(self.jdk_path.to_str().unwrap())
             + ".*/"
             + &regex::escape(self.filename.as_str());
-        let names = apt
-            .get_packages_for_paths(vec![path.as_str()], true, false)
-            .unwrap();
+        let names = apt.get_packages_for_paths(vec![path.as_str()], true, false)?;
 
         if names.is_empty() {
             Ok(None)
