@@ -95,6 +95,10 @@ struct CacheEnvArgs {
     /// comma-separated), e.g. to provide tools needed in-session.
     #[clap(long = "include", value_delimiter = ',')]
     include: Vec<String>,
+
+    /// Extra arguments for mmdebstrap, given after "--" (e.g. a mirror URL)
+    #[clap(last = true)]
+    mmdebstrap_args: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -560,11 +564,17 @@ fn main() -> Result<(), i32> {
             .iter()
             .map(|s| s.as_str())
             .collect::<Vec<_>>();
+        let mmdebstrap_args = cache_args
+            .mmdebstrap_args
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>();
         return cache_debian_image(
             &cache_args.suite,
             cache_args.force,
             cache_args.update,
             &include,
+            &mmdebstrap_args,
         );
     }
 
@@ -761,7 +771,15 @@ fn main() -> Result<(), i32> {
 }
 
 #[cfg(target_os = "linux")]
-fn cache_debian_image(suite: &str, force: bool, update: bool, include: &[&str]) -> Result<(), i32> {
+fn cache_debian_image(
+    suite: &str,
+    force: bool,
+    update: bool,
+    include: &[&str],
+    mmdebstrap_args: &[&str],
+) -> Result<(), i32> {
+    use ognibuild::session::unshare::bootstrap_debian_tarball;
+
     if is_network_disabled() {
         eprintln!("Error: Network access is disabled (OGNIBUILD_DISABLE_NET is set)");
         eprintln!("Cannot download or update a Debian image without network access.");
@@ -819,8 +837,7 @@ fn cache_debian_image(suite: &str, force: bool, update: bool, include: &[&str]) 
 
     // Bootstrap a Debian session using mmdebstrap and save it
     log::info!("Bootstrapping Debian {} image using mmdebstrap...", suite);
-    let session = match ognibuild::session::unshare::bootstrap_debian_tarball(suite, true, include)
-    {
+    let session = match bootstrap_debian_tarball(suite, true, include, mmdebstrap_args) {
         Ok(session) => session,
         Err(e) => {
             eprintln!("Failed to bootstrap image: {}", e);
@@ -911,6 +928,7 @@ fn cache_debian_image(
     _force: bool,
     _update: bool,
     _include: &[&str],
+    _mmdebstrap_args: &[&str],
 ) -> Result<(), i32> {
     eprintln!("Error: cache-env command is only available on Linux");
     Err(1)
