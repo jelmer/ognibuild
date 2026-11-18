@@ -139,15 +139,15 @@ impl Dependency for PytestPluginDependency {
         "pytest-plugin"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         if let Some(plugins) = pytest_plugins(session) {
-            plugins.iter().any(|(name, _)| name == &self.plugin)
+            Ok(plugins.iter().any(|(name, _)| name == &self.plugin))
         } else {
-            false
+            Ok(false)
         }
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 

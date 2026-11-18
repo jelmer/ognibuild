@@ -134,11 +134,11 @@ impl Dependency for GoPackageDependency {
         "go-package"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         unimplemented!()
     }
 
-    fn project_present(&self, session: &dyn Session) -> bool {
+    fn project_present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         let mut cmd = vec!["go".to_string(), "list".to_string(), "-f".to_string()];
         if let Some(version) = &self.version {
             cmd.push(format!("{{.Version}} == {}", version));
@@ -146,13 +146,12 @@ impl Dependency for GoPackageDependency {
             cmd.push("{{.Version}}".to_string());
         }
         cmd.push(self.package.clone());
-        session
+        Ok(session
             .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -299,18 +298,17 @@ impl Dependency for GoDependency {
         "go"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         let output = session
             .command(vec!["go", "version"])
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
-            .output()
-            .unwrap();
+            .output()?;
         if !output.status.success() {
-            return false;
+            return Ok(false);
         }
         let Some(wanted) = &self.version else {
-            return true;
+            return Ok(true);
         };
         // e.g. "go version go1.24.4 linux/amd64"
         let output = String::from_utf8_lossy(&output.stdout);
@@ -324,15 +322,15 @@ impl Dependency for GoDependency {
         };
         // Either way, treat it as no usable Go, so that Go gets installed.
         match (found, wanted.parse::<GoVersion>()) {
-            (Ok(found), Ok(wanted)) => found >= wanted,
+            (Ok(found), Ok(wanted)) => Ok(found >= wanted),
             (Err(e), _) | (_, Err(e)) => {
                 log::warn!("{}", e);
-                false
+                Ok(false)
             }
         }
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         unimplemented!()
     }
     fn as_any(&self) -> &dyn std::any::Any {

@@ -39,15 +39,14 @@ impl std::str::FromStr for HaskellPackageDependency {
     }
 }
 
-fn ghc_pkg_list(session: &dyn Session) -> Vec<(String, String)> {
+fn ghc_pkg_list(session: &dyn Session) -> Result<Vec<(String, String)>, crate::session::Error> {
     let output = session
         .command(vec!["ghc-pkg", "list"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
-        .output()
-        .unwrap();
+        .output()?;
     let output = String::from_utf8(output.stdout).unwrap();
-    output
+    Ok(output
         .lines()
         .filter_map(|line| {
             if let Some((name, version)) =
@@ -58,7 +57,7 @@ fn ghc_pkg_list(session: &dyn Session) -> Vec<(String, String)> {
                 None
             }
         })
-        .collect()
+        .collect())
 }
 
 impl Dependency for HaskellPackageDependency {
@@ -66,14 +65,14 @@ impl Dependency for HaskellPackageDependency {
         "haskell-package"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         // TODO: Check version
-        ghc_pkg_list(session)
+        Ok(ghc_pkg_list(session)?
             .iter()
-            .any(|(name, _version)| name == &self.package)
+            .any(|(name, _version)| name == &self.package))
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {

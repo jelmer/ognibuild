@@ -245,10 +245,10 @@ impl Dependency for PythonPackageDependency {
         "python-package"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         let python_version = find_python_version(self.0.marker.to_dnf()).unwrap_or_default();
         let cmd = python_version.executable();
-        session
+        Ok(session
             .command(vec![
                 cmd,
                 "-c",
@@ -259,12 +259,11 @@ impl Dependency for PythonPackageDependency {
             ])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         // TODO: check in the virtualenv, if any
         todo!()
     }
@@ -359,7 +358,7 @@ impl Dependency for PythonModuleDependency {
         "python-module"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         let cmd = [
             self.python_executable().to_string(),
             "-c".to_string(),
@@ -368,17 +367,16 @@ impl Dependency for PythonModuleDependency {
                 self.module
             ),
         ];
-        session
+        Ok(session
             .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(false)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -1338,7 +1336,7 @@ impl Dependency for PythonDependency {
         "python"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         let cmd = match self.min_version {
             Some(ref min_version) => vec![
                 self.executable().to_string(),
@@ -1354,18 +1352,17 @@ impl Dependency for PythonDependency {
                 "import sys; sys.exit(0 if sys.version_info >= (3, 0) else 1)".to_string(),
             ],
         };
-        session
+        Ok(session
             .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, session: &dyn Session) -> bool {
+    fn project_present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         // Check if a virtualenv is present
-        session.exists(Path::new("bin/python"))
+        Ok(session.exists(Path::new("bin/python")))
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

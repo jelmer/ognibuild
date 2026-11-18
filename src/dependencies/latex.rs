@@ -25,11 +25,11 @@ impl Dependency for LatexPackageDependency {
         "latex-package"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 

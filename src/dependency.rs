@@ -9,10 +9,12 @@ pub trait Dependency: std::fmt::Debug {
     fn family(&self) -> &'static str;
 
     /// Check whether the dependency is present in the session.
-    fn present(&self, session: &dyn Session) -> bool;
+    ///
+    /// An error means the check itself could not run.
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error>;
 
     /// Check whether the dependency is present in the project.
-    fn project_present(&self, session: &dyn Session) -> bool;
+    fn project_present(&self, session: &dyn Session) -> Result<bool, crate::session::Error>;
 
     /// Convert this dependency to Any for dynamic casting.
     ///
