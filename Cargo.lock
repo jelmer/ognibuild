@@ -3535,7 +3535,7 @@ dependencies = [
 
 [[package]]
 name = "ognibuild"
-version = "0.2.22"
+version = "0.2.23"
 dependencies = [
  "apt-sources",
  "axum",
@@ -3584,7 +3584,7 @@ dependencies = [
  "tempfile",
  "test-log",
  "tokio",
- "toml 1.2.1+spec-1.1.0",
+ "toml 0.9.12+spec-1.1.0",
  "toml_edit",
  "upstream-ontologist",
  "url",
