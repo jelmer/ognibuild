@@ -37,18 +37,17 @@ impl Dependency for XmlEntityDependency {
         "xml-entity"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         // Check if the entity is defined in the local XML catalog
-        session
+        Ok(session
             .command(vec!["xmlcatalog", "--noout", "--resolve", &self.url])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {

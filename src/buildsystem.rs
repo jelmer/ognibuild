@@ -82,6 +82,12 @@ impl From<crate::analyze::AnalyzedError> for Error {
     }
 }
 
+impl From<crate::dependency::Error> for Error {
+    fn from(e: crate::dependency::Error) -> Self {
+        Error::DependencyInstallError(e.into())
+    }
+}
+
 impl From<crate::session::Error> for Error {
     fn from(e: crate::session::Error) -> Self {
         match e {

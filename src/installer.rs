@@ -14,6 +14,8 @@ pub enum Error {
     AnalyzedError(crate::analyze::AnalyzedError),
     /// Error from the session.
     SessionError(crate::session::Error),
+    /// Error from checking whether a dependency is present.
+    DependencyCheckError(crate::dependency::Error),
     /// Other error with a message.
     Other(String),
 }
@@ -26,6 +28,7 @@ impl std::fmt::Display for Error {
             Error::UnsupportedScopes(scopes) => write!(f, "Unsupported scopes: {:?}", scopes),
             Error::AnalyzedError(e) => write!(f, "{}", e),
             Error::SessionError(e) => write!(f, "{}", e),
+            Error::DependencyCheckError(e) => write!(f, "{}", e),
             Error::Other(s) => write!(f, "{}", s),
         }
     }
@@ -42,6 +45,12 @@ impl From<crate::analyze::AnalyzedError> for Error {
 impl From<crate::session::Error> for Error {
     fn from(e: crate::session::Error) -> Self {
         Error::SessionError(e)
+    }
+}
+
+impl From<crate::dependency::Error> for Error {
+    fn from(e: crate::dependency::Error) -> Self {
+        Error::DependencyCheckError(e)
     }
 }
 
@@ -472,10 +481,12 @@ pub fn install_missing_deps(
     if deps.is_empty() {
         return Ok(());
     }
-    let missing = deps
-        .iter()
-        .filter(|dep| !dep.present(session))
-        .collect::<Vec<_>>();
+    let mut missing = vec![];
+    for dep in deps.iter() {
+        if !dep.present(session)? {
+            missing.push(dep)
+        }
+    }
     if !missing.is_empty() {
         log::info!("Missing dependencies: {:?}", missing);
         for dep in missing.into_iter() {
@@ -520,7 +531,7 @@ pub fn explain_missing_deps(
     }
     let mut missing = vec![];
     for dep in deps.iter() {
-        if !dep.present(session) {
+        if !dep.present(session)? {
             missing.push(*dep)
         }
     }

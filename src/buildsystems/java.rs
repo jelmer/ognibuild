@@ -53,7 +53,7 @@ impl Gradle {
     fn setup(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         if !self.executable.starts_with("./") {
             let binary_req = crate::dependencies::BinaryDependency::new(&self.executable);
-            if !binary_req.present(session) {
+            if !binary_req.present(session)? {
                 installer.install(&binary_req, InstallationScope::Global)?;
             }
         }
