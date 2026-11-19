@@ -39,19 +39,18 @@ impl crate::dependencies::debian::IntoDebianDependency for JavaClassDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         apt.satisfy(vec![crate::debian::apt::SatisfyEntry::Required(
             "java-propose-classpath".to_string(),
-        )])
-        .unwrap();
+        )])?;
         let output = String::from_utf8(
             apt.session()
                 .command(vec![
                     "java-propose-classpath",
                     &format!("-c{}", &self.classname),
                 ])
-                .check_output()
-                .unwrap(),
+                .check_output()?,
         )
         .unwrap();
         let classpath = output
@@ -60,14 +59,14 @@ impl crate::dependencies::debian::IntoDebianDependency for JavaClassDependency {
             .split(':')
             .collect::<Vec<&str>>();
         if classpath.is_empty() {
-            None
+            Ok(None)
         } else {
-            Some(
+            Ok(Some(
                 classpath
                     .iter()
                     .map(|path| crate::dependencies::debian::DebianDependency::new(path))
                     .collect(),
-            )
+            ))
         }
     }
 }
@@ -110,10 +109,11 @@ impl crate::dependencies::debian::IntoDebianDependency for JDKDependency {
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::new(
-            "default-jdk",
-        )])
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(vec![
+            crate::dependencies::debian::DebianDependency::new("default-jdk"),
+        ]))
     }
 }
 
@@ -155,10 +155,11 @@ impl crate::dependencies::debian::IntoDebianDependency for JREDependency {
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::new(
-            "default-jre",
-        )])
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(vec![
+            crate::dependencies::debian::DebianDependency::new("default-jre"),
+        ]))
     }
 }
 
@@ -212,23 +213,22 @@ impl crate::dependencies::debian::IntoDebianDependency for JDKFileDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let path = regex::escape(self.jdk_path.to_str().unwrap())
             + ".*/"
             + &regex::escape(self.filename.as_str());
-        let names = apt
-            .get_packages_for_paths(vec![path.as_str()], true, false)
-            .unwrap();
+        let names = apt.get_packages_for_paths(vec![path.as_str()], true, false)?;
 
         if names.is_empty() {
-            None
+            Ok(None)
         } else {
-            Some(
+            Ok(Some(
                 names
                     .iter()
                     .map(|name| crate::dependencies::debian::DebianDependency::simple(name))
                     .collect(),
-            )
+            ))
         }
     }
 }
