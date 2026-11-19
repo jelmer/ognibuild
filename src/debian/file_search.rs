@@ -517,7 +517,12 @@ impl RemoteContentsFileSearcher {
     fn load_file(&mut self, f: impl Read, url: url::Url) {
         let start_time = std::time::Instant::now();
         for (path, rest) in read_contents_file(f) {
-            self.db.insert(path, rest.into());
+            // A path can be in more than one Contents file (e.g. Contents-amd64 and Contents-all).
+            let packages = self.db.entry(path).or_default();
+            if !packages.is_empty() {
+                packages.push(b',');
+            }
+            packages.extend(rest.into_bytes());
         }
         log::debug!("Read {} in {:?}", url, start_time.elapsed());
     }
@@ -893,6 +898,25 @@ mod tests {
             vec!["cargo", "rustup"]
         );
         assert_eq!(contents_packages(b"non-free/libs/libfoo1"), vec!["libfoo1"]);
+    }
+
+    #[test]
+    fn test_remote_contents_keeps_every_contents_file() {
+        let mut searcher = RemoteContentsFileSearcher { db: HashMap::new() };
+        searcher.load_file(
+            &b"usr/bin/gpg     utils/gpg\n"[..],
+            url::Url::parse("http://deb.debian.org/debian/dists/sid/main/Contents-amd64").unwrap(),
+        );
+        searcher.load_file(
+            &b"usr/bin/gpg     utils/gpg-from-sq\n"[..],
+            url::Url::parse("http://deb.debian.org/debian/dists/sid/main/Contents-all").unwrap(),
+        );
+        assert_eq!(
+            searcher
+                .search_files(Path::new("/usr/bin/gpg"), false)
+                .collect::<Vec<String>>(),
+            vec!["gpg", "gpg-from-sq"]
+        );
     }
 
     #[test]
