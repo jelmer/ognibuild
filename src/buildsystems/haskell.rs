@@ -85,7 +85,7 @@ impl BuildSystem for Cabal {
             session.external_path(Path::new("dist")),
         ]);
         self.run(session, vec!["sdist"])?;
-        Ok(dc.copy_single(target_directory).unwrap().unwrap())
+        Ok(dc.copy_single(target_directory)?.unwrap())
     }
 
     fn test(
