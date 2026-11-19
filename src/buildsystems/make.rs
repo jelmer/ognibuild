@@ -115,7 +115,7 @@ impl Make {
                 {
                     Err(AnalyzedError::Unidentified { lines, .. })
                         if lines.contains(
-                            &"Gnulib not yet bootstrapped; run ./bootstrap instead.".to_string(),
+                            &b"Gnulib not yet bootstrapped; run ./bootstrap instead.".to_vec(),
                         ) =>
                     {
                         session
@@ -193,20 +193,20 @@ impl Make {
         args: Vec<&str>,
         prefix: Option<&Path>,
     ) -> Result<(), AnalyzedError> {
-        fn wants_configure(line: &str) -> bool {
-            if line.starts_with("Run ./configure") {
+        fn wants_configure(line: &[u8]) -> bool {
+            if line.starts_with(b"Run ./configure") {
                 return true;
             }
-            if line == "Please run ./configure first" {
+            if line == b"Please run ./configure first" {
                 return true;
             }
-            if line.starts_with("Project not configured") {
+            if line.starts_with(b"Project not configured") {
                 return true;
             }
-            if line.starts_with("The project was not configured") {
+            if line.starts_with(b"The project was not configured") {
                 return true;
             }
-            lazy_regex::regex_is_match!(
+            lazy_regex::bytes_regex_is_match!(
                 r"Makefile:[0-9]+: \*\*\* You need to run \.\/configure .*",
                 line
             )
@@ -250,8 +250,8 @@ impl Make {
             }
             Err(AnalyzedError::Unidentified { lines, .. })
                 if lines.contains(
-                    &"Reconfigure the source tree (via './config' or 'perl Configure'), please."
-                        .to_string(),
+                    &b"Reconfigure the source tree (via './config' or 'perl Configure'), please."
+                        .to_vec(),
                 ) =>
             {
                 session
@@ -324,24 +324,24 @@ impl BuildSystem for Make {
         let dc = crate::dist_catcher::DistCatcher::default(&session.external_path(Path::new(".")));
 
         match self.run_make(session, vec!["dist"], None) {
-            Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&"make: *** No rule to make target 'dist'.  Stop.".to_string()) => {
+            Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&b"make: *** No rule to make target 'dist'.  Stop.".to_vec()) => {
                 unimplemented!();
             }
-            Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&"make[1]: *** No rule to make target 'dist'.  Stop.".to_string()) => {
+            Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&b"make[1]: *** No rule to make target 'dist'.  Stop.".to_vec()) => {
                 unimplemented!();
             }
-            Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&"ninja: error: unknown target 'dist', did you mean 'dino'?".to_string()) => {
+            Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&b"ninja: error: unknown target 'dist', did you mean 'dino'?".to_vec()) => {
                 unimplemented!();
             }
-            Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&"Please try running 'make manifest' and then run 'make dist' again.".to_string()) => {
+            Err(AnalyzedError::Unidentified { lines, .. }) if lines.contains(&b"Please try running 'make manifest' and then run 'make dist' again.".to_vec()) => {
                 session.command(vec!["make", "manifest"]).run_detecting_problems()?;
                 session.command(vec!["make", "dist"]).run_detecting_problems().map(|_| ())
             }
-            Err(AnalyzedError::Unidentified { lines, .. }) if lines.iter().any(|l| lazy_regex::regex_is_match!(r"(Makefile|GNUmakefile|makefile):[0-9]+: \*\*\* Missing 'Make.inc' Run './configure \[options\]' and retry.  Stop.", l)) => {
+            Err(AnalyzedError::Unidentified { lines, .. }) if lines.iter().any(|l| lazy_regex::bytes_regex_is_match!(r"(Makefile|GNUmakefile|makefile):[0-9]+: \*\*\* Missing 'Make.inc' Run './configure \[options\]' and retry.  Stop.", l)) => {
                 session.command(vec!["./configure"]).run_detecting_problems()?;
                 session.command(vec!["make", "dist"]).run_detecting_problems().map(|_| ())
             }
-            Err(AnalyzedError::Unidentified { lines, .. }) if lines.iter().any(|l| lazy_regex::regex_is_match!(r"Problem opening MANIFEST: No such file or directory at .* line [0-9]+\.", l)) => {
+            Err(AnalyzedError::Unidentified { lines, .. }) if lines.iter().any(|l| lazy_regex::bytes_regex_is_match!(r"Problem opening MANIFEST: No such file or directory at .* line [0-9]+\.", l)) => {
                 session.command(vec!["make", "manifest"]).run_detecting_problems()?;
                 session.command(vec!["make", "dist"]).run_detecting_problems().map(|_| ())
             }
@@ -359,18 +359,18 @@ impl BuildSystem for Make {
         for target in ["check", "test"] {
             match self.run_make(session, vec![target], None) {
                 Err(AnalyzedError::Unidentified { lines, .. })
-                    if lines.contains(&format!(
-                        "make: *** No rule to make target '{}'.  Stop.",
-                        target
-                    )) =>
+                    if lines.contains(
+                        &format!("make: *** No rule to make target '{}'.  Stop.", target)
+                            .into_bytes(),
+                    ) =>
                 {
                     continue;
                 }
                 Err(AnalyzedError::Unidentified { lines, .. })
-                    if lines.contains(&format!(
-                        "make[1]: *** No rule to make target '{}'.  Stop.",
-                        target
-                    )) =>
+                    if lines.contains(
+                        &format!("make[1]: *** No rule to make target '{}'.  Stop.", target)
+                            .into_bytes(),
+                    ) =>
                 {
                     continue;
                 }
