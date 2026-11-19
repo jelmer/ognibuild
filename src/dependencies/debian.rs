@@ -168,23 +168,25 @@ impl DebianDependency {
 /// Get the version of a package installed on the system.
 ///
 /// Returns `None` if the package is not installed.
-fn get_package_version(session: &dyn Session, package: &str) -> Option<debversion::Version> {
+fn get_package_version(
+    session: &dyn Session,
+    package: &str,
+) -> Result<Option<debversion::Version>, crate::session::Error> {
     let argv = vec!["dpkg-query", "-W", "-f=${Version}\n", package];
     let output = session
         .command(argv)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
-        .output()
-        .unwrap();
+        .output()?;
     match output.status.code() {
         Some(0) => {
             let output = String::from_utf8(output.stdout).unwrap();
             if output.trim().is_empty() {
-                return None;
+                return Ok(None);
             }
-            Some(output.trim().parse().unwrap())
+            Ok(Some(output.trim().parse().unwrap()))
         }
-        Some(1) => None,
+        Some(1) => Ok(None),
         _ => panic!("Failed to run dpkg-query"),
     }
 }
@@ -194,15 +196,15 @@ impl Dependency for DebianDependency {
         "debian"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         use std::collections::HashMap;
         let mut versions = HashMap::new();
         for name in self.package_names() {
-            if let Some(version) = get_package_version(session, &name) {
+            if let Some(version) = get_package_version(session, &name)? {
                 versions.insert(name, version);
             } else {
                 // Package not found
-                return false;
+                return Ok(false);
             }
         }
 
@@ -212,11 +214,11 @@ impl Dependency for DebianDependency {
         } else {
             log::debug!("Dependency satisfied: {:?}", self);
         }
-        result
+        Ok(result)
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(false)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

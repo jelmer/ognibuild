@@ -632,7 +632,7 @@ impl BuildSystem for SetupPy {
             // a 'test' subcommand and some packages fall back to distutils
             // if setuptools is not available.
             let setuptools_dep = PythonPackageDependency::simple("setuptools");
-            if !setuptools_dep.present(session) {
+            if !setuptools_dep.present(session)? {
                 installer.install(&setuptools_dep, InstallationScope::Global)?;
             }
             match self.run_setup(session, installer, vec!["test"]) {
@@ -679,7 +679,7 @@ impl BuildSystem for SetupPy {
             }
             // Preemptively install setuptools since some packages fail in some way without it.
             let setuptools_req = PythonPackageDependency::simple("setuptools");
-            if !setuptools_req.present(session) {
+            if !setuptools_req.present(session)? {
                 installer.install(&setuptools_req, InstallationScope::Global)?;
             }
             preargs.push("sdist");

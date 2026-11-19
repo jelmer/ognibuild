@@ -472,10 +472,12 @@ pub fn install_missing_deps(
     if deps.is_empty() {
         return Ok(());
     }
-    let missing = deps
-        .iter()
-        .filter(|dep| !dep.present(session))
-        .collect::<Vec<_>>();
+    let mut missing = vec![];
+    for dep in deps.iter() {
+        if !dep.present(session)? {
+            missing.push(dep)
+        }
+    }
     if !missing.is_empty() {
         log::info!("Missing dependencies: {:?}", missing);
         for dep in missing.into_iter() {
@@ -520,7 +522,7 @@ pub fn explain_missing_deps(
     }
     let mut missing = vec![];
     for dep in deps.iter() {
-        if !dep.present(session) {
+        if !dep.present(session)? {
             missing.push(*dep)
         }
     }

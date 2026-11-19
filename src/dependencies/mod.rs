@@ -75,17 +75,16 @@ impl Dependency for BinaryDependency {
         "binary"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(session
             .command(vec!["which", &self.binary_name])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
@@ -136,21 +135,26 @@ impl Dependency for VcsControlDirectoryAccessDependency {
         "vcs-access"
     }
 
-    fn project_present(&self, session: &dyn Session) -> bool {
-        self.vcs.iter().all(|vcs| match vcs.as_str() {
-            "git" => session
-                .command(vec!["git", "rev-parse", "--is-inside-work-tree"])
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .run()
-                .unwrap()
-                .success(),
-            _ => todo!(),
-        })
+    fn project_present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
+        for vcs in self.vcs.iter() {
+            let present = match vcs.as_str() {
+                "git" => session
+                    .command(vec!["git", "rev-parse", "--is-inside-work-tree"])
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .run()?
+                    .success(),
+                _ => todo!(),
+            };
+            if !present {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
-        false
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(false)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -228,9 +232,9 @@ impl Dependency for LuaModuleDependency {
         "lua-module"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         // lua -e 'package_name = "socket"; status, _ = pcall(require, package_name); if status then os.exit(0) else os.exit(1) end'
-        session
+        Ok(session
             .command(vec![
                 "lua",
                 "-e",
@@ -241,12 +245,11 @@ impl Dependency for LuaModuleDependency {
             ])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
@@ -318,11 +321,11 @@ impl Dependency for CargoCrateDependency {
         "cargo-crate"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn project_present(&self, session: &dyn Session) -> bool {
+    fn project_present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         let mut cmd = vec!["cargo".to_string(), "metadata".to_string()];
         if let Some(api_version) = &self.api_version {
             cmd.push(format!("--version={}", api_version));
@@ -331,11 +334,10 @@ impl Dependency for CargoCrateDependency {
             .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
-            .output()
-            .unwrap();
+            .output()?;
         let metadata: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
         let packages = metadata["packages"].as_array().unwrap();
-        packages.iter().any(|package| {
+        Ok(packages.iter().any(|package| {
             package["name"] == self.name
                 && (self.features.is_none()
                     || package["features"].as_array().unwrap().iter().all(|f| {
@@ -344,7 +346,7 @@ impl Dependency for CargoCrateDependency {
                             .unwrap()
                             .contains(&f.as_str().unwrap().to_string())
                     }))
-        })
+        }))
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -509,7 +511,7 @@ impl Dependency for PkgConfigDependency {
         "pkg-config"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         log::debug!("Checking for pkg-config module {}", self.module);
         let cmd = [
             "pkg-config".to_string(),
@@ -524,19 +526,18 @@ impl Dependency for PkgConfigDependency {
             .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
+            .run()?
             .success();
         if !result {
             log::debug!("pkg-config module {} not found", self.module);
         } else {
             log::debug!("pkg-config module {} found", self.module);
         }
-        result
+        Ok(result)
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(false)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -670,15 +671,15 @@ impl Dependency for PathDependency {
         "path"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
-        self.path.exists()
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(self.path.exists())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         if self.path.is_absolute() {
-            false
+            Ok(false)
         } else {
-            self.path.exists()
+            Ok(self.path.exists())
         }
     }
 
@@ -746,8 +747,8 @@ impl Dependency for CHeaderDependency {
         "c-header"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(session
             .command(vec![
                 "sh",
                 "-c",
@@ -755,12 +756,11 @@ impl Dependency for CHeaderDependency {
             ])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
@@ -827,18 +827,17 @@ impl Dependency for JavaScriptRuntimeDependency {
         "javascript-runtime"
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(session
             .command(vec!["node", "-e", "process.exit(0)"])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -912,7 +911,7 @@ impl Dependency for ValaPackageDependency {
     ///
     /// # Returns
     /// This method is not implemented yet and will panic if called
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
@@ -925,14 +924,13 @@ impl Dependency for ValaPackageDependency {
     ///
     /// # Returns
     /// `true` if the package exists, `false` otherwise
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(session
             .command(vec!["pkg-config", "--exists", &self.package])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
     /// Returns this dependency as a trait object.
@@ -1049,19 +1047,18 @@ impl Dependency for RubyGemDependency {
     ///
     /// # Returns
     /// `true` if the gem exists in the project's bundle, `false` otherwise
-    fn project_present(&self, session: &dyn Session) -> bool {
+    fn project_present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         let mut cmd = vec!["bundle".to_string(), "list".to_string()];
         if let Some(minimum_version) = &self.minimum_version {
             cmd.push(format!(">={}", minimum_version));
         }
         cmd.push(self.gem.clone());
-        session
+        Ok(session
             .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
     /// Checks if the gem is installed in the system.
@@ -1074,18 +1071,17 @@ impl Dependency for RubyGemDependency {
     ///
     /// # Returns
     /// `true` if the gem exists in the system, `false` otherwise
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         let mut cmd = vec!["gem".to_string(), "list".to_string(), "--local".to_string()];
         if let Some(minimum_version) = &self.minimum_version {
             cmd.push(format!(">={}", minimum_version));
         }
-        session
+        Ok(session
             .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
     /// Returns this dependency as a trait object.
@@ -1468,7 +1464,7 @@ impl Dependency for DhAddonDependency {
     ///
     /// # Returns
     /// This method is not implemented yet and will panic if called
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
@@ -1479,7 +1475,7 @@ impl Dependency for DhAddonDependency {
     ///
     /// # Returns
     /// This method is not implemented yet and will panic if called
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
@@ -1583,14 +1579,13 @@ impl Dependency for LibraryDependency {
     ///
     /// # Returns
     /// `true` if the library exists and can be linked against, `false` otherwise
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(session
             .command(vec!["ld", "-l", &self.library])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
     /// Checks if the dependency is present in the project context.
@@ -1600,7 +1595,7 @@ impl Dependency for LibraryDependency {
     ///
     /// # Returns
     /// This method is not implemented yet and will panic if called
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
@@ -1686,7 +1681,7 @@ impl Dependency for StaticLibraryDependency {
     ///
     /// # Returns
     /// This method is not implemented yet and will panic if called
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
@@ -1697,7 +1692,7 @@ impl Dependency for StaticLibraryDependency {
     ///
     /// # Returns
     /// This method is not implemented yet and will panic if called
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
@@ -1769,17 +1764,16 @@ impl Dependency for RubyFileDependency {
         "ruby-file"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(session
             .command(vec!["ruby", "-e", &format!("require '{}'", self.filename)])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1864,17 +1858,16 @@ impl Dependency for SprocketsFileDependency {
         "sprockets-file"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(session
             .command(vec!["sprockets", "--check", &self.name])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1962,11 +1955,11 @@ impl Dependency for CMakeFileDependency {
         "cmakefile"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -2133,11 +2126,11 @@ impl Dependency for MavenArtifactDependency {
         "maven-artifact"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -2236,18 +2229,17 @@ impl Dependency for GnomeCommonDependency {
         "gnome-common"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(session
             .command(vec!["gnome-autogen.sh", "--version"])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(false)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -2301,12 +2293,12 @@ impl Dependency for QtModuleDependency {
         "qt-module"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(false)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -2360,12 +2352,12 @@ impl Dependency for QTDependency {
         "qt"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(false)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -2400,13 +2392,13 @@ impl Dependency for X11Dependency {
         "x11"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         // Does the X binary exist?
-        crate::session::which(session, "X").is_some()
+        Ok(crate::session::which(session, "X").is_some())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(false)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -2461,12 +2453,12 @@ impl Dependency for CertificateAuthorityDependency {
         "certificate-authority"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(false)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -2503,18 +2495,17 @@ impl Dependency for LibtoolDependency {
         "libtool"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(session
             .command(vec!["libtoolize", "--version"])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(false)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -2569,12 +2560,12 @@ impl Dependency for BoostComponentDependency {
         "boost-component"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(false)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -2641,11 +2632,11 @@ impl Dependency for KF5ComponentDependency {
         "kf5-component"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -2727,11 +2718,11 @@ impl Dependency for GnulibDirectoryDependency {
         "gnulib-directory"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -2777,11 +2768,11 @@ impl Dependency for IntrospectionTypelibDependency {
         "introspection-type-lib"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 

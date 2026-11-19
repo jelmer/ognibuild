@@ -36,17 +36,16 @@ impl Dependency for PhpClassDependency {
         "php-class"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
+        Ok(session
             .command(vec!["php", "-r", &format!("new {}", self.php_class)])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -238,22 +237,21 @@ impl Dependency for PhpPackageDependency {
         "php-package"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn project_present(&self, session: &dyn Session) -> bool {
+    fn project_present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         // Run `composer show` and check the output
         let output = session
             .command(vec!["composer", "show", "--format=json"])
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
-            .output()
-            .unwrap();
+            .output()?;
 
         let packages: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
         let packages = packages["installed"].as_array().unwrap();
-        packages.iter().any(|package| {
+        Ok(packages.iter().any(|package| {
             package["name"] == self.package
                 && (self.min_version.is_none()
                     || package["version"]
@@ -279,7 +277,7 @@ impl Dependency for PhpPackageDependency {
                             .unwrap()
                             .parse::<semver::Version>()
                             .unwrap())
-        })
+        }))
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -316,23 +314,22 @@ impl Dependency for PhpExtensionDependency {
         "php-extension"
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::session::Error> {
         todo!()
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::session::Error> {
         // Grep the output of php -m
         let output = session
             .command(vec!["php", "-m"])
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
-            .output()
-            .unwrap()
+            .output()?
             .stdout;
-        String::from_utf8(output)
+        Ok(String::from_utf8(output)
             .unwrap()
             .lines()
-            .any(|line| line == self.extension)
+            .any(|line| line == self.extension))
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
