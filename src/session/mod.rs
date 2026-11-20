@@ -51,8 +51,8 @@ pub enum Error {
     SetupFailure(String, Option<String>),
     /// Error from image operations (download, cache, etc.)
     ImageError(ImageError),
-    /// A helper binary required by the session backend (e.g. `schroot`) was
-    /// not found on `PATH`.
+    /// A binary to run, such as `schroot` or the command itself in a plain
+    /// session, was not found on `PATH`.
     MissingBinary {
         /// Name of the missing command, as passed to `Command::new`.
         command: String,
@@ -63,8 +63,8 @@ pub enum Error {
 
 impl Error {
     /// Map a spawn error to `MissingBinary` when the OS reported the binary as
-    /// missing, otherwise fall back to `IoError`. Use at the site that invokes
-    /// a helper binary the session backend depends on.
+    /// missing, otherwise fall back to `IoError`. Use at the site that spawns
+    /// the binary.
     pub(crate) fn from_spawn(command: &str, e: std::io::Error) -> Self {
         if e.kind() == std::io::ErrorKind::NotFound {
             Error::MissingBinary {

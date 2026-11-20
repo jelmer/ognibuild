@@ -41,6 +41,16 @@ fn canonicalize_existing_prefix(path: &std::path::Path) -> std::path::PathBuf {
     }
 }
 
+/// Spawn also fails with `NotFound` when `cwd` is missing, which is not a
+/// missing binary.
+fn spawn_error(command: &str, cwd: &std::path::Path, e: std::io::Error) -> Error {
+    if cwd.is_dir() {
+        Error::from_spawn(command, e)
+    } else {
+        Error::IoError(e)
+    }
+}
+
 impl PlainSession {
     /// Create a new PlainSession.
     ///
@@ -127,7 +137,7 @@ impl Session for PlainSession {
                     Err(Error::CalledProcessError(output.status))
                 }
             }
-            Err(e) => Err(Error::IoError(e)),
+            Err(e) => Err(spawn_error(argv[0], cwd.unwrap_or(self.0.as_path()), e)),
         }
     }
 
@@ -162,7 +172,7 @@ impl Session for PlainSession {
                     Err(Error::CalledProcessError(status))
                 }
             }
-            Err(e) => Err(Error::IoError(e)),
+            Err(e) => Err(spawn_error(argv[0], cwd.unwrap_or(self.0.as_path()), e)),
         }
     }
 
@@ -199,13 +209,13 @@ impl Session for PlainSession {
             .stderr(stderr.unwrap_or(std::process::Stdio::inherit()));
 
         let cwd = cwd.map_or_else(|| self.0.clone(), |p| self.0.join(p));
-        cmd = cmd.current_dir(cwd);
+        cmd = cmd.current_dir(&cwd);
 
         if let Some(env) = env {
             cmd = cmd.envs(env);
         }
 
-        Ok(cmd.spawn()?)
+        cmd.spawn().map_err(|e| spawn_error(argv[0], &cwd, e))
     }
 
     fn is_temporary(&self) -> bool {
@@ -361,6 +371,45 @@ mod tests {
             other => panic!("expected IoError, got {:?}", other),
         }
         assert_eq!(session.pwd(), std::path::Path::new("/"));
+    }
+
+    #[test]
+    fn test_missing_binary() {
+        let session = PlainSession::new();
+        let missing = "ognibuild-test-no-such-binary";
+        for err in [
+            session
+                .check_output(vec![missing], None, None, None)
+                .unwrap_err(),
+            session
+                .check_call(vec![missing], None, None, None)
+                .unwrap_err(),
+            session.command(vec![missing]).run().unwrap_err(),
+        ] {
+            assert!(
+                matches!(&err, Error::MissingBinary { command, .. } if command == missing),
+                "expected MissingBinary, got {:?}",
+                err
+            );
+        }
+
+        let td = tempfile::tempdir().unwrap();
+        let cwd = td.path().join("does-not-exist");
+        for err in [
+            session
+                .check_output(vec!["true"], Some(&cwd), None, None)
+                .unwrap_err(),
+            session
+                .check_call(vec!["true"], Some(&cwd), None, None)
+                .unwrap_err(),
+            session.command(vec!["true"]).cwd(&cwd).run().unwrap_err(),
+        ] {
+            assert!(
+                matches!(&err, Error::IoError(e) if e.kind() == std::io::ErrorKind::NotFound),
+                "expected IoError, got {:?}",
+                err
+            );
+        }
     }
 
     #[test]
