@@ -111,6 +111,7 @@ fn pytest_plugins(session: &dyn Session) -> Option<Vec<(String, String)>> {
             // pytest is not installed
             return None;
         }
+        Err(crate::session::Error::MissingBinary { .. }) => return None,
         Err(e) => {
             // Other errors should panic
             panic!("Failed to run pytest: {:?}", e);
