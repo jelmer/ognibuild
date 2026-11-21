@@ -159,7 +159,7 @@ impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<super::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<super::debian::DebianDependency>>, crate::debian::apt::Error> {
         let names = apt
             .get_packages_for_paths(
                 vec![std::path::Path::new("/usr/lib/R/site-library")
@@ -173,18 +173,21 @@ impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
             .unwrap();
 
         if names.is_empty() {
-            return None;
+            return Ok(None);
         }
 
         let version = match self.0.version.as_ref() {
             Some((constraint, version)) => Some((
-                r_constraint_to_debian(constraint)?,
+                match r_constraint_to_debian(constraint) {
+                    Some(constraint) => constraint,
+                    None => return Ok(None),
+                },
                 r_version_to_debian(version),
             )),
             None => None,
         };
 
-        Some(
+        Ok(Some(
             names
                 .into_iter()
                 .map(|name| match &version {
@@ -198,7 +201,7 @@ impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {
                     None => super::debian::DebianDependency::new(&name),
                 })
                 .collect(),
-        )
+        ))
     }
 }
 
