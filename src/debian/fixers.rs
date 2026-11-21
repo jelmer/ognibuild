@@ -273,7 +273,7 @@ impl<'a, 'b, 'c> DebianBuildFixer for PackageDependencyFixer<'a, 'b, 'c> {
             dep.as_ref(),
             self.tie_breakers.as_slice(),
         )
-        .unwrap();
+        .map_err(Error::DependencyLookup)?;
 
         let deb_dep = if let Some(deb_dep) = deb_dep {
             deb_dep
