@@ -3,7 +3,7 @@
 //! This module provides functionality for working with R package dependencies,
 //! including parsing and resolving package requirements from CRAN and Bioconductor.
 
-use crate::dependency::Dependency;
+use crate::dependency::{Dependency, DependencyFamily};
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use r_description::lossy::Relation;
@@ -153,6 +153,8 @@ impl Dependency for RPackageDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<RPackageDependency>("r-package") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for RPackageDependency {

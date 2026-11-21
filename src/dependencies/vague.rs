@@ -12,6 +12,7 @@ use crate::dependencies::python::PythonPackageDependency;
 use crate::dependencies::BinaryDependency;
 use crate::dependencies::Dependency;
 use crate::dependencies::PkgConfigDependency;
+use crate::dependency::DependencyFamily;
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
 
@@ -124,6 +125,8 @@ impl Dependency for VagueDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<VagueDependency>("vague") }
 
 #[cfg(feature = "debian")]
 fn known_vague_dep_to_debian(name: &str) -> Option<&str> {
