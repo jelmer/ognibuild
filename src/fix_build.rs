@@ -25,7 +25,7 @@ pub enum InterimError<O: std::error::Error> {
         /// The return code of the failed command.
         retcode: i32,
         /// The output lines from the command.
-        lines: Vec<String>,
+        lines: Vec<Vec<u8>>,
         /// Optional secondary information about the error.
         secondary: Option<Box<dyn Match>>,
     },
@@ -48,7 +48,7 @@ pub enum IterateBuildError<O> {
         /// The return code of the failed command.
         retcode: i32,
         /// The output lines from the command.
-        lines: Vec<String>,
+        lines: Vec<Vec<u8>>,
         /// Optional secondary information about the error.
         secondary: Option<Box<dyn Match>>,
     },
@@ -73,7 +73,12 @@ impl<O: Display> Display for IterateBuildError<O> {
             } => write!(
                 f,
                 "Unidentified error: retcode: {}, lines: {:?}, secondary: {:?}",
-                retcode, lines, secondary
+                retcode,
+                lines
+                    .iter()
+                    .map(|l| String::from_utf8_lossy(l))
+                    .collect::<Vec<_>>(),
+                secondary
             ),
             IterateBuildError::Other(e) => write!(f, "Other error: {}", e),
         }
@@ -215,7 +220,7 @@ pub fn resolve_error<O: std::error::Error>(
 /// * `env` - Optional environment variables
 ///
 /// # Returns
-/// * `Ok(Vec<String>)` - The output lines if successful
+/// * `Ok(Vec<Vec<u8>>)` - The output lines if successful
 /// * `Err(IterateBuildError)` - If the command fails and can't be fixed
 pub fn run_fixing_problems<
     // The error type that the fixers can return.
@@ -231,8 +236,8 @@ pub fn run_fixing_problems<
     cwd: Option<&std::path::Path>,
     user: Option<&str>,
     env: Option<&std::collections::HashMap<String, String>>,
-) -> Result<Vec<String>, IterateBuildError<E>> {
-    iterate_with_build_fixers::<Vec<String>, I, E>(
+) -> Result<Vec<Vec<u8>>, IterateBuildError<E>> {
+    iterate_with_build_fixers::<Vec<Vec<u8>>, I, E>(
         fixers,
         || {
             crate::analyze::run_detecting_problems(

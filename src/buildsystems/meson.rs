@@ -218,7 +218,7 @@ impl Meson {
         };
 
         let text = ret.concat();
-        Ok(serde_json::from_str(&text).unwrap())
+        Ok(serde_json::from_slice(&text).unwrap())
     }
 
     /// Set up a temporary build directory for introspection of unconfigured projects
@@ -227,7 +227,7 @@ impl Meson {
         session: &dyn Session,
         fixers: Option<&[&dyn BuildFixer<InstallerError>]>,
         args: &[&str],
-    ) -> Result<Vec<String>, InstallerError> {
+    ) -> Result<Vec<Vec<u8>>, InstallerError> {
         let project_dir = self
             .path
             .parent()
@@ -330,7 +330,7 @@ impl BuildSystem for Meson {
             Ok(_) => {}
             Err(AnalyzedError::Unidentified { lines, .. })
                 if lines.contains(
-                    &"ninja: error: unknown target 'dist', did you mean 'dino'?".to_string(),
+                    &b"ninja: error: unknown target 'dist', did you mean 'dino'?".to_vec(),
                 ) =>
             {
                 unimplemented!();
@@ -457,7 +457,7 @@ impl BuildSystem for Meson {
         };
 
         let text = output.concat();
-        let resp: Vec<MesonDependency> = serde_json::from_str(&text).map_err(|e| {
+        let resp: Vec<MesonDependency> = serde_json::from_slice(&text).map_err(|e| {
             InstallerError::Other(format!("Failed to parse scan-dependencies JSON: {}", e))
         })?;
 

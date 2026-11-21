@@ -29,6 +29,7 @@ fn read_cpanfile(
         .unwrap()
         .into_iter()
         .filter_map(move |line| {
+            let line = String::from_utf8_lossy(&line);
             let line = line.trim();
             if !line.is_empty() {
                 Some((category.clone(), PerlModuleDependency::simple(line)))
@@ -313,8 +314,9 @@ impl BuildSystem for DistZilla {
             for entry in lines {
                 ret.push((
                     DependencyCategory::Build,
-                    Box::new(PerlModuleDependency::simple(entry.trim()))
-                        as Box<dyn crate::dependency::Dependency>,
+                    Box::new(PerlModuleDependency::simple(
+                        String::from_utf8_lossy(&entry).trim(),
+                    )) as Box<dyn crate::dependency::Dependency>,
                 ));
             }
         }
@@ -432,7 +434,8 @@ impl BuildSystem for PerlBuildTiny {
             {
                 Err(AnalyzedError::Unidentified { lines, .. })
                     if lines.iter().any(|l| {
-                        l.contains("Can't find dist packages without a MANIFEST file")
+                        String::from_utf8_lossy(l)
+                            .contains("Can't find dist packages without a MANIFEST file")
                     }) =>
                 {
                     session
@@ -443,7 +446,9 @@ impl BuildSystem for PerlBuildTiny {
                         .run_detecting_problems()
                 }
                 Err(AnalyzedError::Unidentified { lines, .. })
-                    if lines.iter().any(|l| l.contains("No such action 'dist'")) =>
+                    if lines
+                        .iter()
+                        .any(|l| String::from_utf8_lossy(l).contains("No such action 'dist'")) =>
                 {
                     unimplemented!("Module::Build::Tiny dist command not supported");
                 }
@@ -531,16 +536,16 @@ impl BuildSystem for PerlBuildTiny {
             if let Some(fixers) = fixers {
                 match cmd.run_fixing_problems::<_, crate::buildsystem::Error>(fixers) {
                     Err(IterateBuildError::Unidentified { lines, .. })
-                        if lines
-                            .iter()
-                            .any(|l| l.contains("No such action 'distmeta'")) =>
+                        if lines.iter().any(|l| {
+                            String::from_utf8_lossy(l).contains("No such action 'distmeta'")
+                        }) =>
                     {
                         // Module::Build::Tiny doesn't have a distmeta action
                         Ok(Vec::new())
                     }
                     Err(IterateBuildError::Unidentified { lines, .. })
                         if lines.iter().any(|l| {
-                            l.contains(
+                            String::from_utf8_lossy(l).contains(
                                 "Do not run distmeta. Install Minilla and `minil install` instead.",
                             )
                         }) =>
