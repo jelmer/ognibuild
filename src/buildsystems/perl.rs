@@ -418,7 +418,7 @@ impl BuildSystem for PerlBuildTiny {
             crate::analyze::run_detecting_problems(
                 session,
                 vec!["minil", "dist"],
-                Some(&|_, _| dc.find_files().is_none()),
+                Some(&|_, _| dc.find_files().is_some()),
                 quiet,
                 None,
                 None,
@@ -583,5 +583,43 @@ impl BuildSystem for PerlBuildTiny {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn test_minilla_dist() {
+        let td = tempfile::tempdir().unwrap();
+        // Nested so that the `..` the dist catcher watches is the tempdir.
+        let tree = td.path().join("tree");
+        std::fs::create_dir_all(tree.join("dist")).unwrap();
+        std::fs::write(tree.join("Build.PL"), b"").unwrap();
+        std::fs::write(tree.join("minil.toml"), b"").unwrap();
+        // A stand-in for minil that only writes the tarball.
+        let bin = td.path().join("bin");
+        std::fs::create_dir(&bin).unwrap();
+        let minil = bin.join("minil");
+        std::fs::write(&minil, b"#!/bin/sh\ntouch Project-1.0.tar.gz\n").unwrap();
+        std::fs::set_permissions(&minil, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // Scope the stand-in to this session's PATH rather than mutating the
+        // process environment, which other test threads read in parallel.
+        let mut session = crate::session::plain::PlainSession::new();
+        session.prepend_path(&bin);
+        session.chdir(&tree).unwrap();
+        let target = tempfile::tempdir().unwrap();
+
+        let result = PerlBuildTiny::new(tree.clone()).dist(
+            &session,
+            &crate::installer::NullInstaller,
+            target.path(),
+            false,
+        );
+
+        assert_eq!(result.unwrap(), "Project-1.0.tar.gz");
+        assert!(target.path().join("Project-1.0.tar.gz").exists());
     }
 }
