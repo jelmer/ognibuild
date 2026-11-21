@@ -1,13 +1,13 @@
-use breezyshim::export::export;
+use breezyshim::error::Error as BrzError;
+use breezyshim::tree::Tree;
 use breezyshim::workingtree::{self, WorkingTree};
 use clap::Parser;
 #[cfg(feature = "debian")]
 use debian_control::Control;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 // These imports are only used in Linux-specific code
-#[cfg(target_os = "linux")]
-use breezyshim::tree::Tree;
 #[cfg(target_os = "linux")]
 use ognibuild::analyze::AnalyzedError;
 #[cfg(target_os = "linux")]
@@ -75,6 +75,51 @@ struct Args {
     include_controldir: bool,
 }
 
+#[derive(Debug)]
+enum ExportError {
+    Brz(BrzError),
+    Io(std::io::Error),
+}
+
+impl From<BrzError> for ExportError {
+    fn from(e: BrzError) -> Self {
+        ExportError::Brz(e)
+    }
+}
+
+impl From<std::io::Error> for ExportError {
+    fn from(e: std::io::Error) -> Self {
+        ExportError::Io(e)
+    }
+}
+
+impl std::fmt::Display for ExportError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExportError::Brz(e) => write!(f, "{}", e),
+            ExportError::Io(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+impl std::error::Error for ExportError {}
+
+fn export_tarball(tree: &dyn Tree, subpath: &Path, target: &Path) -> Result<(), ExportError> {
+    let chunks = tree.archive(
+        "tgz",
+        "dist.tar.gz",
+        Some("dist"),
+        Some(subpath),
+        None,
+        false,
+    )?;
+    let mut f = std::fs::File::create(target)?;
+    for chunk in chunks {
+        f.write_all(&chunk?)?;
+    }
+    Ok(())
+}
+
 pub fn main() -> Result<(), i32> {
     let args = Args::parse();
     env_logger::builder()
@@ -124,7 +169,7 @@ pub fn main() -> Result<(), i32> {
 
     match args.mode {
         Mode::Vcs => {
-            export(&tree, Path::new("dist.tar.gz"), Some(&subpath)).unwrap();
+            export_tarball(&tree, &subpath, Path::new("dist.tar.gz")).unwrap();
             Ok(())
         }
         Mode::Auto | Mode::Buildsystem => {
@@ -164,7 +209,7 @@ pub fn main() -> Result<(), i32> {
                         Err(1)
                     } else {
                         log::info!("No build system detected, falling back to simple export.");
-                        export(&tree, Path::new("dist.tar.gz"), Some(&subpath)).unwrap();
+                        export_tarball(&tree, &subpath, Path::new("dist.tar.gz")).unwrap();
                         Ok(())
                     }
                 }
@@ -174,7 +219,7 @@ pub fn main() -> Result<(), i32> {
                         Err(1)
                     } else {
                         log::info!("Build system does not support dist tarball creation, falling back to simple export.");
-                        export(&tree, Path::new("dist.tar.gz"), Some(&subpath)).unwrap();
+                        export_tarball(&tree, &subpath, Path::new("dist.tar.gz")).unwrap();
                         Ok(())
                     }
                 }
@@ -192,5 +237,48 @@ pub fn main() -> Result<(), i32> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use breezyshim::tree::MutableTree;
+
+    fn tarball_names(path: &Path) -> Vec<String> {
+        let f = std::fs::File::open(path).unwrap();
+        let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(f));
+        archive
+            .entries()
+            .unwrap()
+            .map(|e| e.unwrap().path().unwrap().display().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn test_export_tarball() {
+        let td = tempfile::tempdir().unwrap();
+        let tree = breezyshim::controldir::create_standalone_workingtree(
+            &td.path().join("tree"),
+            &breezyshim::controldir::ControlDirFormat::default(),
+        )
+        .unwrap();
+        tree.mkdir(Path::new("sub")).unwrap();
+        tree.put_file_bytes_non_atomic(Path::new("README"), b"readme")
+            .unwrap();
+        tree.put_file_bytes_non_atomic(Path::new("sub/a.txt"), b"a")
+            .unwrap();
+        tree.add(&[Path::new("README"), Path::new("sub/a.txt")])
+            .unwrap();
+
+        let target = td.path().join("dist.tar.gz");
+        export_tarball(&tree, Path::new(""), &target).unwrap();
+        assert_eq!(
+            tarball_names(&target),
+            vec!["dist/README", "dist/sub/", "dist/sub/a.txt"]
+        );
+
+        export_tarball(&tree, Path::new("sub"), &target).unwrap();
+        assert_eq!(tarball_names(&target), vec!["dist/a.txt"]);
     }
 }
