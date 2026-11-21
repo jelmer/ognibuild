@@ -273,15 +273,15 @@ pub trait IntoDebianDependency: Dependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<DebianDependency>>;
+    ) -> Result<Option<Vec<DebianDependency>>, crate::debian::apt::Error>;
 }
 
 impl IntoDebianDependency for DebianDependency {
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<DebianDependency>> {
-        Some(vec![self.clone()])
+    ) -> Result<Option<Vec<DebianDependency>>, crate::debian::apt::Error> {
+        Ok(Some(vec![self.clone()]))
     }
 }
 
@@ -408,7 +408,7 @@ impl IntoDebianDependency for super::BinaryDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<DebianDependency>> {
+    ) -> Result<Option<Vec<DebianDependency>>, crate::debian::apt::Error> {
         // apt does not ship the version-stamped automake binaries a
         // maintainer-mode rebuild asks for, so look them up unversioned.
         let binary_name =
@@ -423,13 +423,12 @@ impl IntoDebianDependency for super::BinaryDependency {
                 .collect()
         };
         // TODO(jelmer): Check for binaries which use alternatives
-        Some(
-            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), false, false)
-                .unwrap()
+        Ok(Some(
+            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), false, false)?
                 .iter()
                 .map(|p| DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 

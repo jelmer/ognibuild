@@ -163,7 +163,8 @@ impl crate::dependencies::debian::IntoDebianDependency for VcsControlDirectoryAc
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let pkgs = self
             .vcs
             .iter()
@@ -182,11 +183,11 @@ impl crate::dependencies::debian::IntoDebianDependency for VcsControlDirectoryAc
         let rels: Vec<debian_control::lossless::relations::Relations> =
             pkgs.iter().map(|p| p.parse().unwrap()).collect();
 
-        Some(
+        Ok(Some(
             rels.into_iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::from(p))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -357,13 +358,14 @@ impl crate::dependencies::debian::IntoDebianDependency for CargoCrateDependency 
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let path = format!(
             "/usr/share/cargo/registry/{}\\-[0-9]+.*/Cargo\\.toml",
             self.name
         );
 
-        Some(
+        Ok(Some(
             apt.get_packages_for_paths(vec![&path], true, false)
                 .unwrap()
                 .iter()
@@ -378,7 +380,7 @@ impl crate::dependencies::debian::IntoDebianDependency for CargoCrateDependency 
                     }
                 })
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -549,7 +551,8 @@ impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let mut names = apt
             .get_packages_for_paths(
                 [format!(
@@ -581,7 +584,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
         }
 
         if names.is_empty() {
-            return None;
+            return Ok(None);
         }
 
         // A constraint Debian cannot express (`!=`, or a version that is not a
@@ -602,7 +605,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
             converted
         });
 
-        Some(
+        Ok(Some(
             names
                 .into_iter()
                 .map(|name| match &constraint {
@@ -616,7 +619,7 @@ impl crate::dependencies::debian::IntoDebianDependency for PkgConfigDependency {
                     None => crate::dependencies::debian::DebianDependency::simple(&name),
                 })
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -692,14 +695,15 @@ impl crate::dependencies::debian::IntoDebianDependency for PathDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(
             apt.get_packages_for_paths(vec![self.path.to_str().unwrap()], false, false)
                 .unwrap()
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -774,7 +778,8 @@ impl crate::dependencies::debian::IntoDebianDependency for CHeaderDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let mut deps = apt
             .get_packages_for_paths(
                 vec![std::path::Path::new("/usr/include")
@@ -799,13 +804,13 @@ impl crate::dependencies::debian::IntoDebianDependency for CHeaderDependency {
                 .unwrap();
         }
         if deps.is_empty() {
-            return None;
+            return Ok(None);
         }
-        Some(
+        Ok(Some(
             deps.into_iter()
                 .map(|name| crate::dependencies::debian::DebianDependency::simple(&name))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -851,9 +856,10 @@ impl crate::dependencies::debian::IntoDebianDependency for JavaScriptRuntimeDepe
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let paths = vec!["/usr/bin/node", "/usr/bin/duk"];
-        Some(
+        Ok(Some(
             apt.get_packages_for_paths(paths, false, false)
                 .map(|p| {
                     p.iter()
@@ -861,7 +867,7 @@ impl crate::dependencies::debian::IntoDebianDependency for JavaScriptRuntimeDepe
                         .collect()
                 })
                 .unwrap(),
-        )
+        ))
     }
 }
 
@@ -959,8 +965,9 @@ impl crate::dependencies::debian::IntoDebianDependency for ValaPackageDependency
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(
             apt.get_packages_for_paths(
                 vec![&format!(
                     "/usr/share/vala-[.0-9]+/vapi/{}\\.vapi",
@@ -973,7 +980,7 @@ impl crate::dependencies::debian::IntoDebianDependency for ValaPackageDependency
             .iter()
             .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
             .collect(),
-        )
+        ))
     }
 }
 
@@ -1158,7 +1165,8 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyGemDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let names = apt
             .get_packages_for_paths(
                 vec![
@@ -1172,7 +1180,7 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyGemDependency {
             )
             .unwrap();
         if names.is_empty() {
-            return None;
+            return Ok(None);
         }
         // If the version does not translate to a valid Debian version, fall
         // back to an unversioned dependency rather than dropping the packages
@@ -1193,7 +1201,7 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyGemDependency {
             },
             None => None,
         };
-        Some(
+        Ok(Some(
             names
                 .into_iter()
                 .map(|name| {
@@ -1207,7 +1215,7 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyGemDependency {
                     }
                 })
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -1507,8 +1515,9 @@ impl crate::dependencies::debian::IntoDebianDependency for DhAddonDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(
             apt.get_packages_for_paths(
                 vec![&format!(
                     "/usr/share/perl5/Debian/Debhelper/Sequence/{}.pm",
@@ -1521,7 +1530,7 @@ impl crate::dependencies::debian::IntoDebianDependency for DhAddonDependency {
             .iter()
             .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
             .collect(),
-        )
+        ))
     }
 }
 
@@ -1618,20 +1627,21 @@ impl crate::dependencies::debian::IntoDebianDependency for LibraryDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let paths = vec![
             format!("/usr/lib/lib{}.so", &self.library),
             format!("/usr/lib/.*/lib{}.so", regex::escape(&self.library)),
             format!("/usr/lib/lib{}.a", &self.library),
             format!("/usr/lib/.*/lib{}.a", regex::escape(&self.library)),
         ];
-        Some(
+        Ok(Some(
             apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false)
                 .unwrap()
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -1715,18 +1725,19 @@ impl crate::dependencies::debian::IntoDebianDependency for StaticLibraryDependen
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let paths = vec![
             format!("/usr/lib/lib{}.a", &self.library),
             format!("/usr/lib/.*/lib{}.a", regex::escape(&self.library)),
         ];
-        Some(
+        Ok(Some(
             apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false)
                 .unwrap()
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -1792,7 +1803,8 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyFileDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let paths = vec![format!(
             "/usr/lib/ruby/vendor_ruby/{}.rb",
             regex::escape(&self.filename)
@@ -1812,15 +1824,15 @@ impl crate::dependencies::debian::IntoDebianDependency for RubyFileDependency {
         }
 
         if names.is_empty() {
-            return None;
+            return Ok(None);
         }
 
-        Some(
+        Ok(Some(
             names
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -1887,21 +1899,22 @@ impl crate::dependencies::debian::IntoDebianDependency for SprocketsFileDependen
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let path = match self.content_type.as_str() {
             "application/javascript" => format!(
                 "/usr/share/,*/app/assets/javascripts/{}\\.js",
                 regex::escape(&self.name)
             ),
-            _ => return None,
+            _ => return Ok(None),
         };
-        Some(
+        Ok(Some(
             apt.get_packages_for_paths(vec![&path], true, false)
                 .unwrap()
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -1979,18 +1992,19 @@ impl crate::dependencies::debian::IntoDebianDependency for CMakeFileDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let paths = vec![
             format!("/usr/lib/.*/cmake/.*/{}", regex::escape(&self.filename)),
             format!("/usr/share/.*/cmake/{}", regex::escape(&self.filename)),
         ];
-        Some(
+        Ok(Some(
             apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), true, false)
                 .unwrap()
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -2150,7 +2164,8 @@ impl crate::dependencies::debian::IntoDebianDependency for MavenArtifactDependen
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let group_id = self.group_id.replace(".", "/");
         let kind = self.kind.clone().unwrap_or_default().to_string();
         let (path, regex) = if let Some(version) = self.version.as_ref() {
@@ -2181,15 +2196,15 @@ impl crate::dependencies::debian::IntoDebianDependency for MavenArtifactDependen
             .get_packages_for_paths(vec![path.to_str().unwrap()], regex, false)
             .unwrap();
         if names.is_empty() {
-            return None;
+            return Ok(None);
         }
 
-        Some(
+        Ok(Some(
             names
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -2259,10 +2274,11 @@ impl crate::dependencies::debian::IntoDebianDependency for GnomeCommonDependency
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::new(
-            "gnome-common",
-        )])
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(vec![
+            crate::dependencies::debian::DebianDependency::new("gnome-common"),
+        ]))
     }
 }
 
@@ -2318,7 +2334,8 @@ impl crate::dependencies::debian::IntoDebianDependency for QtModuleDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let names = apt
             .get_packages_for_paths(
                 vec![&format!(
@@ -2331,15 +2348,15 @@ impl crate::dependencies::debian::IntoDebianDependency for QtModuleDependency {
             .unwrap();
 
         if names.is_empty() {
-            return None;
+            return Ok(None);
         }
 
-        Some(
+        Ok(Some(
             names
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -2377,7 +2394,8 @@ impl crate::dependencies::debian::IntoDebianDependency for QTDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         QtModuleDependency::new("core").try_into_debian_dependency(apt)
     }
 }
@@ -2418,10 +2436,11 @@ impl crate::dependencies::debian::IntoDebianDependency for X11Dependency {
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::new(
-            "libx11-dev",
-        )])
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(vec![
+            crate::dependencies::debian::DebianDependency::new("libx11-dev"),
+        ]))
     }
 }
 
@@ -2478,10 +2497,11 @@ impl crate::dependencies::debian::IntoDebianDependency for CertificateAuthorityD
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::simple(
-            "ca-certificates",
-        )])
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(vec![
+            crate::dependencies::debian::DebianDependency::simple("ca-certificates"),
+        ]))
     }
 }
 
@@ -2526,10 +2546,11 @@ impl crate::dependencies::debian::IntoDebianDependency for LibtoolDependency {
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(vec![crate::dependencies::debian::DebianDependency::new(
-            "libtool",
-        )])
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(vec![
+            crate::dependencies::debian::DebianDependency::new("libtool"),
+        ]))
     }
 }
 
@@ -2586,7 +2607,8 @@ impl crate::dependencies::debian::IntoDebianDependency for BoostComponentDepende
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let names = apt
             .get_packages_for_paths(
                 vec![&format!(
@@ -2599,15 +2621,15 @@ impl crate::dependencies::debian::IntoDebianDependency for BoostComponentDepende
             .unwrap();
 
         if names.is_empty() {
-            return None;
+            return Ok(None);
         }
 
-        Some(
+        Ok(Some(
             names
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -2658,7 +2680,8 @@ impl crate::dependencies::debian::IntoDebianDependency for KF5ComponentDependenc
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let names = apt
             .get_packages_for_paths(
                 vec![&format!(
@@ -2672,15 +2695,15 @@ impl crate::dependencies::debian::IntoDebianDependency for KF5ComponentDependenc
             .unwrap();
 
         if names.is_empty() {
-            return None;
+            return Ok(None);
         }
 
-        Some(
+        Ok(Some(
             names
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -2801,7 +2824,8 @@ impl crate::dependencies::debian::IntoDebianDependency for IntrospectionTypelibD
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let names = apt
             .get_packages_for_paths(
                 vec![&format!(
@@ -2814,15 +2838,15 @@ impl crate::dependencies::debian::IntoDebianDependency for IntrospectionTypelibD
             .unwrap();
 
         if names.is_empty() {
-            return None;
+            return Ok(None);
         }
 
-        Some(
+        Ok(Some(
             names
                 .iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -2922,7 +2946,7 @@ mod tests {
             ),
         )]);
         assert_eq!(
-            QTDependency.try_into_debian_dependency(&apt),
+            QTDependency.try_into_debian_dependency(&apt).unwrap(),
             Some(vec![DebianDependency::simple("qtbase5-dev")])
         );
     }
