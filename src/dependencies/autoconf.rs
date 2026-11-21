@@ -45,7 +45,7 @@ impl Dependency for AutoconfMacroDependency {
     ///
     /// # Returns
     /// This method is not implemented yet and will panic if called
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
 
@@ -56,7 +56,7 @@ impl Dependency for AutoconfMacroDependency {
     ///
     /// # Returns
     /// This method is not implemented yet and will panic if called
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
 

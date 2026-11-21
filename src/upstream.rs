@@ -154,12 +154,18 @@ mod tests {
             "test"
         }
 
-        fn present(&self, _session: &dyn crate::session::Session) -> bool {
-            false
+        fn present(
+            &self,
+            _session: &dyn crate::session::Session,
+        ) -> Result<bool, crate::dependency::Error> {
+            Ok(false)
         }
 
-        fn project_present(&self, _session: &dyn crate::session::Session) -> bool {
-            false
+        fn project_present(
+            &self,
+            _session: &dyn crate::session::Session,
+        ) -> Result<bool, crate::dependency::Error> {
+            Ok(false)
         }
 
         fn as_any(&self) -> &dyn Any {

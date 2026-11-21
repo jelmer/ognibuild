@@ -112,12 +112,22 @@ impl Dependency for VagueDependency {
         "vague"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        self.expand().iter().any(|d| d.present(session))
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        for d in self.expand() {
+            if d.present(session)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
-    fn project_present(&self, session: &dyn Session) -> bool {
-        self.expand().iter().any(|d| d.project_present(session))
+    fn project_present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        for d in self.expand() {
+            if d.project_present(session)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

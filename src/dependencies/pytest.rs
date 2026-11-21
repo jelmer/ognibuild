@@ -99,7 +99,9 @@ fn pytest_fixture_to_plugin(fixture: &str) -> Option<&str> {
 ///
 /// # Returns
 /// A list of (plugin_name, version) pairs if available
-fn pytest_plugins(session: &dyn Session) -> Option<Vec<(String, String)>> {
+fn pytest_plugins(
+    session: &dyn Session,
+) -> Result<Option<Vec<(String, String)>>, crate::dependency::Error> {
     let output = match session
         .command(vec!["pytest", "--version"])
         .stdout(std::process::Stdio::piped())
@@ -109,16 +111,19 @@ fn pytest_plugins(session: &dyn Session) -> Option<Vec<(String, String)>> {
         Ok(output) => output,
         Err(crate::session::Error::IoError(e)) if e.kind() == std::io::ErrorKind::NotFound => {
             // pytest is not installed
-            return None;
+            return Ok(None);
         }
-        Err(e) => {
-            // Other errors should panic
-            panic!("Failed to run pytest: {:?}", e);
-        }
+        Err(crate::session::Error::MissingBinary { .. }) => return Ok(None),
+        Err(e) => return Err(e.into()),
     };
-    for line in String::from_utf8(output.stdout).unwrap().lines() {
+    let output =
+        String::from_utf8(output.stdout).map_err(|e| crate::dependency::Error::Command {
+            command: "pytest".to_string(),
+            message: e.to_string(),
+        })?;
+    for line in output.lines() {
         if let Some(rest) = line.strip_prefix("plugins: ") {
-            return Some(
+            return Ok(Some(
                 rest.split(',')
                     .map(|s| {
                         let mut parts = s.splitn(2, '=');
@@ -128,10 +133,10 @@ fn pytest_plugins(session: &dyn Session) -> Option<Vec<(String, String)>> {
                         )
                     })
                     .collect(),
-            );
+            ));
         }
     }
-    None
+    Ok(None)
 }
 
 impl Dependency for PytestPluginDependency {
@@ -139,15 +144,15 @@ impl Dependency for PytestPluginDependency {
         "pytest-plugin"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        if let Some(plugins) = pytest_plugins(session) {
-            plugins.iter().any(|(name, _)| name == &self.plugin)
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        if let Some(plugins) = pytest_plugins(session)? {
+            Ok(plugins.iter().any(|(name, _)| name == &self.plugin))
         } else {
-            false
+            Ok(false)
         }
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
 
@@ -333,7 +338,7 @@ mod tests {
         let session = PlainSession::new();
 
         // When pytest is not available, pytest_plugins should return None
-        let result = pytest_plugins(&session);
+        let result = pytest_plugins(&session).unwrap();
         assert!(result.is_none());
     }
 

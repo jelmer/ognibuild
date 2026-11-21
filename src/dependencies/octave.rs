@@ -47,8 +47,8 @@ impl Dependency for OctavePackageDependency {
         "octave-package"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        Ok(session
             .command(vec![
                 "octave",
                 "--eval",
@@ -56,12 +56,11 @@ impl Dependency for OctavePackageDependency {
             ])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
 
