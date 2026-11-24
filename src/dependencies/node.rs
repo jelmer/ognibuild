@@ -48,7 +48,7 @@ impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<super::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<super::debian::DebianDependency>>, crate::debian::apt::Error> {
         let paths = vec![
             format!(
                 "/usr/share/nodejs/.*/node_modules/{}/package\\.json",
@@ -76,19 +76,19 @@ impl crate::dependencies::debian::IntoDebianDependency for NodePackageDependency
                     self.package,
                     e
                 );
-                return None;
+                return Ok(None);
             }
         };
 
         if names.is_empty() {
-            None
+            Ok(None)
         } else {
-            Some(
+            Ok(Some(
                 names
                     .into_iter()
                     .map(|name| super::debian::DebianDependency::new(&name))
                     .collect(),
-            )
+            ))
         }
     }
 }
@@ -161,7 +161,7 @@ impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency 
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<super::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<super::debian::DebianDependency>>, crate::debian::apt::Error> {
         let paths = vec![
             format!(
                 "/usr/share/nodejs/.*/node_modules/{}/package\\.json",
@@ -189,19 +189,19 @@ impl crate::dependencies::debian::IntoDebianDependency for NodeModuleDependency 
                     self.module,
                     e
                 );
-                return None;
+                return Ok(None);
             }
         };
 
         if names.is_empty() {
-            None
+            Ok(None)
         } else {
-            Some(
+            Ok(Some(
                 names
                     .into_iter()
                     .map(|name| super::debian::DebianDependency::new(&name))
                     .collect(),
-            )
+            ))
         }
     }
 }

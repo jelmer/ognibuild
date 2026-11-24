@@ -233,8 +233,9 @@ impl crate::dependencies::debian::IntoDebianDependency for VagueDependency {
     fn try_into_debian_dependency(
         &self,
         apt_mgr: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(resolve_vague_dep_req(apt_mgr, self.clone()))
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(resolve_vague_dep_req(apt_mgr, self.clone())))
     }
 }
 
