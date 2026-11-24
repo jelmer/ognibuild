@@ -427,8 +427,7 @@ impl IntoDebianDependency for super::BinaryDependency {
         };
         // TODO(jelmer): Check for binaries which use alternatives
         Ok(Some(
-            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), false, false)
-                .unwrap()
+            apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), false, false)?
                 .iter()
                 .map(|p| DebianDependency::simple(p.as_str()))
                 .collect(),

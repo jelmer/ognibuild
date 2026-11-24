@@ -339,8 +339,7 @@ mod tests {
         );
 
         log::debug!("get_project_wide_deps completed in {:?}", duration);
-        log::debug!("Build deps: {} items", result.0.len());
-        log::debug!("Test deps: {} items", result.1.len());
+        log::debug!("get_project_wide_deps returned {:?}", result);
     }
 }
 
