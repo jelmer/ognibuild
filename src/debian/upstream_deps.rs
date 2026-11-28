@@ -7,7 +7,7 @@ use crate::session::Session;
 ///
 /// This function will return a tuple of two vectors of `DebianDependency` objects. The first
 /// vector will contain the build dependencies, and the second vector will contain the test
-/// dependencies.
+/// dependencies. It returns the apt error if looking up a Debian package fails.
 ///
 /// # Arguments
 /// * `session` - The session to use for the operation.
@@ -15,7 +15,7 @@ use crate::session::Session;
 pub fn get_project_wide_deps(
     session: &dyn Session,
     buildsystem: &dyn BuildSystem,
-) -> (Vec<DebianDependency>, Vec<DebianDependency>) {
+) -> Result<(Vec<DebianDependency>, Vec<DebianDependency>), crate::debian::apt::Error> {
     let mut build_deps = vec![];
     let mut test_deps = vec![];
 
@@ -71,8 +71,7 @@ pub fn get_project_wide_deps(
                     &apt,
                     dep.as_ref(),
                     tie_breakers.as_slice(),
-                )
-                .unwrap();
+                )?;
                 if apt_dep.is_none() {
                     log::warn!(
                         "Unable to map upstream requirement {:?} (kind {}) to a Debian package",
@@ -92,5 +91,5 @@ pub fn get_project_wide_deps(
             }
         }
     }
-    (build_deps, test_deps)
+    Ok((build_deps, test_deps))
 }

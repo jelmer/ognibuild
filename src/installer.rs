@@ -14,6 +14,9 @@ pub enum Error {
     AnalyzedError(crate::analyze::AnalyzedError),
     /// Error from the session.
     SessionError(crate::session::Error),
+    #[cfg(feature = "debian")]
+    /// Error from apt.
+    AptError(crate::debian::apt::Error),
     /// Other error with a message.
     Other(String),
 }
@@ -26,6 +29,8 @@ impl std::fmt::Display for Error {
             Error::UnsupportedScopes(scopes) => write!(f, "Unsupported scopes: {:?}", scopes),
             Error::AnalyzedError(e) => write!(f, "{}", e),
             Error::SessionError(e) => write!(f, "{}", e),
+            #[cfg(feature = "debian")]
+            Error::AptError(e) => write!(f, "{}", e),
             Error::Other(s) => write!(f, "{}", s),
         }
     }
@@ -42,6 +47,13 @@ impl From<crate::analyze::AnalyzedError> for Error {
 impl From<crate::session::Error> for Error {
     fn from(e: crate::session::Error) -> Self {
         Error::SessionError(e)
+    }
+}
+
+#[cfg(feature = "debian")]
+impl From<crate::debian::apt::Error> for Error {
+    fn from(e: crate::debian::apt::Error) -> Self {
+        Error::AptError(e)
     }
 }
 
