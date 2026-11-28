@@ -94,7 +94,9 @@ impl From<crate::session::Error> for Error {
                 .into()
             }
             crate::session::Error::IoError(e) => e.into(),
-            crate::session::Error::MissingBinary { source, .. } => source.into(),
+            e @ crate::session::Error::MissingBinary { .. } => {
+                std::io::Error::new(std::io::ErrorKind::NotFound, e.to_string()).into()
+            }
             crate::session::Error::SetupFailure(_, _) => unreachable!(),
             crate::session::Error::ImageError(_) => unreachable!(),
         }
@@ -1010,6 +1012,22 @@ mod tests {
             guaranteed_which(&session, &installer, "this-does-not-exist").unwrap_err(),
             InstallerError::UnknownDependencyFamily,
         ));
+    }
+
+    #[test]
+    fn test_missing_binary_keeps_command() {
+        let session = PlainSession::new();
+        let err: Error = session
+            .command(vec!["ognibuild-test-no-such-binary"])
+            .check_call()
+            .unwrap_err()
+            .into();
+        assert!(matches!(&err, Error::IoError(e) if e.kind() == std::io::ErrorKind::NotFound));
+        assert_eq!(
+            err.to_string(),
+            "IO Error: `ognibuild-test-no-such-binary` binary not found in PATH: \
+             No such file or directory (os error 2)"
+        );
     }
 
     #[test]
