@@ -505,7 +505,7 @@ pub fn dependency_to_possible_deb_dependencies(
     macro_rules! try_into_debian_dependency {
         ($apt:expr, $dep:expr, $type:ty) => {
             if let Some(dep) = $dep.as_any().downcast_ref::<$type>() {
-                if let Some(alts) = dep.try_into_debian_dependency($apt) {
+                if let Some(alts) = dep.try_into_debian_dependency($apt).unwrap() {
                     candidates.extend(alts);
                 }
             }

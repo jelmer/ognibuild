@@ -270,18 +270,21 @@ pub fn default_tie_breakers(session: &dyn Session) -> Vec<Box<dyn TieBreaker>> {
 /// Trait for converting a dependency into a DebianDependency.
 pub trait IntoDebianDependency: Dependency {
     /// Convert a dependency into a DebianDependency.
+    ///
+    /// Returns `Ok(None)` or an empty list if there is no Debian dependency
+    /// for it, and an error if the apt lookup fails.
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<DebianDependency>>;
+    ) -> Result<Option<Vec<DebianDependency>>, crate::debian::apt::Error>;
 }
 
 impl IntoDebianDependency for DebianDependency {
     fn try_into_debian_dependency(
         &self,
         _apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<DebianDependency>> {
-        Some(vec![self.clone()])
+    ) -> Result<Option<Vec<DebianDependency>>, crate::debian::apt::Error> {
+        Ok(Some(vec![self.clone()]))
     }
 }
 
@@ -408,7 +411,7 @@ impl IntoDebianDependency for super::BinaryDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<DebianDependency>> {
+    ) -> Result<Option<Vec<DebianDependency>>, crate::debian::apt::Error> {
         // apt does not ship the version-stamped automake binaries a
         // maintainer-mode rebuild asks for, so look them up unversioned.
         let binary_name =
@@ -423,13 +426,13 @@ impl IntoDebianDependency for super::BinaryDependency {
                 .collect()
         };
         // TODO(jelmer): Check for binaries which use alternatives
-        Some(
+        Ok(Some(
             apt.get_packages_for_paths(paths.iter().map(|x| x.as_str()).collect(), false, false)
                 .unwrap()
                 .iter()
                 .map(|p| DebianDependency::simple(p.as_str()))
                 .collect(),
-        )
+        ))
     }
 }
 
