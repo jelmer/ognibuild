@@ -604,20 +604,21 @@ impl crate::buildsystem::BuildSystem for CMake {
         crate::buildsystem::Error,
     > {
         // TODO(jelmer): Find a proper parser for CMakeLists.txt somewhere?
-        use std::io::BufRead;
-        let f = std::fs::File::open(self.path.join("CMakeLists.txt")).unwrap();
+        let contents = std::fs::read(self.path.join("CMakeLists.txt")).unwrap();
         let mut ret: Vec<(DependencyCategory, Box<dyn Dependency>)> = vec![];
-        for line in std::io::BufReader::new(f).lines() {
-            let line = line.unwrap();
-            if let Some((_, m)) = lazy_regex::regex_captures!(
+        for line in contents.split(|b| *b == b'\n') {
+            if let Some((_, m)) = lazy_regex::bytes_regex_captures!(
                 r"cmake_minimum_required\(\s*VERSION\s+(.*)\s*\)",
-                &line
+                line
             ) {
                 ret.push((
                     crate::buildsystem::DependencyCategory::Build,
                     Box::new(crate::dependencies::vague::VagueDependency::new(
                         "CMake",
-                        Some(m),
+                        Some(
+                            std::str::from_utf8(m)
+                                .expect("regex::bytes `.` only matches valid UTF-8 by default"),
+                        ),
                     )),
                 ));
             }
@@ -693,6 +694,31 @@ check:
         std::fs::write(td.path().join("configure.ac"), b"AC_INIT([x],[1])\n").unwrap();
         std::fs::write(td.path().join("Makefile.am"), b"").unwrap();
         assert_eq!(Make::new(td.path()).kind, Kind::Automake);
+    }
+
+    #[test]
+    fn test_cmake_declared_dependencies() {
+        let td = tempfile::tempdir().unwrap();
+        std::fs::write(
+            td.path().join("CMakeLists.txt"),
+            b"# caf\xe9\ncmake_minimum_required(VERSION 3.10)\nproject(foo)\n",
+        )
+        .unwrap();
+        let session = crate::session::plain::PlainSession::new();
+        let deps = CMake::new(td.path())
+            .get_declared_dependencies(&session, None)
+            .unwrap();
+        assert_eq!(deps.len(), 1);
+        assert_eq!(deps[0].0, DependencyCategory::Build);
+        let dep = deps[0]
+            .1
+            .as_any()
+            .downcast_ref::<crate::dependencies::vague::VagueDependency>()
+            .unwrap();
+        assert_eq!(
+            (dep.name.as_str(), dep.minimum_version.as_deref()),
+            ("CMake", Some("3.10"))
+        );
     }
 
     /// configure() is a no-op when a Makefile is already present, so it does not
