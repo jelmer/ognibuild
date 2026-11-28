@@ -86,7 +86,7 @@ impl crate::dependencies::debian::IntoDebianDependency for HaskellPackageDepende
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> Option<Vec<super::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<super::debian::DebianDependency>>, crate::debian::apt::Error> {
         let path = format!(
             "/var/lib/ghc/package\\.conf\\.d/{}\\-.*\\.conf",
             regex::escape(&self.package)
@@ -96,14 +96,14 @@ impl crate::dependencies::debian::IntoDebianDependency for HaskellPackageDepende
             .get_packages_for_paths(vec![path.as_str()], true, false)
             .unwrap();
         if names.is_empty() {
-            None
+            Ok(None)
         } else {
-            Some(
+            Ok(Some(
                 names
                     .into_iter()
                     .map(|name| super::debian::DebianDependency::new(&name))
                     .collect(),
-            )
+            ))
         }
     }
 }
