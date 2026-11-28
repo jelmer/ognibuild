@@ -150,7 +150,7 @@ fn known_vague_dep_to_debian(name: &str) -> Option<&str> {
 fn resolve_vague_dep_req(
     apt_mgr: &crate::debian::apt::AptManager,
     req: VagueDependency,
-) -> Vec<DebianDependency> {
+) -> Result<Vec<DebianDependency>, crate::debian::apt::Error> {
     let name = req.name.as_str();
     let mut options = vec![];
     if name.contains(" or ") {
@@ -161,7 +161,7 @@ fn resolve_vague_dep_req(
                     name: entry.to_string(),
                     minimum_version: req.minimum_version.clone(),
                 },
-            ));
+            )?);
         }
     }
 
@@ -178,14 +178,14 @@ fn resolve_vague_dep_req(
         options.extend(crate::debian::apt::dependency_to_possible_deb_dependencies(
             apt_mgr,
             x.as_ref(),
-        ));
+        )?);
     }
 
     if let Some(rest) = name.strip_prefix("GNU ") {
         options.extend(resolve_vague_dep_req(
             apt_mgr,
             VagueDependency::simple(rest),
-        ));
+        )?);
     }
 
     if name.starts_with("py") || name.ends_with("py") {
@@ -197,7 +197,7 @@ fn resolve_vague_dep_req(
         };
         options.extend(crate::debian::apt::dependency_to_possible_deb_dependencies(
             apt_mgr, &dep,
-        ));
+        )?);
     }
 
     // Try even harder
@@ -218,14 +218,13 @@ fn resolve_vague_dep_req(
                     paths.iter().map(|x| x.to_str().unwrap()).collect(),
                     true,
                     true,
-                )
-                .unwrap()
+                )?
                 .iter()
                 .map(|x| DebianDependency::new(x)),
         )
     }
 
-    options
+    Ok(options)
 }
 
 #[cfg(feature = "debian")]
@@ -233,8 +232,9 @@ impl crate::dependencies::debian::IntoDebianDependency for VagueDependency {
     fn try_into_debian_dependency(
         &self,
         apt_mgr: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
-        Some(resolve_vague_dep_req(apt_mgr, self.clone()))
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
+        Ok(Some(resolve_vague_dep_req(apt_mgr, self.clone())?))
     }
 }
 
