@@ -239,7 +239,7 @@ impl BuildSystem for DistZilla {
                 .quiet(quiet)
                 .run_detecting_problems()?;
         }
-        Ok(dc.copy_single(target_directory).unwrap().unwrap())
+        Ok(dc.copy_single(target_directory)?.unwrap())
     }
 
     fn test(
@@ -450,7 +450,7 @@ impl BuildSystem for PerlBuildTiny {
                 other => other,
             }?;
         }
-        Ok(dc.copy_single(target_directory).unwrap().unwrap())
+        Ok(dc.copy_single(target_directory)?.unwrap())
     }
 
     fn test(

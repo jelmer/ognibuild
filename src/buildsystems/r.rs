@@ -85,7 +85,7 @@ impl BuildSystem for R {
         session
             .command(vec![r_path.to_str().unwrap(), "CMD", "build", "."])
             .run_detecting_problems()?;
-        Ok(dc.copy_single(target_directory).unwrap().unwrap())
+        Ok(dc.copy_single(target_directory)?.unwrap())
     }
 
     fn test(
