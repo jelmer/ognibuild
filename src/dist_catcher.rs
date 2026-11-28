@@ -42,7 +42,7 @@ impl DistCatcher {
         Self {
             directories: directories
                 .iter()
-                .map(|d| d.canonicalize().unwrap())
+                .map(|d| d.canonicalize().unwrap_or_else(|_| d.clone()))
                 .collect(),
             files: std::sync::Mutex::new(Vec::new()),
             start_time: std::time::SystemTime::now(),
@@ -68,9 +68,11 @@ impl DistCatcher {
                 .iter()
                 .map(|d| {
                     let mut map = HashMap::new();
-                    for entry in d.read_dir().unwrap() {
-                        let entry = entry.unwrap();
-                        map.insert(entry.path(), entry);
+                    if let Ok(entries) = d.read_dir() {
+                        for entry in entries {
+                            let entry = entry.unwrap();
+                            map.insert(entry.path(), entry);
+                        }
                     }
                     (d.clone(), map)
                 })
@@ -246,6 +248,31 @@ mod tests {
         let copied = catcher.copy_single(target.path()).unwrap();
         assert_eq!(copied, Some(OsString::from("project-1.0.tar.gz")));
         assert!(target.path().join("project-1.0.tar.gz").exists());
+    }
+
+    #[test]
+    fn test_default_does_not_panic_without_a_dist_directory() {
+        let td = tempfile::tempdir().unwrap();
+        // Nested so that the `..` the default watches is the tempdir, not TMPDIR.
+        let tree = td.path().join("tree");
+        std::fs::create_dir(&tree).unwrap();
+        let mut catcher = DistCatcher::default(&tree);
+        catcher.start();
+
+        assert_eq!(catcher.find_files(), None);
+    }
+
+    #[test]
+    fn test_catches_tarball_in_a_directory_created_by_the_build() {
+        let td = tempfile::tempdir().unwrap();
+        let dist = td.path().join("dist");
+        let mut catcher = DistCatcher::new(vec![dist.clone()]);
+        catcher.start();
+        std::fs::create_dir(&dist).unwrap();
+        let tarball = dist.join("project-1.0.tar.gz");
+        touch(&tarball);
+
+        assert_eq!(catcher.find_files(), Some(tarball));
     }
 
     #[test]
