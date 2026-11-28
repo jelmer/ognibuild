@@ -36,17 +36,16 @@ impl Dependency for PhpClassDependency {
         "php-class"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        Ok(session
             .command(vec!["php", "-r", &format!("new {}", self.php_class)])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -238,22 +237,36 @@ impl Dependency for PhpPackageDependency {
         "php-package"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
 
-    fn project_present(&self, session: &dyn Session) -> bool {
+    fn project_present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         // Run `composer show` and check the output
         let output = session
             .command(vec!["composer", "show", "--format=json"])
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .output()
-            .unwrap();
+            .stderr(std::process::Stdio::piped())
+            .output()?;
+        if !output.status.success() {
+            return Err(crate::dependency::Error::Command {
+                command: "composer".to_string(),
+                message: format!(
+                    "{}: {}",
+                    output.status,
+                    String::from_utf8_lossy(&output.stderr).trim()
+                ),
+            });
+        }
 
-        let packages: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        let packages: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|e| {
+            crate::dependency::Error::Command {
+                command: "composer".to_string(),
+                message: e.to_string(),
+            }
+        })?;
         let packages = packages["installed"].as_array().unwrap();
-        packages.iter().any(|package| {
+        Ok(packages.iter().any(|package| {
             package["name"] == self.package
                 && (self.min_version.is_none()
                     || package["version"]
@@ -279,7 +292,7 @@ impl Dependency for PhpPackageDependency {
                             .unwrap()
                             .parse::<semver::Version>()
                             .unwrap())
-        })
+        }))
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -316,23 +329,25 @@ impl Dependency for PhpExtensionDependency {
         "php-extension"
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         // Grep the output of php -m
         let output = session
             .command(vec!["php", "-m"])
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
-            .output()
-            .unwrap()
+            .output()?
             .stdout;
-        String::from_utf8(output)
-            .unwrap()
+        Ok(String::from_utf8(output)
+            .map_err(|e| crate::dependency::Error::Command {
+                command: "php".to_string(),
+                message: e.to_string(),
+            })?
             .lines()
-            .any(|line| line == self.extension)
+            .any(|line| line == self.extension))
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self

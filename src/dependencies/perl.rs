@@ -61,7 +61,7 @@ impl Dependency for PerlModuleDependency {
         "perl-module"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         let mut cmd = vec!["perl".to_string(), "-M".to_string(), self.module.clone()];
         if let Some(filename) = &self.filename {
             cmd.push(filename.to_string());
@@ -72,16 +72,15 @@ impl Dependency for PerlModuleDependency {
         }
         cmd.push("-e".to_string());
         cmd.push("1".to_string());
-        session
+        Ok(session
             .command(cmd.iter().map(|s| s.as_str()).collect())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -157,7 +156,7 @@ impl Dependency for PerlPreDeclaredDependency {
         "perl-predeclared"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         if let Some(module) = known_predeclared_module(&self.name) {
             PerlModuleDependency::simple(module).present(session)
         } else {
@@ -165,7 +164,7 @@ impl Dependency for PerlPreDeclaredDependency {
         }
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -229,18 +228,17 @@ impl Dependency for PerlFileDependency {
         "perl-file"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        Ok(session
             .command(vec!["perl", "-e", &format!("require '{}'", self.filename)])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        Ok(false)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self

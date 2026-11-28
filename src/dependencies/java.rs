@@ -22,11 +22,11 @@ impl Dependency for JavaClassDependency {
         "java-class"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -87,18 +87,17 @@ impl Dependency for JDKDependency {
         "jdk"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        Ok(session
             .command(vec!["javac", "-version"])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        Ok(false)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -132,18 +131,17 @@ impl Dependency for JREDependency {
         "jre"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
-        session
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        Ok(session
             .command(vec!["java", "-version"])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        Ok(false)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -195,12 +193,12 @@ impl Dependency for JDKFileDependency {
         "jdk-file"
     }
 
-    fn present(&self, _session: &dyn Session) -> bool {
-        self.path().exists()
+    fn present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        Ok(self.path().exists())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        Ok(false)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self

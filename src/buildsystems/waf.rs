@@ -42,7 +42,7 @@ impl Waf {
     /// Ok on success, Error otherwise
     fn setup(&self, session: &dyn Session, installer: &dyn Installer) -> Result<(), Error> {
         let binary_req = crate::dependencies::BinaryDependency::new("python3");
-        if !binary_req.present(session) {
+        if !binary_req.present(session)? {
             installer.install(&binary_req, InstallationScope::Global)?;
         }
         Ok(())

@@ -24,18 +24,17 @@ impl Dependency for NodePackageDependency {
         "npm-package"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         // npm list -g package-name --depth=0 >/dev/null 2>&1
-        session
+        Ok(session
             .command(vec!["npm", "list", "-g", &self.package, "--depth=0"])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -130,9 +129,9 @@ impl Dependency for NodeModuleDependency {
         "node-module"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         // node -e 'try { require.resolve("express"); process.exit(0); } catch(e) { process.exit(1); }'
-        session
+        Ok(session
             .command(vec![
                 "node",
                 "-e",
@@ -143,12 +142,11 @@ impl Dependency for NodeModuleDependency {
             ])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .run()
-            .unwrap()
-            .success()
+            .run()?
+            .success())
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         todo!()
     }
     fn as_any(&self) -> &dyn std::any::Any {

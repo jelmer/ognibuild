@@ -168,24 +168,38 @@ impl DebianDependency {
 /// Get the version of a package installed on the system.
 ///
 /// Returns `None` if the package is not installed.
-fn get_package_version(session: &dyn Session, package: &str) -> Option<debversion::Version> {
+fn get_package_version(
+    session: &dyn Session,
+    package: &str,
+) -> Result<Option<debversion::Version>, crate::dependency::Error> {
     let argv = vec!["dpkg-query", "-W", "-f=${Version}\n", package];
     let output = session
         .command(argv)
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .output()
-        .unwrap();
+        .stderr(std::process::Stdio::piped())
+        .output()?;
+    let error = |message: String| crate::dependency::Error::Command {
+        command: "dpkg-query".to_string(),
+        message,
+    };
     match output.status.code() {
         Some(0) => {
-            let output = String::from_utf8(output.stdout).unwrap();
-            if output.trim().is_empty() {
-                return None;
+            let output = String::from_utf8_lossy(&output.stdout);
+            let version = output.trim();
+            if version.is_empty() {
+                return Ok(None);
             }
-            Some(output.trim().parse().unwrap())
+            version
+                .parse()
+                .map(Some)
+                .map_err(|e| error(format!("cannot parse version {:?}: {}", version, e)))
         }
-        Some(1) => None,
-        _ => panic!("Failed to run dpkg-query"),
+        Some(1) => Ok(None),
+        _ => Err(error(format!(
+            "{}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))),
     }
 }
 
@@ -194,15 +208,15 @@ impl Dependency for DebianDependency {
         "debian"
     }
 
-    fn present(&self, session: &dyn Session) -> bool {
+    fn present(&self, session: &dyn Session) -> Result<bool, crate::dependency::Error> {
         use std::collections::HashMap;
         let mut versions = HashMap::new();
         for name in self.package_names() {
-            if let Some(version) = get_package_version(session, &name) {
+            if let Some(version) = get_package_version(session, &name)? {
                 versions.insert(name, version);
             } else {
                 // Package not found
-                return false;
+                return Ok(false);
             }
         }
 
@@ -212,11 +226,11 @@ impl Dependency for DebianDependency {
         } else {
             log::debug!("Dependency satisfied: {:?}", self);
         }
-        result
+        Ok(result)
     }
 
-    fn project_present(&self, _session: &dyn Session) -> bool {
-        false
+    fn project_present(&self, _session: &dyn Session) -> Result<bool, crate::dependency::Error> {
+        Ok(false)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -553,5 +567,18 @@ mod tests {
         versions.insert("libssl-dev".to_string(), "1.2".parse().unwrap());
         versions.insert("libssl1.1".to_string(), "1.0".parse().unwrap());
         assert!(!dep.satisfied_by(&versions));
+    }
+
+    #[test]
+    fn test_get_package_version() {
+        let session = crate::session::plain::PlainSession::new();
+        assert!(get_package_version(&session, "dpkg").unwrap().is_some());
+        assert!(get_package_version(&session, "no-such-package-x")
+            .unwrap()
+            .is_none());
+        assert!(matches!(
+            get_package_version(&session, "--no-such-option"),
+            Err(crate::dependency::Error::Command { command, .. }) if command == "dpkg-query"
+        ));
     }
 }
