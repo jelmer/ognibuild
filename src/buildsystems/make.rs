@@ -40,6 +40,15 @@ pub struct Make {
     kind: Kind,
 }
 
+/// The qmake to run: Qt 6's `qmake6` when the session has it, else `qmake`.
+pub(crate) fn qmake(session: &dyn Session) -> &'static str {
+    if crate::session::which(session, "qmake6").is_some() {
+        "qmake6"
+    } else {
+        "qmake"
+    }
+}
+
 /// Check if a Makefile exists in the current directory.
 fn makefile_exists(session: &dyn Session) -> bool {
     session.exists(Path::new("Makefile"))
@@ -163,7 +172,7 @@ impl Make {
                 .any(|n| n.file_name().to_str().unwrap().ends_with(".pro"))
         {
             session
-                .command(vec!["qmake"])
+                .command(vec![qmake(session)])
                 .cwd(&sdir)
                 .run_detecting_problems()?;
         }
