@@ -178,11 +178,12 @@ impl crate::dependencies::debian::IntoDebianDependency for PerlPreDeclaredDepend
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         if let Some(module) = known_predeclared_module(&self.name) {
             PerlModuleDependency::simple(module).try_into_debian_dependency(apt)
         } else {
-            None
+            Ok(None)
         }
     }
 }
@@ -401,7 +402,8 @@ impl crate::dependencies::debian::IntoDebianDependency for PerlModuleDependency 
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         use std::path::Path;
 
         let (regex, paths) = if let (Some(inc), Some(filename)) =
@@ -444,12 +446,12 @@ impl crate::dependencies::debian::IntoDebianDependency for PerlModuleDependency 
             )
             .unwrap();
 
-        Some(
+        Ok(Some(
             packages
                 .into_iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(&p))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -458,17 +460,18 @@ impl crate::dependencies::debian::IntoDebianDependency for PerlFileDependency {
     fn try_into_debian_dependency(
         &self,
         apt: &crate::debian::apt::AptManager,
-    ) -> std::option::Option<std::vec::Vec<crate::dependencies::debian::DebianDependency>> {
+    ) -> Result<Option<Vec<crate::dependencies::debian::DebianDependency>>, crate::debian::apt::Error>
+    {
         let packages = apt
             .get_packages_for_paths(vec![&self.filename], false, false)
             .unwrap();
 
-        Some(
+        Ok(Some(
             packages
                 .into_iter()
                 .map(|p| crate::dependencies::debian::DebianDependency::simple(&p))
                 .collect(),
-        )
+        ))
     }
 }
 
