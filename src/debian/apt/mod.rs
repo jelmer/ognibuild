@@ -458,7 +458,7 @@ pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Res
 ///
 /// # Returns
 /// The best dependency, or None if no candidates are available
-fn pick_best_deb_dependency(
+pub fn pick_best_deb_dependency(
     mut dependencies: Vec<DebianDependency>,
     tie_breakers: &[Box<dyn TieBreaker>],
 ) -> Option<DebianDependency> {

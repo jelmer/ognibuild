@@ -1,4 +1,4 @@
-use crate::dependency::Dependency;
+use crate::dependency::{Dependency, DependencyFamily};
 use crate::installer::{Error, Explanation, InstallationScope, Installer};
 use crate::session::Session;
 use serde::{Deserialize, Serialize};
@@ -158,6 +158,8 @@ impl Dependency for GoPackageDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<GoPackageDependency>("go-package") }
 
 #[cfg(feature = "debian")]
 impl crate::dependencies::debian::IntoDebianDependency for GoPackageDependency {
@@ -339,6 +341,8 @@ impl Dependency for GoDependency {
         self
     }
 }
+
+inventory::submit! { DependencyFamily::new::<GoDependency>("go") }
 
 #[cfg(feature = "upstream")]
 impl crate::upstream::FindUpstream for GoPackageDependency {
