@@ -87,7 +87,10 @@ impl Gradle {
         {
             Err(crate::analyze::AnalyzedError::Unidentified { lines, .. })
                 if lines.iter().any(|l| {
-                    lazy_regex::regex_is_match!(r"Task '(.*)' not found in root project '.*'\.", l)
+                    lazy_regex::bytes_regex_is_match!(
+                        r"Task '(.*)' not found in root project '.*'\.",
+                        l
+                    )
                 }) =>
             {
                 unimplemented!("Task not found");

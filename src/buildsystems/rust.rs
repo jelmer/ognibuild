@@ -218,10 +218,10 @@ impl BuildSystem for Cargo {
             Ok(_) => {}
             Err(AnalyzedError::Unidentified { lines, .. })
                 if matches!(
-                    lines.first().map(String::as_str),
+                    lines.first().map(Vec::as_slice),
                     Some(
-                        "error: no such subcommand: `generate`"
-                            | "error: no such command: `generate`"
+                        b"error: no such subcommand: `generate`"
+                            | b"error: no such command: `generate`"
                     )
                 ) => {}
             Err(e) => return Err(e.into()),

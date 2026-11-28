@@ -99,7 +99,7 @@ pub enum IterateBuildError {
         /// The return code of the failed command
         retcode: i32,
         /// The output lines from the command
-        lines: Vec<String>,
+        lines: Vec<Vec<u8>>,
         /// Optional secondary information about the error
         secondary: Option<Box<dyn Match>>,
         /// The build phase in which the error occurred
@@ -195,7 +195,7 @@ pub fn build_incrementally(
                         .map(|m| {
                             m.lines()
                                 .iter()
-                                .map(|l| l.trim_end_matches('\n').to_string())
+                                .map(|l| l.trim_end_matches('\n').as_bytes().to_vec())
                                 .collect()
                         })
                         .unwrap_or_default(),
@@ -252,7 +252,13 @@ pub fn build_incrementally(
                         lines,
                         secondary,
                     }) => {
-                        log::warn!("Recognized error but unable to resolve: {:?}", lines);
+                        log::warn!(
+                            "Recognized error but unable to resolve: {:?}",
+                            lines
+                                .iter()
+                                .map(|l| String::from_utf8_lossy(l))
+                                .collect::<Vec<_>>()
+                        );
                         return Err(IterateBuildError::Unidentified {
                             phase: Some(phase),
                             retcode,
@@ -317,7 +323,7 @@ mod tests {
         );
         match result {
             Err(IterateBuildError::Unidentified { lines, .. }) => {
-                assert_eq!(lines, vec!["make: *** [all] Error 1"]);
+                assert_eq!(lines, vec![b"make: *** [all] Error 1"]);
             }
             other => panic!("unexpected result: {:?}", other.err()),
         }

@@ -179,7 +179,13 @@ pub fn main() -> Result<(), i32> {
                     }
                 }
                 Err(Error::Error(AnalyzedError::Unidentified { lines, .. })) => {
-                    log::error!("Unidentified error: {:?}", lines);
+                    log::error!(
+                        "Unidentified error: {:?}",
+                        lines
+                            .iter()
+                            .map(|l| String::from_utf8_lossy(l))
+                            .collect::<Vec<_>>()
+                    );
                     Err(1)
                 }
                 Err(Error::Error(AnalyzedError::Detailed { error, .. })) => {

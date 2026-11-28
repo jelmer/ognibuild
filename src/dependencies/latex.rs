@@ -124,7 +124,7 @@ impl<'a> Installer for TlmgrResolver<'a> {
                 secondary,
             }) => {
                 if lines.contains(
-                    &"tlmgr: user mode not initialized, please read the documentation!".to_string(),
+                    &b"tlmgr: user mode not initialized, please read the documentation!".to_vec(),
                 ) {
                     self.session
                         .command(vec!["tlmgr", "init-usertree"])

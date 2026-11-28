@@ -27,7 +27,7 @@ pub enum Error {
         /// The command-line arguments passed to apt.
         args: Vec<String>,
         /// The output lines from apt.
-        lines: Vec<String>,
+        lines: Vec<Vec<u8>>,
         /// Secondary match information from buildlog-consultant.
         secondary: Option<Box<dyn buildlog_consultant::Match>>,
     },
@@ -60,7 +60,7 @@ impl std::fmt::Debug for Error {
                     "Unidentified error: apt failed with retcode {}: {:?}\n{}",
                     retcode,
                     args,
-                    lines.join("\n")
+                    String::from_utf8_lossy(&lines.join(&b'\n'))
                 )
             }
             Error::Detailed {
@@ -108,7 +108,7 @@ impl std::fmt::Display for Error {
                     "apt failed with retcode {}: {:?}\n{}",
                     retcode,
                     args,
-                    lines.join("\n")
+                    String::from_utf8_lossy(&lines.join(&b'\n'))
                 )
             }
             Error::Detailed {
@@ -426,8 +426,12 @@ pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Res
     if status.success() {
         return Ok(());
     }
+    let text = lines
+        .iter()
+        .map(|s| String::from_utf8_lossy(s))
+        .collect::<Vec<_>>();
     let (r#match, error) = buildlog_consultant::apt::find_apt_get_failure(
-        &lines.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+        &text.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
     )
     .map_or((None, None), |f| (Some(f.r#match), f.problem));
     if let Some(error) = error {
@@ -437,7 +441,10 @@ pub fn run_apt(session: &dyn Session, args: Vec<&str>, prefix: Vec<&str>) -> Res
             error: Some(error),
         });
     }
-    while lines.last().map_or(false, |line| line.trim().is_empty()) {
+    while lines
+        .last()
+        .map_or(false, |line| line.trim_ascii().is_empty())
+    {
         lines.pop();
     }
     return Err(Error::Unidentified {

@@ -40,7 +40,7 @@ impl Cabal {
         match session.command(args.clone()).run_detecting_problems() {
             Ok(ls) => Ok(ls),
             Err(crate::analyze::AnalyzedError::Unidentified { lines, .. })
-                if lines.contains(&"Run the 'configure' command first.".to_string()) =>
+                if lines.contains(&b"Run the 'configure' command first.".to_vec()) =>
             {
                 session
                     .command(vec!["runhaskell", "Setup.hs", "configure"])
